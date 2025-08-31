@@ -1,0 +1,8 @@
+# Mamba/Conda environment specification for 'simple_rl'
+# Edit me to add your project's dependencies!
+name: simple_rl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
