@@ -16,7 +16,7 @@ from multiprocessing import Pool, cpu_count
 # --- Use relative imports ---
 # Use try-except for robustness
 try:
-    from game_rng import GameRNG  # Import GameRNG
+    from utils.game_rng import GameRNG  # Import GameRNG
 
     from .simulation import (
         GRID_SIZE,  # Relative import for use with -m
@@ -36,7 +36,7 @@ except ImportError:
     )
     # Fallback for direct execution (less ideal)
     try:
-        from game_rng import GameRNG  # Adjust path if needed
+        from utils.game_rng import GameRNG  # Adjust path if needed
 
         from simulation import (
             GRID_SIZE,

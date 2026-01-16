@@ -16,7 +16,7 @@ from scipy.spatial import KDTree
 # Import GameRNG using relative path (assuming main.py is in parent dir)
 try:
     # Adjust path relative to main.py's location
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     # Fallback for running core.py directly for tests (requires PYTHONPATH)
     print(
@@ -25,7 +25,7 @@ except ImportError:
     )
     # Attempt absolute import for direct execution scenario
     try:
-        from game_rng import GameRNG  # type: ignore # noqa
+        from utils.game_rng import GameRNG  # type: ignore # noqa
     except ImportError:
         print("FATAL: GameRNG not found via absolute path either.")
         raise

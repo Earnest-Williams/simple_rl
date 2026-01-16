@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 
 from game.constants import FeatureType, FlowType, MAX_FLOWS
-from game_rng import GameRNG
+from utils.game_rng import GameRNG
 from pathfinding.perception_systems import (
     BASE_FLOW_CENTER,
     NOISE_MAX_DIST,

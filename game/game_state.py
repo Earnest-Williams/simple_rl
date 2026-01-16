@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Literal, Set, Tuple
 
 import structlog
 import heapq
-from game_rng import GameRNG  # Assuming this path is correct
+from utils.game_rng import GameRNG  # Assuming this path is correct
 
 from game.entities.registry import EntityRegistry
 from game.entities.components import Position

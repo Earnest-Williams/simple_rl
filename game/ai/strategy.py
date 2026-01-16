@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
     from polars import series
     from game.game_state import GameState
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 
 log = structlog.get_logger()
 

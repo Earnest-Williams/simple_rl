@@ -36,7 +36,7 @@ try:
     import dungeon_generator
 
     # Import GameRNG
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError as e:
     print(f"Failed to import project modules or GameRNG: {e}", file=sys.stderr)
     # Define dummies if needed for basic script parsing, but execution will fail

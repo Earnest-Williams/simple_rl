@@ -16,7 +16,7 @@ from numba import njit
 # Import GameRNG using relative path
 try:
     # Adjust path relative to main.py's location
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     # Fallback for running shaper.py directly for tests (requires PYTHONPATH)
     print(
@@ -24,7 +24,7 @@ except ImportError:
         "or run via main.py."
     )
     try:
-        from game_rng import GameRNG  # type: ignore # noqa
+        from utils.game_rng import GameRNG  # type: ignore # noqa
     except ImportError:
         print("FATAL: GameRNG not found via absolute path either.")
         raise
