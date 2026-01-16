@@ -8,7 +8,7 @@ import structlog
 import polars as pl
 
 # Imports for type hinting and GameRNG
-from game_rng import GameRNG
+from utils.game_rng import GameRNG
 from ..world import line_of_sight
 from ..systems.death_system import handle_entity_death
 from magic.models import Art, Substance

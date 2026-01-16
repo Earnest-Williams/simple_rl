@@ -48,7 +48,7 @@ except ImportError as exc:
     raise RuntimeError("Failed to import GameState or GameMap in renderer") from exc
 
 try:
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError as exc:
     raise RuntimeError("Failed to import GameRNG in renderer") from exc
 

@@ -1,5 +1,5 @@
 import pytest
-from game_rng import GameRNG
+from utils.game_rng import GameRNG
 from utils.helpers import roll_dice
 
 

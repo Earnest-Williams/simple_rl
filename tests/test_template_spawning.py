@@ -3,7 +3,7 @@ from game.world.game_map import GameMap, TILE_ID_FLOOR
 from game.game_state import GameState
 import sys
 import types
-from game_rng import GameRNG
+from utils.game_rng import GameRNG
 
 # Provide a minimal game.systems.ai_system module for tests
 ai_module = types.ModuleType("game.systems.ai_system")

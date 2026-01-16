@@ -12,8 +12,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 # Import the new dungeon_generator module
 import dungeon_generator  # Import the new module
-from game_rng import GameRNG  # Import GameRNG from game_rng.py
-from game_rng import MetricsCollector
+from utils.game_rng import GameRNG  # Import GameRNG from game_rng.py
+from utils.game_rng import MetricsCollector
 from scripting_engine import MacroManager  # Import MacroManager from our new module
 
 # --- Configuration Constants ---

@@ -15,7 +15,7 @@ import polars as pl  # Needed for potential final map check/info
 # Use try-except for robustness if structure changes or run differently
 try:
     from Dungeon import core, processor, shaper
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError as e:
     print(
         f"Import Error: {e}. Please ensure the script is run from the project root "

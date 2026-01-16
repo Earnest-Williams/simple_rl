@@ -8,7 +8,7 @@ import structlog
 log = structlog.get_logger(__name__)
 
 try:
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except Exception as e:  # pragma: no cover - critical import failure
     log.critical("GameRNG type could not be imported", error=str(e))
     raise

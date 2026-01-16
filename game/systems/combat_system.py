@@ -14,7 +14,7 @@ from game.effects.handlers import apply_status
 from game.systems.death_system import handle_entity_death
 
 if TYPE_CHECKING:
-    from game_rng import GameRNG  # Assuming this is importable for type hint
+    from utils.game_rng import GameRNG  # Assuming this is importable for type hint
 
     from game.entities.registry import EntityRegistry
     from game.game_state import GameState

@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 
 # --- Use relative imports for project modules ---
 try:
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     print("Warning: Could not import GameRNG. Using dummy.", file=sys.stderr)
 

@@ -33,7 +33,7 @@ except ImportError:
         )
 
 try:
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     try:
         from basicrl.game_rng import GameRNG
