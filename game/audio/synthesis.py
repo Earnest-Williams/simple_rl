@@ -17,9 +17,11 @@ from pathlib import Path
 import math
 import tempfile
 import wave
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, Optional
 
 import numpy as np
+
+from utils.game_rng import GameRNG
 
 SAMPLE_RATE = 44100  # Hz
 
@@ -39,13 +41,16 @@ def _write_wave(data: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Path:
     return Path(tmp.name)
 
 
-def generate_footstep(duration: float = 0.2, frequency: float = 150.0) -> Path:
+def generate_footstep(duration: float = 0.2, frequency: float = 150.0, rng: Optional[GameRNG] = None) -> Path:
     """Generate a simple footstep sound.
 
     The sound is modelled as filtered noise with an exponential decay.
     """
+    if rng is None:
+        rng = GameRNG()
     t = np.linspace(0, duration, int(SAMPLE_RATE * duration), False)
-    noise = np.random.normal(0.0, 1.0, t.shape)
+    # Generate noise using game_rng
+    noise = np.array([rng.get_float(-1.0, 1.0) for _ in range(len(t))])
     envelope = np.exp(-t * 20.0)
     waveform = np.sin(2 * math.pi * frequency * t) * envelope * 0.3 + noise * 0.2
     return _write_wave(waveform)
@@ -66,7 +71,7 @@ GENERATORS: Dict[str, Callable[..., Path]] = {
 }
 
 
-def generate_sound(generator: str, settings: Dict[str, Any]) -> Path:
+def generate_sound(generator: str, settings: Dict[str, Any], rng: Optional[GameRNG] = None) -> Path:
     """Generate a procedural sound using the named generator.
 
     Parameters
@@ -75,8 +80,11 @@ def generate_sound(generator: str, settings: Dict[str, Any]) -> Path:
         Name of the generator function to use.
     settings:
         Parameters passed to the generator.
+    rng:
+        Optional GameRNG instance for deterministic random generation.
     """
     func = GENERATORS.get(generator)
     if not func:
         raise ValueError(f"Unknown sound generator: {generator}")
-    return func(**settings)
+    # Pass rng to the generator function if it supports it
+    return func(**settings, rng=rng)
