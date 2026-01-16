@@ -1,0 +1,72 @@
+# config/config.yaml
+# Main configuration file for the basic roguelike
+
+# -- Display & Tileset --
+initial_tileset_folder: "fonts/classic_roguelike_sliced_svgs" # Path relative to project root
+initial_tile_width: 16
+initial_tile_height: 16
+minimum_tile_size: 4 # Smallest allowed tile size during runtime changes
+scroll_scale_debounce_ms: 200 # Delay for applying zoom changes
+
+# -- Map Dimensions --
+map_width: 80
+map_height: 50
+
+# -- Procedural Generation --
+# Seed for dungeon generation (integer or null for random based on time)
+dungeon_seed: null
+procgen:
+  regions:
+    dungeon: bsp    # Classic rooms-and-corridors
+    caverns: cellular  # Cellular automata caves
+    surface: prefab   # Prefab-based surface structures
+
+# -- Player Settings --
+player_glyph: 113 # User specified
+player_start_hp: 30
+# CORRECTED value to 4 per user instruction.
+player_fov_radius: 4
+
+# -- Engine Settings --
+resize_debounce_ms: 100 # Delay for redrawing after window resize
+enable_sound: true
+enable_ai: true
+
+# -- Lighting Parameters (NEW) --
+lighting:
+  ambient_level: 0.15     # Base light level for explored, non-visible tiles (0.0 to 1.0)
+  min_fov_level: 0.25     # Minimum light level for tiles just inside FOV radius (0.0 to 1.0)
+  falloff_power: 1.5      # Controls how quickly light dims with distance (higher = faster falloff)
+  colored_lights: true    # Enable colored light rendering
+
+# -- Memory Fade Parameters --
+memory_fade:
+  enabled: true         # Enable fading of remembered tiles
+  duration: 60.0        # Time for tiles to fully fade (in turns)
+  midpoint: 30.0        # Midpoint of the fade curve
+  steepness: 0.1        # Steepness of the sigmoid fade
+  tile_modifiers:       # Per-tile memory persistence multipliers
+    floor: 1.0
+    wall: 2.0
+
+# -- Height Visualization --
+height_visualization:
+  enabled_by_default: false
+  max_relative_difference: 10 # +/- 5 meters (at 0.5m per unit)
+  color_high: [255, 255, 0]   # Yellowish (RGB)
+  color_mid:  [0, 255, 0]     # Greenish - NOTE: Likely unused if blend=0 at diff=0
+  color_low:  [0, 128, 255]   # Bluish
+  blend_factor: 0.3           # 30% blend intensity
+
+# -- Gameplay Rules --
+gameplay_rules:
+  max_traversable_step: 2  # 2 units = 1 meter step limit
+
+# -- AI Selection --
+ai:
+  default: goap        # Global default AI ('goap' or 'community')
+  entity_overrides:    # Optional per-entity mapping: name -> ai type
+    # "villager": "community"
+    # "goblin": "goap"
+
+# Add other game parameters here as needed

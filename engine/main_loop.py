@@ -1,0 +1,193 @@
+# engine/main_loop.py
+# Added typing imports
+from typing import TYPE_CHECKING, Any, Dict, Self
+
+import numpy as np
+import structlog
+from PIL import Image
+
+# Use absolute imports for game modules
+from game.game_state import GameState
+from simulation.zone_manager import ZoneManager
+
+# Use relative import for sibling module within the same package ('engine')
+# Import the renderer module and the RenderConfig dataclass
+from . import action_handler, renderer
+from .renderer import RenderConfig, ViewportParams  # Import dataclasses
+
+if TYPE_CHECKING:
+    # Relative import for sibling module within the same package ('engine')
+    from .window_manager import WindowManager
+
+log = structlog.get_logger()
+
+
+class MainLoop:
+    """
+    Coordinates the main game logic, including turn processing,
+    action handling, and orchestrating rendering updates.
+    """
+
+    def __init__(
+        self: Self,
+        game_state: GameState,
+        window: "WindowManager",
+        # Rendering options passed through
+        vis_enabled_default: bool,
+        vis_max_diff: int,
+        vis_color_high: list,
+        vis_color_mid: list,
+        vis_color_low: list,
+        vis_blend_factor: float,
+        max_traversable_step: int,
+        lighting_ambient: float,
+        lighting_min_fov: float,
+        lighting_falloff: float,
+        memory_fade_variance: float = 0.0,
+        memory_noise_level: float = 0.0,
+        enable_memory_fade: bool = True,
+        enable_colored_lights: bool = True,
+    ):
+        """
+        Initializes the MainLoop.
+
+        Args:
+            game_state: The central GameState object.
+            window: The WindowManager instance handling display and input.
+            vis_enabled_default: Initial state for height visualization.
+            vis_max_diff: Max height difference for visualization.
+            vis_color_high: Color for high areas in height vis (RGB list).
+            vis_color_mid: Color for mid areas in height vis (RGB list).
+            vis_color_low: Color for low areas in height vis (RGB list).
+            vis_blend_factor: Blend factor for height visualization.
+            max_traversable_step: Max height difference walkable by entities.
+            lighting_ambient: Ambient light level (0.0-1.0).
+            lighting_min_fov: Minimum light level at FOV edge (0.0-1.0).
+            lighting_falloff: Exponent for light falloff calculation.
+        """
+        # Store core components
+        self.game_state: GameState = game_state
+        self.window: "WindowManager" = window
+        self.show_height_visualization: bool = vis_enabled_default
+
+        # Store config values needed by components managed here
+        self._cfg_max_traversable_step: int = max_traversable_step
+
+        # Store rendering configs needed by Renderer (to pass them later)
+        self._cfg_vis_max_diff = vis_max_diff
+        self._cfg_height_color_high_np = np.array(vis_color_high, dtype=np.uint8)
+        self._cfg_height_color_mid_np = np.array(vis_color_mid, dtype=np.uint8)
+        self._cfg_height_color_low_np = np.array(vis_color_low, dtype=np.uint8)
+        self._cfg_vis_blend_factor = np.float32(vis_blend_factor)
+        self._cfg_ambient_light = np.float32(lighting_ambient)
+        self._cfg_min_fov_light = np.float32(lighting_min_fov)
+        self._cfg_light_falloff = np.float32(lighting_falloff)
+        self._cfg_enable_memory_fade = enable_memory_fade
+        self._cfg_enable_colored_lights = enable_colored_lights
+        self._cfg_memory_fade_variance = np.float32(memory_fade_variance)
+        self._cfg_memory_noise_level = np.float32(memory_noise_level)
+
+        log.info("MainLoop initialized successfully")
+
+    def handle_action(self: Self, action: dict[str, Any]) -> bool:
+        """
+        Receives an action, processes it via the action_handler,
+        and updates game state if the action consumed a turn.
+        Returns True if the player acted and consumed a turn, False otherwise.
+        """
+        gs = self.game_state
+        player_acted = False
+
+        try:
+            player_acted = action_handler.process_player_action(
+                action, gs, self._cfg_max_traversable_step
+            )
+        except ValueError as e:
+            log.warning(
+                "Invalid action during processing",
+                action=action,
+                error=str(e),
+            )
+            gs.add_message("Invalid action.", (255, 0, 0))
+            player_acted = False  # Invalid action means no turn taken
+
+        if player_acted:
+            log.debug("Player action resulted in turn", action_type=action.get("type"))
+            gs.advance_turn()
+            # FOV recalculated inside GameState.advance_turn
+            # Trigger redraw via WindowManager after state changes
+            self.window.update_frame()
+            return True
+        else:
+            log.debug(
+                "Player action did not result in turn", action_type=action.get("type")
+            )
+            return False
+
+    # --- Update Console Signature ---
+    def update_console(
+        self: Self,
+        game_state: GameState,
+        viewport: "ViewportParams",
+    ) -> Image.Image | None:
+        """Orchestrate rendering by gathering data and calling the renderer module."""
+        gs = game_state
+
+        # Calculate FOV radius squared (needed for RenderConfig)
+        fov_radius = np.float32(gs.fov_radius)
+        fov_radius_sq = fov_radius * fov_radius if fov_radius >= 0 else np.float32(-1.0)
+
+        # --- Create RenderConfig instance ---
+        render_config = RenderConfig(
+            show_height_vis=self.show_height_visualization,
+            vis_max_diff=self._cfg_vis_max_diff,
+            vis_color_high_np=self._cfg_height_color_high_np,
+            vis_color_mid_np=self._cfg_height_color_mid_np,
+            vis_color_low_np=self._cfg_height_color_low_np,
+            vis_blend_factor=self._cfg_vis_blend_factor,
+            lighting_ambient=self._cfg_ambient_light,
+            lighting_min_fov=self._cfg_min_fov_light,
+            lighting_falloff=self._cfg_light_falloff,
+            fov_radius_sq=fov_radius_sq,  # Pass pre-calculated value
+            enable_memory_fade=self._cfg_enable_memory_fade,
+            enable_colored_lights=self._cfg_enable_colored_lights,
+            memory_fade_variance=self._cfg_memory_fade_variance,
+            memory_noise_level=self._cfg_memory_noise_level,
+        )
+        # --- End Create RenderConfig ---
+
+        # --- Call Renderer ---
+        try:
+            image = renderer.render_viewport(
+                game_state=gs,
+                viewport=viewport,
+                render_config=render_config,
+            )
+            return image
+        except Exception as e:
+            log.error(
+                "Error during renderer.render_viewport call",
+                error=str(e),
+                exc_info=True,
+            )
+            # Return an error image (size calculation is tricky here, use WM size)
+            pw = self.window.label.width()
+            ph = self.window.label.height()
+            return Image.new(
+                "RGBA", (max(1, pw), max(1, ph)), (255, 0, 0, 255)
+            )  # Red indicates error
+
+    # ------------------------------------------------------------------
+    # Save / Load hooks
+    # ------------------------------------------------------------------
+    def save_state(self) -> Dict[str, Any]:
+        """Return a serialisable snapshot of the main loop state."""
+        return {"zone_manager": self.game_state.zone_manager.to_dict()}
+
+    def load_state(self, data: Dict[str, Any]) -> None:
+        """Restore state produced by :meth:`save_state`."""
+        z_data = data.get("zone_manager")
+        if z_data:
+            self.game_state.zone_manager = ZoneManager.from_dict(
+                z_data, self.game_state.zone_manager.event_registry
+            )
