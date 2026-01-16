@@ -14,12 +14,14 @@ import os  # For determining CPU count
 import time
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List, Tuple
+from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
 from joblib import Parallel, delayed
 from numba import njit
+
+from utils.game_rng import GameRNG
 
 # --- Constants ---
 
@@ -504,21 +506,19 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int) -> pl.DataFrame:
+def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optional[GameRNG] = None) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
+    if rng is None:
+        rng = GameRNG()
     monster_data = {
         "id": range(num_monsters),
         # Example race index
-        "r_idx": np.random.randint(1, 5, size=num_monsters),
-        "fy": np.random.randint(0, height, size=num_monsters),
-        "fx": np.random.randint(0, width, size=num_monsters),
+        "r_idx": np.array([rng.get_int(1, 4) for _ in range(num_monsters)]),
+        "fy": np.array([rng.get_int(0, height - 1) for _ in range(num_monsters)]),
+        "fx": np.array([rng.get_int(0, width - 1) for _ in range(num_monsters)]),
         "is_dead": np.zeros(num_monsters, dtype=bool),
-        "perception_stat": np.random.randint(
-            5, 15, size=num_monsters
-        ),  # Base perception
-        "alertness": np.random.randint(
-            -10, 1, size=num_monsters
-        ),  # Example: mostly unwary/asleep
+        "perception_stat": np.array([rng.get_int(5, 14) for _ in range(num_monsters)]),  # Base perception
+        "alertness": np.array([rng.get_int(-10, 0) for _ in range(num_monsters)]),  # Example: mostly unwary/asleep
         # Add flags based on Sil RF flags if needed (e.g., RF2_SHORT_SIGHTED)
         # Placeholder for bitflags
         "flags": np.zeros(num_monsters, dtype=np.uint32),
@@ -536,7 +536,7 @@ def initialize_monsters(num_monsters: int, height: int, width: int) -> pl.DataFr
 # --- Perception System (Parallelized) ---
 
 
-def skill_check(actor_skill: int, difficulty: int, target_skill: int) -> bool:
+def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: Optional[GameRNG] = None) -> bool:
     """
     Performs a simplified skill check (placeholder).
     Replace with your game's specific skill check logic.
@@ -545,13 +545,16 @@ def skill_check(actor_skill: int, difficulty: int, target_skill: int) -> bool:
         actor_skill: Skill value of the acting entity (e.g., monster perception).
         difficulty: Difficulty modifier (e.g., based on noise distance, stealth).
         target_skill: Skill value of the target resisting (e.g., player stealth).
+        rng: Optional GameRNG instance for deterministic random generation.
 
     Returns:
         True if the check succeeds, False otherwise.
     """
+    if rng is None:
+        rng = GameRNG()
     # Example: Roll d100 vs combined skill difference
     # Higher actor skill is better, higher difficulty/target skill is harder.
-    roll = np.random.randint(1, 101)
+    roll = rng.get_int(1, 100)
     threshold = 50 + actor_skill - (difficulty + target_skill)
     return roll <= threshold
 
@@ -562,6 +565,7 @@ def _process_monster_perception_chunk(
     flow_centers: np.ndarray,  # Noise flow centers
     player_stealth_skill: int,  # Player's current stealth value
     noise_flow_type: FlowType,  # Which noise map to use (e.g., REAL_NOISE)
+    rng: Optional[GameRNG] = None,  # RNG instance for skill checks
 ) -> List[int]:  # Return list of IDs of monsters that detected player
     """
     Processes perception checks for a chunk of monsters.
@@ -573,10 +577,13 @@ def _process_monster_perception_chunk(
         flow_centers: NumPy array of flow center coordinates.
         player_stealth_skill: The player's relevant skill (e.g., stealth).
         noise_flow_type: The FlowType to use for noise distance checks.
+        rng: Optional GameRNG instance for deterministic random generation.
 
     Returns:
         A list of monster IDs from this chunk that successfully detected the player.
     """
+    if rng is None:
+        rng = GameRNG()
     alerted_monster_ids: List[int] = []
 
     # Iterate through the rows of the DataFrame chunk
@@ -607,6 +614,7 @@ def _process_monster_perception_chunk(
             actor_skill=perception,
             difficulty=difficulty_mod,
             target_skill=player_stealth_skill,
+            rng=rng,
         ):
             # --- Perception Success ---
             alerted_monster_ids.append(monster_id)
@@ -627,6 +635,7 @@ def monster_perception(
     player_y: int,
     player_x: int,  # Player position (needed?) - implicitly noise center
     player_stealth_skill: int,  # Player's current stealth value
+    rng: Optional[GameRNG] = None,  # RNG instance for perception checks
     # Add other relevant params: player_attacked_recently?, main_roll?,
     # difficulty?
 ) -> List[int]:
@@ -674,9 +683,11 @@ def monster_perception(
     # backend="loky" is default and generally robust
     # backend="threading" might be suitable if skill_check involves I/O or GIL-releasing C code
     # backend="multiprocessing" is another option
+    if rng is None:
+        rng = GameRNG()
     results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
-            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE
+            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE, rng
         )
         for chunk in df_chunks
     )

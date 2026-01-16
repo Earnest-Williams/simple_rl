@@ -19,13 +19,15 @@ import time
 import uuid  # For simulation ID
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List, Tuple
+from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
 import structlog  # Structured logging
 from joblib import Parallel, delayed
 from numba import njit
+
+from utils.game_rng import GameRNG
 
 # --- Constants ---
 SIM_ID = str(uuid.uuid4())[:8]  # Unique ID for this simulation run
@@ -493,19 +495,21 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int) -> pl.DataFrame:
+def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optional[GameRNG] = None) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
+    if rng is None:
+        rng = GameRNG()
     log.info(
         "initializing_monsters", num_monsters=num_monsters, map_h=height, map_w=width
     )
     monster_data = {
         "id": range(num_monsters),
-        "r_idx": np.random.randint(1, 5, size=num_monsters),
-        "fy": np.random.randint(0, height, size=num_monsters),
-        "fx": np.random.randint(0, width, size=num_monsters),
+        "r_idx": np.array([rng.get_int(1, 4) for _ in range(num_monsters)]),
+        "fy": np.array([rng.get_int(0, height - 1) for _ in range(num_monsters)]),
+        "fx": np.array([rng.get_int(0, width - 1) for _ in range(num_monsters)]),
         "is_dead": np.zeros(num_monsters, dtype=bool),
-        "perception_stat": np.random.randint(5, 15, size=num_monsters),
-        "alertness": np.random.randint(-10, 1, size=num_monsters),
+        "perception_stat": np.array([rng.get_int(5, 14) for _ in range(num_monsters)]),
+        "alertness": np.array([rng.get_int(-10, 0) for _ in range(num_monsters)]),
         "flags": np.zeros(num_monsters, dtype=np.uint32),
         "heard_player": np.zeros(num_monsters, dtype=bool),
     }
@@ -517,9 +521,11 @@ def initialize_monsters(num_monsters: int, height: int, width: int) -> pl.DataFr
 # --- Perception System (Parallelized) ---
 
 
-def skill_check(actor_skill: int, difficulty: int, target_skill: int) -> bool:
+def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: Optional[GameRNG] = None) -> bool:
     """Placeholder skill check."""
-    roll = np.random.randint(1, 101)
+    if rng is None:
+        rng = GameRNG()
+    roll = rng.get_int(1, 100)
     threshold = 50 + actor_skill - (difficulty + target_skill)
     return roll <= threshold
 
@@ -530,8 +536,11 @@ def _process_monster_perception_chunk(
     flow_centers: np.ndarray,
     player_stealth_skill: int,
     noise_flow_type: FlowType,
+    rng: Optional[GameRNG] = None,
 ) -> List[int]:
     """Processes perception checks for a chunk of monsters. Cannot log directly."""
+    if rng is None:
+        rng = GameRNG()
     alerted_monster_ids: List[int] = []
 
     for row in monster_df_chunk.iter_rows(named=True):
@@ -552,6 +561,7 @@ def _process_monster_perception_chunk(
             actor_skill=perception,
             difficulty=difficulty_mod,
             target_skill=player_stealth_skill,
+            rng=rng,
         ):
             alerted_monster_ids.append(monster_id)
             # Cannot log here efficiently from parallel worker without setup
@@ -566,8 +576,11 @@ def monster_perception(
     player_y: int,
     player_x: int,
     player_stealth_skill: int,
+    rng: Optional[GameRNG] = None,
 ) -> List[int]:
     """Updates monster perception based on noise. Parallelized using Joblib."""
+    if rng is None:
+        rng = GameRNG()
     start_time = time.monotonic()
     log_ctx = log.bind(
         player_y=player_y, player_x=player_x, player_stealth=player_stealth_skill
@@ -607,7 +620,7 @@ def monster_perception(
 
     results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
-            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE
+            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE, rng
         )
         for chunk in df_chunks
     )

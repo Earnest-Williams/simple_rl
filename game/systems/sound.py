@@ -16,7 +16,6 @@ through configuration.
 from __future__ import annotations
 
 import math
-import random
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
@@ -27,6 +26,7 @@ import yaml
 
 from game.world import line_of_sight
 from pathfinding.perception_systems import BASE_FLOW_CENTER, NOISE_STRENGTH
+from utils.game_rng import GameRNG
 
 if TYPE_CHECKING:
     from game.world.game_map import GameMap
@@ -59,7 +59,7 @@ except Exception:  # pragma: no cover - backend availability depends on environm
 class SoundEffect:
     """Represents a single sound effect with its properties."""
 
-    def __init__(self, config: Dict[str, Any], base_path: Path):
+    def __init__(self, config: Dict[str, Any], base_path: Path, rng: Optional[GameRNG] = None):
         self.effect_type = config.get("type", "file")
         self.files = config.get("files", [])
         self.generator = config.get("generator")
@@ -69,12 +69,14 @@ class SoundEffect:
         self.conditions = config.get("conditions", {})
         self.base_path = base_path
         self._loaded_sounds = {}
+        self.rng = rng if rng is not None else GameRNG()
 
     def get_random_file(self) -> Optional[Path]:
         """Get a random sound file from the available options."""
         if not self.files:
             return None
-        return self.base_path / random.choice(self.files)
+        chosen_file = self.files[self.rng.get_int(0, len(self.files) - 1)]
+        return self.base_path / chosen_file
 
     def matches_conditions(self, context: Dict[str, Any]) -> bool:
         """Check if this sound effect matches the given context."""
@@ -146,7 +148,7 @@ class BackgroundMusic:
 class SoundManager:
     """Main sound system manager."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Optional[Path] = None, rng: Optional[GameRNG] = None):
         self.enabled = False
         self.sound_effects: Dict[str, SoundEffect] = {}
         self.background_music: Dict[str, BackgroundMusic] = {}
@@ -158,6 +160,7 @@ class SoundManager:
         self.active_sounds: Set[Any] = set()
         self.listener_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
         self.listener_orientation: Tuple[float, float] = (0.0, 1.0)
+        self.rng = rng if rng is not None else GameRNG()
 
         # Audio settings
         self.master_volume = 1.0
@@ -201,7 +204,7 @@ class SoundManager:
         base_sound_path = config_path.parent / "sounds"
 
         for sfx_name, sfx_data in sfx_config.items():
-            self.sound_effects[sfx_name] = SoundEffect(sfx_data, base_sound_path)
+            self.sound_effects[sfx_name] = SoundEffect(sfx_data, base_sound_path, self.rng)
 
         # Load background music
         music_config = config.get("background_music", {})
@@ -607,7 +610,7 @@ class SoundManager:
                 sound = oalOpen(fname)
                 src = sound.play()
                 if pitch_variance:
-                    pitch = 1.0 + random.uniform(-pitch_variance, pitch_variance)
+                    pitch = 1.0 + self.rng.get_float(-pitch_variance, pitch_variance)
                     src.set_pitch(pitch)
                 src.set_gain(volume)
                 if source_pos:

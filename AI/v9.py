@@ -21,22 +21,16 @@ from typing import Any, Dict, List, Set, Tuple, Union
 
 import numpy as np
 
+from utils.game_rng import GameRNG
+
 # Assume these are defined elsewhere (constants, other classes)
-# Need actual definitions for GameRNG, Home, Behavior, Habit, OutcomeResult,
+# Need actual definitions for Home, Behavior, Habit, OutcomeResult,
 # TraitProfile, FatigueSystem, IllnessSystem, ExperienceMemory, SelfConcept,
 # CROPS, WATER_CONTAINERS, Calendar, Weather, Field, PLOT_STATUS_MAP etc.
 
 
 # === Dummy placeholders for type checking - CORRECTED SYNTAX ===
-class GameRNG:
-    def get_float(self, a=0.0, b=1.0):
-        return np.random.uniform(a, b)  # Added defaults
-
-    def get_int(self, a, b):
-        return np.random.randint(a, b + 1)
-
-    def sample(self, p, k):
-        return np.random.choice(p, k, replace=False)
+# (GameRNG is now imported from utils)
 
 
 class Home:
@@ -225,11 +219,13 @@ class IllnessSystem:
     active_conditions: Dict[str, Dict[str, Any]]
     _endurance: float
     _will: float
+    _rng: GameRNG
 
-    def __init__(self, endurance: float = 1.0, will: float = 1.0):
+    def __init__(self, endurance: float = 1.0, will: float = 1.0, rng: GameRNG = None):
         self.active_conditions = {}  # {name: {'severity': float, 'duration': int}}
         self._endurance = endurance
         self._will = will
+        self._rng = rng if rng is not None else GameRNG()
 
     def add_condition(self, name: str, severity: float, duration: int):
         if name not in self.active_conditions:
@@ -262,10 +258,10 @@ class IllnessSystem:
             condition = self.active_conditions[name]
             condition["duration"] -= 1
             # Chance to reduce duration faster based on will
-            if np.random.rand() < will_factor:
+            if self._rng.get_float(0.0, 1.0) < will_factor:
                 condition["duration"] -= 1
             # Chance to reduce severity based on endurance
-            if np.random.rand() < endurance_factor:
+            if self._rng.get_float(0.0, 1.0) < endurance_factor:
                 condition["severity"] = max(0.1, condition["severity"] * 0.9)
 
             if condition["duration"] <= 0:
@@ -505,7 +501,7 @@ class AgentF:
         )
         self.fatigue = FatigueSystem(endurance=self.traits.endurance)
         self.illness = IllnessSystem(
-            endurance=self.traits.endurance, will=self.traits.will
+            endurance=self.traits.endurance, will=self.traits.will, rng=self.rng
         )
         self.memory = ExperienceMemory(ingenuity=self.traits.ingenuity)
         self.self_concept = SelfConcept(resonance=self.traits.resonance)
