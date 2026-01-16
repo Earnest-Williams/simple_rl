@@ -97,13 +97,10 @@ def _action_move_attack(
                     move = (ndx, ndy)
 
     if move is None:
-        if hasattr(rng, "randint"):
-            idx = rng.randint(0, len(directions) - 1)
-            move = directions[idx]
-        else:  # pragma: no cover - only used in interactive mode
-            import random
-
-            move = random.choice(directions)
+        if not hasattr(rng, "get_int"):
+            raise TypeError("rng must provide get_int from GameRNG")
+        idx = rng.get_int(0, len(directions) - 1)
+        move = directions[idx]
 
     dx, dy = move
     moved = movement_system.try_move(entity_id, dx, dy, game_state)
