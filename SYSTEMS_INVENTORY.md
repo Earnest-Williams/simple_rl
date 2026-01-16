@@ -438,6 +438,378 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 
 ---
 
+## SYSTEM INTEGRATION MAP
+
+### How Systems Work Together
+
+The integrated systems form a cohesive pipeline from world generation through AI decision-making to rendering:
+
+#### 1. World Generation Pipeline
+```
+Dungeon Generator (Dungeon/)
+  → produces Polars DataFrame with 3D properties
+  → GameMap (game/world/game_map.py)
+  → tiles, depth/height, walkability, chambers
+  → used by all game systems
+```
+
+#### 2. Perception → AI → Movement Pipeline
+```
+Player/Monster actions
+  → generate noise/scent emissions
+  → Perception Systems (pathfinding/perception_systems.py)
+    - BFS-based flow field computation
+    - Decay models (scent: 90%, noise: 60%)
+    - Radial falloff
+  → AI Strategy System (game/ai/strategy.py)
+    - Reads flow fields + LOS
+    - Selects behavior state (HOME, CHARGE, FLEE, SMART_KOBOLD)
+  → GOAP Planner (game/ai/goap.py) or ML Policy (game/ai/ml_policy.py)
+    - Generates action sequence
+  → Flow Field Pathfinding (game/systems/pathfinding/flowfield.py)
+    - Dijkstra integration fields
+    - Height-based movement costs
+  → Movement System (game/systems/movement_system.py)
+    - Collision detection
+    - Displacement execution
+```
+
+#### 3. Rendering Pipeline
+```
+Game State (game/game_state.py)
+  → orchestrates all entity/item/map updates
+  → FOV/Visibility Systems (game/world/fov.py, visibility.py, los.py)
+    - Shadowcasting algorithms
+    - Determines what player can see
+  → Lighting System (engine/render_lighting.py)
+    - Distance-squared falloff
+    - Ambient + source lighting
+    - Memory fade effects
+  → Renderer (engine/renderer.py + render_*.py)
+    - Base tile layers
+    - Entity sprites
+    - Light application
+    - Height visualization
+  → Window Manager (engine/window_manager.py)
+    - SDL2/Pygame output
+```
+
+#### 4. GameRNG Integration (Central Randomness)
+```
+GameRNG (game_rng.py)
+  ↓
+  ├→ Dungeon Generation (Dungeon/core.py, shaper.py)
+  ├→ Perception Systems (pathfinding/perception_systems.py)
+  ├→ AI Systems (game/ai/*.py)
+  ├→ Combat System (game/systems/combat_system.py)
+  ├→ Effects System (game/effects/handlers.py)
+  ├→ Loot/Item Generation
+  └→ All other randomness
+```
+
+**Key Strength:** Deterministic, seeded RNG enables:
+- Reproducible world generation
+- Replay capability
+- Debugging consistency
+- Save/load state preservation
+
+#### 5. Entity/Component System Integration
+```
+Template Registry (game/entities/template_registry.py)
+  → defines entity templates in YAML
+  → Entity Registry (game/entities/registry.py)
+    - Polars DataFrame storage
+    - Component-based architecture
+  → All game systems read/write entities:
+    ├→ Combat System (stats, equipment)
+    ├→ Movement System (position, collision)
+    ├→ AI System (behavior, perception)
+    ├→ Equipment System (slots, bonuses)
+    └→ Death System (loot dropping)
+```
+
+#### 6. Magic/Effects System Integration
+```
+Spell Definition (magic/work parser)
+  → Art/Substance pairs
+  → Work execution framework
+  → Ward/Counterseal blocking
+  → Effect System (game/effects/handlers.py)
+    - Cost checking (mana, fullness, charges)
+    - Status application
+    - Effect handler registry
+  → Applied to Entity Registry
+  → Affects Combat, Movement, AI systems
+```
+
+---
+
+## INTEGRATION ISSUES
+
+### Critical Issues
+
+#### 1. GameRNG Import Inconsistency ⚠️
+
+**Problem:** Inconsistent import paths for GameRNG across the codebase.
+
+**Locations:**
+- **Most files (30+ locations):** `from game_rng import GameRNG` ✅
+- **game/world/procgen.py:** `from utils.game_rng import GameRNG` ⚠️
+- **AI/v9.py:** `from rng_utils.game_rng.GameRNG` ❌ BROKEN!
+
+**Files Affected:**
+- `game/world/procgen.py` - Uses utils wrapper (works but inconsistent)
+- `AI/v9.py` - Imports from non-existent `rng_utils.game_rng` (BROKEN)
+
+**Current State:**
+- Root implementation: `/home/user/simple_rl/game_rng.py` (18K, full implementation)
+- Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
+
+**Resolution Needed:**
+1. **For AI/v9.py:** Change `from rng_utils.game_rng.GameRNG` → `from game_rng import GameRNG`
+2. **For procgen.py:** Optionally change `from utils.game_rng` → `from game_rng` for consistency
+3. **Long-term:** Decide on canonical location (root or utils/)
+
+#### 2. lights_dev/ Uses Standard random Module ⚠️
+
+**Problem:** The lights_dev/Dungeon/ variant uses Python's standard `random` module instead of GameRNG.
+
+**Location:** `lights_dev/` development testbed
+
+**Impact:**
+- Non-deterministic dungeon generation in lights_dev testbed
+- Cannot reproduce test dungeons with seeds
+- Inconsistent with main Dungeon/ generator
+
+**Resolution Needed:**
+- Replace `import random` with `from game_rng import GameRNG` in lights_dev/Dungeon/
+- Update random.* calls to GameRNG equivalents
+- **Note:** This is only needed if lights_dev tests require determinism
+
+---
+
+## UNINTEGRATED SYSTEMS
+
+These systems exist in the codebase but are **NOT integrated** into the main game. They are standalone development environments or prototypes.
+
+### 1. Community NPC AI System ❌ NOT INTEGRATED
+
+**Location:** `AI/v9.py` + `AI/README.md`
+
+**Purpose:** AI for non-adventurer NPCs in persistent communities (distinct from combat AI)
+
+**Sophistication:** Very High
+- Trait-based personality system (Endurance, Ingenuity, Perception, Will, Resonance)
+- Needs management (Health, Energy, Thirst, Hunger, Nutrients)
+- Physiological simulation (Fatigue, Illness)
+- Habit learning from experience
+- Planning with adaptive impact estimation
+- Identity and cognitive dissonance modeling
+- Experience memory system
+
+**Status:**
+- ⚠️ **Under active development**
+- ❌ **Not integrated** with main game systems
+- ❌ **Broken import:** Uses `rng_utils.game_rng.GameRNG` (doesn't exist)
+- 🔄 **Planned:** Normalization with player trait system
+- 🔄 **Planned:** Allow NPCs to switch between this AI and GOAP AI
+
+**Integration Steps Needed:**
+1. Fix import: `from rng_utils.game_rng.GameRNG` → `from game_rng import GameRNG`
+2. Normalize trait systems between AI/ and game/ implementations
+3. Create community environment system for NPCs to inhabit
+4. Integrate with game/game_state.py orchestrator
+5. Add NPC spawning/management to entity registry
+6. Connect with resource management, time, weather systems
+
+**Dependencies:**
+- numpy
+- GameRNG (currently broken path)
+- Needs: Home, Field, CROPS, Weather, Calendar, Behavior definitions
+
+---
+
+### 2. Lighting/FOV/Memory R&D Testbed ❌ NOT INTEGRATED
+
+**Location:** `lights_dev/` directory
+
+**Purpose:** R&D testbed for advanced visual and memory systems
+
+**Sophistication:** High
+- Octant-based shadowcasting FOV (Numba-accelerated)
+- Dynamic colored lighting with inverse square falloff
+- Multi-source RGB light blending
+- Novel memory fade system with sigmoid decay
+- Memory influenced by traits/conditions (planned)
+
+**Status:**
+- ⚠️ **Active R&D** - refinement ongoing
+- ❌ **Not integrated** into main game engine
+- 🔄 **Planned for integration** with main rendering pipeline
+- 🔄 **May combine** with pathfinding/perception systems
+
+**Files:**
+- `main_game.py` - Standalone test environment
+- `dungeon_data.py` - Numba jitclass for high-performance grids
+- `constants.py` - R&D-specific constants
+- `dungeon_generator.py` - Simple test map generator (U-shaped rooms)
+
+**Integration Steps Needed:**
+1. Fix GameRNG usage in lights_dev/Dungeon/ (uses standard random)
+2. Merge FOV algorithms with game/world/fov.py, visibility.py
+3. Integrate lighting system with engine/render_lighting.py
+4. Add memory fade to main rendering pipeline
+5. Connect memory system to agent traits
+6. Remove or archive standalone main_game.py after integration
+
+**Current Issue:**
+- lights_dev/Dungeon/ uses `random` module instead of GameRNG (non-deterministic)
+
+---
+
+### 3. GOAP AI Simulation Environment ❌ NOT FULLY INTEGRATED
+
+**Location:** `auto/` directory
+
+**Purpose:** Development/testing environment for Goal-Oriented Action Planning AI
+
+**Sophistication:** High
+- Complete GOAP implementation with A* planning
+- Action learning through weight adjustment
+- Polars DataFrame entity management
+- A* pathfinding
+- Multiprocessing parallel simulation
+- PySide6 GUI for visualization/debugging
+
+**Status:**
+- ⚠️ **Development environment** - testing GOAP AI
+- ❌ **Not fully integrated** into main game
+- 🔄 **Designed for integration** - will control dungeon NPCs/monsters
+- ✅ **GOAP code integrated:** game/ai/goap.py is the integrated version
+- 🔧 **Integration points under development**
+
+**Files:**
+- `simulation.py` - Standalone world simulation
+- `main.py` - Headless runner with multiprocessing
+- `gui/` - PySide6 visualization tool
+- `run.sh` - Execution wrapper
+
+**Integration Status:**
+- ✅ **GOAP Planner:** Already integrated in game/ai/goap.py
+- ✅ **AI Strategy:** Already integrated in game/ai/strategy.py
+- ❌ **Standalone simulation:** auto/simulation.py is separate test environment
+- ❌ **GUI:** auto/gui/ is development-only, not for gameplay
+
+**Integration Steps Needed:**
+1. ✅ Core GOAP already integrated (game/ai/goap.py)
+2. 🔄 Connect auto/ test results to tune main game AI
+3. 🔄 Use auto/simulation.py for AI regression testing
+4. 🔧 Define exact perception system integration (with pathfinding/)
+5. 🔧 Finalize action set for dungeon environment
+
+**Note:** The core GOAP AI is already integrated. The auto/ directory serves as a **testing and tuning environment** for the AI before deploying to the main game.
+
+---
+
+### 4. Simulation Zone Manager ✅ INTEGRATED
+
+**Location:** `simulation/zone_manager.py`
+
+**Status:** ✅ **INTEGRATED**
+
+**Used By:**
+- `game/game_state.py`
+- `engine/main_loop.py`
+- `auto/main.py`
+- `tests/test_zone_manager.py`
+
+**Purpose:** Zone-based world management (integrated successfully)
+
+---
+
+## DIRECTORY ORGANIZATION
+
+### Production Systems (Integrated)
+
+```
+/home/user/simple_rl/
+├── game/                    # Main game systems (INTEGRATED)
+│   ├── ai/                  # Production AI (GOAP, Strategy, ML, behaviors)
+│   ├── effects/             # Magic effects system
+│   ├── entities/            # Entity/component system
+│   ├── items/               # Item management
+│   ├── systems/             # Core mechanics (combat, movement, equipment, etc.)
+│   └── world/               # Game map, FOV, visibility, LOS
+├── engine/                  # Rendering engine (INTEGRATED)
+│   ├── renderer.py          # Main renderer
+│   ├── render_*.py          # Layer rendering
+│   ├── window_manager.py    # SDL2/Pygame
+│   └── window_manager_modules/
+├── pathfinding/             # Perception & pathfinding (INTEGRATED)
+│   ├── perception_systems.py  # Sound/smell flow fields
+│   ├── flowfield.py           # Flow field pathfinding
+│   └── test.py
+├── Dungeon/                 # 3D dungeon generator (INTEGRATED)
+│   ├── core.py              # CaveGenerator
+│   ├── processor.py         # Geometry processing
+│   └── shaper.py            # Rasterization & CA smoothing
+├── magic/                   # Magic system (INTEGRATED)
+├── simulation/              # Zone manager (INTEGRATED)
+│   └── zone_manager.py
+├── utils/                   # Utilities
+│   ├── game_rng.py          # Thin wrapper for GameRNG
+│   └── helpers.py
+├── common/                  # Common utilities
+├── config/                  # Configuration files
+├── data/                    # Game data
+├── tests/                   # Test suite
+└── game_rng.py              # Central RNG (root level)
+```
+
+### Development/R&D Systems (NOT Integrated)
+
+```
+├── AI/                      # Community NPC AI (NOT INTEGRATED)
+│   ├── v9.py                # Advanced trait-based NPC AI
+│   └── README.md
+├── auto/                    # GOAP testing environment (NOT INTEGRATED)
+│   ├── simulation.py        # Test world
+│   ├── main.py              # Headless runner
+│   ├── gui/                 # Visualization tool
+│   └── README.md
+├── lights_dev/              # Lighting R&D testbed (NOT INTEGRATED)
+│   ├── main_game.py         # Standalone test environment
+│   ├── dungeon_generator.py # Simple test map generator
+│   ├── dungeon_data.py      # Numba jitclass
+│   └── README.md
+```
+
+### Support Directories
+
+```
+├── docs/                    # Documentation
+├── fonts/                   # Font assets
+├── notes/                   # Development notes
+├── scripts/                 # Utility scripts
+└── tools/                   # Development tools
+```
+
+### Cleanup Status
+
+**Removed (2026-01-16):**
+- ✅ `dungeon_generator.py` (root) - Duplicate, less sophisticated
+- ✅ `lights_dev/dungeon_generator.py` - Duplicate
+- ✅ `prototypes/` - Entire directory (old prototypes, superseded implementations)
+  - Contained: lights_dev/, Dungeon/, AI/, pathfinding/, auto/ variants
+
+**Kept:**
+- ✅ `Dungeon/` (root) - Most sophisticated 3D generator
+- ✅ `lights_dev/` - Active R&D, planned for integration
+- ✅ `auto/` - AI testing environment, core already integrated
+- ✅ `AI/` - Community NPC AI under development
+
+---
+
 ## CONCLUSION
 
 This is a sophisticated, production-quality roguelike engine with exceptional implementations of:
@@ -448,3 +820,10 @@ This is a sophisticated, production-quality roguelike engine with exceptional im
 - Comprehensive game systems
 
 The codebase shows evidence of multiple merged projects with some duplication that can be cleaned up while preserving the most sophisticated implementations.
+
+### Integration Summary
+
+**Fully Integrated Systems:** 16 primary systems working together in production
+**Partially Integrated:** 1 system (GOAP core integrated, test environment separate)
+**Not Integrated:** 3 development/R&D systems with clear integration paths defined
+**Critical Issues:** 2 import path inconsistencies requiring resolution
