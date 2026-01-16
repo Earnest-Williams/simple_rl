@@ -19,14 +19,9 @@ _DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 
 def _random_direction(rng: "GameRNG") -> Tuple[int, int]:
-    if hasattr(rng, "get_int"):
-        idx = rng.get_int(0, len(_DIRECTIONS) - 1)
-    elif hasattr(rng, "randint"):
-        idx = rng.randint(0, len(_DIRECTIONS) - 1)
-    else:  # pragma: no cover
-        import random
-
-        idx = random.randrange(len(_DIRECTIONS))
+    if not hasattr(rng, "get_int"):
+        raise TypeError("rng must provide get_int from GameRNG")
+    idx = rng.get_int(0, len(_DIRECTIONS) - 1)
     return _DIRECTIONS[idx]
 
 

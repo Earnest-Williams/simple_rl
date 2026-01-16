@@ -308,6 +308,14 @@ class GameRNG:
     # ------------------------------------------------------------------
     # sequence utilities
     # ------------------------------------------------------------------
+    def choice(self, items: Sequence[Any]) -> Any:
+        if not items:
+            raise ValueError("choice from empty sequence")
+        idx = self.get_int(0, len(items) - 1)
+        if self.metrics:
+            self.metrics.update("choices")
+        return items[idx]
+
     def shuffle(self, seq: List[Any]) -> None:
         self.rng.shuffle(seq)
         if self.metrics:
