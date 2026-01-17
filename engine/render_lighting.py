@@ -2,6 +2,8 @@
 
 import colorsys
 import math
+from typing import Iterable
+
 import numpy as np
 import structlog
 
@@ -21,11 +23,12 @@ except ImportError:
     float32 = np.float32  # type: ignore
 
 try:
-    from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
+    from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
 except ImportError:
     try:
-        from basicrl.game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
+        from basicrl.game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
     except ImportError:
+        GameMap = object  # type: ignore
         TILE_ID_FLOOR = 0  # type: ignore
         TILE_ID_WALL = 1  # type: ignore
         structlog.get_logger().error(
@@ -40,6 +43,14 @@ except ImportError:
 
     structlog.get_logger().error(
         "CRITICAL: Failed to import GameRNG in render_lighting."
+    )
+
+try:
+    from game.world.fov import compute_light_color_array
+except ImportError:
+    compute_light_color_array = None  # type: ignore
+    structlog.get_logger().error(
+        "CRITICAL: Failed to import compute_light_color_array in render_lighting."
     )
 
 log = structlog.get_logger()
@@ -143,6 +154,64 @@ def calculate_lighting(
     lit_fg = (base_fg.astype(np.float32) * intensity_broadcast).astype(np.uint8)
     lit_bg = (base_bg.astype(np.float32) * intensity_broadcast).astype(np.uint8)
     return lit_fg, lit_bg, intensity_map
+
+
+def apply_light_sources(
+    lit_fg: np.ndarray,
+    lit_bg: np.ndarray,
+    light_sources: Iterable,
+    game_map: GameMap,
+    viewport_x: int,
+    viewport_y: int,
+    vp_h: int,
+    vp_w: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply colored light sources to lit buffers within the viewport."""
+    if not light_sources:
+        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+        return lit_fg, lit_bg, empty
+
+    if compute_light_color_array is None:
+        log.warning("compute_light_color_array unavailable; skipping colored lights")
+        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+        return lit_fg, lit_bg, empty
+
+    if not isinstance(game_map, GameMap) or GameMap is object:
+        log.warning("Invalid GameMap supplied; skipping colored lights")
+        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+        return lit_fg, lit_bg, empty
+
+    light_rgb_map = np.zeros((game_map.height, game_map.width, 3), dtype=np.float32)
+    opaque_grid = ~game_map.transparent
+
+    for ls in light_sources:
+        if not game_map.in_bounds(ls.x, ls.y):
+            continue
+        try:
+            origin_h = int(game_map.height_map[ls.y, ls.x])
+            compute_light_color_array(
+                (ls.x, ls.y),
+                ls.radius,
+                opaque_grid,
+                game_map.height_map,
+                game_map.ceiling_map,
+                origin_h,
+                light_rgb_map,
+                ls.color,
+            )
+        except Exception as exc:
+            log.error("Error computing light source", error=str(exc), light=ls)
+
+    light_rgb_vp = light_rgb_map[
+        viewport_y : viewport_y + vp_h, viewport_x : viewport_x + vp_w
+    ]
+    final_fg = np.clip(lit_fg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
+        np.uint8
+    )
+    final_bg = np.clip(lit_bg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
+        np.uint8
+    )
+    return final_fg, final_bg, light_rgb_vp
 
 
 @njit(cache=True, nogil=True)

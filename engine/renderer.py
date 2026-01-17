@@ -25,6 +25,7 @@ from .render_lighting import (
     calculate_lighting,
     apply_height_visualization,
     apply_memory_fade,
+    apply_light_sources,
 )
 from .render_base_layers import prepare_base_layers
 
@@ -43,7 +44,6 @@ except ImportError:
 try:
     from game.game_state import GameState
     from game.world.game_map import GameMap
-    from game.world.fov import compute_light_color_array
 except ImportError as exc:
     raise RuntimeError("Failed to import GameState or GameMap in renderer") from exc
 
@@ -282,7 +282,7 @@ def render_viewport(
             max_defined_tile_id,
         )
 
-        if result is None or len(result) != 7:
+        if result is None or len(result) != 10:
             log.error("prepare_base_layers returned invalid result")
             return Image.new(
                 "RGBA", (max(1, output_pixel_w), max(1, output_pixel_h)), (0, 0, 0, 0)
@@ -292,14 +292,14 @@ def render_viewport(
             base_fg,
             base_bg,
             glyph_indices,
-            drawn_mask,
             visible_mask,
+            drawn_mask,
             map_height_vp,
+            map_visible_vp,
             map_memory_vp,
+            map_tiles_vp,
+            (vp_h, vp_w),
         ) = result
-        map_tiles_vp = gm.tiles[
-            viewport_y : viewport_y + vp_h, viewport_x : viewport_x + vp_w
-        ]
 
     except Exception as e:
         log.error(f"Error during prepare_base_layers: {e}", exc_info=True)
@@ -338,39 +338,17 @@ def render_viewport(
         render_config.vis_blend_factor,
     )
 
-    # Apply colored lights
-    if (
-        render_config.enable_colored_lights
-        and hasattr(gs, "light_sources")
-        and len(gs.light_sources) > 0
-    ):
-        light_rgb_map = np.zeros((gm.height, gm.width, 3), dtype=np.float32)
-        opaque_grid = ~gm.transparent
-
-        for ls in gs.light_sources:
-            try:
-                origin_h = int(gm.height_map[ls.y, ls.x])
-                compute_light_color_array(
-                    (ls.x, ls.y),
-                    ls.radius,
-                    opaque_grid,
-                    gm.height_map,
-                    gm.ceiling_map,
-                    origin_h,
-                    light_rgb_map,
-                    ls.color,
-                )
-            except Exception as e:
-                log.error(f"Error computing light source: {e}")
-
-        light_rgb_vp = light_rgb_map[
-            viewport_y : viewport_y + vp_h, viewport_x : viewport_x + vp_w
-        ]
-        final_fg = np.clip(final_fg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
-            np.uint8
-        )
-        final_bg = np.clip(final_bg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
-            np.uint8
+    # Apply colored lights from the map
+    if render_config.enable_colored_lights and gm.light_sources:
+        final_fg, final_bg, _ = apply_light_sources(
+            final_fg,
+            final_bg,
+            gm.light_sources,
+            gm,
+            viewport_x,
+            viewport_y,
+            vp_h,
+            vp_w,
         )
 
     # Apply memory fade
