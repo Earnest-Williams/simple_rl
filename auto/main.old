@@ -5,13 +5,13 @@ import argparse
 import cProfile
 import io
 import pstats
-import random
 import sys
 import time
 from collections import Counter
 from multiprocessing import Pool, cpu_count
 
 # --- Use relative imports ---
+from utils.game_rng import GameRNG
 from .simulation import (
     ENEMY_SPAWN_CHANCE,
     GRID_SIZE,  # Import new constants
@@ -29,25 +29,27 @@ from .simulation import (
 # --- Configuration ---
 DEFAULT_NUM_RUNS = 5
 DEFAULT_NUM_WORKERS = max(1, cpu_count() // 2)
+DEFAULT_SEED = int(time.time() * 1000)
 
 
 # --- Headless Simulation Function ---
 def run_single_headless(
-    args: tuple[int, dict[str, float] | None],
+    args: tuple[int, dict[str, float] | None, int],
 ) -> tuple[int, dict[str, float], str]:
     """Runs a single headless simulation instance with Flee/Rest mechanics."""
-    run_id, initial_weights_dict = args
+    run_id, initial_weights_dict, run_seed = args
+    local_rng = GameRNG(seed=run_seed, generator="xorshift", metrics=False)
     print(f"--- Starting Headless Run {run_id} ---")
     start_time = time.time()
 
-    world = World(size=GRID_SIZE)
-    agent_ai = AgentAI(world)
+    world = World(size=GRID_SIZE, rng=local_rng)
+    agent_ai = AgentAI(world, rng=local_rng)
 
     if initial_weights_dict is not None:
         for key, value in initial_weights_dict.items():
             agent_ai.planner.action_weights[key] = value
 
-    world.reset()
+    world.reset(rng=local_rng)
     agent = world.agent
     if not agent:
         print(f"Error Run {run_id}: Agent not created.")
@@ -93,7 +95,7 @@ def run_single_headless(
             if enemy_id in world.entities:
                 enemy = world.entities[enemy_id]
                 # Applies damage & hunger cost to agent if hit
-                enemy_act(enemy, world)
+                enemy_act(enemy, world, local_rng)
                 if agent.health <= 0:
                     if cause_of_death == "Unknown":
                         cause_of_death = "KilledByEnemy"
@@ -108,8 +110,8 @@ def run_single_headless(
         # --- End Enemy Turn ---
 
         # --- World Events ---
-        if random.random() < ENEMY_SPAWN_CHANCE:
-            world.spawn_random_enemy()
+        if local_rng.get_float() < ENEMY_SPAWN_CHANCE:
+            world.spawn_random_enemy(rng=local_rng)
         # --- End World Events ---
 
         # --- Resting Health Regen ---
@@ -178,6 +180,12 @@ if __name__ == "__main__":
         default="independent",
         help="Learning mode",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help="Initial seed for generating run seeds (default: time-based)",
+    )
     parser.add_argument("--profile", action="store_true",
                         help="Enable profiling")
     args = parser.parse_args()
@@ -217,12 +225,16 @@ if __name__ == "__main__":
             profiler = cProfile.Profile()
         if args.learn == "shared":
             print("Shared learning selected...")
-            temp_ai = AgentAI(World(size=GRID_SIZE))
+            shared_rng = GameRNG(seed=args.seed)
+            temp_ai = AgentAI(World(size=GRID_SIZE, rng=shared_rng), rng=shared_rng)
             initial_weights_arg = dict(temp_ai.planner.action_weights)
-        run_args = []
-        [
-            run_args.append(
-                (i + 1, initial_weights_arg if args.learn == "shared" else None)
+        master_rng = GameRNG(seed=args.seed)
+        run_seeds = [master_rng.get_int(0, 2**32 - 1) for _ in range(args.num_runs)]
+        run_args = [
+            (
+                i + 1,
+                initial_weights_arg if args.learn == "shared" else None,
+                run_seeds[i],
             )
             for i in range(args.num_runs)
         ]
