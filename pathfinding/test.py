@@ -19,7 +19,7 @@ import time
 import uuid  # For simulation ID
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict, List
 
 import numpy as np
 import polars as pl
@@ -484,7 +484,7 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optional[GameRNG] = None) -> pl.DataFrame:
+def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG | None = None) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
     if rng is None:
         rng = GameRNG()
@@ -510,7 +510,7 @@ def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optiona
 # --- Perception System (Parallelized) ---
 
 
-def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: Optional[GameRNG] = None) -> bool:
+def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: GameRNG | None = None) -> bool:
     """Placeholder skill check."""
     if rng is None:
         rng = GameRNG()
@@ -525,7 +525,7 @@ def _process_monster_perception_chunk(
     flow_centers: np.ndarray,
     player_stealth_skill: int,
     noise_flow_type: FlowType,
-    rng: Optional[GameRNG] = None,
+    rng: GameRNG | None = None,
 ) -> List[int]:
     """Processes perception checks for a chunk of monsters. Cannot log directly."""
     if rng is None:
@@ -565,7 +565,7 @@ def monster_perception(
     player_y: int,
     player_x: int,
     player_stealth_skill: int,
-    rng: Optional[GameRNG] = None,
+    rng: GameRNG | None = None,
 ) -> List[int]:
     """Updates monster perception based on noise. Parallelized using Joblib."""
     if rng is None:

@@ -20,7 +20,7 @@ import os
 import sys
 import time
 from collections import deque
-from typing import List, Optional, Set, Tuple
+from typing import List, Set, Tuple
 
 import numba
 import numpy as np
@@ -615,7 +615,7 @@ def find_path(
     tiles: np.ndarray,
     width: int,
     height: int,
-) -> Optional[List[Tuple[int, int]]]:
+) -> List[Tuple[int, int]] | None:
     if not (
         0 <= start[0] < width
         and 0 <= start[1] < height
@@ -719,7 +719,7 @@ class GameState:
     def __init__(self, width: int, height: int, rng: GameRNG):
         self.rng = rng  # Store RNG instance
         self.dungeon = Dungeon(width, height)
-        self.player: Optional[Player] = None
+        self.player: Player | None = None
         self.light_sources: List[LightSource] = []
         self.all_entities: List[Entity] = []
         self.current_illumination_rgb_sum: np.ndarray = np.zeros(
@@ -978,7 +978,7 @@ class GameState:
                 char = constants.UNSEEN
                 final_color_code = ""
                 is_player_tile = x == player_pos[0] and y == player_pos[1]
-                light_source_at_tile: Optional[LightSource] = None
+                light_source_at_tile: LightSource | None = None
                 if not is_player_tile:
                     for light in self.light_sources:
                         if light.x == x and light.y == y:
@@ -1116,7 +1116,7 @@ def run_simulation():
     target_duration = 60 if is_profiling else 300
     total_update_vis_time = 0.0
     last_key_pressed = ""
-    profiler_path: Optional[List[Tuple[int, int]]] = None
+    profiler_path: List[Tuple[int, int]] | None = None
     profiler_path_index = 0
     profiler_target_x = (
         game_state.dungeon.width - 6
