@@ -2,6 +2,15 @@
 
 The renderer supports additional controls for how remembered tiles fade over time.
 
+## Lighting Pipeline
+
+The renderer combines the player's field of view (FOV) lighting falloff with
+colored light sources stored on `GameMap.light_sources`. The lighting pipeline
+uses `engine/render_lighting.py` to calculate the base FOV intensity map and
+then accumulates colored light contributions (respecting occlusion via the FOV
+algorithm) before applying the memory fade pass. This keeps light source color,
+visibility, and memory rendering in a single shared pipeline.
+
 - **memory_fade_variance** – A float in the range `[0.0, 1.0]` that applies per-tile
   random offsets in hue and desaturation when fading tiles in memory.  The
   randomness is derived from the game state's RNG and tile coordinates so the

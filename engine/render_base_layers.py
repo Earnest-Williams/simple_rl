@@ -52,6 +52,7 @@ def prepare_base_layers(
             np.zeros(dummy_shape, dtype=np.int16),
             np.zeros(dummy_shape, dtype=bool),
             np.zeros(dummy_shape, dtype=np.float32),
+            np.zeros(dummy_shape, dtype=np.uint8),
             dummy_shape,
         )
 
@@ -84,6 +85,7 @@ def prepare_base_layers(
             np.zeros(dummy_shape, dtype=np.int16),
             np.zeros(dummy_shape, dtype=bool),
             np.zeros(dummy_shape, dtype=np.float32),
+            np.zeros(dummy_shape, dtype=np.uint8),
             dummy_shape,
         )
 
