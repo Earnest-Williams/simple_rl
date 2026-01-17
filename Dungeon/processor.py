@@ -1,5 +1,6 @@
 # Dungeon/processor.py
 
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Set, Tuple
 
 import math
@@ -12,6 +13,27 @@ GRID_RESOLUTION = 1.0  # meters per grid cell
 STRAIGHT_TURN_ANGLE_THRESHOLD_DEG = 1.0  # degrees
 
 # --- (Heuristic Thresholds are NO LONGER NEEDED here) ---
+
+BearingClass = Literal[
+    "east",
+    "northeast",
+    "north",
+    "northwest",
+    "west",
+    "southwest",
+    "south",
+    "southeast",
+    "none",
+]
+SlopeClass = Literal[
+    "steep_rise",
+    "rise",
+    "flat",
+    "descent",
+    "steep_descent",
+    "none",
+]
+DepthZone = Literal["surface", "shallow", "mid", "deep", "unknown"]
 
 
 def process_backbone_graph(
@@ -51,6 +73,12 @@ def process_backbone_graph(
         node["segment_length_xyz"] = 0.0
         node["segment_incline_deg"] = 0.0
         node["bearing_deg"] = 0.0
+        node["bearing_class"] = "none"
+        node["slope_class"] = "none"
+        node["depth_zone"] = "unknown"
+        node["root_id"] = None
+        node["distance_to_root_xy"] = 0.0
+        node["path_tortuosity"] = 0.0
         node["turn_angle_deg"] = 0.0
         node["turn_direction"] = "none"
 
@@ -90,13 +118,54 @@ def process_backbone_graph(
             }
         return {"normalized": normalized, "errors": []}
 
+    def classify_bearing(bearing_deg: float) -> BearingClass:
+        normalized = bearing_deg % 360.0
+        if normalized >= 337.5 or normalized < 22.5:
+            return "east"
+        if normalized < 67.5:
+            return "northeast"
+        if normalized < 112.5:
+            return "north"
+        if normalized < 157.5:
+            return "northwest"
+        if normalized < 202.5:
+            return "west"
+        if normalized < 247.5:
+            return "southwest"
+        if normalized < 292.5:
+            return "south"
+        return "southeast"
+
+    def classify_slope(incline_rate: float) -> SlopeClass:
+        if incline_rate <= -0.3:
+            return "steep_rise"
+        if incline_rate < -0.05:
+            return "rise"
+        if incline_rate <= 0.05:
+            return "flat"
+        if incline_rate < 0.3:
+            return "descent"
+        return "steep_descent"
+
+    def classify_depth_zone(depth_m: float, max_depth_m: float) -> DepthZone:
+        if max_depth_m <= 0.0:
+            return "surface"
+        if depth_m < 0.0:
+            return "unknown"
+        ratio = depth_m / max_depth_m
+        if ratio < 0.33:
+            return "shallow"
+        if ratio < 0.66:
+            return "mid"
+        return "deep"
+
     # Create shallow copies to avoid mutating the input without deep-copy cost.
     # Node dictionaries only contain primitive fields + children_ids list, which we
     # do not mutate during processing.
     nodes_list = [node.copy() for node in backbone_data["nodes"]]
 
     df = pl.DataFrame(nodes_list)
-    for required_column in ("id", "parent_id", "x", "y", "children_ids"):
+    for required_column in ("id", "parent_id", "x", "y", "children_ids", "depth_m"):
         if required_column not in df.columns:
             df = df.with_columns(pl.lit(None).alias(required_column))
 
@@ -156,6 +225,13 @@ def process_backbone_graph(
         "children_validation",
         "children_errors",
     )
+
+    max_depth_value = (
+        df.filter(pl.col("id").map_elements(is_valid_int, return_dtype=pl.Boolean))
+        .select(pl.col("depth_m").cast(pl.Float64, strict=False).drop_nulls().max())
+        .item()
+    )
+    max_depth_m = float(max_depth_value) if max_depth_value is not None else 0.0
 
     nodes_list = df.to_dicts()
     valid_nodes = [n for n in nodes_list if is_valid_int(n.get("id"))]
@@ -259,7 +335,9 @@ def process_backbone_graph(
                 flow_next_lookup[node["id"]] = None
                 continue
 
-            next_node = min(child_candidates, key=lambda child: child.get("depth_m", 0.0))
+            next_node = min(
+                child_candidates, key=lambda child: child.get("depth_m", 0.0)
+            )
             if next_node.get("depth_m", 0.0) >= node.get("depth_m", 0.0):
                 node["flow_next_id"] = None
                 flow_next_lookup[node["id"]] = None
@@ -306,6 +384,7 @@ def process_backbone_graph(
 
     path_length_cache: Dict[int, float] = {}
     path_depth_cache: Dict[int, int] = {}
+    root_info_cache: Dict[int, Tuple[int, float, float]] = {}
 
     def compute_path_info(node_id: int) -> Tuple[float, int]:
         if node_id in path_length_cache and node_id in path_depth_cache:
@@ -325,6 +404,24 @@ def process_backbone_graph(
         path_length_cache[node_id] = total_length
         path_depth_cache[node_id] = total_depth
         return total_length, total_depth
+
+    def compute_root_info(node_id: int) -> Tuple[int, float, float]:
+        if node_id in root_info_cache:
+            return root_info_cache[node_id]
+
+        node_data = node_map[node_id]
+        parent_id = node_data.get("parent_id")
+        if parent_id is None or parent_id not in node_map:
+            node_x = node_data.get("x", 0.0)
+            node_y = node_data.get("y", 0.0)
+            root_x = float(node_x) if is_valid_number(node_x) else 0.0
+            root_y = float(node_y) if is_valid_number(node_y) else 0.0
+            root_info_cache[node_id] = (node_id, root_x, root_y)
+            return node_id, root_x, root_y
+
+        root_id, root_x, root_y = compute_root_info(parent_id)
+        root_info_cache[node_id] = (root_id, root_x, root_y)
+        return root_id, root_x, root_y
 
     def compute_turn_metrics(
         node: Dict[str, Any], *, node_lookup: Dict[int, Dict[str, Any]]
@@ -373,6 +470,32 @@ def process_backbone_graph(
         path_length, path_depth = compute_path_info(node_data["id"])
         node_data["path_length_from_root"] = round(path_length, 2)
         node_data["path_depth"] = path_depth
+        root_id, root_x, root_y = compute_root_info(node_data["id"])
+        node_x = node_data.get("x", 0.0)
+        node_y = node_data.get("y", 0.0)
+        if is_valid_number(node_x) and is_valid_number(node_y):
+            distance_to_root = np.hypot(float(node_x) - root_x, float(node_y) - root_y)
+        else:
+            distance_to_root = 0.0
+        node_data["root_id"] = root_id
+        node_data["distance_to_root_xy"] = round(distance_to_root, 2)
+        if distance_to_root > 0.0:
+            node_data["path_tortuosity"] = round(path_length / distance_to_root, 3)
+        else:
+            node_data["path_tortuosity"] = 0.0
+        depth_value_raw = node_data.get("depth_m", 0.0)
+        depth_value = (
+            float(depth_value_raw) if is_valid_number(depth_value_raw) else 0.0
+        )
+        node_data["depth_zone"] = classify_depth_zone(depth_value, max_depth_m)
+        node_data["slope_class"] = classify_slope(
+            float(node_data.get("segment_incline_rate", 0.0))
+        )
+        bearing_value = node_data.get("bearing_deg", 0.0)
+        if is_valid_number(bearing_value):
+            node_data["bearing_class"] = classify_bearing(float(bearing_value))
+        else:
+            node_data["bearing_class"] = "none"
         compute_turn_metrics(node_data, node_lookup=node_map)
 
     compute_flow_metrics(valid_nodes, node_map)
@@ -393,11 +516,13 @@ if __name__ == "__main__":
     import json
 
     # Assumes core.py generated 'generated_cave_contextual.json' or similar
-    INPUT_JSON_FILE = "generated_cave_contextual.json"
-    OUTPUT_PROCESSED_FILE = "processed_cave_data.json"
+    INPUT_JSON_FILE = Path("generated_cave_contextual.json")
+    OUTPUT_PROCESSED_FILE = Path("processed_cave_data.json")
 
     try:
-        with open(INPUT_JSON_FILE, "r") as f:
+        if not INPUT_JSON_FILE.exists():
+            raise FileNotFoundError(f"Input file '{INPUT_JSON_FILE}' not found.")
+        with INPUT_JSON_FILE.open("r", encoding="utf-8") as f:
             raw_backbone_data = json.load(f)
         print(
             f"Loaded {len(raw_backbone_data['nodes'])} raw nodes from {INPUT_JSON_FILE}"
@@ -411,7 +536,7 @@ if __name__ == "__main__":
             "nodes": augmented_nodes,
             "generation_settings": raw_backbone_data.get("generation_settings", {}),
         }
-        with open(OUTPUT_PROCESSED_FILE, "w") as f:
+        with OUTPUT_PROCESSED_FILE.open("w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2)
         print(f"\nAugmented data saved to {OUTPUT_PROCESSED_FILE}")
 
@@ -427,8 +552,8 @@ if __name__ == "__main__":
                     print(f"\nAugmented data for its child node {child_id}:")
                     print(augmented_node_map[child_id])
 
-    except FileNotFoundError:
-        print(f"Error: Input file '{INPUT_JSON_FILE}' not found.")
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}")
         print("Please generate it by running the updated core.py first.")
     except Exception as e:
         print(f"An error occurred: {e}")
