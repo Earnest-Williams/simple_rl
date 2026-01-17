@@ -9,6 +9,7 @@ import polars as pl
 
 # --- Constants (Ensure these are consistent with shaper.py if needed) ---
 GRID_RESOLUTION = 1.0  # meters per grid cell
+STRAIGHT_TURN_ANGLE_THRESHOLD_DEG = 1.0  # degrees
 
 # --- (Heuristic Thresholds are NO LONGER NEEDED here) ---
 
@@ -352,7 +353,7 @@ def process_backbone_graph(
         angle_delta = abs(signed_delta)
 
         direction: Literal["left", "right", "straight", "none"]
-        if angle_delta < 1.0:
+        if angle_delta < STRAIGHT_TURN_ANGLE_THRESHOLD_DEG:
             direction = "straight"
         elif signed_delta > 0.0:
             direction = "left"
