@@ -171,6 +171,10 @@ class GameState:
 
         self.add_message("Welcome to BasicRL!", (0, 255, 0))
 
+        from game.ai.community_adapter import CommunityManager
+
+        self.community_manager = CommunityManager(self)
+
         log.info(
             "Game state initialized",
             map_size=f"{self._map_width}x{self._map_height}",
@@ -429,6 +433,8 @@ class GameState:
         for row in self.entity_registry.entities_df.iter_rows(named=True):
             if not row.get("is_active", False):
                 continue
+            if row.get("community_ai") is not None:
+                continue
             if self.zone_manager.get_zone(row.get("x"), row.get("y")) != zone:
                 continue
             entity_id = row["entity_id"]
@@ -469,6 +475,8 @@ class GameState:
         # Recalculate FOV so perception and rendering use up-to-date visibility
         self.update_fov()
 
+        self.community_manager.step()
+
         # --- AI processing for nearby entities ---
         if self.ai_enabled:
             log.debug("Gathering perception data for AI")
@@ -480,6 +488,8 @@ class GameState:
                 if not row.get("is_active", False):
                     continue
                 if row["entity_id"] == self.player_id:
+                    continue
+                if row.get("community_ai") is not None:
                     continue
                 zone = self.zone_manager.get_zone(row.get("x"), row.get("y"))
                 if zone not in active_zones:
