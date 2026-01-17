@@ -27,7 +27,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Sequence, Union
 
 import numpy as np
 
@@ -138,11 +138,13 @@ class GameRNG:
         self,
         seed: int | None = None,
         metrics: bool = False,
-        noise_seed: int | None = None,
+        noise_seed: int | None | Literal["reset"] = None,
     ) -> None:
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(self.initial_seed)
-        self.noise_seed = noise_seed if noise_seed is not None else self.initial_seed
+        self.noise_seed = (
+            noise_seed if noise_seed is not None and noise_seed != "reset" else self.initial_seed
+        )
         self.metrics_enabled = metrics
         self.metrics = MetricsCollector() if metrics else None
         if self.metrics:
@@ -466,7 +468,7 @@ class GameRNG:
         return self.metrics.get_metrics()
 
     def reset(
-        self, seed: int | None = None, noise_seed: int | None = None
+        self, seed: int | None = None, noise_seed: int | None | Literal["reset"] = None
     ) -> None:
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(self.initial_seed)
