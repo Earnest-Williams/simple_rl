@@ -27,7 +27,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Sequence, Union
 
 import numpy as np
 
@@ -65,7 +65,7 @@ class MetricsCollector:
     )
     updates_queue: List[tuple[str, int]] = field(default_factory=list)
     running: bool = False
-    collection_thread: Optional[threading.Thread] = None
+    collection_thread: threading.Thread | None = None
     lock: threading.RLock = field(default_factory=threading.RLock)
 
     def start(self) -> None:
@@ -136,9 +136,9 @@ class Distribution(Enum):
 class GameRNG:
     def __init__(
         self,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         metrics: bool = False,
-        noise_seed: Optional[int] = None,
+        noise_seed: int | None = None,
     ) -> None:
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(self.initial_seed)
@@ -172,7 +172,7 @@ class GameRNG:
         return [self.get_int(a, b) for _ in range(count)]
 
     def get_randrange(
-        self, start: int, stop: Optional[int] = None, step: int = 1
+        self, start: int, stop: int | None = None, step: int = 1
     ) -> int:
         if step == 0:
             raise ValueError("step must not be zero")
@@ -460,13 +460,13 @@ class GameRNG:
             state = json.load(f)
         self.set_state(state)
 
-    def get_metrics(self) -> Optional[Dict[str, Any]]:
+    def get_metrics(self) -> Dict[str, Any] | None:
         if not self.metrics_enabled or not self.metrics:
             return None
         return self.metrics.get_metrics()
 
     def reset(
-        self, seed: Optional[int] = None, noise_seed: Optional[int] = None
+        self, seed: int | None = None, noise_seed: int | None = None
     ) -> None:
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(self.initial_seed)

@@ -1,6 +1,6 @@
 # basicrl/game/world/procgen.py
 from collections import deque
-from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, Iterator, List, NamedTuple, Tuple, Union
 
 import numpy as np
 import structlog
@@ -108,9 +108,9 @@ class BSPNode:
         self, rect: Rect, base_height: int = 0
     ):  # base_height represents floor height
         self.rect: Rect = rect
-        self.left: Optional[BSPNode] = None
-        self.right: Optional[BSPNode] = None
-        self.room: Optional[Rect] = None
+        self.left: BSPNode | None = None
+        self.right: BSPNode | None = None
+        self.room: Rect | None = None
         self.corridors: List[Rect] = []
         self.base_height: int = base_height  # Floor height for this node's region
 
@@ -127,7 +127,7 @@ class BSPNode:
             if self.right:
                 yield from self.right.get_leaves()
 
-    def get_room(self) -> Optional[Rect]:
+    def get_room(self) -> Rect | None:
         if self.room:
             return self.room
         room = None
@@ -235,7 +235,7 @@ def _split_node_recursive(node: BSPNode, rng: GameRNG, depth: int) -> bool:
     return True  # This node was split
 
 
-def _create_rooms_in_leaves(root_node: BSPNode, rng: GameRNG):
+def _create_rooms_in_leaves(root_node: BSPNode, rng: GameRNG) -> None:
     """Creates rooms within the leaf nodes of the BSP tree."""
     # Ensure GameRNG is the correct type before proceeding
     if not isinstance(rng, GameRNG):
@@ -393,7 +393,7 @@ def _carve_tunnel(
     return carved_rects
 
 
-def _connect_rooms(node: BSPNode, game_map: GameMap, rng: GameRNG):
+def _connect_rooms(node: BSPNode, game_map: GameMap, rng: GameRNG) -> None:
     """Recursively connects rooms in sibling nodes."""
     # Ensure GameMap and GameRNG are valid
     if not isinstance(game_map, GameMap):

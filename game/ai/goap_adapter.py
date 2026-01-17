@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Iterable
 
 import numpy as np
 import polars as pl
@@ -117,7 +117,7 @@ class _GameStateWorldAdapter:
                 best_id = row.get("entity_id")
         return best_id, best_dist
 
-    def get_entity_object(self, entity_id: int) -> Optional[Any]:
+    def get_entity_object(self, entity_id: int) -> Any | None:
         item_df = self.item_df
         if not item_df.is_empty():
             item_rows = item_df.filter(pl.col("item_id") == entity_id)

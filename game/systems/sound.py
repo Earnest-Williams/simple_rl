@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
 
 import numpy as np
 
@@ -59,7 +59,7 @@ except Exception:  # pragma: no cover - backend availability depends on environm
 class SoundEffect:
     """Represents a single sound effect with its properties."""
 
-    def __init__(self, config: Dict[str, Any], base_path: Path, rng: Optional[GameRNG] = None):
+    def __init__(self, config: Dict[str, Any], base_path: Path, rng: GameRNG | None = None) -> None:
         self.effect_type = config.get("type", "file")
         self.files = config.get("files", [])
         self.generator = config.get("generator")
@@ -71,7 +71,7 @@ class SoundEffect:
         self._loaded_sounds = {}
         self.rng = rng if rng is not None else GameRNG()
 
-    def get_random_file(self) -> Optional[Path]:
+    def get_random_file(self) -> Path | None:
         """Get a random sound file from the available options."""
         if not self.files:
             return None
@@ -95,7 +95,7 @@ class SoundEffect:
 class BackgroundMusic:
     """Represents background music with situational awareness."""
 
-    def __init__(self, config: Dict[str, Any], base_path: Path):
+    def __init__(self, config: Dict[str, Any], base_path: Path) -> None:
         # ``generator`` holds parameters for :class:`MusicGenerator`
         self.generator_settings = config.get("generator", {})
         self.volume = config.get("volume", 1.0)
@@ -107,7 +107,7 @@ class BackgroundMusic:
         self.base_path = base_path
         self._current_track = None
 
-    def generate(self, context: Dict[str, Any]) -> Optional[Path]:
+    def generate(self, context: Dict[str, Any]) -> Path | None:
         """Generate background music using configured parameters.
 
         ``context`` may override tempo, harmony or intensity if those keys are
@@ -148,7 +148,7 @@ class BackgroundMusic:
 class SoundManager:
     """Main sound system manager."""
 
-    def __init__(self, config_path: Optional[Path] = None, rng: Optional[GameRNG] = None):
+    def __init__(self, config_path: Path | None = None, rng: GameRNG | None = None) -> None:
         self.enabled = False
         self.sound_effects: Dict[str, SoundEffect] = {}
         self.background_music: Dict[str, BackgroundMusic] = {}
@@ -156,7 +156,7 @@ class SoundManager:
         self.situational_modifiers: Dict[str, Any] = {}
         self.current_music = None
         self.current_music_name = None
-        self.current_music_file: Optional[Path] = None
+        self.current_music_file: Path | None = None
         self.active_sounds: Set[Any] = set()
         self.listener_position: Tuple[float, float, float] = (0.0, 0.0, 0.0)
         self.listener_orientation: Tuple[float, float] = (0.0, 1.0)
@@ -249,7 +249,7 @@ class SoundManager:
             self.enabled = False
 
     def play_sound_effect(
-        self, effect_name: str, context: Optional[Dict[str, Any]] = None
+        self, effect_name: str, context: Dict[str, Any] | None = None
     ) -> bool:
         """Play a sound effect with the given context."""
         if not self.enabled or effect_name not in self.sound_effects:
@@ -280,10 +280,10 @@ class SoundManager:
         if not sound_file:
             return False
 
-        source_pos: Optional[Tuple[float, float]] = None
+        source_pos: Tuple[float, float] | None = None
         listener_pos: Tuple[float, float, float] = self.listener_position
         listener_orient: Tuple[float, float] = self.listener_orientation
-        game_map: Optional["GameMap"] = None
+        game_map: "GameMap" | None = None
         noise_map = None
         if context:
             source_pos = context.get("source_position") or context.get("position")
@@ -371,8 +371,8 @@ class SoundManager:
 
     def _switch_background_music(
         self,
-        new_music: Optional[BackgroundMusic],
-        music_name: Optional[str],
+        new_music: BackgroundMusic | None,
+        music_name: str | None,
         context: Dict[str, Any],
     ) -> None:
         """Switch to new background music with proper fading."""
@@ -400,12 +400,12 @@ class SoundManager:
     def _calculate_volume(
         self,
         base_volume: float,
-        context: Optional[Dict[str, Any]] = None,
-        source_pos: Optional[Tuple[float, float]] = None,
-        listener_pos: Optional[Tuple[float, float, float]] = None,
-        listener_orientation: Optional[Tuple[float, float]] = None,
-        game_map: Optional["GameMap"] = None,
-        noise_map: Optional[np.ndarray] = None,
+        context: Dict[str, Any] | None = None,
+        source_pos: Tuple[float, float] | None = None,
+        listener_pos: Tuple[float, float, float] | None = None,
+        listener_orientation: Tuple[float, float] | None = None,
+        game_map: "GameMap" | None = None,
+        noise_map: np.ndarray | None = None,
     ) -> float:
         """Calculate final volume with all modifiers applied."""
         final_volume = base_volume * self.sfx_volume * self.master_volume
@@ -516,7 +516,7 @@ class SoundManager:
         segment.export(tmp.name, format="wav")
         return Path(tmp.name)
 
-    def _add_reverb(self, segment, amount: float):
+    def _add_reverb(self, segment: Any, amount: float) -> Any:
         """Simple reverb using delayed overlays."""
         delay = int(50 + 150 * amount)
         decay = 0.6 * amount
@@ -527,7 +527,7 @@ class SoundManager:
             )
         return segment
 
-    def _apply_eq(self, segment, eq_cfg: Dict[str, float]):
+    def _apply_eq(self, segment: Any, eq_cfg: Dict[str, float]) -> Any:
         """Very simple two-band EQ for bass and treble adjustments."""
         bass_gain = eq_cfg.get("bass")
         treble_gain = eq_cfg.get("treble")
@@ -599,9 +599,9 @@ class SoundManager:
         filename: Path,
         volume: float,
         pitch_variance: float = 0.0,
-        source_pos: Optional[Tuple[float, float]] = None,
-        listener_pos: Optional[Tuple[float, float, float]] = None,
-        listener_orientation: Optional[Tuple[float, float]] = None,
+        source_pos: Tuple[float, float] | None = None,
+        listener_pos: Tuple[float, float, float] | None = None,
+        listener_orientation: Tuple[float, float] | None = None,
     ) -> bool:
         """Play a sound file using the current audio backend."""
         fname = str(filename)
@@ -723,7 +723,7 @@ class SoundManager:
         self.current_music_name = None
 
     def handle_game_event(
-        self, event_name: str, context: Optional[Dict[str, Any]] = None
+        self, event_name: str, context: Dict[str, Any] | None = None
     ) -> None:
         """Handle a game event that might trigger sound effects."""
         if not self.enabled:
@@ -795,7 +795,7 @@ class SoundManager:
 
 
 # Global sound manager instance
-_sound_manager: Optional[SoundManager] = None
+_sound_manager: SoundManager | None = None
 
 
 def get_sound_manager() -> SoundManager:
@@ -806,19 +806,19 @@ def get_sound_manager() -> SoundManager:
     return _sound_manager
 
 
-def init_sound_system(config_path: Optional[Path] = None) -> SoundManager:
+def init_sound_system(config_path: Path | None = None) -> SoundManager:
     """Initialize the global sound system."""
     global _sound_manager
     _sound_manager = SoundManager(config_path)
     return _sound_manager
 
 
-def play_sound(effect_name: str, context: Optional[Dict[str, Any]] = None) -> bool:
+def play_sound(effect_name: str, context: Dict[str, Any] | None = None) -> bool:
     """Convenience function to play a sound effect."""
     return get_sound_manager().play_sound_effect(effect_name, context)
 
 
-def handle_event(event_name: str, context: Optional[Dict[str, Any]] = None) -> None:
+def handle_event(event_name: str, context: Dict[str, Any] | None = None) -> None:
     """Convenience function to handle a game event."""
     get_sound_manager().handle_game_event(event_name, context)
 
