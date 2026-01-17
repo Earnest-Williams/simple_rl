@@ -1,6 +1,6 @@
 # Dungeon/processor.py
 
-from typing import Any
+from typing import Any, Dict, List, Literal, Set, Tuple
 
 import math
 
@@ -9,13 +9,14 @@ import polars as pl
 
 # --- Constants (Ensure these are consistent with shaper.py if needed) ---
 GRID_RESOLUTION = 1.0  # meters per grid cell
+STRAIGHT_TURN_ANGLE_THRESHOLD_DEG = 1.0  # degrees
 
 # --- (Heuristic Thresholds are NO LONGER NEEDED here) ---
 
 
 def process_backbone_graph(
-    backbone_data: dict[str, Any],
-) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]]]:
+    backbone_data: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
     """
     Interstitial step to process raw backbone graph data from core.py.
     Calculates segment geometry (length, incline) using simple linear depth_m.
@@ -43,32 +44,36 @@ def process_backbone_graph(
     def is_valid_number(value: object) -> bool:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
 
-    def reset_geometry_fields(node: dict[str, Any]) -> None:
+    def reset_geometry_fields(node: Dict[str, Any]) -> None:
         node["segment_length_xy"] = 0.0
         node["segment_incline_rate"] = 0.0
         node["segment_delta_depth_m"] = 0.0
+        node["segment_length_xyz"] = 0.0
+        node["segment_incline_deg"] = 0.0
         node["bearing_deg"] = 0.0
+        node["turn_angle_deg"] = 0.0
+        node["turn_direction"] = "none"
 
-    def validate_id(value: object) -> list[str]:
+    def validate_id(value: object) -> List[str]:
         if value is None:
             return ["Missing id."]
         if not is_valid_int(value):
             return [f"Invalid id value: {value!r}."]
         return []
 
-    def validate_parent_id(value: object) -> list[str]:
+    def validate_parent_id(value: object) -> List[str]:
         if value is None:
             return ["Missing parent_id."]
         if not is_valid_int(value):
             return [f"Invalid parent_id value: {value!r}."]
         return []
 
-    def validate_coordinate(label: str, value: object) -> list[str]:
+    def validate_coordinate(label: str, value: object) -> List[str]:
         if value is None or not is_valid_number(value):
             return [f"Invalid {label} value: {value!r}."]
         return []
 
-    def normalize_children_ids(value: object) -> dict[str, Any]:
+    def normalize_children_ids(value: object) -> Dict[str, Any]:
         if value is None:
             return {"normalized": [], "errors": []}
         if not isinstance(value, list):
@@ -194,6 +199,7 @@ def process_backbone_graph(
         delta_depth_m = node_data.get("depth_m", 0.0) - parent_data.get("depth_m", 0.0)
 
         incline_rate = 0.0
+        incline_deg = 0.0
         if segment_length_xy < 0.01:  # Avoid division by zero
             # Handle vertical segments if needed (e.g., assign large incline)
             # However, incline rate isn't very meaningful here if core.py flagged it.
@@ -201,11 +207,16 @@ def process_backbone_graph(
             pass
         else:
             incline_rate = delta_depth_m / segment_length_xy
+            incline_deg = math.degrees(math.atan2(delta_depth_m, segment_length_xy))
 
         # Add calculated geometry to the *child* node's dictionary
         node_data["segment_length_xy"] = round(segment_length_xy, 2)
         node_data["segment_incline_rate"] = round(incline_rate, 2)
         node_data["segment_delta_depth_m"] = round(delta_depth_m, 2)
+        node_data["segment_length_xyz"] = round(
+            math.hypot(segment_length_xy, delta_depth_m), 2
+        )
+        node_data["segment_incline_deg"] = round(incline_deg, 2)
         node_data["bearing_deg"] = round(
             math.degrees(math.atan2(delta_y, delta_x)), 2
         )
@@ -225,10 +236,11 @@ def process_backbone_graph(
         return "junction"
 
     def compute_flow_metrics(
-        nodes: list[dict[str, Any]], node_lookup: dict[int, dict[str, Any]]
+        nodes: List[Dict[str, Any]],
+        node_lookup: Dict[int, Dict[str, Any]],
     ) -> None:
-        flow_next_lookup: dict[int, int] = {}
-        flow_distance_cache: dict[int, float] = {}
+        flow_next_lookup: Dict[int, int | None] = {}
+        flow_distance_cache: Dict[int, float] = {}
 
         for node in nodes:
             children_ids = node.get("children_ids") or []
@@ -255,7 +267,7 @@ def process_backbone_graph(
                 node["flow_next_id"] = next_node["id"]
                 flow_next_lookup[node["id"]] = next_node["id"]
 
-        def compute_flow_distance(node_id: int, visited: set[int]) -> float:
+        def compute_flow_distance(node_id: int, visited: Set[int]) -> float:
             if node_id in flow_distance_cache:
                 return flow_distance_cache[node_id]
             if node_id in visited:
@@ -292,10 +304,10 @@ def process_backbone_graph(
         for node in nodes:
             node["flow_accumulation_n"] = accumulation.get(node["id"], 1)
 
-    path_length_cache: dict[int, float] = {}
-    path_depth_cache: dict[int, int] = {}
+    path_length_cache: Dict[int, float] = {}
+    path_depth_cache: Dict[int, int] = {}
 
-    def compute_path_info(node_id: int) -> tuple[float, int]:
+    def compute_path_info(node_id: int) -> Tuple[float, int]:
         if node_id in path_length_cache and node_id in path_depth_cache:
             return path_length_cache[node_id], path_depth_cache[node_id]
 
@@ -314,6 +326,43 @@ def process_backbone_graph(
         path_depth_cache[node_id] = total_depth
         return total_length, total_depth
 
+    def compute_turn_metrics(
+        node: Dict[str, Any], *, node_lookup: Dict[int, Dict[str, Any]]
+    ) -> None:
+        parent_id = node.get("parent_id")
+        if parent_id is None or parent_id not in node_lookup:
+            node["turn_angle_deg"] = 0.0
+            node["turn_direction"] = "none"
+            return
+
+        parent_node = node_lookup[parent_id]
+        grandparent_id = parent_node.get("parent_id")
+        if grandparent_id is None or grandparent_id not in node_lookup:
+            node["turn_angle_deg"] = 0.0
+            node["turn_direction"] = "none"
+            return
+
+        node_bearing = node.get("bearing_deg")
+        parent_bearing = parent_node.get("bearing_deg")
+        if not is_valid_number(node_bearing) or not is_valid_number(parent_bearing):
+            node["turn_angle_deg"] = 0.0
+            node["turn_direction"] = "none"
+            return
+
+        signed_delta = (node_bearing - parent_bearing + 180.0) % 360.0 - 180.0
+        angle_delta = abs(signed_delta)
+
+        direction: Literal["left", "right", "straight", "none"]
+        if angle_delta < STRAIGHT_TURN_ANGLE_THRESHOLD_DEG:
+            direction = "straight"
+        elif signed_delta > 0.0:
+            direction = "left"
+        else:
+            direction = "right"
+
+        node["turn_angle_deg"] = round(angle_delta, 2)
+        node["turn_direction"] = direction
+
     for node_data in valid_nodes:
         parent_id = node_data.get("parent_id")
         parent_present = parent_id is not None and parent_id in node_map
@@ -324,6 +373,7 @@ def process_backbone_graph(
         path_length, path_depth = compute_path_info(node_data["id"])
         node_data["path_length_from_root"] = round(path_length, 2)
         node_data["path_depth"] = path_depth
+        compute_turn_metrics(node_data, node_lookup=node_map)
 
     compute_flow_metrics(valid_nodes, node_map)
 
