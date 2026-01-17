@@ -516,7 +516,7 @@ class SoundManager:
         segment.export(tmp.name, format="wav")
         return Path(tmp.name)
 
-    def _add_reverb(self, segment: Any, amount: float) -> Any:
+    def _add_reverb(self, segment: AudioSegment, amount: float) -> AudioSegment:
         """Simple reverb using delayed overlays."""
         delay = int(50 + 150 * amount)
         decay = 0.6 * amount
