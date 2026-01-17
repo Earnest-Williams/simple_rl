@@ -182,6 +182,10 @@ def shaped_dataframe_to_game_map(
         ceiling_vals = 2 * floor_vals - ceiling_depth_vals
         ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
         ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
+    elif "ceiling_depth" in df.columns:
+        ceiling_depth_vals = df.get_column("ceiling_depth").to_numpy()
+        ceiling_vals = np.nan_to_num(ceiling_depth_vals, nan=default_ceiling)
+        ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
     game_map.ceiling_map = ceiling_grid
 
     game_map.update_tile_transparency()

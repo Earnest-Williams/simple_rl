@@ -50,3 +50,22 @@ def test_shaped_dataframe_to_game_map_material_mapping():
     assert origin == (5, 10)
     assert game_map.tiles[0, 0] == TILE_ID_FLOOR
     assert game_map.tiles[0, 1] == TILE_ID_WALL
+
+
+def test_shaped_dataframe_to_game_map_ceiling_depth_only():
+    df = pl.DataFrame(
+        {
+            "x": [2.0, 3.0],
+            "y": [4.0, 4.0],
+            "height": [5.0, 6.0],
+            "ceiling_depth": [9.0, 11.0],
+        }
+    )
+
+    game_map, origin = shaped_dataframe_to_game_map(df)
+
+    assert origin == (2, 4)
+    assert game_map.height_map[0, 0] == 5
+    assert game_map.height_map[0, 1] == 6
+    assert game_map.ceiling_map[0, 0] == 9
+    assert game_map.ceiling_map[0, 1] == 11
