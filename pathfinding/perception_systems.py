@@ -14,13 +14,15 @@ import os  # For determining CPU count
 import time
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Deque, Dict, List, Optional
 
 import numpy as np
 import polars as pl
 from joblib import Parallel, delayed
 from numba import njit
 
+from common.constants import FeatureType
+from common.types import Neighbors8, QueueItem
 from utils.game_rng import GameRNG
 
 # --- Constants ---
@@ -54,27 +56,11 @@ class FlowType(IntEnum):
 MAX_FLOWS: int = len(FlowType)  # Determine max flows from Enum
 
 
-class FeatureType(IntEnum):
-    """Placeholder feature types - REPLACE WITH YOUR MAP FEATURES"""
-
-    FLOOR = 0
-    WALL = 1
-    CLOSED_DOOR = 2  # Example
-    OPEN_DOOR = 3  # Example
-    SECRET_DOOR = 4  # Example
-    # Add other features (traps, stairs, water, etc.)
-
-
-# --- Data Types ---
-# Using NumPy structured dtype for queue items in Numba can sometimes be faster
-# than tuples for simple types, but tuples are generally fine.
-QueueItem = Tuple[int, int, int]  # (y, x, cost)
-
 # --- Utility Functions (Numba Accelerated) ---
 
 # Precompute neighbor offsets for speed within Numba loops
 # Using a tuple of tuples is Numba-friendly
-NEIGHBORS_8: Tuple[Tuple[int, int], ...] = (
+NEIGHBORS_8: Neighbors8 = (
     (-1, -1),
     (-1, 0),
     (-1, 1),
