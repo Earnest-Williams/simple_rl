@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import polars as pl
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -28,6 +27,7 @@ from auto.simulation import (
 )
 from engine.render_lighting import apply_memory_fade
 from utils.game_rng import GameRNG
+from utils.shaped_map import load_shaped_map_as_arrays
 
 DEFAULT_SEED = int(time.time() * 1000)
 DEFAULT_MAX_NODES = 400
@@ -35,37 +35,6 @@ DEFAULT_MAX_DEPTH = 50
 DEFAULT_CA_ITERATIONS = 8
 DEFAULT_OUTPUT_FILE = "generated_dungeon.arrow"
 DEFAULT_GRID_SIZE = 128
-
-
-def shaped_map_to_arrays(map_df: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Convert a shaped map DataFrame into tile + height grids."""
-    required_columns = {"x", "y", "material_id", "height"}
-    missing = required_columns - set(map_df.columns)
-    if missing:
-        raise ValueError(f"Missing columns in shaped map DataFrame: {sorted(missing)}")
-
-    x_vals = map_df.get_column("x").to_numpy()
-    y_vals = map_df.get_column("y").to_numpy()
-    mat_ids = map_df.get_column("material_id").to_numpy()
-    heights = map_df.get_column("height").to_numpy()
-
-    x_int = np.rint(x_vals).astype(np.int32)
-    y_int = np.rint(y_vals).astype(np.int32)
-    min_x, max_x = int(x_int.min()), int(x_int.max())
-    min_y, max_y = int(y_int.min()), int(y_int.max())
-
-    width = max_x - min_x + 1
-    height = max_y - min_y + 1
-
-    tile_grid = np.zeros((height, width), dtype=np.uint16)
-    height_grid = np.zeros((height, width), dtype=np.float32)
-
-    col_x = x_int - min_x
-    col_y = y_int - min_y
-    tile_grid[col_y, col_x] = mat_ids.astype(np.uint16)
-    height_grid[col_y, col_x] = heights.astype(np.float32)
-
-    return tile_grid, height_grid
 
 
 def run_headless_sim(
@@ -161,7 +130,11 @@ def run_pipeline(
         raise RuntimeError("Shaper did not return a valid map DataFrame.")
 
     shaped_map.write_ipc(output_file)
-    tile_grid, height_grid = shaped_map_to_arrays(shaped_map)
+    map_arrays = load_shaped_map_as_arrays(output_file)
+    tile_grid = map_arrays["tile_id_grid"]
+    height_grid = map_arrays.get("height_grid")
+    if height_grid is None:
+        height_grid = np.full(tile_grid.shape, 0.0, dtype=np.float32)
 
     world = World(size=grid_size, rng=rng)
     agent_ai = AgentAI(world=world, rng=rng)
