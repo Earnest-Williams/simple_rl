@@ -2009,7 +2009,7 @@ from scipy.spatial import KDTree
 # Import GameRNG using relative path (assuming main.py is in parent dir)
 try:
     # Adjust path relative to main.py's location
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     # Fallback for running core.py directly for tests (requires PYTHONPATH)
     print(
@@ -2018,7 +2018,7 @@ except ImportError:
     )
     # Attempt absolute import for direct execution scenario
     try:
-        from game_rng import GameRNG  # type: ignore # noqa
+        from utils.game_rng import GameRNG  # type: ignore # noqa
     except ImportError:
         print("FATAL: GameRNG not found via absolute path either.")
         raise
@@ -3248,7 +3248,7 @@ from numba import njit
 # Import GameRNG using relative path
 try:
     # Adjust path relative to main.py's location
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     # Fallback for running shaper.py directly for tests (requires PYTHONPATH)
     print(
@@ -3256,7 +3256,7 @@ except ImportError:
         "or run via main.py."
     )
     try:
-        from game_rng import GameRNG  # type: ignore # noqa
+        from utils.game_rng import GameRNG  # type: ignore # noqa
     except ImportError:
         print("FATAL: GameRNG not found via absolute path either.")
         raise
@@ -5760,7 +5760,7 @@ from multiprocessing import Pool, cpu_count
 # --- Use relative imports ---
 # Use try-except for robustness
 try:
-    from game_rng import GameRNG  # Import GameRNG
+    from utils.game_rng import GameRNG  # Import GameRNG
 
     from .simulation import (
         GRID_SIZE,  # Relative import for use with -m
@@ -5780,7 +5780,7 @@ except ImportError:
     )
     # Fallback for direct execution (less ideal)
     try:
-        from game_rng import GameRNG  # Adjust path if needed
+        from utils.game_rng import GameRNG  # Adjust path if needed
 
         from simulation import (
             GRID_SIZE,
@@ -7325,7 +7325,7 @@ from collections import defaultdict, deque
 
 # --- Use relative imports for project modules ---
 try:
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError:
     print("Warning: Could not import GameRNG. Using dummy.", file=sys.stderr)
 
@@ -10022,7 +10022,7 @@ try:
     import dungeon_generator
 
     # Import GameRNG
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError as e:
     print(f"Failed to import project modules or GameRNG: {e}", file=sys.stderr)
     # Define dummies if needed for basic script parsing, but execution will fail
@@ -11305,7 +11305,7 @@ import polars as pl  # Needed for potential final map check/info
 # Use try-except for robustness if structure changes or run differently
 try:
     from Dungeon import core, processor, shaper
-    from game_rng import GameRNG
+    from utils.game_rng import GameRNG
 except ImportError as e:
     print(
         f"Import Error: {e}. Please ensure the script is run from the project root "
@@ -13285,7 +13285,7 @@ EXCLUDE_PATTERNS = [
 RNG_IMPORT_NODE = ast.ImportFrom(
     module="rng_utils.game_rng", names=[ast.alias(name="GameRNG")], level=0
 )
-RNG_IMPORT_LINE = "from game_rng import GameRNG"  # For writing
+RNG_IMPORT_LINE = "from utils.game_rng import GameRNG"  # For writing
 
 # --- Utility Functions ---
 
@@ -13428,7 +13428,7 @@ def find_random_usage(filepath: Path) -> Tuple[list[str], bool, bool]:
 
 def insert_import_if_needed(filepath: Path, needs_import: bool) -> bool:
     """
-    Inserts 'from game_rng import GameRNG' into the file
+    Inserts 'from utils.game_rng import GameRNG' into the file
     if needs_import is True. Tries to place it correctly after
     docstrings, __future__ imports, and other imports.
     Returns True if the import was added, False otherwise.
@@ -17587,7 +17587,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 # Import the new dungeon_generator module
 import dungeon_generator  # Import the new module
-from game_rng import GameRNG  # Import GameRNG from game_rng.py
+from utils.game_rng import GameRNG  # Import GameRNG from game_rng.py
 from game_rng import MetricsCollector
 from scripting_engine import MacroManager  # Import MacroManager from our new module
 
