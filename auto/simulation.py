@@ -58,15 +58,13 @@ StateDict = dict[str, typing.Any]  # Keep Any for flexibility initially
 ActionPlan = deque["Action"]  # Use typing.Deque with forward reference
 
 # Forward reference for Entity if used before definition
-Entity = typing.ForwardRef("Entity")  # If needed, otherwise define Entity first
-OptionalEntity = Entity | None
-OptionalPosition = Position | None
-OptionalPath = list[Position] | None
+OptionalEntity: typing.TypeAlias = "Entity | None"
+OptionalPosition: typing.TypeAlias = "Position | None"
+OptionalPath: typing.TypeAlias = "list[Position] | None"
 NearestResult = tuple[EntityID | None, float]
 ActionResult = str | None
 # Forward reference for Item if needed
-Item = typing.ForwardRef("Item")  # If needed
-OptionalItem = Item | None
+OptionalItem: typing.TypeAlias = "Item | None"
 
 
 # --- Item Definitions ---
