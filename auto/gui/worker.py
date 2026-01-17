@@ -80,7 +80,7 @@ class SimulationWorker(QObject):
                 # If not, this will raise an AttributeError later, which is informative.
                 pass
 
-            self.world.reset()  # Reset world at the beginning of a run
+            self.world.reset(rng=self.world.rng)  # Reset world at the beginning of a run
             agent = self.world.agent
             if not agent:
                 raise RuntimeError("Agent not created during world reset.")
@@ -169,7 +169,7 @@ class SimulationWorker(QObject):
                 for enemy_id in current_enemy_ids:
                     if enemy_id in self.world.entities:
                         enemy = self.world.entities[enemy_id]
-                        enemy_act(enemy, self.world)  # Enemy logic execution
+                        enemy_act(enemy, self.world, self.world.rng)  # Enemy logic execution
                     if agent.health <= 0:
                         self.status_update.emit(
                             f"Agent defeated by an enemy (Turn {self.world.turn})."
@@ -191,7 +191,7 @@ class SimulationWorker(QObject):
 
                 # *** CORRECTED LINE BELOW ***
                 if self.world.rng.get_float() < ENEMY_SPAWN_CHANCE:  # Use GameRNG instance
-                    self.world.spawn_random_enemy()
+                    self.world.spawn_random_enemy(rng=self.world.rng)
                 # --- End World Events ---
 
                 # --- Determine if GUI update should be skipped (Frame Skipping) ---

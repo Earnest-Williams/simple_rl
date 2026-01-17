@@ -2,12 +2,13 @@
 #!/usr/bin/env python3
 
 import heapq
-import random
 import time
 import typing
 import uuid
 from collections import defaultdict, deque
 from typing import Optional  # Import Optional here
+
+from utils.game_rng import GameRNG
 
 # --- NumPy for potential future use ---
 # --- Polars DataFrame Library ---
@@ -144,6 +145,7 @@ class Entity:
         x: int,
         y: int,
         kind: str,
+        rng: GameRNG,
         health: float | None = None,  # Use imported Optional
         hunger: float | None = None,  # Use imported Optional
         target: OptionalEntity = None,  # Uses alias defined with Optional
@@ -165,8 +167,7 @@ class Entity:
             if kind == "agent":  # Indent level 2 (8 spaces)
                 default_health = START_HEALTH
             elif kind == "enemy":  # Indent level 2
-                default_health = float(
-                    random.randint(*ENEMY_START_HEALTH_RANGE))
+                default_health = float(rng.get_int(*ENEMY_START_HEALTH_RANGE))
             elif kind == "slime":  # Indent level 2
                 default_health = float(SLIME_HEALTH)
             # Items on ground have no health unless they can be destroyed?
@@ -222,8 +223,9 @@ class Entity:
 
 class World:
     # (World methods remain the same as previous correct version)
-    def __init__(self, size: int):
+    def __init__(self, size: int, rng: GameRNG):
         self.size: int = size
+        self.rng: GameRNG = rng
         self.grid: list[list[OptionalEntity]] = [
             [None for _ in range(size)] for _ in range(size)
         ]
@@ -468,7 +470,7 @@ class World:
         if not self._free_tiles:
             return None
         try:
-            return random.choice(list(self._free_tiles))
+            return self.rng.choice(list(self._free_tiles))
         except IndexError:
             return None
 
@@ -481,6 +483,7 @@ class World:
                 agent_start_pos[0],
                 agent_start_pos[1],
                 "agent",
+                rng=self.rng,
                 health=START_HEALTH,
                 hunger=START_HUNGER,
             )
@@ -495,7 +498,7 @@ class World:
                     pos[0],
                     pos[1],
                     "enemy",
-                    health=float(random.randint(*ENEMY_START_HEALTH_RANGE)),
+                    rng=self.rng,
                     hunger=START_HUNGER,
                 )
                 self.add_entity(enemy)
@@ -506,6 +509,7 @@ class World:
                     pos[0],
                     pos[1],
                     "slime",
+                    rng=self.rng,
                     health=float(SLIME_HEALTH),
                     hunger=START_HUNGER,
                 )
@@ -513,21 +517,29 @@ class World:
         for _ in range(num_items):
             pos = self._get_random_free_pos()
             if pos:
-                item_type = random.choice(
-                    [create_health_potion, create_dagger])
+                item_type = self.rng.choice([create_health_potion, create_dagger])
                 item_obj = item_type()
                 item_entity = Entity(
-                    pos[0], pos[1], "item", health=0.0, hunger=0.0, item=item_obj
+                    pos[0],
+                    pos[1],
+                    "item",
+                    rng=self.rng,
+                    health=0.0,
+                    hunger=0.0,
+                    item=item_obj,
                 )
                 self.add_entity(item_entity)
 
     def reset(
         self,
+        rng: GameRNG | None = None,
         num_food: int = 0,
         num_enemies: int = 4,
         num_slimes: int = 3,
         num_items: int = 2,
     ):
+        if rng is not None:
+            self.rng = rng
         self.grid = [[None for _ in range(self.size)]
                      for _ in range(self.size)]
         self.entities = {}
@@ -543,11 +555,12 @@ class World:
     def spawn_random_enemy(self):
         pos = self._get_random_free_pos()
         if pos:
-            if random.random() < 0.4:
+            if self.rng.get_float() < 0.4:
                 new_enemy = Entity(
                     pos[0],
                     pos[1],
                     "slime",
+                    rng=self.rng,
                     health=float(SLIME_HEALTH),
                     hunger=START_HUNGER,
                 )
@@ -556,7 +569,7 @@ class World:
                     pos[0],
                     pos[1],
                     "enemy",
-                    health=float(random.randint(*ENEMY_START_HEALTH_RANGE)),
+                    rng=self.rng,
                     hunger=START_HUNGER,
                 )
             self.add_entity(new_enemy)
@@ -966,7 +979,11 @@ class AgentAI:
                         if enemy_obj.kind == "slime":
                             mold_item = create_slime_mold()
                             item_entity = Entity(
-                                enemy_obj.x, enemy_obj.y, "item", item=mold_item
+                                enemy_obj.x,
+                                enemy_obj.y,
+                                "item",
+                                rng=w.rng,
+                                item=mold_item,
                             )
                             w.add_entity(item_entity)
                             print(f"Slime dropped {mold_item.name}")
@@ -985,7 +1002,7 @@ class AgentAI:
                     if w.is_valid(nx, ny) and w.grid[nx][ny] is None:
                         possible_moves.append((nx, ny))
             if possible_moves:
-                nx, ny = random.choice(possible_moves)
+                nx, ny = w.rng.choice(possible_moves)
                 return w.move_entity(a, nx, ny)
             return False
 
