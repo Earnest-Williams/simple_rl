@@ -1,10 +1,11 @@
 # Dungeon/processor.py
 
-from typing import Dict, List, Tuple
+from typing import Any
 
 import math
 
 import numpy as np
+import polars as pl
 
 # --- Constants (Ensure these are consistent with shaper.py if needed) ---
 GRID_RESOLUTION = 1.0  # meters per grid cell
@@ -12,7 +13,9 @@ GRID_RESOLUTION = 1.0  # meters per grid cell
 # --- (Heuristic Thresholds are NO LONGER NEEDED here) ---
 
 
-def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, Dict]]:
+def process_backbone_graph(
+    backbone_data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]]]:
     """
     Interstitial step to process raw backbone graph data from core.py.
     Calculates segment geometry (length, incline) using simple linear depth_m.
@@ -24,38 +27,163 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
                        containing 'nodes' list (potentially with 'feature' keys).
 
     Returns:
-        Tuple containing:
-        - augmented_nodes (List[Dict]): A copy of the nodes list, with added
+        tuple containing:
+        - augmented_nodes (list[dict]): A copy of the nodes list, with added
             segment geometry keys where applicable (flags are passed through).
-        - augmented_node_map (Dict[int, Dict]): A map from node ID to the
+        - augmented_node_map (dict[int, dict]): A map from node ID to the
             corresponding augmented node dictionary.
     """
     if "nodes" not in backbone_data:
         print("Warning: 'nodes' key not found in backbone_data.")
         return [], {}
 
+    def is_valid_int(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    def is_valid_number(value: object) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    def reset_geometry_fields(node: dict[str, Any]) -> None:
+        node["segment_length_xy"] = 0.0
+        node["segment_incline_rate"] = 0.0
+        node["segment_delta_depth_m"] = 0.0
+        node["bearing_deg"] = 0.0
+
+    def validate_id(value: object) -> list[str]:
+        if value is None:
+            return ["Missing id."]
+        if not is_valid_int(value):
+            return [f"Invalid id value: {value!r}."]
+        return []
+
+    def validate_parent_id(value: object) -> list[str]:
+        if value is None:
+            return ["Missing parent_id."]
+        if not is_valid_int(value):
+            return [f"Invalid parent_id value: {value!r}."]
+        return []
+
+    def validate_coordinate(label: str, value: object) -> list[str]:
+        if value is None or not is_valid_number(value):
+            return [f"Invalid {label} value: {value!r}."]
+        return []
+
+    def normalize_children_ids(value: object) -> dict[str, Any]:
+        if value is None:
+            return {"normalized": [], "errors": []}
+        if not isinstance(value, list):
+            return {
+                "normalized": [],
+                "errors": [f"Invalid children_ids value: {value!r}."],
+            }
+
+        normalized = [child for child in value if is_valid_int(child)]
+        if len(normalized) != len(value):
+            return {
+                "normalized": normalized,
+                "errors": ["Invalid child id(s) in children_ids."],
+            }
+        return {"normalized": normalized, "errors": []}
+
     # Create shallow copies to avoid mutating the input without deep-copy cost.
     # Node dictionaries only contain primitive fields + children_ids list, which we
     # do not mutate during processing.
     nodes_list = [node.copy() for node in backbone_data["nodes"]]
-    node_map = {n["id"]: n for n in nodes_list}
+
+    df = pl.DataFrame(nodes_list)
+    for required_column in ("id", "parent_id", "x", "y", "children_ids"):
+        if required_column not in df.columns:
+            df = df.with_columns(pl.lit(None).alias(required_column))
+
+    validation_schema = pl.Struct(
+        [
+            pl.Field("normalized", pl.List(pl.Int64)),
+            pl.Field("errors", pl.List(pl.Utf8)),
+        ]
+    )
+    df = df.with_columns(
+        pl.col("id")
+        .map_elements(validate_id, return_dtype=pl.List(pl.Utf8))
+        .alias("id_errors"),
+        pl.col("parent_id")
+        .map_elements(validate_parent_id, return_dtype=pl.List(pl.Utf8))
+        .alias("parent_id_errors"),
+        pl.col("x")
+        .map_elements(
+            lambda value: validate_coordinate("x", value),
+            return_dtype=pl.List(pl.Utf8),
+        )
+        .alias("x_errors"),
+        pl.col("y")
+        .map_elements(
+            lambda value: validate_coordinate("y", value),
+            return_dtype=pl.List(pl.Utf8),
+        )
+        .alias("y_errors"),
+        pl.col("children_ids")
+        .map_elements(normalize_children_ids, return_dtype=validation_schema)
+        .alias("children_validation"),
+    ).with_columns(
+        pl.col("parent_id")
+        .map_elements(
+            lambda value: value if is_valid_int(value) else None,
+            return_dtype=pl.Int64,
+        )
+        .alias("parent_id"),
+    )
+
+    df = df.with_columns(
+        pl.col("children_validation").struct.field("normalized").alias("children_ids"),
+        pl.col("children_validation").struct.field("errors").alias("children_errors"),
+    ).with_columns(
+        pl.concat_list(
+            "id_errors",
+            "parent_id_errors",
+            "x_errors",
+            "y_errors",
+            "children_errors",
+        ).alias("processing_errors")
+    ).drop(
+        "id_errors",
+        "parent_id_errors",
+        "x_errors",
+        "y_errors",
+        "children_validation",
+        "children_errors",
+    )
+
+    nodes_list = df.to_dicts()
+    valid_nodes = [n for n in nodes_list if is_valid_int(n.get("id"))]
+    node_map = {n["id"]: n for n in valid_nodes}
 
     print(f"Processor: Calculating geometry for {len(nodes_list)} nodes...")
 
     # Iterate through the copied nodes to calculate segment geometry
     for node_data in nodes_list:
+        if not is_valid_int(node_data.get("id")):
+            reset_geometry_fields(node_data)
+            continue
+
+        if not is_valid_number(node_data.get("x")) or not is_valid_number(
+            node_data.get("y")
+        ):
+            reset_geometry_fields(node_data)
+            continue
+
         parent_id = node_data.get("parent_id")
 
         # Skip root or nodes with missing/invalid parents
         if parent_id is None or parent_id not in node_map:
             # Add default segment values for root if needed downstream?
-            node_data["segment_length_xy"] = 0.0
-            node_data["segment_incline_rate"] = 0.0
-            node_data["segment_delta_depth_m"] = 0.0
-            node_data["bearing_deg"] = 0.0
+            reset_geometry_fields(node_data)
             continue
 
         parent_data = node_map[parent_id]
+        if not is_valid_number(parent_data.get("x")) or not is_valid_number(
+            parent_data.get("y")
+        ):
+            reset_geometry_fields(node_data)
+            continue
 
         # --- Calculate Segment Geometry ---
         delta_x = node_data["x"] - parent_data["x"]
@@ -96,9 +224,11 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
             return "corridor"
         return "junction"
 
-    def compute_flow_metrics(nodes: List[Dict], node_lookup: Dict[int, Dict]) -> None:
-        flow_next_lookup: Dict[int, int] = {}
-        flow_distance_cache: Dict[int, float] = {}
+    def compute_flow_metrics(
+        nodes: list[dict[str, Any]], node_lookup: dict[int, dict[str, Any]]
+    ) -> None:
+        flow_next_lookup: dict[int, int] = {}
+        flow_distance_cache: dict[int, float] = {}
 
         for node in nodes:
             children_ids = node.get("children_ids") or []
@@ -125,7 +255,7 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
                 node["flow_next_id"] = next_node["id"]
                 flow_next_lookup[node["id"]] = next_node["id"]
 
-        def compute_flow_distance(node_id: int, visited: set) -> float:
+        def compute_flow_distance(node_id: int, visited: set[int]) -> float:
             if node_id in flow_distance_cache:
                 return flow_distance_cache[node_id]
             if node_id in visited:
@@ -162,10 +292,10 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         for node in nodes:
             node["flow_accumulation_n"] = accumulation.get(node["id"], 1)
 
-    path_length_cache: Dict[int, float] = {}
-    path_depth_cache: Dict[int, int] = {}
+    path_length_cache: dict[int, float] = {}
+    path_depth_cache: dict[int, int] = {}
 
-    def compute_path_info(node_id: int) -> Tuple[float, int]:
+    def compute_path_info(node_id: int) -> tuple[float, int]:
         if node_id in path_length_cache and node_id in path_depth_cache:
             return path_length_cache[node_id], path_depth_cache[node_id]
 
@@ -184,7 +314,7 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         path_depth_cache[node_id] = total_depth
         return total_length, total_depth
 
-    for node_data in nodes_list:
+    for node_data in valid_nodes:
         parent_id = node_data.get("parent_id")
         parent_present = parent_id is not None and parent_id in node_map
         children_count = len(node_data.get("children_ids") or [])
@@ -195,7 +325,7 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         node_data["path_length_from_root"] = round(path_length, 2)
         node_data["path_depth"] = path_depth
 
-    compute_flow_metrics(nodes_list, node_map)
+    compute_flow_metrics(valid_nodes, node_map)
 
     # Log counts of flags received from core.py
     cliff_count = sum(1 for n in nodes_list if n.get("feature") == "cliff_edge")
