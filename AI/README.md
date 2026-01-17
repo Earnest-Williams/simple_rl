@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This component implements the core artificial intelligence for **non-adventurer NPCs** residing in persistent, evolving communities within the game world. It focuses on simulating complex social behaviors, daily routines, learning, and adaptation based on individual traits and experiences, distinct from the combat/survival-oriented GOAP AI used for adventurers and monsters (`simple_rl/auto`).
+This component implements the core artificial intelligence for **non-adventurer NPCs** residing in persistent, evolving communities within the game world. It focuses on simulating complex social behaviors, daily routines, learning, and adaptation based on individual traits and experiences, distinct from the combat/survival-oriented GOAP AI used for adventurers and monsters (`auto/`).
 
 Future plans include potentially allowing the player character to be managed by this AI system when in a "community manager" mode, and enabling NPCs transitioning between adventuring and community life to switch AI systems.
 
@@ -33,9 +33,9 @@ Future plans include potentially allowing the player character to be managed by 
 * **Python:** 3.x
 * **Core Libraries:** `numpy`
 * **Project Dependencies:**
-    * `rng_utils.game_rng.GameRNG`: For all random number generation.
+    * `game_rng.GameRNG`: For all random number generation. **Note:** The current import path in v9.py (`rng_utils.game_rng.GameRNG`) is incorrect and needs to be fixed to `from game_rng import GameRNG`.
     * Likely depends on data structures/constants defined elsewhere (e.g., `Home`, `Field`, `CROPS`, `Weather`, `Calendar`, `Behavior` definitions - potentially shared with other modules or defined centrally). *Exact dependencies need verification during integration.*
 
 ## Status & Integration
 
-This AI system is under active development. It is intended to drive NPCs within community environments and interact with game systems like resource management, time, weather, and potentially social structures (not yet implemented). It is distinct from the `simple_rl/auto` GOAP AI. Normalization between the trait systems used here and the player/adventurer trait system is a planned future task.
+This AI system is under active development. It is intended to drive NPCs within community environments and interact with game systems like resource management, time, weather, and potentially social structures (not yet implemented). It is distinct from the `auto/` GOAP AI. Normalization between the trait systems used here and the player/adventurer trait system is a planned future task.

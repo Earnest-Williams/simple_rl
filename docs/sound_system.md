@@ -1,6 +1,6 @@
 # Sound System Documentation
 
-The BasicRL sound system provides situationally appropriate sound effects and background music that enhance the gameplay experience. The system is designed to be:
+The Simple RL sound system provides situationally appropriate sound effects and background music that enhance the gameplay experience. The system is designed to be:
 
 - **Situational**: Background music and sound effects adapt to the current game context
 - **Configurable**: All sounds and settings are defined in YAML configuration files

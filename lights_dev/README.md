@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This directory serves as a dedicated research and development testbed for advanced visual and memory systems intended for the main `simple_rl` game. It focuses on implementing and iterating upon:
+This directory serves as a dedicated research and development testbed for advanced visual and memory systems intended for the main Simple RL game. It focuses on implementing and iterating upon:
 
 1.  **Field of View (FOV) / Line of Sight (LOS):** A shadow-casting algorithm (octant-based) inspired by Brogue, designed for performance using Numba.
 2.  **Dynamic Lighting:** Simulation of colored light sources with inverse square falloff, supporting blending of multiple sources for True Color illumination. Future plans include animating light sources (e.g., flickering torches).
@@ -34,4 +34,4 @@ The components developed here are intended for eventual integration into the mai
 
 ## Status & Integration
 
-This component is under active development and refinement. The core algorithms for FOV, lighting, and memory are functional but require testing in more complex environments and further iteration (e.g., light animation, trait integration for memory). The systems developed here are planned for integration into the main simulation, potentially combined with perception systems from `simple_rl/pathfinding` under a unified orchestrator. The memory system might be separated due to its complexity and interactions with other game states.
+This component is under active development and refinement. The core algorithms for FOV, lighting, and memory are functional but require testing in more complex environments and further iteration (e.g., light animation, trait integration for memory). The systems developed here are planned for integration into the main simulation, potentially combined with perception systems from `pathfinding/` under a unified orchestrator. The memory system might be separated due to its complexity and interactions with other game states.

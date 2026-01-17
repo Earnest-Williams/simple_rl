@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This component simulates non-visual perception modalities, primarily **noise propagation** and **scent tracking**, intended to provide input for agent AI systems (like the GOAP planner in `simple_rl/auto`). While named `pathfinding` (due to its conceptual origin in the game Sil, where perception was coupled with pathfinding), this module *does not* contain pathfinding algorithms itself. Instead, it generates the perception data (e.g., noise cost maps, scent trails) that pathfinding routines or decision-making logic can utilize.
+This component simulates non-visual perception modalities, primarily **noise propagation** and **scent tracking**, intended to provide input for agent AI systems (like the GOAP planner in `auto/`). While named `pathfinding` (due to its conceptual origin in the game Sil, where perception was coupled with pathfinding), this module *does not* contain pathfinding algorithms itself. Instead, it generates the perception data (e.g., noise cost maps, scent trails) that pathfinding routines or decision-making logic can utilize.
 
 The goal is to enable agents (particularly monsters or NPCs with heightened senses) to react to sounds and smells in the environment, allowing for behaviors like investigating disturbances or tracking targets by scent. Sound propagation data may also be relevant to the player character.
 
@@ -34,7 +34,7 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 
 ## Integration & Status
 
-* The perception data (noise cost maps, scent maps) generated here is intended to be consumed by AI systems (primarily `simple_rl/auto`) to influence behavior and pathfinding decisions.
-* The `FeatureType` enum defined here needs to be synchronized with the final feature set produced by the main `simple_rl/Dungeon` generator once that is finalized.
+* The perception data (noise cost maps, scent maps) generated here is intended to be consumed by AI systems (primarily `auto/`) to influence behavior and pathfinding decisions.
+* The `FeatureType` enum defined here needs to be synchronized with the final feature set produced by the main `Dungeon/` generator once that is finalized.
 * The `line_of_sight` function requires a proper implementation (e.g., Bresenham accelerated with Numba).
 * The core perception logic is functional but may require further tuning and integration with specific agent capabilities.

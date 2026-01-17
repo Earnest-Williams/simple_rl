@@ -10,13 +10,13 @@ The project emphasizes robust simulation, leveraging performant libraries and pa
 
 This project is structured into several key component directories, each with its own detailed `README.md`:
 
-* **`simple_rl/Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph -> Processing -> Shaping). Outputs Polars DataFrames. ([See README](./simple_rl/Dungeon/README.md))
-* **`simple_rl/AI/`**: Implements the AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. ([See README](./simple_rl/AI/README.md))
-* **`simple_rl/auto/`**: Contains the **combat/survival AI** system based on Goal-Oriented Action Planning (GOAP), intended for adventurers and monsters operating in hostile environments. Includes a simulation testbed and development GUI. ([See README](./simple_rl/auto/README.md))
-* **`simple_rl/lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Intended for future integration. ([See README](./simple_rl/lights_dev/README.md))
-* **`simple_rl/pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) to provide input for AI decision-making and pathfinding routines. ([See README](./simple_rl/pathfinding/README.md))
-* **`simple_rl/rng_utils/`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. ([See README](./simple_rl/rng_utils/README.md))
-* **`simple_rl/scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, intended to serve as the basis for the **game's spell system**.
+* **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph -> Processing -> Shaping). Outputs Polars DataFrames. ([See README](./Dungeon/README.md))
+* **`AI/`**: Implements the AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. ([See README](./AI/README.md))
+* **`auto/`**: Contains the **combat/survival AI** system based on Goal-Oriented Action Planning (GOAP), intended for adventurers and monsters operating in hostile environments. Includes a simulation testbed and development GUI. ([See README](./auto/README.md))
+* **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Intended for future integration. ([See README](./lights_dev/README.md))
+* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) to provide input for AI decision-making and pathfinding routines. ([See README](./pathfinding/README.md))
+* **`game_rng.py`** & **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. The main implementation is at the root level, with a thin wrapper in utils/. ([See README](./utils/README.md))
+* **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, intended to serve as the basis for the **game's spell system**.
 
 ## Technical Philosophy
 
@@ -34,18 +34,18 @@ This project is **under active development**. Components are at various stages o
 ## Vestigial Components
 
 * **`simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components.
-* **`simple_rl/dungeon_generator.py`**: A simpler room-and-corridor generator used by `simple_rl.py`.
+* **`dungeon_generator.py`**: A simpler room-and-corridor generator used by `simple_rl.py`.
 
-These files are currently maintained primarily for testing the `simple_rl/scripting_engine.py`.
+These files are currently maintained primarily for testing the `scripting_engine.py`.
 
 ## Getting Started (Development Focus)
 
 Currently, different components are often run via their respective test harnesses or shell scripts:
 
-* **Dungeon Generation:** `cd simple_rl/Dungeon && ./run.sh`
-* **GOAP AI Simulation (Headless):** `cd simple_rl/auto && ./run.sh --mode headless ...`
-* **GOAP AI Simulation (GUI):** `cd simple_rl/auto && ./run.sh --mode gui`
-* **Lighting/FOV Testbed:** `cd simple_rl/lights_dev && python main_game.py`
-* **Perception Testbed:** `cd simple_rl/pathfinding && python test.py`
+* **Dungeon Generation:** `cd Dungeon && ./run.sh`
+* **GOAP AI Simulation (Headless):** `cd auto && ./run.sh --mode headless ...`
+* **GOAP AI Simulation (GUI):** `cd auto && ./run.sh --mode gui`
+* **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
+* **Perception Testbed:** `cd pathfinding && python test.py`
 
 Ensure required dependencies (Python 3.x, Polars, NumPy, Numba, SciPy, scikit-image, PySide6 for GUI, etc.) are installed. Refer to individual component READMEs for specific requirements.

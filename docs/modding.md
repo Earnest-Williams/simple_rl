@@ -1,6 +1,6 @@
 # Modding Guide
 
-BasicRL is designed to load most game content from data files so that new content can be added without touching engine code.  This guide covers how to extend the game by editing configuration files and adding Python modules.
+Simple RL is designed to load most game content from data files so that new content can be added without touching engine code.  This guide covers how to extend the game by editing configuration files and adding Python modules.
 
 ## Configuration driven assets
 
@@ -37,11 +37,11 @@ The engine loads these files on start, so changes are picked up the next time th
 
 ## Plugging in new AI
 
-AI behaviours live under the `prototypes/AI/` folder. Create a new module that implements the desired behaviour and expose a class or function entry point. Entity templates can reference this behaviour via fields in `entities.yaml` or by custom game code that selects an AI implementation per entity.
+AI behaviours live under the `game/ai/` folder for integrated production AI (GOAP, strategy, specialized behaviors) or `AI/` for community NPC AI under development. Create a new module that implements the desired behaviour and expose a class or function entry point. Entity templates can reference this behaviour via fields in `entities.yaml` or by custom game code that selects an AI implementation per entity.
 
 ## Custom generation algorithms
 
-Dungeon generation is managed by the modules in the `prototypes/Dungeon/` directory.  To introduce a new generation algorithm, add a Python module implementing the generator and update the launch code (e.g. `main.py`) to call it instead of the default pipeline.  Generators should return a data structure compatible with the engine's map loader so that entities and items can be placed on the resulting map.
+Dungeon generation is managed by the modules in the `Dungeon/` directory.  To introduce a new generation algorithm, add a Python module implementing the generator and update the launch code (e.g. `main.py`) to call it instead of the default pipeline.  Generators should return a data structure compatible with the engine's map loader so that entities and items can be placed on the resulting map. The current production pipeline uses a sophisticated 3D-to-2D cave network generator (core.py → processor.py → shaper.py).
 
 ## Testing mods
 

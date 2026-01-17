@@ -2,7 +2,7 @@
 
 # Contributing
 
-Thank you for your interest in improving BasicRL.  This document describes how to set up a development environment and the expectations for testing changes.
+Thank you for your interest in improving Simple RL.  This document describes how to set up a development environment and the expectations for testing changes.
 
 ## Environment setup
 
