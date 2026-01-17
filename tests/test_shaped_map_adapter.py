@@ -11,8 +11,9 @@ def test_shaped_dataframe_to_game_map_walkable_override():
             "y": [0.0, 0.0, 1.0],
             "material_id": [1, 3, 1],
             "walkable": [True, False, True],
-            "height": [1.2, 5.0, 2.7],
-            "ceiling_depth": [-1.2, -3.0, -2.7],
+            "floor_depth": [2.0, 6.0, 4.0],
+            "height": [1.0, 2.0, 3.0],
+            "ceiling_depth": [1.0, 4.0, 1.0],
         }
     )
 
@@ -25,13 +26,13 @@ def test_shaped_dataframe_to_game_map_walkable_override():
     assert game_map.tiles[0, 1] == TILE_ID_WALL
     assert game_map.tiles[1, 0] == TILE_ID_FLOOR
     assert game_map.tiles[1, 1] == TILE_ID_WALL
-    assert game_map.height_map[0, 0] == 1
-    assert game_map.height_map[0, 1] == 5
-    assert game_map.height_map[1, 0] == 3
+    assert game_map.height_map[0, 0] == 2
+    assert game_map.height_map[0, 1] == 6
+    assert game_map.height_map[1, 0] == 4
     assert game_map.height_map[1, 1] == 0
-    assert game_map.ceiling_map[0, 0] == -1
-    assert game_map.ceiling_map[0, 1] == -3
-    assert game_map.ceiling_map[1, 0] == -3
+    assert game_map.ceiling_map[0, 0] == 3
+    assert game_map.ceiling_map[0, 1] == 8
+    assert game_map.ceiling_map[1, 0] == 7
     assert game_map.ceiling_map[1, 1] == 0
 
 

@@ -149,7 +149,18 @@ def shaped_dataframe_to_game_map(
     game_map = GameMap(width=width, height=height)
     game_map.tiles[:, :] = tile_id_grid
 
-    if "height" in df.columns:
+    if "floor_depth" in df.columns:
+        floor_vals = df.get_column("floor_depth").to_numpy()
+        floor_vals = np.nan_to_num(floor_vals, nan=default_floor_depth)
+        depth_grid = np.full(
+            (height, width),
+            int(np.rint(default_floor_depth)),
+            dtype=np.int16,
+            order="C",
+        )
+        depth_grid[gy, gx] = np.rint(floor_vals).astype(np.int16)
+        game_map.height_map = depth_grid
+    elif "height" in df.columns:
         height_vals = df.get_column("height").to_numpy()
         height_vals = np.nan_to_num(height_vals, nan=default_height)
         height_grid = np.full(
@@ -159,26 +170,19 @@ def shaped_dataframe_to_game_map(
         game_map.height_map = height_grid
 
     ceiling_grid = np.full((height, width), default_ceiling, dtype=np.int16, order="C")
-    if "ceiling_depth" in df.columns:
-        ceiling_vals = df.get_column("ceiling_depth").to_numpy()
-        ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
-        ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
-    elif "floor_depth" in df.columns and "height" in df.columns:
+    if "floor_depth" in df.columns and "height" in df.columns:
         floor_vals = df.get_column("floor_depth").to_numpy()
         height_vals = df.get_column("height").to_numpy()
-        ceiling_vals = floor_vals - height_vals
+        ceiling_vals = floor_vals + height_vals
+        ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
+        ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
+    elif "floor_depth" in df.columns and "ceiling_depth" in df.columns:
+        floor_vals = df.get_column("floor_depth").to_numpy()
+        ceiling_depth_vals = df.get_column("ceiling_depth").to_numpy()
+        ceiling_vals = 2 * floor_vals - ceiling_depth_vals
         ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
         ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
     game_map.ceiling_map = ceiling_grid
-
-    if "height" not in df.columns and "floor_depth" in df.columns:
-        depth_vals = df.get_column("floor_depth").to_numpy()
-        depth_vals = np.nan_to_num(depth_vals, nan=default_floor_depth)
-        depth_grid = np.full(
-            (height, width), default_height, dtype=np.int16, order="C"
-        )
-        depth_grid[gy, gx] = np.rint(depth_vals).astype(np.int16)
-        game_map.height_map = depth_grid
 
     game_map.update_tile_transparency()
     return game_map, (min_x, min_y)
