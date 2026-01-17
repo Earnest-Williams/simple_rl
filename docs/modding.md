@@ -37,7 +37,7 @@ The engine loads these files on start, so changes are picked up the next time th
 
 ## Plugging in new AI
 
-AI behaviours live under the `game/ai/` folder for integrated production AI (GOAP, strategy, specialized behaviors) or `AI/` for community NPC AI under development. Create a new module that implements the desired behaviour and expose a class or function entry point. Entity templates can reference this behaviour via fields in `entities.yaml` or by custom game code that selects an AI implementation per entity.
+AI behaviours live under the `game/ai/` folder for integrated production AI (GOAP, strategy, specialized behaviors) or `AI/` for community NPC AI under development. Create a new module that implements the desired behaviour and expose a class or function entry point. Entity templates can reference this behaviour via fields in `entities.yaml` or by custom game code that selects an AI implementation per entity. The GOAP planner extracted from the `auto/` testbed is available via `game/ai/goap_adapter.py::plan_for_agent`, which builds a GOAP plan from `GameState` and `EntityRegistry`.
 
 ## Custom generation algorithms
 

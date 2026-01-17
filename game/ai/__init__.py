@@ -25,13 +25,12 @@ from . import (
     plant,
 )
 
-if True:
-    from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:  # pragma: no cover - for type checking
-        from polars import series
-        from game.game_state import GameState
-        from utils.game_rng import GameRNG
+if TYPE_CHECKING:  # pragma: no cover - for type checking
+    from polars import series
+    from game.game_state import GameState
+    from utils.game_rng import GameRNG
 
 log = structlog.get_logger()
 

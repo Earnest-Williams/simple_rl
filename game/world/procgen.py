@@ -1,6 +1,6 @@
 # basicrl/game/world/procgen.py
 from collections import deque
-from typing import Dict, Iterator, List, NamedTuple, Tuple, Union
+from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import structlog
@@ -108,9 +108,9 @@ class BSPNode:
         self, rect: Rect, base_height: int = 0
     ):  # base_height represents floor height
         self.rect: Rect = rect
-        self.left: Union[BSPNode, None] = None
-        self.right: Union[BSPNode, None] = None
-        self.room: Union[Rect, None] = None
+        self.left: Optional[BSPNode] = None
+        self.right: Optional[BSPNode] = None
+        self.room: Optional[Rect] = None
         self.corridors: List[Rect] = []
         self.base_height: int = base_height  # Floor height for this node's region
 
@@ -127,7 +127,7 @@ class BSPNode:
             if self.right:
                 yield from self.right.get_leaves()
 
-    def get_room(self) -> Union[Rect, None]:
+    def get_room(self) -> Optional[Rect]:
         if self.room:
             return self.room
         room = None

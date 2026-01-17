@@ -88,8 +88,10 @@ class SimulationWorker(QObject):
             # --- Initial State Emission ---
             self.emit_world_state()
             self.emit_action_weights()
-            initial_goal_str = "Goal: {}".format(
-                self.agent_ai.current_goal if self.agent_ai.current_goal else "None"
+            initial_goal_str = (
+                f"Goal: {self.agent_ai.current_goal}"
+                if self.agent_ai.current_goal
+                else "Goal: None"
             )
             initial_plan_list = [action.name for action in self.agent_ai.current_plan]
             self.goal_updated.emit(initial_goal_str)
@@ -131,8 +133,10 @@ class SimulationWorker(QObject):
                 prev_plan = list(self.agent_ai.current_plan)
                 self.agent_ai.act(agent)  # Agent logic execution
 
-                current_goal_str = "Goal: {}".format(
-                    self.agent_ai.current_goal if self.agent_ai.current_goal else "None"
+                current_goal_str = (
+                    f"Goal: {self.agent_ai.current_goal}"
+                    if self.agent_ai.current_goal
+                    else "Goal: None"
                 )
                 current_plan_list = [action.name for action in self.agent_ai.current_plan]
                 goal_changed = current_goal_str != self.last_emitted_goal_str

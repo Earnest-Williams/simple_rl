@@ -414,10 +414,10 @@ def render_viewport(
             output_pixel_h,
             output_pixel_w,
         ) or tile_coord_x.shape != (output_pixel_h, output_pixel_w):
-            raise ValueError(f"Coordinate array shape mismatch")
+            raise ValueError("Coordinate array shape mismatch")
 
         if final_bg.shape != (vp_h, vp_w, 3):
-            raise ValueError(f"Background color shape mismatch")
+            raise ValueError("Background color shape mismatch")
 
         output_image_array[:, :, :3] = final_bg[tile_coord_y, tile_coord_x]
         output_image_array[:, :, 3] = 255

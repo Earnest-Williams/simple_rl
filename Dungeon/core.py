@@ -932,7 +932,7 @@ if __name__ == "__main__":
         # Optionally save a small test JSON
         test_json = test_gen.to_json(include_steps=False)
         output_filename = "core_test_output.json"
-        with open(output_filename, "w") as f:
+        with open(output_filename, "w", encoding="utf_8") as f:
             f.write(test_json)
         print(f"Test cave data saved to {output_filename}")
 
