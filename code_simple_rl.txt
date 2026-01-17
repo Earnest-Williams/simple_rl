@@ -111,7 +111,7 @@ Future plans include potentially allowing the player character to be managed by 
 * **Python:** 3.x
 * **Core Libraries:** `numpy`
 * **Project Dependencies:**
-    * `rng_utils.game_rng.GameRNG`: For all random number generation.
+    * `utils.game_rng.GameRNG`: For all random number generation.
     * Likely depends on data structures/constants defined elsewhere (e.g., `Home`, `Field`, `CROPS`, `Weather`, `Calendar`, `Behavior` definitions - potentially shared with other modules or defined centrally). *Exact dependencies need verification during integration.*
 
 ## Status & Integration
@@ -5121,7 +5121,7 @@ import time
 # Imports seem correct now
 from PySide6.QtCore import QMutex, QMutexLocker, QObject, Signal, Slot
 
-from ...rng_utils.game_rng import GameRNG  # Assuming World passes a GameRNG instance
+from utils.game_rng import GameRNG  # Assuming World passes a GameRNG instance
 from ..simulation import (
     ENEMY_SPAWN_CHANCE,
     MAX_TURNS,
@@ -13283,7 +13283,7 @@ EXCLUDE_PATTERNS = [
 ]
 
 RNG_IMPORT_NODE = ast.ImportFrom(
-    module="rng_utils.game_rng", names=[ast.alias(name="GameRNG")], level=0
+    module="utils.game_rng", names=[ast.alias(name="GameRNG")], level=0
 )
 RNG_IMPORT_LINE = "from utils.game_rng import GameRNG"  # For writing
 
@@ -13338,7 +13338,7 @@ class RandomUsageFinder(ast.NodeVisitor):
         # Correctly check relative imports vs package imports for GameRNG
         # Assumes GameRNG is in rng_utils *within* the project scanned
         elif (
-            node.module == "rng_utils.game_rng"
+            node.module == "utils.game_rng"
             or node.module == ".game_rng"
             and node.level > 0
         ) and any(alias.name == "GameRNG" for alias in node.names):

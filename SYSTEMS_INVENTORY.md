@@ -548,27 +548,16 @@ Spell Definition (magic/work parser)
 
 ### Critical Issues
 
-#### 1. GameRNG Import Inconsistency ⚠️
+#### 1. GameRNG Import Standardization ✅
 
-**Problem:** Inconsistent import paths for GameRNG across the codebase.
+**Status:** GameRNG imports are standardized across the codebase.
 
-**Locations:**
-- **Most files (30+ locations):** `from utils.game_rng import GameRNG` ✅
-- **game/world/procgen.py:** `from utils.game_rng import GameRNG` ⚠️
-- **AI/v9.py:** `from rng_utils.game_rng.GameRNG` ❌ BROKEN!
+**Standard:** `from utils.game_rng import GameRNG`
 
-**Files Affected:**
-- `game/world/procgen.py` - Uses utils wrapper (works but inconsistent)
-- `AI/v9.py` - Imports from non-existent `rng_utils.game_rng` (BROKEN)
-
-**Current State:**
+**Notes:**
+- The utils wrapper remains the canonical import location.
 - Root implementation: `/home/user/simple_rl/game_rng.py` (18K, full implementation)
 - Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
-
-**Resolution Needed:**
-1. **For AI/v9.py:** Change `from rng_utils.game_rng.GameRNG` → `from utils.game_rng import GameRNG`
-2. **For procgen.py:** Optionally change `from utils.game_rng` → `from game_rng` for consistency
-3. **Long-term:** Decide on canonical location (root or utils/)
 
 #### 2. lights_dev/ Uses Standard random Module ⚠️
 
@@ -610,21 +599,19 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 **Status:**
 - ⚠️ **Under active development**
 - ❌ **Not integrated** with main game systems
-- ❌ **Broken import:** Uses `rng_utils.game_rng.GameRNG` (doesn't exist)
 - 🔄 **Planned:** Normalization with player trait system
 - 🔄 **Planned:** Allow NPCs to switch between this AI and GOAP AI
 
 **Integration Steps Needed:**
-1. Fix import: `from rng_utils.game_rng.GameRNG` → `from utils.game_rng import GameRNG`
-2. Normalize trait systems between AI/ and game/ implementations
-3. Create community environment system for NPCs to inhabit
-4. Integrate with game/game_state.py orchestrator
-5. Add NPC spawning/management to entity registry
-6. Connect with resource management, time, weather systems
+1. Normalize trait systems between AI/ and game/ implementations
+2. Create community environment system for NPCs to inhabit
+3. Integrate with game/game_state.py orchestrator
+4. Add NPC spawning/management to entity registry
+5. Connect with resource management, time, weather systems
 
 **Dependencies:**
 - numpy
-- GameRNG (currently broken path)
+- GameRNG
 - Needs: Home, Field, CROPS, Weather, Calendar, Behavior definitions
 
 ---

@@ -35,16 +35,12 @@ except ImportError:
 try:
     from utils.game_rng import GameRNG
 except ImportError:
-    try:
-        from basicrl.game_rng import GameRNG
-    except ImportError:
+    class GameRNG:  # type: ignore
+        pass
 
-        class GameRNG:  # type: ignore
-            pass
-
-        structlog.get_logger().error(
-            "CRITICAL: Failed to import GameRNG in render_lighting."
-        )
+    structlog.get_logger().error(
+        "CRITICAL: Failed to import GameRNG in render_lighting."
+    )
 
 log = structlog.get_logger()
 
