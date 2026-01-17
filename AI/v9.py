@@ -9,12 +9,6 @@ Optimized with NumPy and deterministic RNG.
 Version: 9.0 (Merged Traits & Habits) - Requires review for duplicates
 """
 
-# NOTE: This file appears to contain duplicated or partially merged code blocks.
-# Specifically, there seems to be a second, incomplete AgentF class definition
-# starting around line 443 which should likely be removed or merged carefully
-# with the first definition. The indentation fixes below assume the FIRST
-# AgentF class definition is the intended one.
-
 from collections import defaultdict, deque
 from typing import Callable  # Removed Optional per PEP 604 preference
 from typing import Any, Dict, List, Set, Tuple, Union
@@ -1804,5 +1798,3 @@ class AgentF:
 
 
 # --- END OF PRIMARY AgentF CLASS ---
-
-# Ensure no duplicated code follows this point. Remove any second AgentF definition.

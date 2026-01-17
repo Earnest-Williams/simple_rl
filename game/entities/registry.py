@@ -63,6 +63,8 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
     "seal_tags": pl.List(pl.Utf8),
     "font_sources": pl.List(pl.Utf8),
     "vent_targets": pl.List(pl.Utf8),
+    "community_ai": pl.Object,
+    "community_profile": pl.Object,
 }
 
 
@@ -216,6 +218,8 @@ class EntityRegistry:
             "seal_tags": [[]],
             "font_sources": [[]],
             "vent_targets": [[]],
+            "community_ai": [None],
+            "community_profile": [None],
         }
         try:
             new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
