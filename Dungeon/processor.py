@@ -175,10 +175,7 @@ def process_backbone_graph(
         # Skip root or nodes with missing/invalid parents
         if parent_id is None or parent_id not in node_map:
             # Add default segment values for root if needed downstream?
-            node_data["segment_length_xy"] = 0.0
-            node_data["segment_incline_rate"] = 0.0
-            node_data["segment_delta_depth_m"] = 0.0
-            node_data["bearing_deg"] = 0.0
+            reset_geometry_fields(node_data)
             continue
 
         parent_data = node_map[parent_id]
