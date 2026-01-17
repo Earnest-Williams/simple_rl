@@ -33,7 +33,7 @@ Future plans include potentially allowing the player character to be managed by 
 * **Python:** 3.x
 * **Core Libraries:** `numpy`
 * **Project Dependencies:**
-    * `game_rng.GameRNG`: For all random number generation. **Note:** The current import path in v9.py (`rng_utils.game_rng.GameRNG`) is incorrect and needs to be fixed to `from utils.game_rng import GameRNG`.
+    * `game_rng.GameRNG`: For all random number generation. Import with `from utils.game_rng import GameRNG`.
     * Likely depends on data structures/constants defined elsewhere (e.g., `Home`, `Field`, `CROPS`, `Weather`, `Calendar`, `Behavior` definitions - potentially shared with other modules or defined centrally). *Exact dependencies need verification during integration.*
 
 ## Status & Integration
