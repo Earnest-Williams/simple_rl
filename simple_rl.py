@@ -963,28 +963,34 @@ class MainWindow(QtWidgets.QMainWindow):
             ),
         )
 
-    def update_rng_stats(self):
+    def update_rng_stats(self) -> None:
         """Update the RNG statistics display"""
         # Check game_rng exists and metrics are enabled/available
         if hasattr(game_rng, "metrics_enabled") and game_rng.metrics_enabled:
             metrics = game_rng.get_metrics()
-            if (
-                metrics
-                and "stats" in metrics
-                and "metrics" in metrics
-                and "buffer" in metrics
-            ):
+            if metrics and "stats" in metrics and "metrics" in metrics:
                 try:
                     # Format key metrics nicely, check for None before formatting
-                    ops = metrics["stats"].get("operations_per_second")
-                    bits = metrics["stats"].get("bits_per_second")
-                    vals = metrics["metrics"].get("values_generated")
-                    bits_used = metrics["metrics"].get("bits_used")
-                    buf_size = metrics["buffer"].get("buffer_size")
-                    buf_cap = metrics["buffer"].get("buffer_capacity")
-                    w_choices = metrics["metrics"].get(
-                        "weighted_choices", 0
-                    )  # Default to 0
+                    stats = metrics.get("stats", {})
+                    metrics_data = metrics.get("metrics", {})
+                    buffer_data = metrics.get("buffer", {})
+                    ops = stats.get("operations_per_second")
+                    bits = stats.get("bits_per_second")
+
+                    vals = metrics_data.get("values_generated")
+                    if vals is None:
+                        ints_generated = metrics_data.get("integers_generated")
+                        floats_generated = metrics_data.get("floats_generated")
+                        if ints_generated is not None or floats_generated is not None:
+                            vals = (ints_generated or 0) + (floats_generated or 0)
+
+                    bits_used = metrics_data.get("bits_used")
+                    if bits_used is None:
+                        bits_used = metrics_data.get("bits_consumed")
+
+                    buf_size = buffer_data.get("buffer_size")
+                    buf_cap = buffer_data.get("buffer_capacity")
+                    w_choices = metrics_data.get("weighted_choices", 0)
 
                     stats_text = "RNG Metrics:\n"
                     # Check if game_state exists for seed
@@ -1018,7 +1024,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         else "- Buffer Size: N/A\n"
                     )
 
-                    stats_text += f"\nGenerator Type: {game_rng.generator_type}\n"
+                    generator_type = getattr(game_rng, "generator_type", "N/A")
+                    stats_text += f"\nGenerator Type: {generator_type}\n"
 
                     if w_choices > 0:
                         stats_text += f"Weighted Choices: {w_choices}\n"
