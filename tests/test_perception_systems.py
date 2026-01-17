@@ -1,23 +1,30 @@
 import numpy as np
 import polars as pl
 
-from game.constants import FeatureType, FlowType, MAX_FLOWS
-from utils.game_rng import GameRNG
+from common.constants import FeatureType
 from pathfinding.perception_systems import (
     BASE_FLOW_CENTER,
     NOISE_MAX_DIST,
+    FlowType,
+    MAX_FLOWS,
+    SCENT_ADJUST_TABLE,
+    _lay_scent_kernel,
     _process_monster_perception_chunk,
     cave_closed_door,
+    line_of_sight,
     skill_check,
+    terrain_transparency_map,
 )
+from utils.game_rng import GameRNG
 
 
 def test_skill_check_deterministic():
     seed = 7
     expected_roll = GameRNG(seed).get_int(1, 100)
     rng = GameRNG(seed)
-    result = skill_check(rng, actor_skill=30, difficulty=10, target_skill=5)
-    threshold = 50 + 30 - (10 + 5)
+    result = skill_check(actor_skill=30, difficulty=10, target_skill=5, rng=rng)
+    threshold = 50 + (3 * (30 - 5)) - 10
+    threshold = max(5, min(95, threshold))
     assert result == (expected_roll <= threshold)
 
 
@@ -51,11 +58,30 @@ def test_process_chunk_perception_outcome():
     exp_rng = GameRNG(rng_seed)
     roll1 = exp_rng.get_int(1, 100)
     roll2 = exp_rng.get_int(1, 100)
-    threshold1 = 50 + 60 - (5 + 10)
-    threshold2 = 50 + 60 - (50 + 10)
+    threshold1 = 50 + (3 * (60 - 10)) - 5
+    threshold2 = 50 + (3 * (60 - 10)) - 50
+    threshold1 = max(5, min(95, threshold1))
+    threshold2 = max(5, min(95, threshold2))
     expected = []
     if roll1 <= threshold1:
         expected.append(1)
     if roll2 <= threshold2:
         expected.append(2)
     assert result == expected
+
+
+def test_line_of_sight_blocks_walls():
+    terrain = np.full((5, 5), FeatureType.FLOOR, dtype=np.int32)
+    terrain[2, 2] = FeatureType.WALL
+    assert not line_of_sight(2, 0, 2, 4, terrain)
+    assert line_of_sight(0, 0, 0, 4, terrain)
+
+
+def test_scent_respects_line_of_sight():
+    terrain = np.full((7, 7), FeatureType.FLOOR, dtype=np.int32)
+    terrain[3, 4] = FeatureType.WALL
+    cave_when = np.zeros((7, 7), dtype=np.int32)
+    transparency = terrain_transparency_map(terrain)
+    _lay_scent_kernel(cave_when, transparency, py=3, px=3, current_scent_when=100, scent_adjust=SCENT_ADJUST_TABLE)
+    assert cave_when[3, 5] == 0
+    assert cave_when[3, 2] > 0

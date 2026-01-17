@@ -23,6 +23,7 @@ from numba import njit
 
 from common.constants import FeatureType
 from common.types import Neighbors8, QueueItem
+from game.world.los import line_of_sight as los_line_of_sight
 from utils.game_rng import GameRNG
 
 # --- Constants ---
@@ -92,27 +93,28 @@ def cave_closed_door(feature_type: int) -> bool:
     )
 
 
-@njit(cache=True, fastmath=True)
+def terrain_transparency_map(terrain_map: np.ndarray) -> np.ndarray:
+    """Return a boolean transparency map (True == transparent)."""
+    blocking_mask = (
+        (terrain_map == FeatureType.WALL)
+        | (terrain_map == FeatureType.CLOSED_DOOR)
+        | (terrain_map == FeatureType.SECRET_DOOR)
+    )
+    return ~blocking_mask
+
+
 def line_of_sight(y1: int, x1: int, y2: int, x2: int, terrain_map: np.ndarray) -> bool:
     """
-    Checks if there is line of sight between two points.
-    *** PLACEHOLDER - IMPLEMENT A REAL LOS ALGORITHM (e.g., Bresenham) ***
-    For performance, this should be heavily optimized, likely with Numba.
+    Compatibility wrapper for callers using (y, x) coordinate ordering.
+
+    Converts terrain_map -> transparency_map and calls the numba LOS.
     """
-    # Simplified placeholder: assumes direct line doesn't hit walls
-    # A real implementation needs Bresenham's line algorithm or similar
-    # and check terrain_map[y, x] for blocking features (e.g., WALL) along the
-    # line.
-    if not in_bounds(
-        y1, x1, terrain_map.shape[0], terrain_map.shape[1]
-    ) or not in_bounds(y2, x2, terrain_map.shape[0], terrain_map.shape[1]):
+    height, width = terrain_map.shape
+    if not (0 <= y1 < height and 0 <= x1 < width and 0 <= y2 < height and 0 <= x2 < width):
         return False
 
-    # Extremely basic check (replace!)
-    if terrain_map[y2, x2] == FeatureType.WALL:
-        return False  # Can't see into a wall
-
-    return True  # Placeholder assumes clear path
+    transparency_map = terrain_transparency_map(terrain_map)
+    return los_line_of_sight(x1, y1, x2, y2, transparency_map)
 
 
 # --- Noise System ---
@@ -341,7 +343,7 @@ SCENT_ADJUST_TABLE = np.array(
 )  # Parallel=False as loop is small and writes to shared array
 def _lay_scent_kernel(
     cave_when: np.ndarray,  # The 2D scent age map
-    terrain_map: np.ndarray,  # Map features
+    transparency_map: np.ndarray,  # Boolean: True == transparent
     py: int,
     px: int,  # Player (scent source) coordinates
     current_scent_when: int,  # Current global scent timer value
@@ -353,7 +355,7 @@ def _lay_scent_kernel(
 
     Args:
         cave_when: 2D NumPy array storing scent age.
-        terrain_map: 2D NumPy array with map feature types.
+        transparency_map: 2D boolean array where True means transparent.
         py, px: Player coordinates.
         current_scent_when: The current global scent age value.
         scent_adjust: The 5x5 NumPy array defining relative scent freshness.
@@ -377,13 +379,12 @@ def _lay_scent_kernel(
             if adjustment == 250:
                 continue
 
-            # Walls cannot hold scent (adapt check to your FeatureType enum)
-            if terrain_map[y, x] == FeatureType.WALL:
+            # Walls cannot hold scent
+            if not transparency_map[y, x]:
                 continue
 
-            # Grid must not be blocked by walls from the character (using placeholder LOS)
-            # Replace with your actual LOS check
-            if not line_of_sight(py, px, y, x, terrain_map):
+            # Grid must not be blocked by walls from the character (use numba LOS)
+            if not los_line_of_sight(px, py, x, y, transparency_map):
                 continue
 
             # Mark the grid with new scent age
@@ -456,9 +457,10 @@ def update_smell(
         print(f"Scent cycle reset. New base age: {global_scent_when}")
 
     # 3. Lay down new scent using the Numba kernel
+    transparency_map = terrain_transparency_map(terrain_map)
     _lay_scent_kernel(
         cave_when=cave_when,
-        terrain_map=terrain_map,
+        transparency_map=transparency_map,
         py=py,
         px=px,
         current_scent_when=global_scent_when,
@@ -522,27 +524,47 @@ def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optiona
 # --- Perception System (Parallelized) ---
 
 
-def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: Optional[GameRNG] = None) -> bool:
+def skill_check(
+    actor_skill: int,
+    difficulty: int,
+    target_skill: int,
+    rng: Optional[GameRNG] = None,
+    *,
+    min_threshold: int = 5,
+    max_threshold: int = 95,
+    skill_scale: int = 3,
+) -> bool:
     """
-    Performs a simplified skill check (placeholder).
-    Replace with your game's specific skill check logic.
+    Performs a d100 skill check with tunable thresholds.
 
     Args:
         actor_skill: Skill value of the acting entity (e.g., monster perception).
         difficulty: Difficulty modifier (e.g., based on noise distance, stealth).
         target_skill: Skill value of the target resisting (e.g., player stealth).
         rng: Optional GameRNG instance for deterministic random generation.
+        min_threshold: Minimum success threshold clamp.
+        max_threshold: Maximum success threshold clamp.
+        skill_scale: Scaling factor for skill difference.
 
     Returns:
         True if the check succeeds, False otherwise.
     """
     if rng is None:
         rng = GameRNG()
-    # Example: Roll d100 vs combined skill difference
-    # Higher actor skill is better, higher difficulty/target skill is harder.
+    diff = actor_skill - target_skill
+    threshold = 50 + (skill_scale * diff) - difficulty
+    threshold = max(min_threshold, min(max_threshold, threshold))
     roll = rng.get_int(1, 100)
-    threshold = 50 + actor_skill - (difficulty + target_skill)
     return roll <= threshold
+
+
+def warmup_perception_kernels() -> None:
+    """Warm up Numba kernels to avoid first-use JIT stutter."""
+    tiny_transparency = np.ones((4, 4), dtype=np.bool_)
+    los_line_of_sight(0, 0, 1, 1, tiny_transparency)
+    cave_when = np.zeros((4, 4), dtype=np.int32)
+    scent = np.ones((5, 5), dtype=np.int32)
+    _lay_scent_kernel(cave_when, tiny_transparency, 2, 2, 250, scent)
 
 
 def _process_monster_perception_chunk(
@@ -589,7 +611,7 @@ def _process_monster_perception_chunk(
         if noise_dist >= NOISE_MAX_DIST:
             continue
 
-        # 2. Perform Perception Check (using placeholder skill_check)
+        # 2. Perform Perception Check
         # Difficulty increases with noise distance (harder to hear far away)
         # Player stealth skill resists the check.
         difficulty_mod: int = noise_dist  # Simple difficulty based on distance
