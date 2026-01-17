@@ -4,7 +4,7 @@
 
 This directory contains the simulation environment and core AI implementation for **combat-oriented agents** (adventurers, monsters) designed to operate within hostile environments like the procedurally generated dungeons (`Dungeon/`). It utilizes the Goal-Oriented Action Planning (GOAP) paradigm to drive agent behavior.
 
-This component serves as the primary development and testing environment for the GOAP AI (`AgentAI`, `GOAPPlanner`) before its intended integration into the main game engine to control NPCs and monsters in dungeon/cave settings.
+This component serves as the primary development and testing environment for the GOAP AI (`AgentAI`, `GOAPPlanner`) before its intended integration into the main game engine to control NPCs and monsters in dungeon/cave settings. The reusable planner is now extracted into `auto/goap_engine.py` and is consumed by the main game via `game/ai/goap_adapter.py`.
 
 ## Core Functionality
 
@@ -14,10 +14,10 @@ This component serves as the primary development and testing environment for the
     * Includes basic physics/interactions: movement, health/hunger tracking, simple combat, item interaction (pickup, consume, equip), enemy spawning, and food respawning.
     * Provides an A\* pathfinding implementation (`world.find_path`) using `heapq`.
     * Uses Numba (`@njit`) to accelerate distance calculations.
-* **GOAP AI (`simulation.py`):**
+* **GOAP AI (`simulation.py` + `goap_engine.py`):**
     * **`Action`:** Represents atomic actions agents can perform (MoveTo, Attack, Flee, Pickup, Consume, Equip, Wait, Explore) with defined costs, preconditions, and effects.
-    * **`GOAPPlanner`:** Implements an A\* search over the available actions to find a sequence (plan) that achieves a desired goal state from the current world state. Action costs are weighted based on learned effectiveness.
-    * **`AgentAI`:** Orchestrates the agent's turn. It determines the current goal (`_select_goal`), requests a plan from the `GOAPPlanner`, executes the plan step-by-step, validates plan validity, handles replanning, and triggers learning.
+    * **`GOAPPlanner` (in `goap_engine.py`):** Implements an A\* search over the available actions to find a sequence (plan) that achieves a desired goal state from the current world state. Action costs are weighted based on learned effectiveness.
+    * **`AgentAI` (in `goap_engine.py`):** Orchestrates the agent's turn. It determines the current goal (`_select_goal`), requests a plan from the `GOAPPlanner`, executes the plan step-by-step, validates plan validity, handles replanning, and triggers learning. The `plan_for` method is used by the game adapter to return plans without executing them.
     * **Learning:** The AI learns by adjusting the weights associated with actions (`planner.action_weights`). After a simulation run, weights are updated based on the agent's survival outcome (turns survived, final health), making successful action sequences cheaper (more likely to be chosen) in the future. Unlike the community AI (`simple_rl/AI`), this system starts with functional knowledge (e.g., how to eat) and learns the *value* and consequences of actions.
 * **Execution & Testing (`main.py`, `run.sh`):**
     * `main.py` provides a headless runner capable of executing multiple simulation runs in parallel using `multiprocessing.Pool`.
