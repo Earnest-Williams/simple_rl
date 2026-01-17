@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 import numpy as np
 import polars as pl
@@ -18,15 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover
 def _build_walkable(game_state: "GameState") -> np.ndarray:
     walkable_ids = [tid for tid, t in TILE_TYPES.items() if t.walkable]
     return np.isin(game_state.game_map.tiles, walkable_ids)
-
-
-def _iter_entity_positions(rows: Iterable[dict[str, Any]]) -> Iterable[tuple[int, int, Any]]:
-    for row in rows:
-        x = row.get("x")
-        y = row.get("y")
-        if x is None or y is None:
-            continue
-        yield x, y, row
 
 
 def _entity_kind_matches(row: dict[str, Any], kind: str) -> bool:
@@ -59,6 +50,23 @@ class _GameAgentAdapter:
 
     def get_position(self) -> tuple[int, int]:
         return self._position
+
+
+@dataclass
+class _GameItemAdapter:
+    item_id: int
+    name: str
+    kind: str
+
+
+@dataclass
+class _GameEntityAdapter:
+    entity_id: int
+    x: int
+    y: int
+
+    def get_position(self) -> tuple[int, int]:
+        return (self.x, self.y)
 
 
 class _GameStateWorldAdapter:
@@ -108,6 +116,31 @@ class _GameStateWorldAdapter:
                 best_dist = dist
                 best_id = row.get("entity_id")
         return best_id, best_dist
+
+    def get_entity_object(self, entity_id: int) -> Optional[Any]:
+        item_df = self.item_df
+        if not item_df.is_empty():
+            item_rows = item_df.filter(pl.col("item_id") == entity_id)
+            if not item_rows.is_empty():
+                row = item_rows.row(0, named=True)
+                return _GameItemAdapter(
+                    item_id=entity_id,
+                    name=row.get("name") or "",
+                    kind=_infer_item_kind(row),
+                )
+
+        entity_df = self.entity_df
+        if not entity_df.is_empty():
+            entity_rows = entity_df.filter(pl.col("entity_id") == entity_id)
+            if not entity_rows.is_empty():
+                row = entity_rows.row(0, named=True)
+                x = row.get("x")
+                y = row.get("y")
+                if x is None or y is None:
+                    return None
+                return _GameEntityAdapter(entity_id=entity_id, x=int(x), y=int(y))
+
+        return None
 
 
 def _build_agent_adapter(game_state: "GameState", entity_id: int) -> _GameAgentAdapter:

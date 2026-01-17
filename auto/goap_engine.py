@@ -161,6 +161,30 @@ class GOAPPlanner:
             (_safe_item_kind(item) or "").lower() == "weapon" for item in inventory_items
         )
 
+        nearest_item_is_slime_mold = False
+        nearest_item_is_health_potion = False
+        nearest_item_is_weapon = False
+        if item_id is not None and hasattr(world, "get_entity_object"):
+            item_obj = world.get_entity_object(item_id)
+            item_name = None
+            item_kind = None
+            if item_obj is not None:
+                if isinstance(item_obj, dict):
+                    item_name = item_obj.get("name")
+                    item_kind = item_obj.get("kind")
+                else:
+                    item_name = getattr(item_obj, "name", None)
+                    item_kind = getattr(item_obj, "kind", None)
+                if item_name is None and hasattr(item_obj, "item"):
+                    item_name = getattr(item_obj.item, "name", None)
+                    item_kind = getattr(item_obj.item, "kind", None)
+            if item_name == "Slime Mold":
+                nearest_item_is_slime_mold = True
+            if item_name == "Health Potion":
+                nearest_item_is_health_potion = True
+            if (item_kind or "").lower() == "weapon":
+                nearest_item_is_weapon = True
+
         state = {
             "agent_health": agent.health,
             "agent_hunger": agent.hunger,
@@ -176,10 +200,14 @@ class GOAPPlanner:
             "enemy_is_adjacent": nearest_hostile_dist <= 1.0,
             "inventory_count": inventory_count,
             "inventory_full": inventory_count >= agent.max_inventory,
+            "max_inventory": agent.max_inventory,
             "has_slime_mold": has_slime_mold,
             "has_health_potion": has_health_potion,
             "has_weapon_in_inv": has_weapon_in_inv,
             "weapon_equipped": agent.equipped_weapon is not None,
+            "nearest_item_is_slime_mold": nearest_item_is_slime_mold,
+            "nearest_item_is_health_potion": nearest_item_is_health_potion,
+            "nearest_item_is_weapon": nearest_item_is_weapon,
         }
         return state
 
@@ -384,8 +412,15 @@ class AgentAI:
             state["item_is_adjacent"] = False
             state["can_find_item"] = False
             state["inventory_count"] = state.get("inventory_count", 0) + 1
-            state["inventory_full"] = state["inventory_count"] >= state.get("max_inventory", 0)
+            max_inventory = state.get("max_inventory", state["inventory_count"])
+            state["inventory_full"] = state["inventory_count"] >= max_inventory
             state["has_any_item"] = True
+            if state.get("nearest_item_is_slime_mold"):
+                state["has_slime_mold"] = True
+            if state.get("nearest_item_is_health_potion"):
+                state["has_health_potion"] = True
+            if state.get("nearest_item_is_weapon"):
+                state["has_weapon_in_inv"] = True
             return state
 
         def effect_explore(state: StateDict) -> StateDict:
@@ -412,7 +447,8 @@ class AgentAI:
             state["has_slime_mold"] = False
             state["is_starving"] = state.get("agent_hunger", 0) <= 0
             state["inventory_count"] = max(state.get("inventory_count", 1) - 1, 0)
-            state["inventory_full"] = state["inventory_count"] >= state.get("max_inventory", 0)
+            max_inventory = state.get("max_inventory", state["inventory_count"])
+            state["inventory_full"] = state["inventory_count"] >= max_inventory
             return state
 
         def effect_consume_health_potion(state: StateDict) -> StateDict:
@@ -423,7 +459,8 @@ class AgentAI:
                 state.get("agent_health", 0) < CRITICAL_HEALTH_THRESHOLD
             )
             state["inventory_count"] = max(state.get("inventory_count", 1) - 1, 0)
-            state["inventory_full"] = state["inventory_count"] >= state.get("max_inventory", 0)
+            max_inventory = state.get("max_inventory", state["inventory_count"])
+            state["inventory_full"] = state["inventory_count"] >= max_inventory
             return state
 
         def effect_equip_weapon(state: StateDict) -> StateDict:
@@ -483,7 +520,10 @@ class AgentAI:
                 return False
             if len(a.inventory) >= a.max_inventory:
                 return False
-            a.inventory.append(item_obj.item)
+            if isinstance(item_obj, dict):
+                a.inventory.append(item_obj)
+            else:
+                a.inventory.append(getattr(item_obj, "item", item_obj))
             w.remove_entity(item_obj)
             return True
 
