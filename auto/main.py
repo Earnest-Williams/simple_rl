@@ -22,6 +22,7 @@ try:
         GRID_SIZE,  # Relative import for use with -m
         MAX_TURNS,
         PASSIVE_HUNGER_PER_TURN,  # Keep relevant constants
+        REST_HEALTH_REGEN,
         START_HEALTH,
         STARVATION_HEALTH_DAMAGE,
         ActionResult,
