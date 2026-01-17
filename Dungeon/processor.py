@@ -34,16 +34,88 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         print("Warning: 'nodes' key not found in backbone_data.")
         return [], {}
 
+    def is_valid_int(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    def is_valid_number(value: object) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    def add_processing_error(node: Dict, message: str) -> None:
+        node.setdefault("processing_errors", []).append(message)
+
     # Create shallow copies to avoid mutating the input without deep-copy cost.
     # Node dictionaries only contain primitive fields + children_ids list, which we
     # do not mutate during processing.
     nodes_list = [node.copy() for node in backbone_data["nodes"]]
-    node_map = {n["id"]: n for n in nodes_list}
+
+    for node_data in nodes_list:
+        if "id" not in node_data:
+            add_processing_error(node_data, "Missing id.")
+        elif not is_valid_int(node_data.get("id")):
+            add_processing_error(
+                node_data, f"Invalid id value: {node_data.get('id')!r}."
+            )
+
+        if "parent_id" not in node_data:
+            add_processing_error(node_data, "Missing parent_id.")
+            node_data["parent_id"] = None
+        else:
+            parent_id_value = node_data.get("parent_id")
+            if parent_id_value is not None and not is_valid_int(parent_id_value):
+                add_processing_error(
+                    node_data,
+                    f"Invalid parent_id value: {node_data.get('parent_id')!r}.",
+                )
+                node_data["parent_id"] = None
+
+        if "x" not in node_data or not is_valid_number(node_data.get("x")):
+            add_processing_error(node_data, f"Invalid x value: {node_data.get('x')!r}.")
+        if "y" not in node_data or not is_valid_number(node_data.get("y")):
+            add_processing_error(node_data, f"Invalid y value: {node_data.get('y')!r}.")
+
+        if "children_ids" not in node_data or node_data.get("children_ids") is None:
+            node_data["children_ids"] = []
+        elif not isinstance(node_data.get("children_ids"), list):
+            add_processing_error(
+                node_data,
+                f"Invalid children_ids value: {node_data.get('children_ids')!r}.",
+            )
+            node_data["children_ids"] = []
+        else:
+            normalized_children: List[int] = []
+            for child_id in node_data.get("children_ids", []):
+                if is_valid_int(child_id):
+                    normalized_children.append(child_id)
+                else:
+                    add_processing_error(
+                        node_data,
+                        f"Invalid child id in children_ids: {child_id!r}.",
+                    )
+            node_data["children_ids"] = normalized_children
+
+    valid_nodes = [n for n in nodes_list if is_valid_int(n.get("id"))]
+    node_map = {n["id"]: n for n in valid_nodes}
 
     print(f"Processor: Calculating geometry for {len(nodes_list)} nodes...")
 
     # Iterate through the copied nodes to calculate segment geometry
     for node_data in nodes_list:
+        if not is_valid_int(node_data.get("id")):
+            node_data["segment_length_xy"] = 0.0
+            node_data["segment_incline_rate"] = 0.0
+            node_data["segment_delta_depth_m"] = 0.0
+            node_data["bearing_deg"] = 0.0
+            continue
+
+        if not is_valid_number(node_data.get("x")) or not is_valid_number(
+            node_data.get("y")
+        ):
+            node_data["segment_length_xy"] = 0.0
+            node_data["segment_incline_rate"] = 0.0
+            node_data["segment_delta_depth_m"] = 0.0
+            node_data["bearing_deg"] = 0.0
+            continue
+
         parent_id = node_data.get("parent_id")
 
         # Skip root or nodes with missing/invalid parents
@@ -56,6 +128,14 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
             continue
 
         parent_data = node_map[parent_id]
+        if not is_valid_number(parent_data.get("x")) or not is_valid_number(
+            parent_data.get("y")
+        ):
+            node_data["segment_length_xy"] = 0.0
+            node_data["segment_incline_rate"] = 0.0
+            node_data["segment_delta_depth_m"] = 0.0
+            node_data["bearing_deg"] = 0.0
+            continue
 
         # --- Calculate Segment Geometry ---
         delta_x = node_data["x"] - parent_data["x"]
@@ -184,7 +264,7 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         path_depth_cache[node_id] = total_depth
         return total_length, total_depth
 
-    for node_data in nodes_list:
+    for node_data in valid_nodes:
         parent_id = node_data.get("parent_id")
         parent_present = parent_id is not None and parent_id in node_map
         children_count = len(node_data.get("children_ids") or [])
@@ -195,7 +275,7 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         node_data["path_length_from_root"] = round(path_length, 2)
         node_data["path_depth"] = path_depth
 
-    compute_flow_metrics(nodes_list, node_map)
+    compute_flow_metrics(valid_nodes, node_map)
 
     # Log counts of flags received from core.py
     cliff_count = sum(1 for n in nodes_list if n.get("feature") == "cliff_edge")
