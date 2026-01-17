@@ -1,5 +1,5 @@
 # game/systems/pathfinding/flowfield.py
-from typing import Final, List, Optional, Tuple
+from typing import Final, List, Tuple
 
 import heapq
 import time
@@ -159,7 +159,7 @@ class FlowFieldPathfinder:
         )
         self.flow_x: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
         self.flow_y: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
-        self._last_sources: Optional[List[GridPosition]] = None
+        self._last_sources: List[GridPosition] | None = None
 
     def compute_field(self, stimulus_sources: List[GridPosition]) -> bool:
         # (Initial checks and source validation unchanged - Source [source 1555-1559])

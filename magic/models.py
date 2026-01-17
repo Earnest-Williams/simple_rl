@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Optional
+from typing import List
 import re
 
 
@@ -194,8 +194,8 @@ class WorkDecl:
     seals: SealsClause
     provisions: ProvisionsClause
     intent: IntentClause
-    seat: Optional[SeatClause] = None
-    tending: Optional[TendingClause] = None
+    seat: SeatClause | None = None
+    tending: TendingClause | None = None
 
 
 # ==========================================

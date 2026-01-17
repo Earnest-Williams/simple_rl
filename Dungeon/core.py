@@ -8,7 +8,7 @@ import traceback
 from dataclasses import dataclass, field
 
 # Use modern type hints (list instead of List, etc.)
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 from scipy.spatial import KDTree
@@ -109,11 +109,11 @@ class CaveNode:
     branch_segment_count: int
     probability_n: float
     last_angle_delta: float = 0.0
-    parent: Optional["CaveNode"] = None
+    parent: "CaveNode" | None = None
     children: list["CaveNode"] = field(default_factory=list)
     can_grow: bool = True
-    feature: Optional[str] = None
-    linked_node_id: Optional[int] = None
+    feature: str | None = None
+    linked_node_id: int | None = None
 
     def __post_init__(self):
         """Basic validation after initialization."""
@@ -249,7 +249,7 @@ class CaveGenerator:
         self.id_counter = 0
         self.analyzer = BranchConvergenceAnalyzer()
         self.active_nodes: list[CaveNode] = []
-        self.kdtree: Optional[KDTree] = None
+        self.kdtree: KDTree | None = None
         self.kdtree_points: list[Tuple[float, float]] = []
         self.kdtree_node_ids: list[int] = []
         self.node_map: Dict[int, CaveNode] = {}
@@ -358,7 +358,7 @@ class CaveGenerator:
 
     def _add_node(
         self, parent: CaveNode, angle_delta: float, prob_n: float, segment_count: int
-    ) -> Optional[CaveNode]:
+    ) -> CaveNode | None:
         """Attempts to add a new node, checking constraints and convergence."""
         step_vars = {
             "parent_id": parent.id,

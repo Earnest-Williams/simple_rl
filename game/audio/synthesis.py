@@ -17,7 +17,7 @@ from pathlib import Path
 import math
 import tempfile
 import wave
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any
 
 import numpy as np
 
@@ -41,7 +41,7 @@ def _write_wave(data: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Path:
     return Path(tmp.name)
 
 
-def generate_footstep(duration: float = 0.2, frequency: float = 150.0, rng: Optional[GameRNG] = None) -> Path:
+def generate_footstep(duration: float = 0.2, frequency: float = 150.0, rng: GameRNG | None = None) -> Path:
     """Generate a simple footstep sound.
 
     The sound is modelled as filtered noise with an exponential decay.
@@ -71,7 +71,7 @@ GENERATORS: Dict[str, Callable[..., Path]] = {
 }
 
 
-def generate_sound(generator: str, settings: Dict[str, Any], rng: Optional[GameRNG] = None) -> Path:
+def generate_sound(generator: str, settings: Dict[str, Any], rng: GameRNG | None = None) -> Path:
     """Generate a procedural sound using the named generator.
 
     Parameters

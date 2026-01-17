@@ -14,7 +14,7 @@ import os  # For determining CPU count
 import time
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict, List
 
 import numpy as np
 import polars as pl
@@ -494,7 +494,7 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int, rng: Optional[GameRNG] = None) -> pl.DataFrame:
+def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG | None = None) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
     if rng is None:
         rng = GameRNG()
@@ -528,7 +528,7 @@ def skill_check(
     actor_skill: int,
     difficulty: int,
     target_skill: int,
-    rng: Optional[GameRNG] = None,
+    rng: GameRNG | None = None,
     *,
     min_threshold: int = 5,
     max_threshold: int = 95,
@@ -573,7 +573,7 @@ def _process_monster_perception_chunk(
     flow_centers: np.ndarray,  # Noise flow centers
     player_stealth_skill: int,  # Player's current stealth value
     noise_flow_type: FlowType,  # Which noise map to use (e.g., REAL_NOISE)
-    rng: Optional[GameRNG] = None,  # RNG instance for skill checks
+    rng: GameRNG | None = None,  # RNG instance for skill checks
 ) -> List[int]:  # Return list of IDs of monsters that detected player
     """
     Processes perception checks for a chunk of monsters.
@@ -643,7 +643,7 @@ def monster_perception(
     player_y: int,
     player_x: int,  # Player position (needed?) - implicitly noise center
     player_stealth_skill: int,  # Player's current stealth value
-    rng: Optional[GameRNG] = None,  # RNG instance for perception checks
+    rng: GameRNG | None = None,  # RNG instance for perception checks
     # Add other relevant params: player_attacked_recently?, main_roll?,
     # difficulty?
 ) -> List[int]:

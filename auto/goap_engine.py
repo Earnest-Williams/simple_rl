@@ -14,7 +14,7 @@ ActionPlan = deque["Action"]
 
 WorldLike = typing.Any
 AgentLike = typing.Any
-OptionalPosition = typing.Optional[Position]
+OptionalPosition = Position | None
 
 # --- Configuration Constants ---
 MAX_TURNS: int = 200
@@ -307,9 +307,9 @@ class AgentAI:
         self.actions: list[Action] = self._define_actions()
         self.planner: GOAPPlanner = GOAPPlanner(self.actions)
         self.current_plan: ActionPlan = deque()
-        self.current_goal: typing.Optional[StateDict] = None
+        self.current_goal: StateDict | None = None
         self.last_executed_plan_actions: list[str] = []
-        self.last_action_name: typing.Optional[str] = None
+        self.last_action_name: str | None = None
 
     def _define_actions(self) -> list[Action]:
         actions_list: list[Action] = []
@@ -693,7 +693,7 @@ class AgentAI:
                 self.last_executed_plan_actions = []
         return list(self.current_plan)
 
-    def act(self, agent: AgentLike) -> typing.Optional[str]:
+    def act(self, agent: AgentLike) -> str | None:
         self.last_action_name = None
         current_state_rep = self.planner._get_world_state_representation(self.world, agent)
 

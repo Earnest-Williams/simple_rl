@@ -15,7 +15,7 @@ now so they can be used directly in tests.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,7 @@ class MagicLibrary:
 
         return work_name in self._works
 
-    def research(self, work_name: str) -> Optional[Work]:
+    def research(self, work_name: str) -> Work | None:
         """Retrieve a work from the library.
 
         Parameters
@@ -68,7 +68,7 @@ class MagicLibrary:
 
         Returns
         -------
-        Optional[Work]
+        Work | None
             The corresponding :class:`Work` if it is known, otherwise ``None``.
         """
 
@@ -94,7 +94,7 @@ def learn_work(name: str, description: str = "") -> None:
     _library.learn(work)
 
 
-def research_work(name: str) -> Optional[Work]:
+def research_work(name: str) -> Work | None:
     """Command to look up a work by name.
 
     Returns the :class:`Work` instance if the work has been learnt, otherwise

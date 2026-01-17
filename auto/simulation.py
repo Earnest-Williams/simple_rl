@@ -59,14 +59,14 @@ ActionPlan = deque["Action"]  # Use typing.Deque with forward reference
 
 # Forward reference for Entity if used before definition
 Entity = typing.ForwardRef("Entity")  # If needed, otherwise define Entity first
-OptionalEntity = typing.Optional[Entity]
-OptionalPosition = typing.Optional[Position]
-OptionalPath = typing.Optional[list[Position]]
+OptionalEntity = Entity | None
+OptionalPosition = Position | None
+OptionalPath = list[Position] | None
 NearestResult = tuple[EntityID | None, float]
-ActionResult = typing.Optional[str]
+ActionResult = str | None
 # Forward reference for Item if needed
 Item = typing.ForwardRef("Item")  # If needed
-OptionalItem = typing.Optional[Item]
+OptionalItem = Item | None
 
 
 # --- Item Definitions ---
@@ -177,12 +177,12 @@ class Entity:
         y: int,
         kind: str,
         rng: GameRNG,  # Add rng for potential random initialization
-        health: Optional[float] = None,
-        hunger: Optional[float] = None,
+        health: float | None = None,
+        hunger: float | None = None,
         target: OptionalEntity = None,
         item: OptionalItem = None,  # Use alias
-        max_inventory: Optional[int] = None,  # Allow overriding default
-    ):
+        max_inventory: int | None = None,  # Allow overriding default
+    ) -> None:
         self.id: EntityID = str(uuid.uuid4())
         self.x: int = x
         self.y: int = y
@@ -197,7 +197,7 @@ class Entity:
         else:
             self.max_inventory = AGENT_MAX_INVENTORY if kind == "agent" else 3
 
-        self.equipped_weapon: Optional[Weapon] = None  # Use modern Optional hint
+        self.equipped_weapon: Weapon | None = None  # Use modern Optional hint
 
         # --- Health Initialization ---
         if health is None:

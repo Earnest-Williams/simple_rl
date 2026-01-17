@@ -7,7 +7,7 @@ import time
 import traceback
 
 # Use modern type hints
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import polars as pl
@@ -118,7 +118,7 @@ def _get_chunk_properties(type_name: str) -> Dict[str, Any]:  # Unchanged
 
 def _assign_chunk_type_and_subtype(  # Unchanged logic
     parent_data: Dict, child_data: Dict
-) -> Tuple[str, Optional[str]]:
+) -> Tuple[str, str | None]:
     """Assigns base chunk type & potential subtype based on features or geometry."""
     feature = parent_data.get("feature")
     if feature and feature.startswith("big_room:"):
@@ -149,9 +149,9 @@ def _rasterize_thick_line(  # Unchanged logic
     c1: int,
     thickness_cells: int,
     value: int,
-    chunk_type_mask: Optional[np.ndarray] = None,
+    chunk_type_mask: np.ndarray | None = None,
     type_id: int = 0,
-):
+) -> None:
     """Draws a thick line using skimage line and dilation."""
     if not HAS_SKIMAGE:
         print("WARN: Thick line requires scikit-image.")
@@ -205,9 +205,9 @@ def _rasterize_polygon(  # Unchanged logic
     r_coords: np.ndarray,
     c_coords: np.ndarray,
     value: int,
-    chunk_type_mask: Optional[np.ndarray] = None,
+    chunk_type_mask: np.ndarray | None = None,
     type_id: int = 0,
-):
+) -> None:
     """Rasterizes a filled polygon using skimage."""
     if not HAS_SKIMAGE:
         print("WARN: Polygon requires scikit-image.")
@@ -505,7 +505,7 @@ CAVERN_GENERATORS: Dict[str, Callable] = {
 # --- Grid Initialization Helpers (Unchanged Logic) ---
 def _calculate_grid_bounds(
     nodes: list[Dict],
-) -> Optional[Tuple[int, int, int, int]]:  # Unchanged logic
+) -> Tuple[int, int, int, int] | None:  # Unchanged logic
     """Calculates the required grid bounds based on node coordinates."""
     try:
         all_x = [n["x"] for n in nodes if not math.isnan(n.get("x", float("nan")))]
@@ -543,9 +543,7 @@ def _calculate_grid_bounds(
 
 def _initialize_grids(
     height: int, width: int
-) -> Optional[
-    Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, int]]
-]:  # Unchanged logic
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, int]] | None:  # Unchanged logic
     """Initializes the main grid, depth grid, and type grid."""
     try:
         grid = np.full((height, width), Material.SOLID_ROCK, dtype=np.int8)
@@ -796,7 +794,7 @@ def _rasterize_segment(  # Added rng parameter
 def initialize_cave_grid(  # Added rng parameter
     augmented_nodes: list[Dict], augmented_node_map: Dict[int, Dict], rng: GameRNG
 ) -> Tuple[
-    Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray], Tuple[int, int]
+    np.ndarray | None, np.ndarray | None, np.ndarray | None, Tuple[int, int]
 ]:
     """Creates initial 2D grid footprint by orchestrating helper functions."""
     # Removed global debug dump variables
@@ -949,7 +947,7 @@ def create_map_dataframe(  # Added rng parameter
     type_grid: np.ndarray,
     origin_offset: Tuple[int, int],
     rng: GameRNG,
-) -> Optional[pl.DataFrame]:
+) -> pl.DataFrame | None:
     """Creates final Polars DataFrame including chamber IDs and open_above calculation."""
     if final_grid is None or depth_grid is None or type_grid is None:
         return None
@@ -1085,7 +1083,7 @@ def generate_shaped_cave(  # Added rng parameter
     augmented_node_map: Dict[int, Any],
     rng: GameRNG,
     ca_iterations: int = CA_ITERATIONS,
-) -> Optional[pl.DataFrame]:
+) -> pl.DataFrame | None:
     """Orchestrates the cave shaping process using augmented node data."""
     # Removed global debug dump variables
     print("--- Stage: Initializing Cave Grid ---")
