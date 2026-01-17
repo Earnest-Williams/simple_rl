@@ -96,6 +96,72 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
             return "corridor"
         return "junction"
 
+    def compute_flow_metrics(nodes: List[Dict], node_lookup: Dict[int, Dict]) -> None:
+        flow_next_lookup: Dict[int, int] = {}
+        flow_distance_cache: Dict[int, float] = {}
+
+        for node in nodes:
+            children_ids = node.get("children_ids") or []
+            if not children_ids:
+                node["flow_next_id"] = None
+                flow_next_lookup[node["id"]] = None
+                continue
+
+            child_candidates = [
+                node_lookup[child_id]
+                for child_id in children_ids
+                if child_id in node_lookup
+            ]
+            if not child_candidates:
+                node["flow_next_id"] = None
+                flow_next_lookup[node["id"]] = None
+                continue
+
+            next_node = min(child_candidates, key=lambda child: child.get("depth_m", 0.0))
+            if next_node.get("depth_m", 0.0) >= node.get("depth_m", 0.0):
+                node["flow_next_id"] = None
+                flow_next_lookup[node["id"]] = None
+            else:
+                node["flow_next_id"] = next_node["id"]
+                flow_next_lookup[node["id"]] = next_node["id"]
+
+        def compute_flow_distance(node_id: int, visited: set) -> float:
+            if node_id in flow_distance_cache:
+                return flow_distance_cache[node_id]
+            if node_id in visited:
+                flow_distance_cache[node_id] = 0.0
+                return 0.0
+            visited.add(node_id)
+
+            next_id = flow_next_lookup.get(node_id)
+            if next_id is None or next_id not in node_lookup:
+                flow_distance_cache[node_id] = 0.0
+                return 0.0
+
+            next_node = node_lookup[next_id]
+            segment_length = next_node.get("segment_length_xy", 0.0)
+            total_distance = segment_length + compute_flow_distance(next_id, visited)
+            flow_distance_cache[node_id] = total_distance
+            return total_distance
+
+        for node in nodes:
+            node["flow_distance_m"] = round(
+                compute_flow_distance(node["id"], set()), 2
+            )
+
+        accumulation = {node["id"]: 1 for node in nodes}
+        nodes_by_depth = sorted(
+            nodes, key=lambda n: n.get("depth_m", 0.0), reverse=True
+        )
+        for node in nodes_by_depth:
+            next_id = flow_next_lookup.get(node["id"])
+            if next_id is None or next_id not in accumulation:
+                continue
+            accumulation[next_id] += accumulation[node["id"]]
+
+        for node in nodes:
+            node["flow_accumulation_n"] = accumulation.get(node["id"], 1)
+
     path_length_cache: Dict[int, float] = {}
     path_depth_cache: Dict[int, int] = {}
 
@@ -128,6 +194,8 @@ def process_backbone_graph(backbone_data: Dict) -> Tuple[List[Dict], Dict[int, D
         path_length, path_depth = compute_path_info(node_data["id"])
         node_data["path_length_from_root"] = round(path_length, 2)
         node_data["path_depth"] = path_depth
+
+    compute_flow_metrics(nodes_list, node_map)
 
     # Log counts of flags received from core.py
     cliff_count = sum(1 for n in nodes_list if n.get("feature") == "cliff_edge")
