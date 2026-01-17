@@ -23,5 +23,5 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.4"]
 
-[tool.setuptools]
-packages = []
+[tool.setuptools.packages.find]
+where = ["."]
