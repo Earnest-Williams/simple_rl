@@ -165,7 +165,7 @@ def process_backbone_graph(
     nodes_list = [node.copy() for node in backbone_data["nodes"]]
 
     df = pl.DataFrame(nodes_list)
-    for required_column in ("id", "parent_id", "x", "y", "children_ids"):
+    for required_column in ("id", "parent_id", "x", "y", "children_ids", "depth_m"):
         if required_column not in df.columns:
             df = df.with_columns(pl.lit(None).alias(required_column))
 
@@ -226,15 +226,16 @@ def process_backbone_graph(
         "children_errors",
     )
 
+    max_depth_value = (
+        df.filter(pl.col("id").map_elements(is_valid_int, return_dtype=pl.Boolean))
+        .select(pl.col("depth_m").cast(pl.Float64, strict=False).drop_nulls().max())
+        .item()
+    )
+    max_depth_m = float(max_depth_value) if max_depth_value is not None else 0.0
+
     nodes_list = df.to_dicts()
     valid_nodes = [n for n in nodes_list if is_valid_int(n.get("id"))]
     node_map = {n["id"]: n for n in valid_nodes}
-    depth_candidates = [
-        float(n.get("depth_m", 0.0))
-        for n in valid_nodes
-        if is_valid_number(n.get("depth_m"))
-    ]
-    max_depth_m = max(depth_candidates) if depth_candidates else 0.0
 
     print(f"Processor: Calculating geometry for {len(nodes_list)} nodes...")
 
