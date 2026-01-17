@@ -527,7 +527,7 @@ class SoundManager:
             )
         return segment
 
-    def _apply_eq(self, segment: Any, eq_cfg: Dict[str, float]) -> Any:
+    def _apply_eq(self, segment: AudioSegment, eq_cfg: Dict[str, float]) -> AudioSegment:
         """Very simple two-band EQ for bass and treble adjustments."""
         bass_gain = eq_cfg.get("bass")
         treble_gain = eq_cfg.get("treble")
