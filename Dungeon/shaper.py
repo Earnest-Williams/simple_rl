@@ -13,6 +13,7 @@ import numpy as np
 import polars as pl
 from numba import njit
 
+from common.constants import Material
 # Import GameRNG using relative path
 try:
     # Adjust path relative to main.py's location
@@ -78,16 +79,6 @@ except ImportError:
 
 # === Constants & Configuration ===
 GRID_RESOLUTION: float = 1.0
-# --- Define Tile/Material Constants Centrally (as per Plan Step 4) ---
-# TODO: Replace these with imports from common/constants.py once created
-MAT_SOLID_ROCK: int = 0
-MAT_CAVE_FLOOR: int = 1
-MAT_SHAFT_OPENING: int = 2
-MAT_CLIFF_EDGE: int = 3
-MAT_DOOR_CLOSED: int = 4  # Example
-MAT_DOOR_OPEN: int = 5  # Example
-# --- End Central Constants Placeholder ---
-
 CA_ITERATIONS: int = 8
 CA_BIRTH_THRESHOLD: int = 5
 CA_SURVIVAL_THRESHOLD: int = 4
@@ -557,7 +548,7 @@ def _initialize_grids(
 ]:  # Unchanged logic
     """Initializes the main grid, depth grid, and type grid."""
     try:
-        grid = np.full((height, width), MAT_SOLID_ROCK, dtype=np.int8)
+        grid = np.full((height, width), Material.SOLID_ROCK, dtype=np.int8)
         depth_grid = np.full((height, width), np.nan, dtype=np.float32)
         # Map chunk type names to integer IDs for the type grid
         chunk_type_names = list(CHUNK_PROPERTIES.keys())
@@ -636,7 +627,7 @@ def _rasterize_segment(  # Added rng parameter
             c_min = max(0, p_gx_clamped - width_cells // 2)
             c_max = min(grid_width, p_gx_clamped + width_cells // 2 + 1)
             if r_max > r_min and c_max > c_min:
-                grid[r_min:r_max, c_min:c_max] = MAT_CLIFF_EDGE
+                grid[r_min:r_max, c_min:c_max] = Material.CLIFF_EDGE
                 depth_grid[r_min:r_max, c_min:c_max] = parent_data["depth_m"]
                 type_grid[r_min:r_max, c_min:c_max] = chunk_type_id
         elif chunk_base_type == "shaft":
@@ -646,7 +637,7 @@ def _rasterize_segment(  # Added rng parameter
             c_min = max(0, p_gx_clamped - width_cells // 2)
             c_max = min(grid_width, p_gx_clamped + width_cells // 2 + 1)
             if r_max > r_min and c_max > c_min:
-                grid[r_min:r_max, c_min:c_max] = MAT_SHAFT_OPENING
+                grid[r_min:r_max, c_min:c_max] = Material.SHAFT_OPENING
                 depth_grid[r_min:r_max, c_min:c_max] = parent_data["depth_m"]
                 type_grid[r_min:r_max, c_min:c_max] = chunk_type_id
         elif chunk_base_type == "big_room":
@@ -668,7 +659,7 @@ def _rasterize_segment(  # Added rng parameter
                         p_gx_clamped,
                         properties,
                         orientation,
-                        MAT_CAVE_FLOOR,
+                        Material.CAVE_FLOOR,
                         type_grid,
                         chunk_type_id,
                         rng,  # Pass rng
@@ -679,7 +670,7 @@ def _rasterize_segment(  # Added rng parameter
                         p_gy_clamped,
                         p_gx_clamped,
                         properties,
-                        MAT_CAVE_FLOOR,
+                        Material.CAVE_FLOOR,
                         type_grid,
                         chunk_type_id,
                         rng,  # Pass rng
@@ -692,7 +683,7 @@ def _rasterize_segment(  # Added rng parameter
                 newly_painted_mask = (
                     (type_grid == chunk_type_id)
                     & np.isnan(depth_grid)
-                    & (grid == MAT_CAVE_FLOOR)
+                    & (grid == Material.CAVE_FLOOR)
                 )
                 depth_grid[newly_painted_mask] = parent_data.get("depth_m", 0.0)
             else:  # Fallback if subtype unknown
@@ -709,7 +700,7 @@ def _rasterize_segment(  # Added rng parameter
                     c_gy_clamped,
                     c_gx_clamped,
                     width_cells,
-                    MAT_CAVE_FLOOR,
+                    Material.CAVE_FLOOR,
                     type_grid,
                     chunk_type_id,
                 )
@@ -722,7 +713,7 @@ def _rasterize_segment(  # Added rng parameter
                 c_gy_clamped,
                 c_gx_clamped,
                 width_cells,
-                MAT_CAVE_FLOOR,
+                Material.CAVE_FLOOR,
                 type_grid,
                 chunk_type_id,
             )
@@ -755,7 +746,7 @@ def _rasterize_segment(  # Added rng parameter
 
             # Find relevant cells within the bounding box
             mask = (
-                (grid[sub_grid_slice] == MAT_CAVE_FLOOR)
+                (grid[sub_grid_slice] == Material.CAVE_FLOOR)
                 & (type_grid[sub_grid_slice] == chunk_type_id)
                 & (np.isnan(depth_grid[sub_grid_slice]))
             )
@@ -870,20 +861,20 @@ def _run_ca_step_numpy(grid: np.ndarray) -> np.ndarray:
                     # Check bounds before accessing grid
                     if 0 <= nr < height and 0 <= nc < width:
                         # Use central constant
-                        if grid[nr, nc] != MAT_SOLID_ROCK:
+                        if grid[nr, nc] != Material.SOLID_ROCK:
                             non_solid_neighbors += 1
 
             # Apply CA rules
             # Use central constant
-            if grid[r, c] == MAT_SOLID_ROCK:
+            if grid[r, c] == Material.SOLID_ROCK:
                 if non_solid_neighbors >= CA_BIRTH_THRESHOLD:
                     # Use central constant
-                    new_grid[r, c] = MAT_CAVE_FLOOR
+                    new_grid[r, c] = Material.CAVE_FLOOR
             # Use central constant
-            elif grid[r, c] != MAT_SOLID_ROCK:
+            elif grid[r, c] != Material.SOLID_ROCK:
                 if non_solid_neighbors < CA_SURVIVAL_THRESHOLD:
                     # Use central constant
-                    new_grid[r, c] = MAT_SOLID_ROCK
+                    new_grid[r, c] = Material.SOLID_ROCK
             # Else (other non-solid types remain unchanged by these basic rules)
 
     return new_grid
@@ -894,7 +885,7 @@ def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:  # CA Step (unchanged)
     # Kernel counts 8 neighbors
     kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
     # Use central constant
-    non_solid_mask = grid != MAT_SOLID_ROCK
+    non_solid_mask = grid != Material.SOLID_ROCK
     # Count non-solid neighbors using convolution
     non_solid_neighbor_count = convolve2d(
         non_solid_mask, kernel, mode="same", boundary="fill", fillvalue=0
@@ -902,16 +893,16 @@ def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:  # CA Step (unchanged)
 
     # Apply rules based on neighbor count
     # Use central constant
-    born = (grid == MAT_SOLID_ROCK) & (non_solid_neighbor_count >= CA_BIRTH_THRESHOLD)
+    born = (grid == Material.SOLID_ROCK) & (non_solid_neighbor_count >= CA_BIRTH_THRESHOLD)
     # Use central constant
-    survived = (grid != MAT_SOLID_ROCK) & (
+    survived = (grid != Material.SOLID_ROCK) & (
         non_solid_neighbor_count >= CA_SURVIVAL_THRESHOLD
     )
 
     # Create new grid based on rules
     # Use central constant
-    new_grid = np.full(grid.shape, MAT_SOLID_ROCK, dtype=grid.dtype)
-    new_grid[born] = MAT_CAVE_FLOOR  # Use central constant
+    new_grid = np.full(grid.shape, Material.SOLID_ROCK, dtype=grid.dtype)
+    new_grid[born] = Material.CAVE_FLOOR  # Use central constant
     # Preserve original tile type for survivors
     new_grid[survived] = grid[survived]
     return new_grid
@@ -971,7 +962,7 @@ def create_map_dataframe(  # Added rng parameter
     reverse_type_map = {i + 1: name for i, name in enumerate(chunk_type_names)}
 
     # Find indices of non-rock cells efficiently
-    non_rock_y, non_rock_x = np.where(final_grid != MAT_SOLID_ROCK)
+    non_rock_y, non_rock_x = np.where(final_grid != Material.SOLID_ROCK)
     num_non_rock = len(non_rock_y)
     if num_non_rock == 0:
         print("Warning: No non-rock cells found to create DataFrame.")
@@ -994,7 +985,7 @@ def create_map_dataframe(  # Added rng parameter
     col_mat_id = mat_ids.astype(np.uint16)
     # Define walkable based on material ID (e.g., excluding rock, cliffs)
     # Use central constants
-    walkable_mask = (col_mat_id != MAT_SOLID_ROCK) & (col_mat_id != MAT_CLIFF_EDGE)
+    walkable_mask = (col_mat_id != Material.SOLID_ROCK) & (col_mat_id != Material.CLIFF_EDGE)
     col_walkable = walkable_mask.astype(bool)
 
     # Calculate heights (vectorized where possible)

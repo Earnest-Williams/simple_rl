@@ -1,11 +1,27 @@
-"""Common tile/material constants for dungeon generation."""
+"""Shared constants and enums for map materials and features."""
 
-# Material IDs
-MAT_SOLID_ROCK: int = 0
-MAT_CAVE_FLOOR: int = 1
-MAT_SHAFT_OPENING: int = 2
-MAT_CLIFF_EDGE: int = 3
-MAT_DOOR_CLOSED: int = 4
-MAT_DOOR_OPEN: int = 5
+from enum import IntEnum
 
-# Add additional material constants as needed
+
+class Material(IntEnum):
+    """Material identifiers for dungeon tiles and geometry."""
+
+    SOLID_ROCK = 0
+    CAVE_FLOOR = 1
+    SHAFT_OPENING = 2
+    CLIFF_EDGE = 3
+    DOOR_CLOSED = 4
+    DOOR_OPEN = 5
+
+
+class FeatureType(IntEnum):
+    """Map feature identifiers used across the game."""
+
+    FLOOR = 0
+    WALL = 1
+    CLOSED_DOOR = 2
+    OPEN_DOOR = 3
+    SECRET_DOOR = 4
+
+
+__all__ = ["FeatureType", "Material"]
