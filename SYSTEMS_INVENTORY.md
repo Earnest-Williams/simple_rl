@@ -553,7 +553,7 @@ Spell Definition (magic/work parser)
 **Problem:** Inconsistent import paths for GameRNG across the codebase.
 
 **Locations:**
-- **Most files (30+ locations):** `from game_rng import GameRNG` ✅
+- **Most files (30+ locations):** `from utils.game_rng import GameRNG` ✅
 - **game/world/procgen.py:** `from utils.game_rng import GameRNG` ⚠️
 - **AI/v9.py:** `from rng_utils.game_rng.GameRNG` ❌ BROKEN!
 
@@ -566,7 +566,7 @@ Spell Definition (magic/work parser)
 - Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
 
 **Resolution Needed:**
-1. **For AI/v9.py:** Change `from rng_utils.game_rng.GameRNG` → `from game_rng import GameRNG`
+1. **For AI/v9.py:** Change `from rng_utils.game_rng.GameRNG` → `from utils.game_rng import GameRNG`
 2. **For procgen.py:** Optionally change `from utils.game_rng` → `from game_rng` for consistency
 3. **Long-term:** Decide on canonical location (root or utils/)
 
@@ -582,7 +582,7 @@ Spell Definition (magic/work parser)
 - Inconsistent with main Dungeon/ generator
 
 **Resolution Needed:**
-- Replace `import random` with `from game_rng import GameRNG` in lights_dev/Dungeon/
+- Replace `import random` with `from utils.game_rng import GameRNG` in lights_dev/Dungeon/
 - Update random.* calls to GameRNG equivalents
 - **Note:** This is only needed if lights_dev tests require determinism
 
@@ -615,7 +615,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - 🔄 **Planned:** Allow NPCs to switch between this AI and GOAP AI
 
 **Integration Steps Needed:**
-1. Fix import: `from rng_utils.game_rng.GameRNG` → `from game_rng import GameRNG`
+1. Fix import: `from rng_utils.game_rng.GameRNG` → `from utils.game_rng import GameRNG`
 2. Normalize trait systems between AI/ and game/ implementations
 3. Create community environment system for NPCs to inhabit
 4. Integrate with game/game_state.py orchestrator
