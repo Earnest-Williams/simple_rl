@@ -5,7 +5,7 @@ Handles the logic for equipping, unequipping, attaching, and detaching items,
 considering entity body plans and item mount points.
 """
 # Ensure Union is imported from typing
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, cast
 
 import polars as pl
 import structlog
@@ -195,7 +195,7 @@ def get_slots_occupied_by_general_type(
 # --- CORRECTED TYPE HINT using Union ---
 def find_first_available_slot(
     entity_id: int, item_id: int, gs: "GameState"
-) -> Union[EquipSlot, None]:
+) -> Optional[EquipSlot]:
     # --- End Correction ---
     """Helper: Find the first specific, unoccupied EquipSlot compatible with the item."""
     item_reg = gs.item_registry
@@ -436,7 +436,7 @@ def remove_passive_effects(item_id: int, entity_id: int, gs: "GameState") -> Non
 
 def can_equip(
     entity_id: int, item_id: int, gs: "GameState"
-) -> Tuple[bool, str, Union[EquipSlot, None]]:
+) -> Tuple[bool, str, Optional[EquipSlot]]:
     """Checks if entity can equip item directly. Returns (can_equip, reason, target_slot)."""
     log.debug("Checking can_equip", entity_id=entity_id, item_id=item_id)
     # Ensure registries are available
