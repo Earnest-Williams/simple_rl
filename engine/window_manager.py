@@ -4,6 +4,8 @@ Window manager for the roguelike game engine.
 Handles display, input, tilesets, and rendering coordination.
 """
 # Standard library imports
+import json
+import math
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -15,14 +17,18 @@ import numpy as np
 from PIL import Image
 
 # PySide6 imports
-from PySide6.QtCore import Qt, QRect, QTimer
+from PySide6.QtCore import QPoint, Qt, QRect, QTimer, Signal
 from PySide6.QtGui import (
     QAction,
+    QBrush,
     QColor,
     QCursor,
     QImage,
     QKeyEvent,
+    QMouseEvent,
+    QPainter,
     QPalette,
+    QPen,
     QPixmap,
     QResizeEvent,
     QWheelEvent,
@@ -105,6 +111,17 @@ def tile_grid_to_qimage(tile_grid: np.ndarray, scale: int = 4) -> QImage:
     return img
 
 
+class ClickableLabel(QLabel):
+    """QLabel that emits a clicked signal with QPoint."""
+
+    clicked = Signal(QPoint)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(event.pos())
+        super().mousePressEvent(event)
+
+
 class DiagnosticsDock(QDockWidget):
     """Diagnostics dock widget for exposing pipeline controls and visualization."""
 
@@ -114,12 +131,23 @@ class DiagnosticsDock(QDockWidget):
     max_depth_spin: QSpinBox
     ca_spin: QSpinBox
     run_btn: QPushButton
-    image_label: QLabel
+    overlay_btn: QPushButton
+    dump_core_btn: QPushButton
+    dump_processed_btn: QPushButton
+    image_label: ClickableLabel
     log: QTextEdit
+    _last_run_results: PyDict[str, Any] | None
+    node_tile_coords: PyDict[int, Tuple[int, int]]
+    preview_scale: int
+    overlay_enabled: bool
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Diagnostics", parent)
         self.main = parent  # type: ignore
+        self._last_run_results = None
+        self.node_tile_coords = {}
+        self.preview_scale = 4
+        self.overlay_enabled = True
         w: QWidget = QWidget()
         self.setWidget(w)
         layout: QVBoxLayout = QVBoxLayout()
@@ -146,12 +174,26 @@ class DiagnosticsDock(QDockWidget):
 
         layout.addLayout(form)
 
-        # Run button
+        # Run button and overlay toggle
+        btn_row = QHBoxLayout()
         self.run_btn = QPushButton("Run Pipeline")
-        layout.addWidget(self.run_btn)
+        btn_row.addWidget(self.run_btn)
+        self.overlay_btn = QPushButton("Overlay: ON")
+        self.overlay_btn.setCheckable(True)
+        self.overlay_btn.setChecked(True)
+        btn_row.addWidget(self.overlay_btn)
+        layout.addLayout(btn_row)
+
+        # Dump buttons
+        dump_row = QHBoxLayout()
+        self.dump_core_btn = QPushButton("Dump core_gen.json")
+        self.dump_processed_btn = QPushButton("Dump processed_cave.json")
+        dump_row.addWidget(self.dump_core_btn)
+        dump_row.addWidget(self.dump_processed_btn)
+        layout.addLayout(dump_row)
 
         # Image preview
-        self.image_label = QLabel()
+        self.image_label = ClickableLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.image_label, 1)
 
@@ -162,10 +204,50 @@ class DiagnosticsDock(QDockWidget):
 
         # Connect button
         self.run_btn.clicked.connect(self.on_run)
+        self.overlay_btn.clicked.connect(self.on_toggle_overlay)
+        self.dump_core_btn.clicked.connect(self.on_dump_core)
+        self.dump_processed_btn.clicked.connect(self.on_dump_processed)
+        self.image_label.clicked.connect(self.on_image_clicked)
 
     def append_log(self, text: str) -> None:
         """Append text to the log area."""
         self.log.append(text)
+
+    def on_toggle_overlay(self) -> None:
+        self.overlay_enabled = self.overlay_btn.isChecked()
+        text = "Overlay: ON" if self.overlay_enabled else "Overlay: OFF"
+        self.overlay_btn.setText(text)
+        if self._last_run_results is None:
+            return
+        tile_grid = self._last_run_results.get("tile_grid")
+        if isinstance(tile_grid, np.ndarray):
+            self._update_preview_with_overlay(tile_grid)
+
+    def on_dump_core(self) -> None:
+        if self._last_run_results is None:
+            self.append_log("No run results to dump.")
+            return
+        raw = self._last_run_results.get("raw_backbone")
+        if not isinstance(raw, dict):
+            self.append_log("No raw_backbone present in results.")
+            return
+        out_path = Path.cwd() / "diagnostics_core_gen.json"
+        with out_path.open("w", encoding="utf-8") as output_file:
+            json.dump(raw, output_file, indent=2)
+        self.append_log(f"Wrote raw backbone to: {out_path}")
+
+    def on_dump_processed(self) -> None:
+        if self._last_run_results is None:
+            self.append_log("No run results to dump.")
+            return
+        proc = self._last_run_results.get("augmented_nodes")
+        if not isinstance(proc, list):
+            self.append_log("No augmented_nodes present in results.")
+            return
+        out_path = Path.cwd() / "diagnostics_processed_cave.json"
+        with out_path.open("w", encoding="utf-8") as output_file:
+            json.dump({"nodes": proc}, output_file, indent=2)
+        self.append_log(f"Wrote processed cave to: {out_path}")
 
     def on_run(self) -> None:
         """Handle Run Pipeline button click."""
@@ -184,9 +266,9 @@ class DiagnosticsDock(QDockWidget):
 
     def _run_pipeline_thread(self, params: PyDict[str, int]) -> None:
         """Run the pipeline in a background thread."""
-        try:
-            from orchestrator import run_pipeline
+        from orchestrator import run_pipeline
 
+        try:
             # Run the pipeline with specified parameters
             res: PyDict[str, Any] = run_pipeline(
                 seed=params["seed"],
@@ -197,17 +279,44 @@ class DiagnosticsDock(QDockWidget):
                 grid_size=128,
                 run_sim=False,
             )
-            tile_grid: np.ndarray = res.get("tile_grid")
-            backbone_count: int = res.get("backbone_nodes")
+            tile_grid_obj = res.get("tile_grid")
+            if not isinstance(tile_grid_obj, np.ndarray):
+                raise RuntimeError("Pipeline did not return a tile grid array.")
+            tile_grid: np.ndarray = tile_grid_obj
+
+            backbone_value = res.get("backbone_nodes")
+            if not isinstance(backbone_value, (int, np.integer)):
+                raise RuntimeError("Pipeline did not return a backbone count.")
+            backbone_count = int(backbone_value)
+
+            self._last_run_results = res
+            augmented_nodes = res.get("augmented_nodes")
+            if isinstance(augmented_nodes, list):
+                self.node_tile_coords = self._map_nodes_to_tile_coords(
+                    augmented_nodes, tile_grid.shape
+                )
+            else:
+                self.node_tile_coords = {}
 
             # Convert image on main thread
-            img: QImage = tile_grid_to_qimage(tile_grid, scale=4)
+            img: QImage = tile_grid_to_qimage(
+                tile_grid, scale=self.preview_scale
+            )
 
             def ui_update() -> None:
-                self.image_label.setPixmap(QPixmap.fromImage(img))
                 self.append_log(
-                    f"Done. Backbone nodes: {backbone_count}; tile grid: {tile_grid.shape}"
+                    "Done. Backbone nodes: "
+                    f"{backbone_count}; tile grid: {tile_grid.shape}"
                 )
+                if self.overlay_enabled and self.node_tile_coords:
+                    pix = self._image_with_overlay(
+                        img,
+                        self.node_tile_coords,
+                        highlight_node=None,
+                    )
+                    self.image_label.setPixmap(pix)
+                else:
+                    self.image_label.setPixmap(QPixmap.fromImage(img))
 
             # Schedule update on main thread
             self.main.qt_invoke(ui_update)
@@ -218,6 +327,181 @@ class DiagnosticsDock(QDockWidget):
                 self.append_log(f"Run failed: {e}")
 
             self.main.qt_invoke(ui_err)
+
+    def _update_preview_with_overlay(self, tile_grid: np.ndarray) -> None:
+        img = tile_grid_to_qimage(tile_grid, scale=self.preview_scale)
+        if self.overlay_enabled and self.node_tile_coords:
+            pix = self._image_with_overlay(
+                img,
+                self.node_tile_coords,
+                highlight_node=None,
+            )
+            self.image_label.setPixmap(pix)
+            return
+        self.image_label.setPixmap(QPixmap.fromImage(img))
+
+    def _map_nodes_to_tile_coords(
+        self,
+        augmented_nodes: List[PyDict[str, Any]],
+        tile_shape: Tuple[int, int],
+    ) -> PyDict[int, Tuple[int, int]]:
+        """Map processor node x/y values to tile (row,col) using normalization."""
+        xs = [
+            float(node.get("x", 0.0))
+            for node in augmented_nodes
+            if node.get("x") is not None
+        ]
+        ys = [
+            float(node.get("y", 0.0))
+            for node in augmented_nodes
+            if node.get("y") is not None
+        ]
+        if not xs or not ys:
+            return {}
+        min_x = min(xs)
+        max_x = max(xs)
+        min_y = min(ys)
+        max_y = max(ys)
+        dx = max(1e-6, max_x - min_x)
+        dy = max(1e-6, max_y - min_y)
+        h, w = tile_shape
+        mapping: PyDict[int, Tuple[int, int]] = {}
+        for node in augmented_nodes:
+            node_id = node.get("id")
+            if node_id is None:
+                continue
+            nx = float(node.get("x", 0.0))
+            ny = float(node.get("y", 0.0))
+            col = int(round((nx - min_x) / dx * (w - 1)))
+            row = int(round((ny - min_y) / dy * (h - 1)))
+            col = max(0, min(w - 1, col))
+            row = max(0, min(h - 1, row))
+            mapping[int(node_id)] = (row, col)
+        return mapping
+
+    def _image_with_overlay(
+        self,
+        base_img: QImage,
+        node_tile_coords: PyDict[int, Tuple[int, int]],
+        highlight_node: int | None,
+    ) -> QPixmap:
+        """Return a QPixmap built from base_img with backbone overlay drawn on top."""
+        img = base_img.copy()
+        painter = QPainter(img)
+        alpha = 200
+        pen = QPen(QColor(220, 50, 50, alpha))
+        pen.setWidth(max(1, int(self.preview_scale / 2)))
+        painter.setPen(pen)
+        painter.setBrush(QBrush(QColor(50, 200, 50, 150)))
+
+        augmented_nodes = []
+        if self._last_run_results is not None:
+            nodes_obj = self._last_run_results.get("augmented_nodes")
+            if isinstance(nodes_obj, list):
+                augmented_nodes = nodes_obj
+        for node in augmented_nodes:
+            node_id = node.get("id")
+            parent_id = node.get("parent_id")
+            if node_id is None or parent_id is None:
+                continue
+            if node_id not in node_tile_coords:
+                continue
+            if parent_id not in node_tile_coords:
+                continue
+            row0, col0 = node_tile_coords[node_id]
+            row1, col1 = node_tile_coords[parent_id]
+            x0 = int(col0 * self.preview_scale + self.preview_scale / 2)
+            y0 = int(row0 * self.preview_scale + self.preview_scale / 2)
+            x1 = int(col1 * self.preview_scale + self.preview_scale / 2)
+            y1 = int(row1 * self.preview_scale + self.preview_scale / 2)
+            painter.drawLine(x0, y0, x1, y1)
+
+        for node_id, (row, col) in node_tile_coords.items():
+            x = int(col * self.preview_scale + self.preview_scale / 2)
+            y = int(row * self.preview_scale + self.preview_scale / 2)
+            radius = max(2, int(self.preview_scale / 1.5))
+            if highlight_node is not None and node_id == highlight_node:
+                painter.setBrush(QBrush(QColor(255, 200, 0, 220)))
+                painter.setPen(
+                    QPen(
+                        QColor(255, 200, 0, 220),
+                        max(1, int(self.preview_scale / 1.5)),
+                    )
+                )
+            else:
+                painter.setBrush(QBrush(QColor(50, 200, 50, 200)))
+                painter.setPen(QPen(QColor(10, 10, 10, 200)))
+            painter.drawEllipse(QPoint(x, y), radius, radius)
+
+        painter.end()
+        return QPixmap.fromImage(img)
+
+    def on_image_clicked(self, pos: QPoint) -> None:
+        """Handle clicks on the preview image to inspect nearest backbone node."""
+        if self._last_run_results is None:
+            return
+        if not self.node_tile_coords:
+            self.append_log("No backbone nodes available for inspection.")
+            return
+
+        x = int(pos.x() / max(1, self.preview_scale))
+        y = int(pos.y() / max(1, self.preview_scale))
+
+        best_nid: int | None = None
+        best_dist: float | None = None
+        for node_id, (row, col) in self.node_tile_coords.items():
+            dx = col - x
+            dy = row - y
+            dist = math.hypot(dx, dy)
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best_nid = node_id
+
+        threshold = 6.0
+        if best_nid is None or best_dist is None or best_dist > threshold:
+            self.append_log(
+                f"No backbone node within {threshold} tiles of ({y}, {x})."
+            )
+            return
+
+        node_map_obj = self._last_run_results.get("augmented_node_map")
+        node_map: PyDict[str | int, Any] = {}
+        if isinstance(node_map_obj, dict):
+            node_map = node_map_obj
+
+        node = node_map.get(best_nid)
+        if node is None:
+            node = node_map.get(str(best_nid))
+        if not isinstance(node, dict):
+            self.append_log(f"Node {best_nid} not found in augmented_node_map.")
+            return
+
+        info_lines = [
+            f"Node ID: {node.get('id')}",
+            f"Parent ID: {node.get('parent_id')}",
+            f"Children: {node.get('children_ids')}",
+            f"Type: {node.get('node_type')}",
+            f"Degree: {node.get('degree')}",
+            f"Path depth: {node.get('path_depth')}",
+            f"Path length from root: {node.get('path_length_from_root')}",
+            f"Depth (m): {node.get('depth_m')}",
+            f"Segment length (xy): {node.get('segment_length_xy')}",
+            f"Segment incline (deg): {node.get('segment_incline_deg')}",
+            "",
+            "Full JSON:",
+            json.dumps(node, indent=2),
+        ]
+        QMessageBox.information(self, f"Node {best_nid}", "\n".join(info_lines))
+
+        tile_grid_obj = self._last_run_results.get("tile_grid")
+        if not isinstance(tile_grid_obj, np.ndarray):
+            return
+        pix = self._image_with_overlay(
+            tile_grid_to_qimage(tile_grid_obj, scale=self.preview_scale),
+            self.node_tile_coords,
+            highlight_node=best_nid,
+        )
+        self.image_label.setPixmap(pix)
 
 
 class WindowManager(QMainWindow):
