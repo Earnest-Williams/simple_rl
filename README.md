@@ -121,6 +121,5 @@ The project prioritizes performance through high-performance libraries (Polars, 
 * Some rendering operations may benefit from caching and dirty-rect tracking
 * Entity component queries in combat system could be batched for better performance
 * Flow field pathfinding may benefit from caching when targets are stationary
-* `lights_dev/` uses Python's `random` module instead of `GameRNG` (non-deterministic)
 
 For detailed performance analysis and optimization recommendations, see `PERFORMANCE_ANALYSIS.md`.

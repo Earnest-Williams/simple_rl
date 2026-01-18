@@ -69,9 +69,8 @@ from game.ai.goap_adapter import plan_for_agent
 
 # Generate a plan for an agent
 plan = plan_for_agent(
-    agent_id=entity_id,
     game_state=gs,
-    entity_registry=entity_reg
+    entity_id=entity_id
 )
 ```
 
