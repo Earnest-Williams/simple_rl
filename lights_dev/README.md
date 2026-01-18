@@ -16,7 +16,7 @@ The components developed here are intended for eventual integration into the mai
 * **`dungeon_data.py`:** Defines the `Dungeon` **Numba jitclass**. This high-performance data structure holds the core grid arrays (`tiles`, `visible`, `memory_intensity`, `last_seen_time`) and is passed to Numba-accelerated functions.
 * **`constants.py`:** Contains constants specific to this R&D environment, including rendering characters, True Color RGB values, memory fade parameters, and the `LIGHT_LEVEL_DATA` structure mapping light intensity to gameplay visibility checks.
 
-**Note:** The testbed optionally uses the root-level `dungeon_generator.py` for creating U-shaped test rooms if available, otherwise falls back to built-in dummy generation. For production-quality dungeon generation, use the `Dungeon/` pipeline at the repository root.
+**Note:** The testbed creates simple procedural test maps within `main_game.py` for testing lighting and FOV algorithms. For production-quality dungeon generation with complex cave systems, use the `Dungeon/` pipeline at the repository root.
 
 ## Key Mechanics & Implementation
 
