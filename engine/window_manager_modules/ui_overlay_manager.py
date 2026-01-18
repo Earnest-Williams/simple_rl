@@ -106,8 +106,8 @@ class UIOverlayManager:
                 # Fallback size
                 return Image.new("RGBA", (100, 100), (0, 0, 0, 0))
 
-        img_copy = base_image.copy()  # Work on a copy
-        draw = ImageDraw.Draw(img_copy)
+        overlay_layer = Image.new("RGBA", base_image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay_layer)
 
         # Font Loading (Consider centralizing or caching in WindowManager/Config)
         font_cfg = (
@@ -123,10 +123,10 @@ class UIOverlayManager:
             text_font = ImageFont.load_default()
 
         bg_rect_debug = (0, 0, 0, 0)
-        for overlay in self.overlay_defs:
-            if not overlay.get("enabled", True):
+        for overlay_def in self.overlay_defs:
+            if not overlay_def.get("enabled", True):
                 continue
-            otype = overlay.get("type")
+            otype = overlay_def.get("type")
             if otype == "debug":
                 bg_rect_debug = self._render_debug_overlay(
                     draw, text_font, gs, main_loop_ref
@@ -138,16 +138,18 @@ class UIOverlayManager:
                     )
             elif otype == "inventory":
                 if gs.ui_state == "INVENTORY_VIEW":
-                    img_copy = self._render_inventory_overlay(
-                        img_copy, draw, text_font, gs
+                    overlay_layer = self._render_inventory_overlay(
+                        overlay_layer, draw, text_font, gs
                     )
             elif otype == "image":
-                img_copy = self._render_image_overlay(img_copy, overlay)
+                overlay_layer = self._render_image_overlay(
+                    overlay_layer, overlay_def
+                )
 
         # 4. Message Log Overlay (Future)
         # self._render_message_log(draw, text_font, gs)
 
-        return img_copy
+        return Image.alpha_composite(base_image.convert("RGBA"), overlay_layer)
 
     def _render_debug_overlay(
         self,

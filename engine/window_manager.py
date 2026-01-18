@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image
 
 # PySide6 imports
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QRect, QTimer
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -260,6 +260,11 @@ class WindowManager(QMainWindow):
         self._cached_tile_dims: Tuple[int, int] | None = None
         self._cache_generation: int = 0
         self._last_tileset_change: int = 0
+        self._px_idx: Tuple[np.ndarray, np.ndarray] | None = None
+        self._last_frame_image: Image.Image | None = None
+        self._cached_frame: QPixmap | None = None
+        self._frame_dirty: bool = True
+        self._last_viewport_params: ViewportParams | None = None
 
         # Diagnostics dock widget
         self._diagnostics_dock: DiagnosticsDock | None = None
@@ -336,6 +341,10 @@ class WindowManager(QMainWindow):
         self._scroll_scale_timer.setSingleShot(True)
         self._scroll_scale_timer.setInterval(self.scroll_debounce_ms)
         self._scroll_scale_timer.timeout.connect(self._apply_scroll_scaling)
+
+        self.frame_timer = QTimer(self)
+        self.frame_timer.timeout.connect(self.update_frame_if_dirty)
+        self.frame_timer.start(16)
 
         # Active keybindings
         self.active_keybinding_sets: List[str] = ["common", "numpad"]
@@ -421,12 +430,21 @@ class WindowManager(QMainWindow):
             if estimated_memory > 100_000_000:  # 100MB limit
                 log.warning(f"Cache would require {estimated_memory/1e6:.1f}MB")
 
-            # Create coordinate mapping arrays
-            px_y_indices, px_x_indices = np.indices(
-                (vp_pixel_h, vp_pixel_w), dtype=np.int16
-            )
-            tile_coord_y = (px_y_indices // current_tile_h).astype(np.int16)
-            tile_coord_x = (px_x_indices // current_tile_w).astype(np.int16)
+            max_h = vp_pixel_h
+            max_w = vp_pixel_w
+            if self._px_idx is not None:
+                max_h = max(max_h, self._px_idx[0].shape[0])
+                max_w = max(max_w, self._px_idx[1].shape[1])
+            if (
+                self._px_idx is None
+                or self._px_idx[0].shape[0] < vp_pixel_h
+                or self._px_idx[1].shape[1] < vp_pixel_w
+            ):
+                self._px_idx = np.indices((max_h, max_w), dtype=np.int16)
+            px_y = self._px_idx[0][:vp_pixel_h, :vp_pixel_w]
+            px_x = self._px_idx[1][:vp_pixel_h, :vp_pixel_w]
+            tile_coord_y = (px_y // current_tile_h).astype(np.int16)
+            tile_coord_x = (px_x // current_tile_w).astype(np.int16)
 
             # FIXED: Validate results
             if tile_coord_y.max() >= self.viewport_height:
@@ -572,6 +590,64 @@ class WindowManager(QMainWindow):
         self._resize_timer.start()
         super().resizeEvent(event)
 
+    def _get_viewport_params(self) -> ViewportParams | None:
+        return self._last_viewport_params
+
+    def _pil_to_qpixmap(self, image: Image.Image) -> QPixmap:
+        if image.mode != "RGBA":
+            image = image.convert("RGBA")
+        img_data = image.tobytes("raw", "RGBA")
+        qimage = QImage(
+            img_data,
+            image.width,
+            image.height,
+            QImage.Format.Format_RGBA8888,
+        ).copy()
+        return QPixmap.fromImage(qimage)
+
+    def get_pixmap(self) -> QPixmap:
+        if self._cached_frame is not None and not self._frame_dirty:
+            return self._cached_frame
+        if self._last_frame_image is None:
+            return QPixmap()
+        pixmap = self._pil_to_qpixmap(self._last_frame_image)
+        self._cached_frame = pixmap
+        self._frame_dirty = False
+        return pixmap
+
+    def update_frame_if_dirty(self) -> None:
+        if not self._frame_dirty:
+            return
+        self.update_frame()
+
+    def _blit_partial_to_backing_store(
+        self, partial_image: Image.Image, rect: QRect
+    ) -> None:
+        if self._last_frame_image is None:
+            return
+        if partial_image.mode != "RGBA":
+            partial_image = partial_image.convert("RGBA")
+        self._last_frame_image.paste(partial_image, (rect.x(), rect.y()))
+        self._frame_dirty = True
+
+    def update_frame_partial(self, dirty_rects: List[QRect]) -> None:
+        if not dirty_rects or self.main_loop is None:
+            return
+        viewport_params = self._get_viewport_params()
+        if viewport_params is None:
+            return
+        render_region = getattr(self.main_loop, "render_region", None)
+        if render_region is None:
+            log.debug("render_region not available on main loop")
+            return
+        for rect in dirty_rects:
+            partial_image = render_region(rect, viewport_params)
+            if partial_image is None:
+                continue
+            self._blit_partial_to_backing_store(partial_image, rect)
+        pixmap = self.get_pixmap()
+        self.label.setPixmap(pixmap)
+
     def update_frame(self) -> None:
         """Updates and redraws the main display label."""
         frame_start_time = time.perf_counter()
@@ -676,7 +752,7 @@ class WindowManager(QMainWindow):
 
         # Render the frame
         try:
-            frame_image = self.main_loop.render_frame(viewport_params)
+            frame_image = self.main_loop.update_console(gs, viewport_params)
         except Exception as render_err:
             log.error(f"Frame render failed: {render_err}", exc_info=True)
             self.label.setText("Render Error")
@@ -687,37 +763,22 @@ class WindowManager(QMainWindow):
             self.label.clear()
             return
 
+        self._last_viewport_params = viewport_params
+
         # Apply overlays
         try:
-            frame_image = self.ui_overlay_manager.apply_overlays(
-                frame_image, gs, viewport_params
+            frame_image = self.ui_overlay_manager.render_overlays(
+                frame_image, gs, self.main_loop
             )
         except Exception as overlay_err:
             log.error(f"Overlay application failed: {overlay_err}")
 
-        # Convert PIL to QPixmap
-        try:
-            if hasattr(frame_image, "tobytes"):
-                img_data = frame_image.tobytes("raw", "RGBA")
-            else:
-                img_data = frame_image.tostring("raw", "RGBA")
-
-            qimage = QImage(
-                img_data,
-                frame_image.width,
-                frame_image.height,
-                QImage.Format.Format_RGBA8888,
-            )
-            pixmap = QPixmap.fromImage(qimage)
-
-            # Set label size and pixmap
-            self.label.setFixedSize(frame_image.width, frame_image.height)
-            self.label.setPixmap(pixmap)
-
-        except Exception as convert_err:
-            log.error(f"Image conversion failed: {convert_err}")
-            self.label.setText("Display Error")
-            return
+        if frame_image is not None:
+            self._last_frame_image = frame_image
+            self._frame_dirty = True
+        pixmap = self.get_pixmap()
+        self.label.setFixedSize(frame_image.width, frame_image.height)
+        self.label.setPixmap(pixmap)
 
         # Log frame timing
         frame_duration = (time.perf_counter() - frame_start_time) * 1000
@@ -732,7 +793,7 @@ class WindowManager(QMainWindow):
             if action:
                 log.debug(f"Action triggered: {action}")
                 self.main_loop.handle_action(action)
-                self.update_frame()
+                self._frame_dirty = True
         super().keyPressEvent(event)
 
     def show_help_dialog(self) -> None:

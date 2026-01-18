@@ -366,11 +366,21 @@ class EntityRegistry:
 
     def get_position(self: Self, entity_id: int) -> Position | None:
         """Return the Position component for an entity if available."""
-        pos_x = self.get_entity_component(entity_id, "x")
-        pos_y = self.get_entity_component(entity_id, "y")
-        if pos_x is not None and pos_y is not None:
-            return Position(int(pos_x), int(pos_y))
-        return None
+        entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
+        if entity_df.height == 0:
+            return None
+        row = entity_df.row(0, named=True)
+        x, y = row.get("x"), row.get("y")
+        return Position(int(x), int(y)) if x is not None and y is not None else None
+
+    def get_entity_components(
+        self: Self, entity_id: int, component_names: List[str]
+    ) -> Dict[str, Any]:
+        entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
+        if entity_df.height == 0:
+            return {}
+        row = entity_df.row(0, named=True)
+        return {name: row.get(name) for name in component_names}
 
     def set_position(self: Self, entity_id: int, position: Position) -> bool:
         """Update an entity's position component."""
