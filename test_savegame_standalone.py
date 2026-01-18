@@ -146,7 +146,7 @@ def test_full_roundtrip() -> None:
         print("✓ Full round-trip successful with correct types")
 
 
-def test_ipc_error_handling():
+def test_ipc_error_handling() -> None:
     """Test that invalid IPC data raises clear errors."""
     print("Testing: Invalid IPC data should raise clear errors...")
 
