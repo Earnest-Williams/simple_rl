@@ -1,4 +1,4 @@
-# import sys
+import sys
 import json
 import os
 import warnings
@@ -33,9 +33,7 @@ ATTACK_DELTAS = {"q": (-1, -1), "e": (1, -1), "z": (-1, 1), "c": (1, 1)}
 
 # --- Create a global GameRNG instance ---
 GAME_SEED = 42  # Default seed value
-game_rng = GameRNG(
-    seed=GAME_SEED, generator="xorshift", metrics=True, default_int_type=int
-)
+game_rng = GameRNG(seed=GAME_SEED, metrics=True)
 
 
 # --- Entity Classes ---
