@@ -408,33 +408,47 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 - **Total Lines:** ~18,400
 - **Python Files:** 60+
 - **Primary Systems:** 16
-- **Very High Sophistication Systems:** 4
-- **High Sophistication Systems:** 5
-- **Duplicate Systems Found:** 5
+- **Very High Sophistication Systems:** 4 (Perception, AI, GameRNG, FOV/Visibility)
+- **High Sophistication Systems:** 5 (Flow Field, Lighting, Magic/Effects, Entity/Component, Rendering)
+- **Fully Integrated Systems:** 16+
+- **R&D Systems (Not Integrated):** 2 (Community NPC AI, Lighting Testbed)
+- **Test/Tuning Environments:** 1 (GOAP auto/ directory - core already integrated)
 
 ---
 
 ## RECOMMENDATIONS
 
-### Priority 1: Organize Core Systems
-1. Keep all "Very High" and "High" sophistication systems
-2. Remove duplicate dungeon generators (keep `Dungeon/`)
-3. Consolidate prototypes folder (archive or delete old versions)
+### Priority 1: Continue Integration Work
+1. ✅ Keep all "Very High" and "High" sophistication systems (already integrated)
+2. ✅ Duplicate dungeon generators removed (kept `Dungeon/` production version)
+3. ✅ Core GOAP integrated successfully
+4. 🔄 Complete Community NPC AI integration when ready
+5. 🔄 Integrate lights_dev/ systems with main rendering pipeline
 
-### Priority 2: Documentation
-1. Document 3D → 2D conversion pipeline
-2. Create integration guide for perception → AI → pathfinding
-3. Document RNG system usage patterns
+### Priority 2: Documentation & Consistency
+1. ✅ Document integration status clearly (completed in this update)
+2. ✅ Update README files to reflect current state (completed)
+3. 🔄 Document 3D → 2D conversion pipeline in detail
+4. 🔄 Create integration guide for perception → AI → pathfinding
+5. 🔄 Document GameRNG usage patterns and best practices
 
-### Priority 3: Testing
+### Priority 3: Address Performance Issues
+See `PERFORMANCE_ANALYSIS.md` for detailed recommendations:
+1. Fix critical bugs (render_frame, apply_overlays method names)
+2. Add bulk component fetching to eliminate N+1 queries
+3. Consolidate entity iterations in game state
+4. Vectorize light calculations
+5. Add spatial hash for entity proximity queries
+6. Implement frame rate limiting and dirty rect tracking
+7. Cache flow fields and frequently accessed data
+
+### Priority 4: Testing & Quality
 1. Add tests for 3D dungeon generator
 2. Test perception flow fields with different configurations
-3. Validate AI GOAP planner
-
-### Priority 4: Performance
-1. Profile Numba-accelerated functions
-2. Optimize Polars DataFrame operations
-3. Cache expensive calculations (already doing CDF caching in RNG)
+3. Validate GOAP planner behavior
+4. Add performance regression tests
+5. Profile Numba-accelerated functions
+6. Validate Polars DataFrame operations
 
 ---
 
@@ -634,15 +648,17 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - ❌ **Not integrated** into main game engine
 - 🔄 **Planned for integration** with main rendering pipeline
 - 🔄 **May combine** with pathfinding/perception systems
+- ⚠️ **Uses Python's random module** - not deterministic (uses `random` not `GameRNG`)
 
 **Files:**
 - `main_game.py` - Standalone test environment
 - `dungeon_data.py` - Numba jitclass for high-performance grids
 - `constants.py` - R&D-specific constants
 - `dungeon_generator.py` - Simple test map generator (U-shaped rooms)
+- `Dungeon/` - Variant dungeon generator for test maps (uses `random` module)
 
 **Integration Steps Needed:**
-1. Fix GameRNG usage in lights_dev/Dungeon/ (uses standard random)
+1. Replace `random` module with GameRNG in lights_dev/Dungeon/ if determinism needed
 2. Merge FOV algorithms with game/world/fov.py, visibility.py
 3. Integrate lighting system with engine/render_lighting.py
 4. Add memory fade to main rendering pipeline
@@ -650,11 +666,11 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 6. Remove or archive standalone main_game.py after integration
 
 **Current Issue:**
-- lights_dev/Dungeon/ uses `random` module instead of GameRNG (non-deterministic)
+- lights_dev/Dungeon/ uses `random` module instead of GameRNG (prioritizes rapid prototyping over determinism)
 
 ---
 
-### 3. GOAP AI Simulation Environment ❌ NOT FULLY INTEGRATED
+### 3. GOAP AI Simulation Environment ✅ PARTIALLY INTEGRATED
 
 **Location:** `auto/` directory
 
@@ -670,31 +686,30 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 **Status:**
 - ⚠️ **Development environment** - testing GOAP AI
-- ❌ **Not fully integrated** into main game
-- 🔄 **Designed for integration** - will control dungeon NPCs/monsters
-- ✅ **GOAP code integrated:** game/ai/goap.py is the integrated version
-- 🔧 **Integration points under development**
+- ✅ **Core GOAP Fully Integrated** - game/ai/goap.py is production code
+- ✅ **Adapter Integrated** - game/ai/goap_adapter.py connects to main game
+- ❌ **Standalone simulation separate** - auto/simulation.py is test environment only
+- ❌ **GUI for development only** - auto/gui/ not for gameplay
 
 **Files:**
-- `simulation.py` - Standalone world simulation
+- `goap_engine.py` - Core GOAP planner (extracted to game/ai/)
+- `simulation.py` - Standalone world simulation (test environment)
 - `main.py` - Headless runner with multiprocessing
 - `gui/` - PySide6 visualization tool
 - `run.sh` - Execution wrapper
 
 **Integration Status:**
-- ✅ **GOAP Planner:** Already integrated in game/ai/goap.py
-- ✅ **AI Strategy:** Already integrated in game/ai/strategy.py
+- ✅ **GOAP Planner:** Fully integrated in game/ai/goap.py
+- ✅ **AI Strategy:** Fully integrated in game/ai/strategy.py
+- ✅ **Adapter:** game/ai/goap_adapter.py connects game state to GOAP
 - ❌ **Standalone simulation:** auto/simulation.py is separate test environment
 - ❌ **GUI:** auto/gui/ is development-only, not for gameplay
 
-**Integration Steps Needed:**
-1. ✅ Core GOAP already integrated (game/ai/goap.py)
-2. 🔄 Connect auto/ test results to tune main game AI
-3. 🔄 Use auto/simulation.py for AI regression testing
-4. 🔧 Define exact perception system integration (with pathfinding/)
-5. 🔧 Finalize action set for dungeon environment
+**Use Case:** 
+- Core GOAP drives NPC/monster decision making in production
+- auto/ environment used for training, tuning, and testing new behaviors
 
-**Note:** The core GOAP AI is already integrated. The auto/ directory serves as a **testing and tuning environment** for the AI before deploying to the main game.
+**Note:** The core GOAP AI is **fully integrated**. The auto/ directory serves as a **testing and tuning environment** for the AI before deploying changes to the main game.
 
 ---
 
@@ -800,17 +815,36 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ## CONCLUSION
 
 This is a sophisticated, production-quality roguelike engine with exceptional implementations of:
-- 3D procedural generation
-- Multi-sensory AI perception
-- Advanced pathfinding algorithms
-- Flexible AI architectures
-- Comprehensive game systems
+- 3D procedural generation with depth preservation
+- Multi-sensory AI perception (sight, sound, scent)
+- Advanced pathfinding algorithms (flow fields, A*)
+- Flexible AI architectures (GOAP, FSM, ML-ready)
+- Comprehensive game systems (combat, equipment, effects, items)
+- High-performance rendering with lighting and memory fade
+- Deterministic simulation with GameRNG
 
-The codebase shows evidence of multiple merged projects with some duplication that can be cleaned up while preserving the most sophisticated implementations.
+The codebase has evolved from multiple merged projects and now has clear separation between production systems and R&D environments.
 
 ### Integration Summary
 
-**Fully Integrated Systems:** 16 primary systems working together in production
-**Partially Integrated:** 1 system (GOAP core integrated, test environment separate)
-**Not Integrated:** 3 development/R&D systems with clear integration paths defined
-**Critical Issues:** 2 import path inconsistencies requiring resolution
+**Fully Integrated Systems (Production):** 16+ primary systems working together
+- Dungeon generation, FOV/visibility, lighting, pathfinding
+- Combat, movement, equipment, death systems
+- Entity/component management, effects system
+- GOAP AI, strategy-based AI, perception systems
+- Rendering pipeline with multiple stages
+- Deterministic RNG throughout
+
+**R&D Systems (Not Yet Integrated):** 2 systems with clear integration paths
+- Community NPC AI (AI/v9.py) - Advanced trait-based behaviors
+- Lighting/FOV/Memory testbed (lights_dev/) - Experimental rendering features
+
+**Test/Tuning Environments:** 1 environment
+- GOAP test harness (auto/) - Core already integrated, used for AI training
+
+**Critical Improvements Needed:**
+- Address performance issues documented in PERFORMANCE_ANALYSIS.md
+- Fix method name mismatches (render_frame, apply_overlays)
+- Implement caching and bulk operations to eliminate N+1 patterns
+- Add spatial indexing for entity queries
+- Standardize GameRNG usage in all components (including lights_dev/)
