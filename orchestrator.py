@@ -233,8 +233,8 @@ def run_pipeline(
     node_map_json_path = Path(f"{output_file}.node_map.json")
     if node_map_json_path.exists():
         try:
-            with node_map_json_path.open("r", encoding="utf-8") as node_map_file:
-                node_map_rows_local = json.load(node_map_file)
+            with node_map_json_path.open("rb") as node_map_file:
+                node_map_rows_local = orjson.loads(node_map_file.read())
             node_map_rows = NODE_MAP_ROWS_ADAPTER.validate_python(
                 node_map_rows_local
             )
