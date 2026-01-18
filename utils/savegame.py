@@ -249,7 +249,7 @@ def load_game_state(
         mobs_df = pl.read_ipc(io.BytesIO(ipc_bytes))
     except Exception as e:
         raise ValueError(
-            f"Failed to load Polars DataFrame from IPC data. "
+            "Failed to load Polars DataFrame from IPC data. "
             f"File may be corrupted or created with incompatible Polars version. "
             f"Error: {e}"
         ) from e
