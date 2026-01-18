@@ -105,3 +105,22 @@ pytest
 ```
 
 Tests cover pathfinding, effects, perception, inventory, AI, and other core systems. Refer to individual component READMEs for specific requirements and usage details.
+
+## Performance & Known Issues
+
+The project prioritizes performance through high-performance libraries (Polars, Numba, NumPy) and efficient data structures. However, some known performance considerations exist:
+
+### Performance Optimization
+* Use Numba JIT compilation for hot paths (FOV, lighting, pathfinding)
+* Leverage Polars lazy evaluation for large datasets
+* Consider spatial indexing for entity proximity queries
+* Profile code with `cProfile` before optimizing
+* See `PERFORMANCE_ANALYSIS.md` for detailed analysis and recommendations
+
+### Known Limitations
+* Some rendering operations may benefit from caching and dirty-rect tracking
+* Entity component queries in combat system could be batched for better performance
+* Flow field pathfinding may benefit from caching when targets are stationary
+* `lights_dev/` uses Python's `random` module instead of `GameRNG` (non-deterministic)
+
+For detailed performance analysis and optimization recommendations, see `PERFORMANCE_ANALYSIS.md`.
