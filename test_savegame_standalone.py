@@ -24,7 +24,7 @@ from utils.savegame import (
 )
 
 
-def test_lists_stay_lists():
+def test_lists_stay_lists() -> None:
     """Verify that lists remain lists (not converted to arrays)."""
     print("Testing: Lists should stay as lists...")
     obj = {"simple_list": [1, 2, 3], "nested": [[1, 2], [3, 4]]}
