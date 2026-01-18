@@ -250,7 +250,7 @@ def load_game_state(
     except Exception as e:
         raise ValueError(
             "Failed to load Polars DataFrame from IPC data. "
-            f"File may be corrupted or created with incompatible Polars version. "
+            "File may be corrupted or created with incompatible Polars version. "
             f"Error: {e}"
         ) from e
 
