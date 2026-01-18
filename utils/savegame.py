@@ -4,7 +4,7 @@ import base64
 import datetime
 import io
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 import orjson
@@ -55,8 +55,6 @@ def _restore_numpy_if_list_like(obj: Any) -> Any:
 def _parse_major_version(schema_version: SchemaVersion) -> int:
     """Return the major version number for a semver-like string."""
     parts = schema_version.split(".")
-    if len(parts) == 0:
-        raise ValueError(f"Invalid schema_version '{schema_version}'")
     major = parts[0]
     if not major.isdigit():
         raise ValueError(f"Invalid schema_version '{schema_version}'")
@@ -67,9 +65,9 @@ def save_game_state(
     path: Path | str,
     *,
     mobs_df: pl.DataFrame,
-    world_map_data: Dict[str, Any],
-    global_state: Dict[str, Any],
-    rng_state: Dict[str, Any],
+    world_map_data: dict[str, Any],
+    global_state: dict[str, Any],
+    rng_state: dict[str, Any],
     schema_version: SchemaVersion = "1.0.0",
 ) -> None:
     """Save the complete game state to disk in a JSON wrapper."""
@@ -85,7 +83,7 @@ def save_game_state(
     json_rng = _make_json_serializable(rng_state)
 
     created_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "schema_version": schema_version,
         "created_iso": created_iso,
         "mobs_df_ipc_b64": ipc_b64,
@@ -102,7 +100,7 @@ def save_game_state(
 def load_game_state(
     path: Path | str,
     expected_schema_version: SchemaVersion = "1.0.0",
-) -> Tuple[pl.DataFrame, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> tuple[pl.DataFrame, dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Load game state saved by save_game_state with schema version checking."""
     src = Path(path)
     if not src.exists():
@@ -134,21 +132,19 @@ def load_game_state(
     mobs_df = pl.read_ipc(io.BytesIO(ipc_bytes))
 
     raw_world = state.get("world_map_data", {})
-    raw_global = state.get("global_state", {})
-    raw_rng = state.get("rng_state", {})
+    if not isinstance(raw_world, dict):
+        raise ValueError("Save file 'world_map_data' must be an object.")
+    world_map_data = _restore_numpy_if_list_like(raw_world)
 
-    if isinstance(raw_world, dict):
-        world_map_data = {k: _restore_numpy_if_list_like(v) for k, v in raw_world.items()}
-    else:
-        world_map_data = raw_world
-    if isinstance(raw_global, dict):
-        global_state = _restore_numpy_if_list_like(raw_global)
-    else:
-        global_state = raw_global
-    if isinstance(raw_rng, dict):
-        rng_state = _restore_numpy_if_list_like(raw_rng)
-    else:
-        rng_state = raw_rng
+    raw_global = state.get("global_state", {})
+    if not isinstance(raw_global, dict):
+        raise ValueError("Save file 'global_state' must be an object.")
+    global_state = _restore_numpy_if_list_like(raw_global)
+
+    raw_rng = state.get("rng_state", {})
+    if not isinstance(raw_rng, dict):
+        raise ValueError("Save file 'rng_state' must be an object.")
+    rng_state = _restore_numpy_if_list_like(raw_rng)
 
     if not isinstance(world_map_data, dict):
         raise ValueError("Save file 'world_map_data' must be an object.")
