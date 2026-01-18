@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import polars as pl
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from scipy.spatial import KDTree
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -166,27 +167,39 @@ def run_pipeline(
         node_map_rows: List[Dict[str, Any]] = []
         node_id_col = np.full(len(df), -1, dtype=np.int32)
 
-        if isinstance(augmented_nodes, list):
+        if isinstance(augmented_nodes, list) and len(df) > 0:
+            node_ids: List[int] = []
+            node_coords: List[Tuple[float, float]] = []
             for node in augmented_nodes:
                 nid = int(node.get("id"))
                 nx = float(node.get("x", 0.0))
                 ny = float(node.get("y", 0.0))
-                d2 = (x_arr - nx) ** 2 + (y_arr - ny) ** 2
-                idx = int(np.argmin(d2))
-                tile_x = int(round(x_arr[idx]))
-                tile_y = int(round(y_arr[idx]))
-                node_map_rows.append(
-                    {
-                        "node_id": nid,
-                        "node_x": nx,
-                        "node_y": ny,
-                        "tile_x": tile_x,
-                        "tile_y": tile_y,
-                        "df_index": int(idx),
-                    }
-                )
-                if node_id_col[idx] == -1:
-                    node_id_col[idx] = nid
+                node_ids.append(nid)
+                node_coords.append((nx, ny))
+
+            if node_ids:
+                tile_coords = np.column_stack((x_arr, y_arr))
+                node_points = np.array(node_coords, dtype=np.float64)
+                tree = KDTree(tile_coords)
+                _, idxs = tree.query(node_points)
+
+                for (nid, (nx, ny)), idx in zip(
+                    zip(node_ids, node_coords), idxs.tolist()
+                ):
+                    tile_x = int(round(x_arr[idx]))
+                    tile_y = int(round(y_arr[idx]))
+                    node_map_rows.append(
+                        {
+                            "node_id": nid,
+                            "node_x": nx,
+                            "node_y": ny,
+                            "tile_x": tile_x,
+                            "tile_y": tile_y,
+                            "df_index": int(idx),
+                        }
+                    )
+                    if node_id_col[idx] == -1:
+                        node_id_col[idx] = nid
 
         shaped_map = shaped_map.with_columns(
             pl.Series(name="node_id", values=node_id_col)

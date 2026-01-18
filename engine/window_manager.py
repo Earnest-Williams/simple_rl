@@ -15,6 +15,7 @@ from typing import List, Tuple
 # Third-party imports
 import numpy as np
 from PIL import Image
+from pydantic import TypeAdapter, ValidationError
 
 # PySide6 imports
 from PySide6.QtCore import QPoint, Qt, QRect, QTimer, Signal
@@ -71,6 +72,8 @@ import structlog
 import threading
 
 log = structlog.get_logger(__name__)
+
+NODE_TO_TILE_ADAPTER = TypeAdapter(Dict[int, Tuple[int, int]])
 
 DEFAULT_MIN_TILE_SIZE = 4
 DEFAULT_SCROLL_SCALE_DEBOUNCE_MS = 200
@@ -430,25 +433,14 @@ class DiagnosticsDock(QDockWidget):
             self._last_run_results = res
             node_to_tile_obj = res.get("node_to_tile")
             if isinstance(node_to_tile_obj, dict) and node_to_tile_obj:
-                node_tile_coords: PyDict[int, Tuple[int, int]] = {}
-                for key, value in node_to_tile_obj.items():
-                    if not isinstance(key, (int, np.integer, str)):
-                        continue
-                    if isinstance(key, str):
-                        if not key.lstrip("-").isdigit():
-                            continue
-                        node_id = int(key)
-                    else:
-                        node_id = int(key)
-                    if not isinstance(value, (list, tuple)) or len(value) != 2:
-                        continue
-                    row_obj, col_obj = value
-                    if not isinstance(row_obj, (int, float)):
-                        continue
-                    if not isinstance(col_obj, (int, float)):
-                        continue
-                    node_tile_coords[node_id] = (int(row_obj), int(col_obj))
-                self.node_tile_coords = node_tile_coords
+                try:
+                    node_tile_coords = NODE_TO_TILE_ADAPTER.validate_python(
+                        node_to_tile_obj
+                    )
+                    self.node_tile_coords = node_tile_coords
+                except ValidationError as exc:
+                    log.exception("Invalid node_to_tile mapping: %s", exc)
+                    self.node_tile_coords = {}
             else:
                 augmented_nodes = res.get("augmented_nodes")
                 if isinstance(augmented_nodes, list):
