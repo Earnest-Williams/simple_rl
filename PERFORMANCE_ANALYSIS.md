@@ -702,19 +702,20 @@ while pq:
 **Recommendation:**
 
 ```python
-# Cache flow fields by target
-self._flow_field_cache = {}  # (target_x, target_y) -> FlowField
+from typing import Any
 
-def get_flow_field(self, target_x, target_y):
+# Cache flow fields by target
+self._flow_field_cache: dict[tuple[int, int], Any] = {}  # (target_x, target_y) -> FlowField
+
+def get_flow_field(self, target_x: int, target_y: int) -> Any:
     key = (target_x, target_y)
     if key not in self._flow_field_cache:
         self._flow_field_cache[key] = self._compute_flow_field(target_x, target_y)
     return self._flow_field_cache[key]
 
 # Invalidate cache when map changes
-def invalidate_flow_fields(self):
+def invalidate_flow_fields(self) -> None:
     self._flow_field_cache.clear()
-```
 
 ---
 
