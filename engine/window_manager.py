@@ -6,7 +6,7 @@ Handles display, input, tilesets, and rendering coordination.
 # Standard library imports
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 from typing import Dict as PyDict
 from typing import List, Tuple
 
@@ -29,14 +29,21 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QDockWidget,
+    QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
+    QPushButton,
+    QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
-    QScrollArea,
 )
 
 # Modularized Imports
@@ -51,6 +58,7 @@ if TYPE_CHECKING:
 
 # Logging Setup
 import structlog
+import threading
 
 log = structlog.get_logger(__name__)
 
@@ -61,7 +69,158 @@ DEFAULT_INITIAL_WINDOW_WIDTH = 1024
 DEFAULT_INITIAL_WINDOW_HEIGHT = 768
 
 
-class WindowManager(QWidget):
+def tile_grid_to_qimage(tile_grid: np.ndarray, scale: int = 4) -> QImage:
+    """Convert a numeric tile_grid into an RGB QImage with simple color mapping."""
+    from common.constants import Material
+
+    h: int
+    w: int
+    h, w = tile_grid.shape
+
+    # Create an empty RGB array and fill with a default color
+    rgb_array: np.ndarray = np.full((h, w, 3), (120, 120, 120), dtype=np.uint8)
+
+    # Define color mapping for vectorized application
+    color_map: PyDict[int, Tuple[int, int, int]] = {
+        int(Material.SOLID_ROCK): (20, 20, 20),
+        int(Material.CAVE_FLOOR): (220, 220, 220),
+        int(Material.SHAFT_OPENING): (200, 150, 50),
+        int(Material.CLIFF_EDGE): (80, 80, 80),
+    }
+
+    # Apply colors using vectorized boolean indexing, which is much faster than a Python loop
+    mat_id: int
+    color: Tuple[int, int, int]
+    for mat_id, color in color_map.items():
+        rgb_array[tile_grid == mat_id] = color
+
+    # Create QImage from the numpy array. The .copy() is crucial to detach the QImage
+    # from the numpy array's memory, preventing potential garbage collection issues.
+    img: QImage = QImage(
+        rgb_array.data, w, h, w * 3, QImage.Format.Format_RGB888
+    ).copy()
+
+    if scale != 1:
+        return img.scaled(w * scale, h * scale)
+    return img
+
+
+class DiagnosticsDock(QDockWidget):
+    """Diagnostics dock widget for exposing pipeline controls and visualization."""
+
+    main: "WindowManager"
+    seed_spin: QSpinBox
+    max_nodes_spin: QSpinBox
+    max_depth_spin: QSpinBox
+    ca_spin: QSpinBox
+    run_btn: QPushButton
+    image_label: QLabel
+    log: QTextEdit
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__("Diagnostics", parent)
+        self.main = parent  # type: ignore
+        w: QWidget = QWidget()
+        self.setWidget(w)
+        layout: QVBoxLayout = QVBoxLayout()
+        w.setLayout(layout)
+
+        # Control form
+        form: QFormLayout = QFormLayout()
+        self.seed_spin = QSpinBox()
+        self.seed_spin.setRange(0, 2**31 - 1)
+        self.seed_spin.setValue(1)
+        self.max_nodes_spin = QSpinBox()
+        self.max_nodes_spin.setRange(10, 2000)
+        self.max_nodes_spin.setValue(400)
+        self.max_depth_spin = QSpinBox()
+        self.max_depth_spin.setRange(1, 500)
+        self.max_depth_spin.setValue(50)
+        self.ca_spin = QSpinBox()
+        self.ca_spin.setRange(0, 32)
+        self.ca_spin.setValue(8)
+        form.addRow("Seed", self.seed_spin)
+        form.addRow("Max nodes", self.max_nodes_spin)
+        form.addRow("Max depth", self.max_depth_spin)
+        form.addRow("CA iterations", self.ca_spin)
+
+        layout.addLayout(form)
+
+        # Run button
+        self.run_btn = QPushButton("Run Pipeline")
+        layout.addWidget(self.run_btn)
+
+        # Image preview
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.image_label, 1)
+
+        # Log area
+        self.log = QTextEdit()
+        self.log.setReadOnly(True)
+        layout.addWidget(self.log, 1)
+
+        # Connect button
+        self.run_btn.clicked.connect(self.on_run)
+
+    def append_log(self, text: str) -> None:
+        """Append text to the log area."""
+        self.log.append(text)
+
+    def on_run(self) -> None:
+        """Handle Run Pipeline button click."""
+        params: PyDict[str, int] = {
+            "seed": self.seed_spin.value(),
+            "max_nodes": self.max_nodes_spin.value(),
+            "max_depth": self.max_depth_spin.value(),
+            "ca_iterations": self.ca_spin.value(),
+        }
+        self.append_log(f"Starting run: {params}")
+        # Run in a background thread
+        t: threading.Thread = threading.Thread(
+            target=self._run_pipeline_thread, args=(params,), daemon=True
+        )
+        t.start()
+
+    def _run_pipeline_thread(self, params: PyDict[str, int]) -> None:
+        """Run the pipeline in a background thread."""
+        try:
+            from orchestrator import run_pipeline
+
+            # Run the pipeline with specified parameters
+            res: PyDict[str, Any] = run_pipeline(
+                seed=params["seed"],
+                max_nodes=params["max_nodes"],
+                max_depth=params["max_depth"],
+                ca_iterations=params["ca_iterations"],
+                output_file="tmp_shaped_map.arrow",
+                grid_size=128,
+                run_sim=False,
+            )
+            tile_grid: np.ndarray = res.get("tile_grid")
+            backbone_count: int = res.get("backbone_nodes")
+
+            # Convert image on main thread
+            img: QImage = tile_grid_to_qimage(tile_grid, scale=4)
+
+            def ui_update() -> None:
+                self.image_label.setPixmap(QPixmap.fromImage(img))
+                self.append_log(
+                    f"Done. Backbone nodes: {backbone_count}; tile grid: {tile_grid.shape}"
+                )
+
+            # Schedule update on main thread
+            self.main.qt_invoke(ui_update)
+        except Exception as e:
+            log.error(f"Pipeline run failed: {e}", exc_info=True)
+
+            def ui_err() -> None:
+                self.append_log(f"Run failed: {e}")
+
+            self.main.qt_invoke(ui_err)
+
+
+class WindowManager(QMainWindow):
     def __init__(
         self,
         app_config: PyDict[str, Any],
@@ -102,16 +261,22 @@ class WindowManager(QWidget):
         self._cache_generation: int = 0
         self._last_tileset_change: int = 0
 
+        # Diagnostics dock widget
+        self._diagnostics_dock: DiagnosticsDock | None = None
+
         # UI Setup
         self.setWindowTitle("Basic Roguelike")
         self.resize(DEFAULT_INITIAL_WINDOW_WIDTH, DEFAULT_INITIAL_WINDOW_HEIGHT)
+
+        # Central widget with layout
+        central_widget: QWidget = QWidget()
+        self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.layout)
+        central_widget.setLayout(self.layout)
 
-        # Menu bar
-        self.menu_bar = QMenuBar(self)
-        self.layout.addWidget(self.menu_bar)
+        # Menu bar (QMainWindow manages its own menu bar)
+        self.menu_bar = self.menuBar()
 
         # Dark color scheme
         self.setStyleSheet(
@@ -340,6 +505,14 @@ class WindowManager(QWidget):
         )
         tileset_menu.addAction(use_svg_action)
         self.menu_bar.addMenu(tileset_menu)
+
+        # Diagnostics menu
+        diag_menu: QMenu = QMenu("Diagnostics", self)
+        open_diag: QAction = QAction("Open Diagnostics", self)
+        open_diag.triggered.connect(lambda: self.show_diagnostics_dock())
+        diag_menu.addAction(open_diag)
+        self.menu_bar.addMenu(diag_menu)
+
         log.debug("Menus built")
 
     def handle_load_tileset_action(self, folder: str, width: int, height: int) -> None:
@@ -700,3 +873,15 @@ class WindowManager(QWidget):
                 log.error("Zoom failed - tileset failed to load new size")
         else:
             log.debug("Zoom resulted in no size change")
+
+    def qt_invoke(self, callable_fn: Callable[[], None]) -> None:
+        """Schedule a callable to run on the main Qt thread."""
+        QTimer.singleShot(0, callable_fn)
+
+    def show_diagnostics_dock(self) -> None:
+        """Create and show the diagnostics dock widget."""
+        if self._diagnostics_dock:
+            self._diagnostics_dock.raise_()
+            return
+        self._diagnostics_dock = DiagnosticsDock(parent=self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._diagnostics_dock)
