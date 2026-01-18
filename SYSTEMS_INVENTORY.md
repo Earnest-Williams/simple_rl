@@ -573,21 +573,18 @@ Spell Definition (magic/work parser)
 - Root implementation: `/home/user/simple_rl/game_rng.py` (18K, full implementation)
 - Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
 
-#### 2. lights_dev/ Uses Standard random Module ⚠️
+#### 2. lights_dev/ Testbed is Non-Deterministic ⚠️
 
-**Problem:** The lights_dev/Dungeon/ variant uses Python's standard `random` module instead of GameRNG.
+**Status:** The `lights_dev/` R&D testbed creates simple test maps programmatically for testing lighting and FOV algorithms.
 
 **Location:** `lights_dev/` development testbed
 
 **Impact:**
-- Non-deterministic dungeon generation in lights_dev testbed
-- Cannot reproduce test dungeons with seeds
-- Inconsistent with main Dungeon/ generator
+- Simple test maps are sufficient for FOV/lighting algorithm testing
+- For complex dungeon testing, the production `Dungeon/` pipeline should be used
+- Testbed focuses on rendering algorithms, not dungeon generation
 
-**Resolution Needed:**
-- Replace `import random` with `from utils.game_rng import GameRNG` in lights_dev/Dungeon/
-- Update random.* calls to GameRNG equivalents
-- **Note:** This is only needed if lights_dev tests require determinism
+**Note:** This is a non-issue as the testbed's focus is on lighting/FOV/memory systems, not dungeon generation. The production `Dungeon/` pipeline at the repository root uses GameRNG for deterministic generation.
 
 ---
 
@@ -648,25 +645,18 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - ❌ **Not integrated** into main game engine
 - 🔄 **Planned for integration** with main rendering pipeline
 - 🔄 **May combine** with pathfinding/perception systems
-- ⚠️ **Uses Python's random module** - not deterministic (uses `random` not `GameRNG`)
 
 **Files:**
-- `main_game.py` - Standalone test environment
+- `main_game.py` - Standalone test environment with FOV/lighting algorithms
 - `dungeon_data.py` - Numba jitclass for high-performance grids
 - `constants.py` - R&D-specific constants
-- `dungeon_generator.py` - Simple test map generator (U-shaped rooms)
-- `Dungeon/` - Variant dungeon generator for test maps (uses `random` module)
 
 **Integration Steps Needed:**
-1. Replace `random` module with GameRNG in lights_dev/Dungeon/ if determinism needed
-2. Merge FOV algorithms with game/world/fov.py, visibility.py
-3. Integrate lighting system with engine/render_lighting.py
-4. Add memory fade to main rendering pipeline
-5. Connect memory system to agent traits
-6. Remove or archive standalone main_game.py after integration
-
-**Current Issue:**
-- lights_dev/Dungeon/ uses `random` module instead of GameRNG (prioritizes rapid prototyping over determinism)
+1. Merge FOV algorithms with game/world/fov.py, visibility.py
+2. Integrate lighting system with engine/render_lighting.py
+3. Add memory fade to main rendering pipeline
+4. Connect memory system to agent traits
+5. Remove or archive standalone main_game.py after integration
 
 ---
 
