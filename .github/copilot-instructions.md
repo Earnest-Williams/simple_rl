@@ -180,7 +180,7 @@ def calculate_distances(points: np.ndarray) -> np.ndarray:
 - Keep dependencies up to date
 - Follow the principle of least privilege
 
-## Common Gotcalls
+## Common Gotchas
 
 - **Don't** use `pandas` - use `polars` instead
 - **Don't** use Python's `random` module - use `GameRNG`
