@@ -13,5 +13,5 @@ def compute_goap_plan(
 @lru_cache(maxsize=1024)
 def cached_goap_plan(
     agent_sig: Tuple[int, ...], world_sig: Tuple[int, ...]
-) -> Any:
+) -> object:
     return compute_goap_plan(agent_sig, world_sig)
