@@ -4,6 +4,7 @@ import base64
 import datetime
 import gzip
 import io
+import itertools
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -31,7 +32,7 @@ def _make_json_serializable(obj: Any) -> Any:
         return [_make_json_serializable(v) for v in obj]
     try:
         return str(obj)
-    except Exception:
+    except (TypeError, ValueError):
         return None
 
 
@@ -58,7 +59,7 @@ def _restore_numpy_if_list_like(obj: Any) -> Any:
             return [_restore_numpy_if_list_like(v) for v in obj]
         try:
             return np.array(obj)
-        except Exception:
+        except (TypeError, ValueError):
             return [_restore_numpy_if_list_like(v) for v in obj]
     return obj
 
@@ -67,15 +68,10 @@ def _parse_major_version(schema_version: SchemaVersion) -> int:
     """Extract major version (leading integer) from semver-like string."""
     if len(schema_version) == 0:
         raise ValueError("Invalid schema_version ''")
-    digits: List[str] = []
-    for char in schema_version:
-        if char.isdigit():
-            digits.append(char)
-        else:
-            break
-    if not digits:
+    major_str = "".join(itertools.takewhile(str.isdigit, schema_version))
+    if not major_str:
         raise ValueError(f"Invalid schema_version '{schema_version}'")
-    return int("".join(digits))
+    return int(major_str)
 
 
 def save_game_state(
@@ -117,9 +113,10 @@ def save_game_state(
     json_global = _make_json_serializable(global_state)
     json_rng = _make_json_serializable(rng_state)
 
+    created_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     payload: Dict[str, Any] = {
         "schema_version": schema_version,
-        "created_iso": datetime.datetime.utcnow().isoformat() + "Z",
+        "created_iso": created_iso,
         "polars_version": pl.__version__,
         "python_version": sys.version.splitlines()[0],
         "mobs_df_ipc_b64": ipc_b64,
@@ -185,10 +182,12 @@ def load_game_state(
     if not isinstance(raw_rng, dict):
         raise ValueError("Save file 'rng_state' must be an object.")
 
-    world_map_data = {k: _restore_numpy_if_list_like(v) for k, v in raw_world.items()}
+    world_map_data = _restore_numpy_if_list_like(raw_world)
     global_state = _restore_numpy_if_list_like(raw_global)
     rng_state = _restore_numpy_if_list_like(raw_rng)
 
+    if not isinstance(world_map_data, dict):
+        raise ValueError("Save file 'world_map_data' must be an object.")
     if not isinstance(global_state, dict):
         raise ValueError("Save file 'global_state' must be an object.")
     if not isinstance(rng_state, dict):
