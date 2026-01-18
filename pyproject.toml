@@ -18,6 +18,13 @@ dependencies = [
   "PySide6>=6.5",
   "pygame>=2.5",
   "matplotlib>=3.7",
+  "Pillow>=9.2",
+  "structlog>=23.1",
+  "PyYAML>=6.0",
+  "readchar>=4.0",
+  "pydub>=0.25.1",
+  "simpleaudio>=1.0.4",
+  "openal>=1.1.1",
 ]
 
 [project.optional-dependencies]
