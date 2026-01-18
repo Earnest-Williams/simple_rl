@@ -8,7 +8,7 @@ import json
 import math
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Dict
 from typing import Dict as PyDict
 from typing import List, Tuple
 
@@ -44,9 +44,13 @@ from PySide6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QPushButton,
+    QPlainTextEdit,
+    QListWidget,
+    QListWidgetItem,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -122,6 +126,138 @@ class ClickableLabel(QLabel):
         super().mousePressEvent(event)
 
 
+class NodeInspectorDock(QDockWidget):
+    """Docked inspector for backbone nodes: summary, generator steps, children, JSON."""
+
+    main: "WindowManager"
+    layout: QVBoxLayout
+    header: QLabel
+    children_label: QLabel
+    children_container: QWidget
+    children_layout: QVBoxLayout
+    tabs: QTabWidget
+    summary: QTextEdit
+    steps_list: QListWidget
+    json_view: QPlainTextEdit
+    _current_node_id: int | None
+    _generator_steps: List[Dict[str, Any]] | None
+    _augmented_node_map: Dict[str | int, Any] | None
+    navigate_callback: Callable[[int], None] | None
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__("Node Inspector", parent)
+        self.main = parent  # type: ignore
+        w = QWidget()
+        self.setWidget(w)
+        self.layout = QVBoxLayout()
+        w.setLayout(self.layout)
+
+        self.header = QLabel("No node selected")
+        self.layout.addWidget(self.header)
+
+        self.children_label = QLabel("Children:")
+        self.layout.addWidget(self.children_label)
+        self.children_container = QWidget()
+        self.children_layout = QVBoxLayout()
+        self.children_container.setLayout(self.children_layout)
+        self.layout.addWidget(self.children_container)
+
+        self.tabs = QTabWidget()
+        self.summary = QTextEdit()
+        self.summary.setReadOnly(True)
+        self.steps_list = QListWidget()
+        self.json_view = QPlainTextEdit()
+        self.json_view.setReadOnly(True)
+
+        self.tabs.addTab(self.summary, "Summary")
+        self.tabs.addTab(self.steps_list, "Generator Steps")
+        self.tabs.addTab(self.json_view, "JSON")
+        self.layout.addWidget(self.tabs)
+
+        self._current_node_id = None
+        self._generator_steps = None
+        self._augmented_node_map = None
+        self.navigate_callback = None
+
+    def display_node(
+        self,
+        node_id: int,
+        node_dict: Dict[str, Any],
+        generator_steps: List[Dict[str, Any]] | None,
+        augmented_node_map: Dict[str | int, Any] | None,
+    ) -> None:
+        """Populate the inspector with a node's details."""
+        self._current_node_id = node_id
+        self._generator_steps = generator_steps or []
+        self._augmented_node_map = augmented_node_map or {}
+
+        self.header.setText(f"Node {node_id}")
+        keys = [
+            "id",
+            "parent_id",
+            "children_ids",
+            "node_type",
+            "degree",
+            "path_depth",
+            "path_length_from_root",
+            "depth_m",
+            "segment_length_xy",
+            "segment_incline_deg",
+        ]
+        lines = []
+        for key in keys:
+            if key in node_dict:
+                lines.append(f"{key}: {node_dict.get(key)}")
+        other_keys = sorted([key for key in node_dict.keys() if key not in keys])
+        for key in other_keys:
+            lines.append(f"{key}: {node_dict.get(key)}")
+        self.summary.setPlainText("\n".join(lines))
+
+        while self.children_layout.count():
+            widget = self.children_layout.takeAt(0).widget()
+            if widget:
+                widget.setParent(None)
+        children = node_dict.get("children_ids") or []
+        if not children:
+            self.children_layout.addWidget(QLabel("(no children)"))
+        else:
+            for child_id in children:
+                child_id_int: int | None = None
+                if isinstance(child_id, (int, np.integer)):
+                    child_id_int = int(child_id)
+                elif isinstance(child_id, str) and child_id.lstrip("-").isdigit():
+                    child_id_int = int(child_id)
+                btn = QPushButton(f"Child {child_id}")
+
+                def on_child_clicked(
+                    checked: bool = False, child_id: int | None = child_id_int
+                ) -> None:
+                    if child_id is None:
+                        return
+                    if self.navigate_callback:
+                        self.navigate_callback(child_id)
+
+                btn.clicked.connect(on_child_clicked)
+                self.children_layout.addWidget(btn)
+
+        self.steps_list.clear()
+        for idx, step in enumerate(self._generator_steps or []):
+            if isinstance(step, dict):
+                desc = step.get("desc", "")
+                vars_obj = step.get("vars", "")
+                vars_str = str(vars_obj)
+            else:
+                desc = str(step)
+                vars_str = ""
+            text = f"{idx}: {desc}  —  {vars_str}"
+            item = QListWidgetItem(text)
+            if str(node_id) in vars_str:
+                item.setBackground(QColor(255, 250, 200))
+            self.steps_list.addItem(item)
+
+        self.json_view.setPlainText(json.dumps(node_dict, indent=2))
+
+
 class DiagnosticsDock(QDockWidget):
     """Diagnostics dock widget for exposing pipeline controls and visualization."""
 
@@ -140,6 +276,7 @@ class DiagnosticsDock(QDockWidget):
     node_tile_coords: PyDict[int, Tuple[int, int]]
     preview_scale: int
     overlay_enabled: bool
+    _node_inspector: "NodeInspectorDock" | None
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Diagnostics", parent)
@@ -148,6 +285,7 @@ class DiagnosticsDock(QDockWidget):
         self.node_tile_coords = {}
         self.preview_scale = 4
         self.overlay_enabled = True
+        self._node_inspector = None
         w: QWidget = QWidget()
         self.setWidget(w)
         layout: QVBoxLayout = QVBoxLayout()
@@ -290,13 +428,35 @@ class DiagnosticsDock(QDockWidget):
             backbone_count = int(backbone_value)
 
             self._last_run_results = res
-            augmented_nodes = res.get("augmented_nodes")
-            if isinstance(augmented_nodes, list):
-                self.node_tile_coords = self._map_nodes_to_tile_coords(
-                    augmented_nodes, tile_grid.shape
-                )
+            node_to_tile_obj = res.get("node_to_tile")
+            if isinstance(node_to_tile_obj, dict) and node_to_tile_obj:
+                node_tile_coords: PyDict[int, Tuple[int, int]] = {}
+                for key, value in node_to_tile_obj.items():
+                    if not isinstance(key, (int, np.integer, str)):
+                        continue
+                    if isinstance(key, str):
+                        if not key.lstrip("-").isdigit():
+                            continue
+                        node_id = int(key)
+                    else:
+                        node_id = int(key)
+                    if not isinstance(value, (list, tuple)) or len(value) != 2:
+                        continue
+                    row_obj, col_obj = value
+                    if not isinstance(row_obj, (int, float)):
+                        continue
+                    if not isinstance(col_obj, (int, float)):
+                        continue
+                    node_tile_coords[node_id] = (int(row_obj), int(col_obj))
+                self.node_tile_coords = node_tile_coords
             else:
-                self.node_tile_coords = {}
+                augmented_nodes = res.get("augmented_nodes")
+                if isinstance(augmented_nodes, list):
+                    self.node_tile_coords = self._map_nodes_to_tile_coords(
+                        augmented_nodes, tile_grid.shape
+                    )
+                else:
+                    self.node_tile_coords = {}
 
             # Convert image on main thread
             img: QImage = tile_grid_to_qimage(
@@ -436,6 +596,41 @@ class DiagnosticsDock(QDockWidget):
         painter.end()
         return QPixmap.fromImage(img)
 
+    def show_node_in_inspector(self, node_id: int) -> None:
+        """Open/activate the NodeInspectorDock and show node details."""
+        if self._last_run_results is None:
+            return
+        augmented_map_obj = self._last_run_results.get("augmented_node_map")
+        if not isinstance(augmented_map_obj, dict):
+            self.append_log("No augmented_node_map present in results.")
+            return
+        node = augmented_map_obj.get(node_id)
+        if node is None:
+            node = augmented_map_obj.get(str(node_id))
+        if not isinstance(node, dict):
+            self.append_log(f"Node {node_id} not found in augmented_node_map.")
+            return
+        if self._node_inspector is None:
+            self._node_inspector = NodeInspectorDock(parent=self.main)
+            self._node_inspector.navigate_callback = self.show_node_in_inspector
+            self.main.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self._node_inspector
+            )
+        steps_obj = self._last_run_results.get("generator_steps")
+        steps: List[Dict[str, Any]]
+        if isinstance(steps_obj, list):
+            steps = steps_obj
+        else:
+            steps = []
+        self._node_inspector.display_node(node_id, node, steps, augmented_map_obj)
+        tile_grid_obj = self._last_run_results.get("tile_grid")
+        if isinstance(tile_grid_obj, np.ndarray) and self.node_tile_coords:
+            img = tile_grid_to_qimage(tile_grid_obj, scale=self.preview_scale)
+            pix = self._image_with_overlay(
+                img, self.node_tile_coords, highlight_node=node_id
+            )
+            self.image_label.setPixmap(pix)
+
     def on_image_clicked(self, pos: QPoint) -> None:
         """Handle clicks on the preview image to inspect nearest backbone node."""
         if self._last_run_results is None:
@@ -464,44 +659,7 @@ class DiagnosticsDock(QDockWidget):
             )
             return
 
-        node_map_obj = self._last_run_results.get("augmented_node_map")
-        node_map: PyDict[str | int, Any] = {}
-        if isinstance(node_map_obj, dict):
-            node_map = node_map_obj
-
-        node = node_map.get(best_nid)
-        if node is None:
-            node = node_map.get(str(best_nid))
-        if not isinstance(node, dict):
-            self.append_log(f"Node {best_nid} not found in augmented_node_map.")
-            return
-
-        info_lines = [
-            f"Node ID: {node.get('id')}",
-            f"Parent ID: {node.get('parent_id')}",
-            f"Children: {node.get('children_ids')}",
-            f"Type: {node.get('node_type')}",
-            f"Degree: {node.get('degree')}",
-            f"Path depth: {node.get('path_depth')}",
-            f"Path length from root: {node.get('path_length_from_root')}",
-            f"Depth (m): {node.get('depth_m')}",
-            f"Segment length (xy): {node.get('segment_length_xy')}",
-            f"Segment incline (deg): {node.get('segment_incline_deg')}",
-            "",
-            "Full JSON:",
-            json.dumps(node, indent=2),
-        ]
-        QMessageBox.information(self, f"Node {best_nid}", "\n".join(info_lines))
-
-        tile_grid_obj = self._last_run_results.get("tile_grid")
-        if not isinstance(tile_grid_obj, np.ndarray):
-            return
-        pix = self._image_with_overlay(
-            tile_grid_to_qimage(tile_grid_obj, scale=self.preview_scale),
-            self.node_tile_coords,
-            highlight_node=best_nid,
-        )
-        self.image_label.setPixmap(pix)
+        self.show_node_in_inspector(best_nid)
 
 
 class WindowManager(QMainWindow):

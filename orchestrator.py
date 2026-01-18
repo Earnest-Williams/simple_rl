@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import json
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
+import polars as pl
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -35,6 +39,8 @@ DEFAULT_MAX_DEPTH = 50
 DEFAULT_CA_ITERATIONS = 8
 DEFAULT_OUTPUT_FILE = "generated_dungeon.arrow"
 DEFAULT_GRID_SIZE = 128
+
+log = logging.getLogger(__name__)
 
 
 def run_headless_sim(
@@ -130,7 +136,106 @@ def run_pipeline(
         raise RuntimeError("Shaper did not return a valid map DataFrame.")
 
     shaped_map.write_ipc(output_file)
+
+    # ----------------------------
+    # Exact node -> tile mapping
+    # ----------------------------
+    # Build a nearest-tile mapping from augmented_nodes (processor output) to the
+    # shaped_map's tiles (x,y). We also embed a `node_id` column into the shaped_map
+    # (first node wins if many nodes map to same tile) and write a node_map JSON.
+    if "x" in shaped_map.columns and "y" in shaped_map.columns:
+        df = shaped_map
+        x_arr = df.get_column("x").to_numpy().astype(np.float64)
+        y_arr = df.get_column("y").to_numpy().astype(np.float64)
+
+        node_map_rows: List[Dict[str, Any]] = []
+        node_id_col = np.full(len(df), -1, dtype=np.int32)
+
+        if isinstance(augmented_nodes, list):
+            for node in augmented_nodes:
+                nid = int(node.get("id"))
+                nx = float(node.get("x", 0.0))
+                ny = float(node.get("y", 0.0))
+                d2 = (x_arr - nx) ** 2 + (y_arr - ny) ** 2
+                idx = int(np.argmin(d2))
+                tile_x = int(round(x_arr[idx]))
+                tile_y = int(round(y_arr[idx]))
+                node_map_rows.append(
+                    {
+                        "node_id": nid,
+                        "node_x": nx,
+                        "node_y": ny,
+                        "tile_x": tile_x,
+                        "tile_y": tile_y,
+                        "df_index": int(idx),
+                    }
+                )
+                if node_id_col[idx] == -1:
+                    node_id_col[idx] = nid
+
+        shaped_map = shaped_map.with_columns(
+            pl.Series(name="node_id", values=node_id_col)
+        )
+        shaped_map.write_ipc(output_file)
+
+        node_map_path = Path(f"{output_file}.node_map.json")
+        try:
+            with node_map_path.open("w", encoding="utf-8") as nmf:
+                json.dump(node_map_rows, nmf, indent=2)
+        except OSError as exc:
+            log.exception("Failed to write node map JSON: %s", exc)
+    else:
+        log.warning("Shaped map missing x/y columns; skipping node->tile mapping.")
+
     map_arrays = load_shaped_map_as_arrays(output_file)
+    node_to_tile: Dict[int, Tuple[int, int]] = {}
+    origin_obj = map_arrays.get("origin", (0, 0))
+    if (
+        isinstance(origin_obj, tuple)
+        and len(origin_obj) == 2
+        and isinstance(origin_obj[0], (int, float))
+        and isinstance(origin_obj[1], (int, float))
+    ):
+        min_x = int(origin_obj[0])
+        min_y = int(origin_obj[1])
+    else:
+        min_x = 0
+        min_y = 0
+
+    node_map_json_path = Path(f"{output_file}.node_map.json")
+    if node_map_json_path.exists():
+        try:
+            with node_map_json_path.open("r", encoding="utf-8") as node_map_file:
+                node_map_rows_local = json.load(node_map_file)
+            if isinstance(node_map_rows_local, list):
+                for row_obj in node_map_rows_local:
+                    if not isinstance(row_obj, dict):
+                        continue
+                    nid_obj = row_obj.get("node_id")
+                    tile_x_obj = row_obj.get("tile_x")
+                    tile_y_obj = row_obj.get("tile_y")
+                    if not isinstance(nid_obj, (int, str)):
+                        continue
+                    if not isinstance(tile_x_obj, (int, float)):
+                        continue
+                    if not isinstance(tile_y_obj, (int, float)):
+                        continue
+                    nid = int(nid_obj)
+                    tile_x = int(tile_x_obj)
+                    tile_y = int(tile_y_obj)
+                    row = int(round(tile_y - min_y))
+                    col = int(round(tile_x - min_x))
+                    node_to_tile[nid] = (row, col)
+        except (OSError, json.JSONDecodeError) as exc:
+            log.exception("Failed to load node_map JSON: %s", exc)
+    elif isinstance(augmented_nodes, list):
+        for node in augmented_nodes:
+            nid = int(node.get("id"))
+            nx = float(node.get("x", 0.0))
+            ny = float(node.get("y", 0.0))
+            col = int(round(nx - min_x))
+            row = int(round(ny - min_y))
+            node_to_tile[nid] = (row, col)
     tile_grid = map_arrays["tile_id_grid"]
     height_grid = map_arrays.get("height_grid")
     if height_grid is None:
@@ -160,6 +265,7 @@ def run_pipeline(
         "augmented_nodes": augmented_nodes,
         "augmented_node_map": augmented_node_map,
         "generator_steps": generator_steps,
+        "node_to_tile": node_to_tile,
     }
 
 
