@@ -190,14 +190,14 @@ def apply_light_sources(
         try:
             origin_h = int(game_map.height_map[ls.y, ls.x])
             compute_light_color_array(
-                (ls.x, ls.y),
-                ls.radius,
-                opaque_grid,
-                game_map.height_map,
-                game_map.ceiling_map,
-                origin_h,
-                light_rgb_map,
-                ls.color,
+                origin_xy=(ls.x, ls.y),
+                range_limit=ls.radius,
+                opaque_grid=opaque_grid,
+                height_map=game_map.height_map,
+                ceiling_map=game_map.ceiling_map,
+                origin_height=origin_h,
+                target_rgb_array=light_rgb_map,
+                base_color_rgb=ls.color,
             )
         except Exception as exc:
             log.error("Error computing light source", error=str(exc), light=ls)
@@ -205,12 +205,16 @@ def apply_light_sources(
     light_rgb_vp = light_rgb_map[
         viewport_y : viewport_y + vp_h, viewport_x : viewport_x + vp_w
     ]
-    final_fg = np.clip(lit_fg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
-        np.uint8
-    )
-    final_bg = np.clip(lit_bg.astype(np.float32) + light_rgb_vp, 0, 255).astype(
-        np.uint8
-    )
+    final_fg = lit_fg
+    final_bg = lit_bg
+    fg_f32 = final_fg.astype(np.float32)
+    bg_f32 = final_bg.astype(np.float32)
+    fg_f32 += light_rgb_vp
+    bg_f32 += light_rgb_vp
+    np.clip(fg_f32, 0, 255, out=fg_f32)
+    np.clip(bg_f32, 0, 255, out=bg_f32)
+    final_fg[:] = fg_f32.astype(np.uint8)
+    final_bg[:] = bg_f32.astype(np.uint8)
     return final_fg, final_bg, light_rgb_vp
 
 
@@ -232,8 +236,8 @@ def apply_height_visualization(
     if not config_show_vis:
         return lit_fg, lit_bg
 
-    final_fg = lit_fg.copy()
-    final_bg = lit_bg.copy()
+    final_fg = lit_fg
+    final_bg = lit_bg
     relative_height_vp = map_height_vp - player_height
 
     max_diff_f32 = np.float32(config_max_diff)

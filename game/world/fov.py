@@ -509,8 +509,8 @@ def update_memory_fade(
     return
 
 
-@numba.njit(cache=True)
 def compute_light_color_array(
+    *,
     origin_xy: Point,
     range_limit: int,
     opaque_grid: np.ndarray,
@@ -535,21 +535,22 @@ def compute_light_color_array(
         temp_explored,
     )
 
-    ox, oy = origin_xy
-    radius_sq = range_limit * range_limit
-    r = float(base_color_rgb[0])
-    g = float(base_color_rgb[1])
-    b = float(base_color_rgb[2])
+    if range_limit <= 0:
+        return
 
-    for y in range(h):
-        for x in range(w):
-            if temp_visible[y, x]:
-                dx = x - ox
-                dy = y - oy
-                dist_sq = dx * dx + dy * dy
-                if dist_sq <= radius_sq:
-                    intensity = 1.0 - (dist_sq / radius_sq)
-                    if intensity > 0.0:
-                        target_rgb_array[y, x, 0] += r * intensity
-                        target_rgb_array[y, x, 1] += g * intensity
-                        target_rgb_array[y, x, 2] += b * intensity
+    ox, oy = origin_xy
+    radius_sq = float(range_limit * range_limit)
+    min_x = max(0, ox - range_limit)
+    max_x = min(w, ox + range_limit + 1)
+    min_y = max(0, oy - range_limit)
+    max_y = min(h, oy + range_limit + 1)
+
+    y_coords, x_coords = np.ogrid[min_y:max_y, min_x:max_x]
+    dx = x_coords - ox
+    dy = y_coords - oy
+    dist_sq = dx * dx + dy * dy
+    visible_slice = temp_visible[min_y:max_y, min_x:max_x]
+    valid = (dist_sq <= radius_sq) & visible_slice
+    intensity = np.where(valid, 1.0 - (dist_sq / radius_sq), 0.0)
+    color_rgb = np.array(base_color_rgb, dtype=np.float32)
+    target_rgb_array[min_y:max_y, min_x:max_x, :] += intensity[..., None] * color_rgb

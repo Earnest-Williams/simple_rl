@@ -41,8 +41,26 @@ def handle_melee_attack(
     rng: "GameRNG" = gs.rng_instance  # Get RNG from GameState
     game_map = gs.game_map
 
-    attacker_name = entity_reg.get_entity_component(attacker_id, "name") or "Attacker"
-    defender_name = entity_reg.get_entity_component(defender_id, "name") or "Defender"
+    att = entity_reg.get_entity_components(
+        attacker_id, ["name", "strength", "x", "y"]
+    )
+    defn = entity_reg.get_entity_components(
+        defender_id,
+        [
+            "name",
+            "defense",
+            "armor",
+            "resistances",
+            "vulnerabilities",
+            "hp",
+            "max_hp",
+            "x",
+            "y",
+        ],
+    )
+
+    attacker_name = att.get("name") or "Attacker"
+    defender_name = defn.get("name") or "Defender"
     log.debug(
         "Handling melee attack",
         attacker=attacker_name,
@@ -66,14 +84,12 @@ def handle_melee_attack(
             pl.col("item_id").is_in(equipped_ids)
         )
         if equipped_items.height > 0:
-            main_hand_df = equipped_items.filter(pl.col("equipped_slot") == "main_hand")
-            off_hand_df = equipped_items.filter(pl.col("equipped_slot") == "off_hand")
-            main_hand_item = (
-                main_hand_df.row(0, named=True) if main_hand_df.height > 0 else None
-            )
-            off_hand_item = (
-                off_hand_df.row(0, named=True) if off_hand_df.height > 0 else None
-            )
+            items_by_slot = {
+                row["equipped_slot"]: row
+                for row in equipped_items.iter_rows(named=True)
+            }
+            main_hand_item = items_by_slot.get("main_hand")
+            off_hand_item = items_by_slot.get("off_hand")
 
             if main_hand_item:
                 mid = main_hand_item.get("item_id")
@@ -125,15 +141,13 @@ def handle_melee_attack(
         off_raw = roll_dice(off_hand_dice, rng)
         raw_damage += max(0, off_raw // 2)
         raw_damage = max(0, raw_damage - 1)
-    attacker_strength = entity_reg.get_entity_component(attacker_id, "strength") or 0
-    defender_defense = entity_reg.get_entity_component(defender_id, "defense") or 0
-    defender_armor = entity_reg.get_entity_component(defender_id, "armor") or 0
+    attacker_strength = att.get("strength") or 0
+    defender_defense = defn.get("defense") or 0
+    defender_armor = defn.get("armor") or 0
     modified_damage = raw_damage + attacker_strength - defender_defense - defender_armor
 
-    resistances = entity_reg.get_entity_component(defender_id, "resistances") or {}
-    vulnerabilities = (
-        entity_reg.get_entity_component(defender_id, "vulnerabilities") or {}
-    )
+    resistances = defn.get("resistances") or {}
+    vulnerabilities = defn.get("vulnerabilities") or {}
     multiplier = 1.0
     if isinstance(resistances, dict):
         multiplier *= 1 - float(resistances.get(damage_type, 0))
@@ -143,8 +157,8 @@ def handle_melee_attack(
 
     # --- Apply Damage & Check Death ---
     defender_stats = CombatStats(
-        hp=entity_reg.get_entity_component(defender_id, "hp") or 0,
-        max_hp=entity_reg.get_entity_component(defender_id, "max_hp") or 0,
+        hp=defn.get("hp") or 0,
+        max_hp=defn.get("max_hp") or 0,
     )
     if defender_stats.hp <= 0:
         log.error("Defender missing HP component", defender_id=defender_id)
@@ -163,10 +177,10 @@ def handle_melee_attack(
     )
 
     # Add Combat Messages
-    ax = entity_reg.get_entity_component(attacker_id, "x") or 0
-    ay = entity_reg.get_entity_component(attacker_id, "y") or 0
-    dx = entity_reg.get_entity_component(defender_id, "x") or 0
-    dy = entity_reg.get_entity_component(defender_id, "y") or 0
+    ax = att.get("x") or 0
+    ay = att.get("y") or 0
+    dx = defn.get("x") or 0
+    dy = defn.get("y") or 0
     visible = game_map.visible[ay, ax] or game_map.visible[dy, dx]
 
     attack_msg = ""

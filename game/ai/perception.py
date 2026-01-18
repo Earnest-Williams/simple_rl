@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List, Tuple
 
 import numpy as np
+import polars as pl
 import structlog
 
 from game.world.los import line_of_sight
@@ -88,22 +89,44 @@ def find_visible_enemies(
     game_map = game_state.game_map
     enemies: List["series"] = []
 
-    for other in game_state.entity_registry.entities_df.iter_rows(named=True):
-        if other.get("entity_id") == entity_row.get("entity_id"):
+    if ex is None or ey is None:
+        return enemies
+
+    filter_expr = pl.col("is_active") is True
+    if faction is not None:
+        filter_expr &= pl.col("faction") != faction
+    enemy_df = game_state.entity_registry.entities_df.filter(filter_expr)
+    enemy_rows = {
+        int(row["entity_id"]): row for row in enemy_df.iter_rows(named=True)
+    }
+
+    vision_range = int(entity_row.get("vision_range") or game_state.fov_radius)
+    spatial_index = getattr(game_state, "spatial_index", None)
+    nearby = None
+    if spatial_index is not None and hasattr(spatial_index, "query_radius"):
+        nearby = spatial_index.query_radius((int(ex), int(ey)), vision_range)
+
+    candidates = nearby if nearby is not None else enemy_rows.values()
+    for other in candidates:
+        if isinstance(other, dict):
+            other_row = other
+            ox, oy = other_row.get("x"), other_row.get("y")
+            other_id = other_row.get("entity_id")
+        else:
+            other_id, ox, oy = other
+            other_row = enemy_rows.get(int(other_id))
+            if other_row is None:
+                continue
+        if other_id == entity_row.get("entity_id"):
             continue
-        if not other.get("is_active", False):
-            continue
-        if faction is not None and other.get("faction") == faction:
-            continue
-        ox, oy = other.get("x"), other.get("y")
         if ox is None or oy is None:
             continue
-        if not game_map.in_bounds(ox, oy):
+        if not game_map.in_bounds(int(ox), int(oy)):
             continue
-        if not los_map[oy, ox]:
+        if not los_map[int(oy), int(ox)]:
             continue
-        if line_of_sight(ex, ey, ox, oy, game_map.transparent):
-            enemies.append(other)
+        if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
+            enemies.append(other_row)
 
     log.debug(
         "Visible enemies located",

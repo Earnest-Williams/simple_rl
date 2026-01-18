@@ -78,6 +78,24 @@ def get_item_attribute(
     return default
 
 
+class EquippedItemCache:
+    def __init__(self) -> None:
+        self._equipped_cache: Dict[int, Dict[str, Any]] = {}
+
+    def on_equip_changed(
+        self, entity_id: int, equipped_items: pl.DataFrame
+    ) -> None:
+        self._equipped_cache[entity_id] = {
+            row["equipped_slot"]: row for row in equipped_items.iter_rows(named=True)
+        }
+
+    def get_cached(self, entity_id: int) -> Dict[str, Any] | None:
+        return self._equipped_cache.get(entity_id)
+
+
+EQUIPPED_CACHE = EquippedItemCache()
+
+
 def get_general_slot_type(specific_slot: "EquipSlot") -> str | None:
     """Maps a specific EquipSlot (e.g., finger_3) to a general BodySlotType (e.g., finger)."""
     # Ensure specific_slot is a string before calling startswith
@@ -205,16 +223,14 @@ def find_first_available_slot(
         return None
 
     template = get_item_template(item_id, gs)
-    if not template:
+    if template is None:
         return None
 
-    compatible_slots_specific = get_item_attribute(
-        item_id, "compatible_equip_slots", gs
-    )  # Option A
-    # Option C (primary definition)
-    primary_equip_slot = template.get("equip_slot")
-    general_slot_type = get_item_attribute(
-        item_id, "general_equip_type", gs
+    attrs = template.get("attributes", {})
+    compatible_slots_specific = attrs.get("compatible_equip_slots")  # Option A
+    primary_equip_slot = template.get("equip_slot")  # Option C
+    general_slot_type = attrs.get("general_equip_type") or template.get(
+        "general_equip_type"
     )  # Option B
 
     target_general_type = None
@@ -463,10 +479,11 @@ def can_equip(
     if not template:
         return False, "Invalid item template", None
     flags = template.get("flags", [])
+    attrs = template.get("attributes", {})
     is_defined_equippable = (
         template.get("equip_slot")
-        or get_item_attribute(item_id, "compatible_equip_slots", gs)
-        or get_item_attribute(item_id, "general_equip_type", gs)
+        or attrs.get("compatible_equip_slots")
+        or attrs.get("general_equip_type")
     )
     if "EQUIPPABLE" not in flags and not is_defined_equippable:
         return False, "Item not equippable", None
@@ -482,7 +499,7 @@ def can_equip(
         return True, "Slot available", target_slot
     else:
         # Check if the failure was due to lack of compatible slot type in body_plan
-        general_type = get_item_attribute(item_id, "general_equip_type", gs) or (
+        general_type = attrs.get("general_equip_type") or (
             get_general_slot_type(template["equip_slot"])
             if template.get("equip_slot")
             else None
@@ -559,6 +576,9 @@ def equip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
     if entity_id == gs.player_id:
         gs.add_message(f"You equip the {item_name} ({target_slot}).")
     apply_passive_effects(item_id, entity_id, gs)
+    EQUIPPED_CACHE.on_equip_changed(
+        entity_id, item_reg.get_entity_equipped(entity_id)
+    )
 
     return True
 
@@ -684,6 +704,9 @@ def unequip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
     if entity_id == gs.player_id:
         gs.add_message(f"You unequip the {item_name}.")
     remove_passive_effects(item_id, entity_id, gs)
+    EQUIPPED_CACHE.on_equip_changed(
+        entity_id, item_reg.get_entity_equipped(entity_id)
+    )
 
     return True
 

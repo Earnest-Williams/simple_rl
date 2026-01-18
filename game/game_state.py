@@ -1,5 +1,5 @@
 # game/game_state.py
-from typing import Any, Callable, Dict, Literal, Set, Tuple
+from typing import Any, Callable, Dict, List, Literal, Set, Tuple
 
 import structlog
 import heapq
@@ -404,7 +404,9 @@ class GameState:
         )
         self._next_timed_event_id += 1
 
-    def process_turn(self) -> None:
+    def process_turn(
+        self,
+    ) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
         """Handle per-turn updates like status effects and resources."""
         # Timed events scheduled for this turn
         while self.timed_events and self.timed_events[0][0] <= self.turn_count:
@@ -414,14 +416,20 @@ class GameState:
             except Exception as err:
                 log.error("Timed event callback failed", error=str(err))
 
+        active_rows: List[Dict[str, object]] = []
+        ai_entities: List[Dict[str, object]] = []
         for row in self.entity_registry.entities_df.iter_rows(named=True):
             if not row.get("is_active", False):
                 continue
-            entity_id = row["entity_id"]
+            entity_id = int(row["entity_id"])
             self._process_status_effects_for_entity(entity_id)
             self._process_resources_for_entity(entity_id)
+            active_rows.append(row)
+            if row.get("ai_type"):
+                ai_entities.append(row)
 
         self._consume_player_fuel()
+        return active_rows, ai_entities
 
     def _process_zone(self, zone: Tuple[int, int]) -> None:
         """Aggregate update for all entities within ``zone``.
@@ -448,7 +456,7 @@ class GameState:
         log.debug("Turn advanced", turn=self.turn_count)
 
         # Handle generic per-turn processing
-        self.process_turn()
+        active_rows, ai_entities = self.process_turn()
 
         player_pos = self.player_position
         if player_pos:
@@ -460,7 +468,7 @@ class GameState:
         )
 
         # Schedule distant zones for AI updates
-        for row in self.entity_registry.entities_df.iter_rows(named=True):
+        for row in active_rows:
             if not row.get("is_active", False):
                 continue
             entity_id = row["entity_id"]
@@ -484,10 +492,8 @@ class GameState:
 
             log.debug("Processing AI-controlled entities")
             ai_rows = []
-            for row in self.entity_registry.entities_df.iter_rows(named=True):
-                if not row.get("is_active", False):
-                    continue
-                if row["entity_id"] == self.player_id:
+            for row in ai_entities:
+                if row.get("entity_id") == self.player_id:
                     continue
                 if row.get("community_ai") is not None:
                     continue

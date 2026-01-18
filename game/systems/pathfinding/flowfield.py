@@ -1,5 +1,5 @@
 # game/systems/pathfinding/flowfield.py
-from typing import Final, List, Tuple
+from typing import Dict, Final, List, Tuple
 
 import heapq
 import time
@@ -38,6 +38,7 @@ DIRECTIONS_8: Final[np.ndarray] = np.array(
 DIAGONAL_MOVE_COST: Final[float] = np.sqrt(2.0)
 # Multiplier for height difference cost
 DEFAULT_HEIGHT_COST_FACTOR: Final[float] = 0.5
+MAX_PATHFIND_DISTANCE: Final[float] = 50.0
 
 
 # --- Numba Helper Functions ---
@@ -160,6 +161,12 @@ class FlowFieldPathfinder:
         self.flow_x: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
         self.flow_y: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
         self._last_sources: List[GridPosition] | None = None
+        self._flow_field_cache: Dict[
+            Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray]
+        ] = {}
+
+    def invalidate_flow_fields(self) -> None:
+        self._flow_field_cache.clear()
 
     def compute_field(self, stimulus_sources: List[GridPosition]) -> bool:
         # (Initial checks and source validation unchanged - Source [source 1555-1559])
@@ -209,6 +216,8 @@ class FlowFieldPathfinder:
         while pq:
             cost, y, x = heapq.heappop(pq)
             processed_count += 1
+            if cost > MAX_PATHFIND_DISTANCE:
+                break
 
             if cost > self.integration_field[y, x]:
                 continue
@@ -278,9 +287,21 @@ class FlowFieldPathfinder:
         else:
             return (0, 0)
 
-    def get_flow_field(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns the complete flow field arrays (dx, dy components)."""
-        return self.flow_x, self.flow_y
+    def get_flow_field(
+        self, ty: int | None = None, tx: int | None = None
+    ) -> Tuple[np.ndarray, np.ndarray] | Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Returns the flow field arrays, optionally cached by target."""
+        if ty is None or tx is None:
+            return self.flow_x, self.flow_y
+        key = (ty, tx)
+        if key not in self._flow_field_cache:
+            self.compute_field([(ty, tx)])
+            self._flow_field_cache[key] = (
+                self.integration_field.copy(),
+                self.flow_x.copy(),
+                self.flow_y.copy(),
+            )
+        return self._flow_field_cache[key]
 
     def get_integration_field(self) -> np.ndarray:
         """Returns the computed integration field (cost to reach source)."""
