@@ -577,22 +577,24 @@ def get_nearest_entity(self, agent, kind):
 **Recommendation:** Use spatial hash table:
 
 ```python
-class SpatialHashTable:
-    def __init__(self, cell_size=10):
-        self.cell_size = cell_size
-        self.grid = defaultdict(list)
+from collections import defaultdict
 
-    def insert(self, entity_id, x, y, kind):
+class SpatialHashTable:
+    def __init__(self, cell_size: int = 10) -> None:
+        self.cell_size: int = cell_size
+        self.grid: defaultdict[tuple[int, int, str], list[tuple[int, int, int]]] = defaultdict(list)
+
+    def insert(self, entity_id: int, x: int, y: int, kind: str) -> None:
         cell_key = (x // self.cell_size, y // self.cell_size, kind)
         self.grid[cell_key].append((entity_id, x, y))
 
-    def query_nearest(self, x, y, kind, max_radius=50):
+    def query_nearest(self, x: int, y: int, kind: str, max_radius: int = 50) -> tuple[int, int, int] | None:
         # Check expanding squares of cells
         cell_x, cell_y = x // self.cell_size, y // self.cell_size
 
         for radius in range(0, max_radius // self.cell_size + 1):
             # Check cells in square at this radius
-            candidates = []
+            candidates: list[tuple[int, int, int]] = []
             for dx in range(-radius, radius + 1):
                 for dy in range(-radius, radius + 1):
                     cell_key = (cell_x + dx, cell_y + dy, kind)
