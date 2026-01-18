@@ -10,13 +10,14 @@ The project emphasizes robust simulation, leveraging performant libraries and pa
 
 This project is structured into several key component directories, each with its own detailed `README.md`:
 
-* **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph -> Processing -> Shaping). Outputs Polars DataFrames. ([See README](./Dungeon/README.md))
-* **`AI/`**: Implements the AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. ([See README](./AI/README.md))
-* **`auto/`**: Contains the **combat/survival AI** system based on Goal-Oriented Action Planning (GOAP), intended for adventurers and monsters operating in hostile environments. Includes a simulation testbed and development GUI, plus a reusable planner (`auto/goap_engine.py`) that the main game can call via `game/ai/goap_adapter.py`. ([See README](./auto/README.md))
-* **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Intended for future integration. ([See README](./lights_dev/README.md))
-* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) to provide input for AI decision-making and pathfinding routines. ([See README](./pathfinding/README.md))
-* **`game_rng.py`** & **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. The main implementation is at the root level, with a thin wrapper in utils/. ([See README](./utils/README.md))
-* **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, intended to serve as the basis for the **game's spell system**.
+* **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph → Processing → Shaping). Outputs Polars DataFrames with preserved 3D depth information. ([See README](./Dungeon/README.md))
+* **`AI/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./AI/README.md))
+* **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
+* **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Contains experimental features for future integration. Note: Uses Python's standard `random` module rather than `GameRNG` for rapid prototyping. ([See README](./lights_dev/README.md))
+* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. ([See README](./pathfinding/README.md))
+* **`game_rng.py`** & **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. The main implementation is at the root level, with a thin wrapper in utils/ for convenient importing. ([See README](./utils/README.md))
+* **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, designed as a foundation for the **game's spell system**. Currently in development; basic effect system is functional.
+* **`game/`**: Main game engine integrating all production systems including combat, movement, equipment, AI, effects, entities, and world management.
 
 ## Technical Philosophy
 
@@ -29,23 +30,78 @@ Development prioritizes:
 
 ## Status
 
-This project is **under active development**. Components are at various stages of implementation, testing, and integration. Some elements, like the historical/lore layer for dungeon generation or the full integration of lighting/perception/AI systems, are planned future work.
+This project is **under active development**. The core game systems are integrated and functional, including dungeon generation, FOV/lighting, combat, equipment, AI (GOAP and strategy-based), pathfinding, and rendering. Some experimental systems remain in dedicated R&D directories for testing and refinement before integration.
+
+### Production-Ready Systems
+* **Dungeon Generation**: 3D cave networks with 2D rasterization (fully integrated)
+* **Rendering Pipeline**: Tile-based rendering with lighting, FOV, and memory fade
+* **Combat & Movement**: Complete systems with equipment, stats, and collision
+* **AI Systems**: GOAP planner and strategy-based behaviors for NPCs/monsters
+* **Perception**: Sound and scent propagation systems feeding AI decisions
+* **Effects System**: Comprehensive effect handlers and status management
+
+### R&D Systems (Not Yet Integrated)
+* **Community NPC AI** (`AI/`): Advanced trait-based AI for non-combat NPCs with habit learning
+* **Lighting Testbed** (`lights_dev/`): Experimental octant FOV and colored lighting research
+* **GOAP Test Environment** (`auto/`): Simulation harness for AI training and tuning (core GOAP is already integrated)
+
+### Planned Features
+* Historical/lore layer for dungeon generation
+* Full spell system based on `scripting_engine.py`
+* Advanced memory fade influenced by agent traits
+* Community and settlement management systems
 
 ## Vestigial Components
 
-* **`simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components.
+* **`simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components but maintained for testing purposes.
 * **`dungeon_generator.py`**: A simpler room-and-corridor generator used by `simple_rl.py`.
 
-These files are currently maintained primarily for testing the `scripting_engine.py`.
+These files are currently maintained primarily for testing `scripting_engine.py` and may be deprecated in future releases.
 
-## Getting Started (Development Focus)
+## Getting Started
 
-Currently, different components are often run via their respective test harnesses or shell scripts:
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Earnest-Williams/simple_rl.git
+   cd simple_rl
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install -e .
+   # OR for development:
+   pip install -r requirements.txt
+   ```
+   
+   Python 3.11+ is required. Core dependencies include Polars, NumPy, Numba, SciPy, scikit-image, PySide6, and Pygame.
+
+3. **Run the main game:**
+   ```bash
+   python main.py
+   ```
+   
+   Or use the orchestrator for more control:
+   ```bash
+   python orchestrator.py
+   ```
+
+### Testing Components
+
+Different components have dedicated test harnesses for development:
 
 * **Dungeon Generation:** `cd Dungeon && ./run.sh`
-* **GOAP AI Simulation (Headless):** `cd auto && ./run.sh --mode headless ...`
-* **GOAP AI Simulation (GUI):** `cd auto && ./run.sh --mode gui`
+* **GOAP AI Testing (Headless):** `cd auto && ./run.sh --mode headless`
+* **GOAP AI Testing (GUI):** `cd auto && ./run.sh --mode gui`
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
 * **Perception Testbed:** `cd pathfinding && python test.py`
+* **Legacy GUI:** `python simple_rl.py` (maintained for scripting_engine.py testing)
 
-Ensure required dependencies (Python 3.x, Polars, NumPy, Numba, SciPy, scikit-image, PySide6 for GUI, etc.) are installed. Refer to individual component READMEs for specific requirements.
+### Running Tests
+
+```bash
+pytest
+```
+
+Tests cover pathfinding, effects, perception, inventory, AI, and other core systems. Refer to individual component READMEs for specific requirements and usage details.

@@ -16,7 +16,7 @@ The components developed here are intended for eventual integration into the mai
 * **`dungeon_data.py`:** Defines the `Dungeon` **Numba jitclass**. This high-performance data structure holds the core grid arrays (`tiles`, `visible`, `memory_intensity`, `last_seen_time`) and is passed to Numba-accelerated functions.
 * **`constants.py`:** Contains constants specific to this R&D environment, including rendering characters, True Color RGB values, memory fade parameters, and the `LIGHT_LEVEL_DATA` structure mapping light intensity to gameplay visibility checks.
 * **`dungeon_generator.py`:** A **simple** procedural dungeon generator (creating U-shaped rooms) used specifically for creating basic test maps *for this lighting/FOV experiment*. It operates directly on the `Dungeon` jitclass.
-* **`Dungeon/` (Subfolder):** Contains a *variant* of the main dungeon generation pipeline (`core.py`, `processor.py`, `shaper.py`, `run.sh`). This variant is used **solely for generating more complex test maps** within the `lights_dev` context. **Crucially, this version of `core.py` uses the standard `random` module**, not the project's `GameRNG`, meaning its output is non-deterministic unless explicitly seeded externally. It produces intermediate JSON files (`generated_cave_contextual.json`, `processed_cave_data.json`) and includes debug logging (`run_log.txt`).
+* **`Dungeon/` (Subfolder):** Contains a *variant* of the main dungeon generation pipeline (`core.py`, `processor.py`, `shaper.py`, `run.sh`). This variant is used **solely for generating more complex test maps** within the `lights_dev` context. **Important:** This version uses Python's standard `random` module rather than the project's `GameRNG`, prioritizing rapid prototyping over determinism. Output is non-deterministic unless explicitly seeded externally. It produces intermediate JSON files (`generated_cave_contextual.json`, `processed_cave_data.json`) and includes debug logging (`run_log.txt`).
 
 ## Key Mechanics & Implementation
 
@@ -34,4 +34,20 @@ The components developed here are intended for eventual integration into the mai
 
 ## Status & Integration
 
-This component is under active development and refinement. The core algorithms for FOV, lighting, and memory are functional but require testing in more complex environments and further iteration (e.g., light animation, trait integration for memory). The systems developed here are planned for integration into the main simulation, potentially combined with perception systems from `pathfinding/` under a unified orchestrator. The memory system might be separated due to its complexity and interactions with other game states.
+This component is under active development and refinement. The core algorithms for FOV, lighting, and memory are functional but require testing in more complex environments and further iteration (e.g., light animation, trait integration for memory).
+
+**Current Status:**
+* ⚠️ **Active R&D**: Experimental systems being refined
+* ❌ **Not Integrated**: Standalone testbed separate from production engine
+* 🔄 **Planned Integration**: Systems will merge with main game rendering pipeline
+* ⚠️ **Non-Deterministic**: Uses Python's `random` module for rapid prototyping (not `GameRNG`)
+
+**Integration Roadmap:**
+1. Replace `random` module with `GameRNG` for deterministic dungeon generation if needed
+2. Merge FOV algorithms with `game/world/fov.py` and `game/world/visibility.py`
+3. Integrate lighting system with `engine/render_lighting.py`
+4. Add memory fade to main rendering pipeline
+5. Connect memory system to agent traits
+6. Remove or archive standalone `main_game.py` after integration
+
+The systems developed here are planned for integration into the main simulation, potentially combined with perception systems from `pathfinding/` under a unified orchestrator. The memory system might be separated due to its complexity and interactions with other game states.
