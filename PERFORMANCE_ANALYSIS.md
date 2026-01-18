@@ -636,7 +636,7 @@ def _apply_event(map_arr, x, y, intensity, radius, game_map):
 **Recommendation:** Vectorize with NumPy:
 
 ```python
-def _apply_event_vectorized(map_arr, x, y, intensity, radius, game_map):
+def _apply_event_vectorized(map_arr: np.ndarray, x: int, y: int, intensity: float, radius: int, game_map: Any) -> None:
     # Create coordinate grids
     min_x = max(0, x - radius)
     max_x = min(game_map.width, x + radius + 1)
