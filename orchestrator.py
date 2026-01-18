@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import polars as pl
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -41,6 +42,20 @@ DEFAULT_OUTPUT_FILE = "generated_dungeon.arrow"
 DEFAULT_GRID_SIZE = 128
 
 log = logging.getLogger(__name__)
+
+
+class NodeMapRow(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    node_id: int
+    tile_x: int
+    tile_y: int
+    node_x: float | None = None
+    node_y: float | None = None
+    df_index: int | None = None
+
+
+NODE_MAP_ROWS_ADAPTER = TypeAdapter(List[NodeMapRow])
 
 
 def run_headless_sim(
@@ -207,26 +222,14 @@ def run_pipeline(
         try:
             with node_map_json_path.open("r", encoding="utf-8") as node_map_file:
                 node_map_rows_local = json.load(node_map_file)
-            if isinstance(node_map_rows_local, list):
-                for row_obj in node_map_rows_local:
-                    if not isinstance(row_obj, dict):
-                        continue
-                    nid_obj = row_obj.get("node_id")
-                    tile_x_obj = row_obj.get("tile_x")
-                    tile_y_obj = row_obj.get("tile_y")
-                    if not isinstance(nid_obj, (int, str)):
-                        continue
-                    if not isinstance(tile_x_obj, (int, float)):
-                        continue
-                    if not isinstance(tile_y_obj, (int, float)):
-                        continue
-                    nid = int(nid_obj)
-                    tile_x = int(tile_x_obj)
-                    tile_y = int(tile_y_obj)
-                    row = int(round(tile_y - min_y))
-                    col = int(round(tile_x - min_x))
-                    node_to_tile[nid] = (row, col)
-        except (OSError, json.JSONDecodeError) as exc:
+            node_map_rows = NODE_MAP_ROWS_ADAPTER.validate_python(
+                node_map_rows_local
+            )
+            for row_obj in node_map_rows:
+                row = int(round(row_obj.tile_y - min_y))
+                col = int(round(row_obj.tile_x - min_x))
+                node_to_tile[row_obj.node_id] = (row, col)
+        except (OSError, json.JSONDecodeError, ValidationError) as exc:
             log.exception("Failed to load node_map JSON: %s", exc)
     elif isinstance(augmented_nodes, list):
         for node in augmented_nodes:
