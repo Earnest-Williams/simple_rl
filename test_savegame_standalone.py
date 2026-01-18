@@ -37,7 +37,7 @@ def test_lists_stay_lists() -> None:
     print("✓ Lists correctly preserved")
 
 
-def test_arrays_stay_arrays():
+def test_arrays_stay_arrays() -> None:
     """Verify that numpy arrays remain arrays with correct dtype."""
     print("Testing: NumPy arrays should stay as arrays...")
     obj = {
