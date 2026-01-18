@@ -38,4 +38,19 @@ Future plans include potentially allowing the player character to be managed by 
 
 ## Status & Integration
 
-This AI system is under active development. It is intended to drive NPCs within community environments and interact with game systems like resource management, time, weather, and potentially social structures (not yet implemented). It is distinct from the `auto/` GOAP AI. Normalization between the trait systems used here and the player/adventurer trait system is a planned future task.
+This AI system is under active development and represents a sophisticated approach to simulating community-based NPC behaviors distinct from the combat-oriented GOAP AI integrated into the main game.
+
+**Current Status:**
+* ⚠️ **Under Active Development**: Core systems implemented but undergoing refinement
+* ❌ **Not Yet Integrated**: Not connected to the main game engine
+* 🔄 **Planned Integration**: Will drive NPCs within community environments
+* 🔄 **Future Features**: NPCs transitioning between adventuring and community life may switch between this AI and the combat GOAP AI
+
+**Integration Roadmap:**
+1. Normalize trait systems between this AI and the player/adventurer trait system
+2. Create community environment system for NPCs to inhabit
+3. Integrate with `game/game_state.py` orchestrator
+4. Add NPC spawning/management to entity registry
+5. Connect with resource management, time, and weather systems
+
+This AI is intended to work alongside (not replace) the integrated GOAP AI system, with NPCs potentially switching between AI systems based on their current role (community member vs. adventurer).

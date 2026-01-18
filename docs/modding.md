@@ -37,11 +37,86 @@ The engine loads these files on start, so changes are picked up the next time th
 
 ## Plugging in new AI
 
-AI behaviours live under the `game/ai/` folder for integrated production AI (GOAP, strategy, specialized behaviors) or `AI/` for community NPC AI under development. Create a new module that implements the desired behaviour and expose a class or function entry point. Entity templates can reference this behaviour via fields in `entities.yaml` or by custom game code that selects an AI implementation per entity. The GOAP planner extracted from the `auto/` testbed is available via `game/ai/goap_adapter.py::plan_for_agent`, which builds a GOAP plan from `GameState` and `EntityRegistry`.
+AI behaviors live in different locations depending on their purpose:
+
+* **Production Combat AI**: `game/ai/` folder contains integrated AI systems:
+  - `goap.py` - Goal-Oriented Action Planning for combat/survival
+  - `strategy.py` - State machine behaviors (HOME, CHARGE, FLEE, SMART_KOBOLD)
+  - Specialized behaviors: `bird.py`, `mammal.py`, `insect.py`, `plant.py`, `reptile.py`
+
+* **Community NPC AI (In Development)**: `AI/` folder contains advanced trait-based AI for non-combat NPCs. Not yet integrated with main game.
+
+* **AI Testing Environment**: `auto/` provides a standalone simulation for testing and tuning GOAP behaviors before deploying to production.
+
+### Adding New Combat Behaviors
+
+1. Create a new module in `game/ai/` that implements the desired behavior
+2. Implement the behavior interface (typically a function that takes entity state and returns an action)
+3. Register the behavior in the AI dispatcher (`game/systems/ai_system.py`)
+4. Reference the behavior in entity templates via `entities.yaml`:
+   ```yaml
+   goblin_chief:
+     ai_type: "smart_kobold"
+     # ... other properties
+   ```
+
+### Integrating GOAP AI
+
+The GOAP planner is already integrated and accessible via `game/ai/goap_adapter.py`:
+
+```python
+from game.ai.goap_adapter import plan_for_agent
+
+# Generate a plan for an agent
+plan = plan_for_agent(
+    agent_id=entity_id,
+    game_state=gs,
+    entity_registry=entity_reg
+)
+```
+
+The adapter translates between game state and GOAP world state automatically.
 
 ## Custom generation algorithms
 
-Dungeon generation is managed by the modules in the `Dungeon/` directory.  To introduce a new generation algorithm, add a Python module implementing the generator and update the launch code (e.g. `main.py`) to call it instead of the default pipeline.  Generators should return a data structure compatible with the engine's map loader so that entities and items can be placed on the resulting map. The current production pipeline uses a sophisticated 3D-to-2D cave network generator (core.py → processor.py → shaper.py).
+Dungeon generation is managed by the modules in the `Dungeon/` directory. The current production pipeline is a sophisticated 3D-to-2D cave network generator:
+
+* `Dungeon/core.py` - Core graph generation with probabilistic branching
+* `Dungeon/processor.py` - Geometry processing and feature flagging
+* `Dungeon/shaper.py` - 2D rasterization with cellular automata smoothing
+
+### Adding a New Generator
+
+To introduce a new generation algorithm:
+
+1. Create a new Python module in the `Dungeon/` directory or a separate location
+2. Implement the generator following this interface:
+   ```python
+   def generate_dungeon(width: int, height: int, rng: GameRNG) -> pl.DataFrame:
+       """Generate dungeon and return Polars DataFrame.
+       
+       Required columns:
+       - x, y: Coordinates
+       - walkable: Boolean
+       - floor_depth, ceiling_depth: 3D depth information
+       - material_id: Tile type
+       - chamber_id: Room/area identifier
+       """
+       # Your generation logic here
+       return dungeon_df
+   ```
+3. Update the launch code (e.g., `main.py` or `orchestrator.py`) to call your generator
+4. Ensure output is compatible with the engine's map loader (`game/world/game_map.py`)
+
+### Important Considerations
+
+* Always use `GameRNG` for deterministic generation (never Python's `random` module)
+* Return a Polars DataFrame with the expected schema
+* Preserve 3D depth information (floor_depth, ceiling_depth, height)
+* Assign unique chamber_id values for connected regions
+* Mark special tiles (cliffs, shafts, etc.) with appropriate material_id values
+
+Generators should output data structures compatible with `game/world/game_map.py` so that entities and items can be placed on the resulting map.
 
 ## Testing mods
 

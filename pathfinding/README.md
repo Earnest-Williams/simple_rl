@@ -34,7 +34,14 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 
 ## Integration & Status
 
-* The perception data (noise cost maps, scent maps) generated here is intended to be consumed by AI systems (primarily `auto/`) to influence behavior and pathfinding decisions.
-* The `FeatureType` enum defined here needs to be synchronized with the final feature set produced by the main `Dungeon/` generator once that is finalized.
-* The `line_of_sight` function requires a proper implementation (e.g., Bresenham accelerated with Numba).
-* The core perception logic is functional but may require further tuning and integration with specific agent capabilities.
+* ✅ **Integrated**: The perception data (noise cost maps, scent maps) generated here is consumed by AI systems (primarily `game/ai/`) to influence behavior and pathfinding decisions.
+* ✅ **Functional**: Core perception logic is working in the main game
+* 🔄 **Ongoing Work**: The `FeatureType` enum needs synchronization with the final feature set produced by the main `Dungeon/` generator
+* 🔄 **Requires Implementation**: The `line_of_sight` placeholder function needs proper implementation (e.g., Bresenham accelerated with Numba) - currently using placeholder
+* 🔄 **Tuning**: Perception parameters may require further adjustment based on gameplay testing
+
+**Integration Points:**
+* Noise and scent data feed into `game/ai/strategy.py` for behavior state selection
+* Perception events influence GOAP planning decisions
+* Monster perception checks run in parallel via Joblib for performance
+* Data stored in game map layers for efficient access
