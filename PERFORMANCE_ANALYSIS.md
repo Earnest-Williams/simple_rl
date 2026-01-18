@@ -399,7 +399,7 @@ draw = ImageDraw.Draw(img_copy)
 3. Use Qt's update(QRect) for partial updates
 
 ```python
-def update_frame_partial(self, dirty_rects: list[QRect]):
+def update_frame_partial(self, dirty_rects: list[QRect]) -> None:
     for rect in dirty_rects:
         # Render only this region
         partial_image = self.main_loop.render_region(rect, viewport_params)
