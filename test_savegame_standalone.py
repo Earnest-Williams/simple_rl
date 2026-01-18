@@ -70,7 +70,7 @@ def test_error_on_unserializable() -> None:
         print("✓ Proper error raised for unserializable object")
 
 
-def test_tuples_preserved():
+def test_tuples_preserved() -> None:
     """Verify that tuples are preserved."""
     print("Testing: Tuples should be preserved...")
     obj = {"coords": (10, 20, 30)}
