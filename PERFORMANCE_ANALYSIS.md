@@ -744,7 +744,7 @@ def invalidate_flow_fields(self) -> None:
 **File:** `game/entities/registry.py`
 
 ```python
-def get_entity_components(self, entity_id: int, component_names: list[str]) -> dict:
+def get_entity_components(self, entity_id: int, component_names: list[str]) -> dict[str, Any]:
     """Fetch multiple components in a single DataFrame operation."""
     entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
     if entity_df.height == 0:
