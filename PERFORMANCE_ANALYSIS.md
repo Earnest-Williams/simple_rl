@@ -92,7 +92,7 @@ dy = entity_reg.get_entity_component(defender_id, "y")                          
 **Recommendation:**
 ```python
 # Add bulk fetch method to EntityRegistry
-def get_entity_components(self, entity_id: int, component_names: list[str]) -> dict:
+def get_entity_components(self, entity_id: int, component_names: list[str]) -> dict[str, Any]:
     """Fetch multiple components in a single DataFrame operation."""
     entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
     if entity_df.height == 0:
