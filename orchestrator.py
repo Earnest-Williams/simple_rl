@@ -144,6 +144,8 @@ def run_pipeline(
     if run_sim:
         sim_outcome = run_headless_sim(world, agent_ai, rng, max_turns=max_turns)
 
+    generator_steps = [step.to_dict() for step in getattr(generator, "steps", [])]
+
     return {
         "rng": rng,
         "backbone_nodes": len(generator.nodes),
@@ -154,6 +156,10 @@ def run_pipeline(
         "agent_ai": agent_ai,
         "lighting_context": lighting_context,
         "sim_outcome": sim_outcome,
+        "raw_backbone": raw_backbone,
+        "augmented_nodes": augmented_nodes,
+        "augmented_node_map": augmented_node_map,
+        "generator_steps": generator_steps,
     }
 
 
