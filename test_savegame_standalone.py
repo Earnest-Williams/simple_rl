@@ -53,7 +53,7 @@ def test_arrays_stay_arrays():
     print("✓ Arrays correctly preserved with proper dtypes")
 
 
-def test_error_on_unserializable():
+def test_error_on_unserializable() -> None:
     """Verify that unserializable objects raise errors instead of returning None."""
     print("Testing: Unserializable objects should raise errors...")
 
