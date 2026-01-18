@@ -82,7 +82,7 @@ def test_tuples_preserved() -> None:
     print("✓ Tuples correctly preserved")
 
 
-def test_full_roundtrip():
+def test_full_roundtrip() -> None:
     """Test complete save/load cycle."""
     print("Testing: Full save/load round-trip...")
 
