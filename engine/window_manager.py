@@ -258,7 +258,7 @@ class NodeInspectorDock(QDockWidget):
                 item.setBackground(QColor(255, 250, 200))
             self.steps_list.addItem(item)
 
-        self.json_view.setPlainText(json.dumps(node_dict, indent=2))
+        self.json_view.setPlainText(orjson.dumps(node_dict, option=orjson.OPT_INDENT_2).decode())
 
 
 class DiagnosticsDock(QDockWidget):
