@@ -1,5 +1,7 @@
 # Dungeon/core.py - Revised for main.py orchestration & GameRNG
 
+from __future__ import annotations
+
 import json
 import math
 import traceback
@@ -109,8 +111,8 @@ class CaveNode:
     branch_segment_count: int
     probability_n: float
     last_angle_delta: float = 0.0
-    parent: "CaveNode" | None = None
-    children: list["CaveNode"] = field(default_factory=list)
+    parent: CaveNode | None = None
+    children: list[CaveNode] = field(default_factory=list)
     can_grow: bool = True
     feature: str | None = None
     linked_node_id: int | None = None
