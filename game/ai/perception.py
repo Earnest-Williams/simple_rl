@@ -92,7 +92,7 @@ def find_visible_enemies(
     if ex is None or ey is None:
         return enemies
 
-    filter_expr = pl.col("is_active") == True
+    filter_expr = pl.col("is_active") is True
     if faction is not None:
         filter_expr &= pl.col("faction") != faction
     enemy_df = game_state.entity_registry.entities_df.filter(filter_expr)
