@@ -12,11 +12,11 @@ The components developed here are intended for eventual integration into the mai
 
 ## Core Components
 
-* **`main_game.py`:** The main simulation script for this testbed. It initializes the environment, manages the game loop, updates entity states (including light sources), calls the Numba-accelerated FOV/lighting/memory functions, and renders the output to the console using ANSI True Color codes. Includes optional `readchar` support for basic interaction or a profiling mode.
+* **`main_game.py`:** The main simulation script for this testbed. It initializes the environment, manages the game loop, updates entity states (including light sources), calls the Numba-accelerated FOV/lighting/memory functions, and renders the output to the console using ANSI True Color codes. Includes optional `readchar` support for basic interaction or a profiling mode. Creates simple test maps programmatically for testing lighting and FOV algorithms.
 * **`dungeon_data.py`:** Defines the `Dungeon` **Numba jitclass**. This high-performance data structure holds the core grid arrays (`tiles`, `visible`, `memory_intensity`, `last_seen_time`) and is passed to Numba-accelerated functions.
 * **`constants.py`:** Contains constants specific to this R&D environment, including rendering characters, True Color RGB values, memory fade parameters, and the `LIGHT_LEVEL_DATA` structure mapping light intensity to gameplay visibility checks.
 
-**Note:** This testbed creates simple test maps programmatically within `main_game.py` for testing lighting and FOV algorithms. For more complex dungeon generation, the production `Dungeon/` pipeline at the repository root should be used.
+**Note:** The testbed optionally uses the root-level `dungeon_generator.py` for creating U-shaped test rooms if available, otherwise falls back to built-in dummy generation. For production-quality dungeon generation, use the `Dungeon/` pipeline at the repository root.
 
 ## Key Mechanics & Implementation
 
