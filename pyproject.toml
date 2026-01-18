@@ -24,7 +24,7 @@ dependencies = [
   "readchar>=4.0",
   "pydub>=0.25.1",
   "simpleaudio>=1.0.4",
-  "openal>=1.1.1",
+# removed  "openal>=1.1.1", now provided via mamba
 ]
 
 [project.optional-dependencies]

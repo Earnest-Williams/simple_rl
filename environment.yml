@@ -1,10 +1,39 @@
-# Mamba/Conda environment specification for 'simple_rl'
-# Edit me to add your project's dependencies!
 name: simple_rl
 channels:
   - conda-forge
 dependencies:
+  # Python
   - python=3.11
+
+  # Runtime dependencies (prefers conda-forge packages)
+  - numpy>=1.24
+  - polars>=0.20
+  - numba>=0.57
+  - scipy>=1.10
+  - scikit-image>=0.22
+  - joblib>=1.3
+  - pyside6>=6.5           # PySide6 (Qt)
+  - pygame>=2.5
+  - matplotlib>=3.7
+  - pillow>=9.2            # conda package is 'pillow'
+  - structlog>=23.1
+  - pyyaml>=6.0            # conda package name all-lowercase
+  - readchar>=4.0
+  - pydub>=0.25.1
+  - simpleaudio>=1.0.4
+  - ffmpeg                 # required by pydub for audio handling (conda-forge)
+  - openal-soft            # OpenAL implementation (audio backend)
+  - pytest>=7.4            # dev/test tool (include here for devs)
+
+  # Ensure pip is present so we can install the project editable
   - pip
+
+  # If you need other dev tooling (formatters/linters), add them here:
+  # - ruff
+  # - black
+  # - mypy
+
+  # Install the project itself in editable mode via pip
   - pip:
-      - -e .[dev]
+      - -e .                 # install package from local pyproject.toml (editable)
+      # Add any pip-only packages here if absolutely necessary
