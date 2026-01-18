@@ -1,4 +1,4 @@
-# Supplemental Style Rules: The Raymond Drake Protocol
+# Supplemental Style Rules
 
 In addition to the base rules, all code must adhere to these "maximalist" performance and typing standards. Violations of these rules are considered "Critical."
 
