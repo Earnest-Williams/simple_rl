@@ -178,7 +178,7 @@ def test_ipc_error_handling() -> None:
             print(f"✓ Clear error message: {e}")
 
 
-def main():
+def main() -> int:
     """Run all tests."""
     print("=" * 60)
     print("Running standalone savegame.py verification tests")
