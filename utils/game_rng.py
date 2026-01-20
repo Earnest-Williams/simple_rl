@@ -319,11 +319,15 @@ class GameRNG:
     def _bell_dist(self) -> float:
         """Returns a value in [-1.0, 1.0] approximating a normal distribution."""
         # Uses 4 uniform samples (Irwin–Hall) scaled to approximate normal
-        return (sum(self.get_float() for _ in range(4)) - 2.0) * 0.5
+        # Batch generate to reduce lock acquisitions
+        samples = self.get_floats(0.0, 1.0, 4)
+        return (sum(samples) - 2.0) * 0.5
 
     def _triangle_dist(self) -> float:
         """Returns a value in [0.0, 1.0] with a triangular distribution peak at 0.5."""
-        return (self.get_float() + self.get_float()) * 0.5
+        # Batch generate to reduce lock acquisitions
+        samples = self.get_floats(0.0, 1.0, 2)
+        return (samples[0] + samples[1]) * 0.5
 
     def _power_dist(self, power: float = 2.0) -> float:
         """Returns a value in [0.0, 1.0] weighted toward 0 by the given power."""
@@ -597,8 +601,11 @@ class GameRNG:
     def point_in_circle(self, radius: float = 1.0) -> tuple[float, float]:
         """Returns a uniform random (x, y) coordinate inside a circle."""
         # Use sqrt to avoid radial clustering: r = R * sqrt(u)
-        r = radius * math.sqrt(self.get_float())
-        theta = self.get_float(0, 2.0 * math.pi)
+        # Batch generate to reduce lock acquisitions
+        samples = self.get_floats(0.0, 1.0, 1)
+        theta_sample = self.get_floats(0.0, 2.0 * math.pi, 1)
+        r = radius * math.sqrt(samples[0])
+        theta = theta_sample[0]
         return (r * math.cos(theta), r * math.sin(theta))
 
     def point_on_circle(self, radius: float = 1.0) -> tuple[float, float]:

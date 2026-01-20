@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
+import orjson
 import polars as pl
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from scipy.spatial import KDTree
@@ -183,11 +184,15 @@ def run_pipeline(
                 tree = KDTree(tile_coords)
                 _, idxs = tree.query(node_points)
 
-                for (nid, (nx, ny)), idx in zip(
+                # Pre-compute rounded tile coordinates for efficiency
+                tile_x_arr = np.rint(x_arr[idxs]).astype(np.int32)
+                tile_y_arr = np.rint(y_arr[idxs]).astype(np.int32)
+
+                for i, ((nid, (nx, ny)), idx) in enumerate(zip(
                     zip(node_ids, node_coords), idxs.tolist()
-                ):
-                    tile_x = int(round(x_arr[idx]))
-                    tile_y = int(round(y_arr[idx]))
+                )):
+                    tile_x = int(tile_x_arr[i])
+                    tile_y = int(tile_y_arr[i])
                     node_map_rows.append(
                         {
                             "node_id": nid,
@@ -238,20 +243,26 @@ def run_pipeline(
             node_map_rows = NODE_MAP_ROWS_ADAPTER.validate_python(
                 node_map_rows_local
             )
-            for row_obj in node_map_rows:
-                row = int(round(row_obj.tile_y - min_y))
-                col = int(round(row_obj.tile_x - min_x))
-                node_to_tile[row_obj.node_id] = (row, col)
+            # Vectorize coordinate transformations for efficiency
+            tile_ys = np.array([row_obj.tile_y for row_obj in node_map_rows], dtype=np.float64)
+            tile_xs = np.array([row_obj.tile_x for row_obj in node_map_rows], dtype=np.float64)
+            rows = np.rint(tile_ys - min_y).astype(np.int32)
+            cols = np.rint(tile_xs - min_x).astype(np.int32)
+
+            for i, row_obj in enumerate(node_map_rows):
+                node_to_tile[row_obj.node_id] = (int(rows[i]), int(cols[i]))
         except (OSError, json.JSONDecodeError, ValidationError) as exc:
             log.exception("Failed to load node_map JSON: %s", exc)
     elif isinstance(augmented_nodes, list):
-        for node in augmented_nodes:
-            nid = int(node.get("id"))
-            nx = float(node.get("x", 0.0))
-            ny = float(node.get("y", 0.0))
-            col = int(round(nx - min_x))
-            row = int(round(ny - min_y))
-            node_to_tile[nid] = (row, col)
+        # Vectorize node coordinate transformations for efficiency
+        node_ids = np.array([int(node.get("id")) for node in augmented_nodes], dtype=np.int32)
+        node_xs = np.array([float(node.get("x", 0.0)) for node in augmented_nodes], dtype=np.float64)
+        node_ys = np.array([float(node.get("y", 0.0)) for node in augmented_nodes], dtype=np.float64)
+        cols = np.rint(node_xs - min_x).astype(np.int32)
+        rows = np.rint(node_ys - min_y).astype(np.int32)
+
+        for i in range(len(augmented_nodes)):
+            node_to_tile[int(node_ids[i])] = (int(rows[i]), int(cols[i]))
     tile_grid = map_arrays["tile_id_grid"]
     height_grid = map_arrays.get("height_grid")
     if height_grid is None:

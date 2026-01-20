@@ -87,6 +87,10 @@ class MainLoop:
         self._cfg_memory_fade_variance = np.float32(memory_fade_variance)
         self._cfg_memory_noise_level = np.float32(memory_noise_level)
 
+        # Cache for RenderConfig to avoid recreating it every frame
+        self._cached_render_config: RenderConfig | None = None
+        self._cached_fov_radius_sq: float = -1.0
+
         log.info("MainLoop initialized successfully")
 
     def handle_action(self: Self, action: dict[str, Any]) -> bool:
@@ -137,23 +141,33 @@ class MainLoop:
         fov_radius = np.float32(gs.fov_radius)
         fov_radius_sq = fov_radius * fov_radius if fov_radius >= 0 else np.float32(-1.0)
 
-        # --- Create RenderConfig instance ---
-        render_config = RenderConfig(
-            show_height_vis=self.show_height_visualization,
-            vis_max_diff=self._cfg_vis_max_diff,
-            vis_color_high_np=self._cfg_height_color_high_np,
-            vis_color_mid_np=self._cfg_height_color_mid_np,
-            vis_color_low_np=self._cfg_height_color_low_np,
-            vis_blend_factor=self._cfg_vis_blend_factor,
-            lighting_ambient=self._cfg_ambient_light,
-            lighting_min_fov=self._cfg_min_fov_light,
-            lighting_falloff=self._cfg_light_falloff,
-            fov_radius_sq=fov_radius_sq,  # Pass pre-calculated value
-            enable_memory_fade=self._cfg_enable_memory_fade,
-            enable_colored_lights=self._cfg_enable_colored_lights,
-            memory_fade_variance=self._cfg_memory_fade_variance,
-            memory_noise_level=self._cfg_memory_noise_level,
-        )
+        # --- Create or reuse cached RenderConfig instance ---
+        # Only recreate if fov_radius_sq changed or show_height_visualization toggled
+        if (
+            self._cached_render_config is None
+            or self._cached_fov_radius_sq != fov_radius_sq
+            or self._cached_render_config.show_height_vis != self.show_height_visualization
+        ):
+            render_config = RenderConfig(
+                show_height_vis=self.show_height_visualization,
+                vis_max_diff=self._cfg_vis_max_diff,
+                vis_color_high_np=self._cfg_height_color_high_np,
+                vis_color_mid_np=self._cfg_height_color_mid_np,
+                vis_color_low_np=self._cfg_height_color_low_np,
+                vis_blend_factor=self._cfg_vis_blend_factor,
+                lighting_ambient=self._cfg_ambient_light,
+                lighting_min_fov=self._cfg_min_fov_light,
+                lighting_falloff=self._cfg_light_falloff,
+                fov_radius_sq=fov_radius_sq,  # Pass pre-calculated value
+                enable_memory_fade=self._cfg_enable_memory_fade,
+                enable_colored_lights=self._cfg_enable_colored_lights,
+                memory_fade_variance=self._cfg_memory_fade_variance,
+                memory_noise_level=self._cfg_memory_noise_level,
+            )
+            self._cached_render_config = render_config
+            self._cached_fov_radius_sq = fov_radius_sq
+        else:
+            render_config = self._cached_render_config
         # --- End Create RenderConfig ---
 
         # --- Call Renderer ---
