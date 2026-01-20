@@ -14,7 +14,16 @@ except Exception as e:  # pragma: no cover - critical import failure
     raise
 
 # --- Dice Rolling Utility (Moved from effects.handlers) ---
-DICE_PATTERN = re.compile(r"(\d+)?d(\d+)(?:([+-])(\d+))?")
+DICE_PATTERN = re.compile(r"(\d+)?d(\d+)(?:([+-])(\d+))?", re.IGNORECASE)
+
+
+def _is_int_literal(value: str) -> bool:
+    if not value:
+        return False
+    stripped = value
+    if stripped[0] in "+-":
+        stripped = stripped[1:]
+    return stripped.isdigit()
 
 
 # Make it a public function
@@ -30,6 +39,9 @@ def roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
         log.error("Dice roll attempted without RNG instance!")
         raise ValueError("RNG instance is required for roll_dice.")
 
+    if _is_int_literal(dice_str):
+        return int(dice_str)
+
     match = DICE_PATTERN.match(dice_str)
     if match:
         num_dice_str, sides_str, operator, bonus_str = match.groups()
@@ -42,7 +54,10 @@ def roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
             return bonus
         # Use the passed RNG instance
         try:
-            roll_total = sum(rng.get_int(1, sides) for _ in range(num_dice))
+            rng_get_int = rng.get_int
+            roll_total = 0
+            for _ in range(num_dice):
+                roll_total += rng_get_int(1, sides)
             return roll_total + bonus
         except AttributeError:
             log.error(
@@ -54,9 +69,5 @@ def roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
             log.error("Error during RNG dice roll", error=str(e), exc_info=True)
             raise  # Re-raise other RNG errors
 
-    else:
-        try:
-            return int(dice_str)  # Allow plain numbers
-        except ValueError:
-            log.error("Invalid dice string format", dice_str=dice_str)
-            return 0
+    log.error("Invalid dice string format", dice_str=dice_str)
+    return 0
