@@ -601,11 +601,10 @@ class GameRNG:
     def point_in_circle(self, radius: float = 1.0) -> tuple[float, float]:
         """Returns a uniform random (x, y) coordinate inside a circle."""
         # Use sqrt to avoid radial clustering: r = R * sqrt(u)
-        # Batch generate to reduce lock acquisitions
-        samples = self.get_floats(0.0, 1.0, 1)
-        theta_sample = self.get_floats(0.0, 2.0 * math.pi, 1)
+        # Batch generate both values in single call to reduce lock acquisitions
+        samples = self.get_floats(0.0, 1.0, 2)
         r = radius * math.sqrt(samples[0])
-        theta = theta_sample[0]
+        theta = 2.0 * math.pi * samples[1]
         return (r * math.cos(theta), r * math.sin(theta))
 
     def point_on_circle(self, radius: float = 1.0) -> tuple[float, float]:

@@ -191,8 +191,8 @@ def run_pipeline(
                 for i, ((nid, (nx, ny)), idx) in enumerate(zip(
                     zip(node_ids, node_coords), idxs.tolist()
                 )):
-                    tile_x = int(tile_x_arr[i])
-                    tile_y = int(tile_y_arr[i])
+                    tile_x = tile_x_arr[i]
+                    tile_y = tile_y_arr[i]
                     node_map_rows.append(
                         {
                             "node_id": nid,
@@ -250,7 +250,7 @@ def run_pipeline(
             cols = np.rint(tile_xs - min_x).astype(np.int32)
 
             for i, row_obj in enumerate(node_map_rows):
-                node_to_tile[row_obj.node_id] = (int(rows[i]), int(cols[i]))
+                node_to_tile[row_obj.node_id] = (rows[i], cols[i])
         except (OSError, json.JSONDecodeError, ValidationError) as exc:
             log.exception("Failed to load node_map JSON: %s", exc)
     elif isinstance(augmented_nodes, list):
@@ -262,7 +262,7 @@ def run_pipeline(
         rows = np.rint(node_ys - min_y).astype(np.int32)
 
         for i in range(len(augmented_nodes)):
-            node_to_tile[int(node_ids[i])] = (int(rows[i]), int(cols[i]))
+            node_to_tile[node_ids[i]] = (rows[i], cols[i])
     tile_grid = map_arrays["tile_id_grid"]
     height_grid = map_arrays.get("height_grid")
     if height_grid is None:
