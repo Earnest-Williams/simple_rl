@@ -30,6 +30,7 @@ import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Sequence
 
 import numpy as np
@@ -790,11 +791,11 @@ class GameRNG:
             if "noise_seed" in state:
                 self.noise_seed = state["noise_seed"]
 
-    def save_state_to_file(self, filename: str) -> None:
+    def save_state_to_file(self, filename: Path) -> None:
         """Save state. If filename ends with .json, write JSON; otherwise write .npz."""
-        if filename.lower().endswith(".json"):
+        if filename.suffix.lower() == ".json":
             state = self.get_state()
-            with open(filename, "w", encoding="utf-8") as f:
+            with filename.open("w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2)
             return
 
@@ -803,10 +804,10 @@ class GameRNG:
         self._flatten_state(state, "", arrays)
         np.savez_compressed(filename, **arrays)
 
-    def load_state_from_file(self, filename: str) -> None:
+    def load_state_from_file(self, filename: Path) -> None:
         """Loads state from .npz or .json file (auto-detect by extension)."""
-        if filename.lower().endswith(".json"):
-            with open(filename, "r", encoding="utf-8") as f:
+        if filename.suffix.lower() == ".json":
+            with filename.open("r", encoding="utf-8") as f:
                 loaded = json.load(f)
             self.set_state(loaded)
             return
