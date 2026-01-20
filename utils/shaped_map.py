@@ -8,6 +8,8 @@ import polars as pl
 from common.constants import Material
 from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
 
+MAX_LOOKUP_MATERIAL_ID: int = 100_000
+
 
 def load_shaped_map_as_arrays(
     arrow_path: str,
@@ -144,18 +146,21 @@ def shaped_dataframe_to_game_map(
         walkable = df.get_column("walkable").to_numpy().astype(bool)
         tile_id_grid[gy, gx] = np.where(walkable, TILE_ID_FLOOR, TILE_ID_WALL)
     elif "material_id" in df_columns:
-        material_ids = df.get_column("material_id").to_numpy().astype(np.int32)
-        mapped_tiles = np.full(material_ids.shape, default_tile_id, dtype=np.uint8)
+        material_ids: np.ndarray = (
+            df.get_column("material_id").to_numpy().astype(np.int32)
+        )
+        mapped_tiles: np.ndarray = np.full(
+            material_ids.shape, default_tile_id, dtype=np.uint8
+        )
         if material_ids.size > 0:
-            min_material_id = int(material_ids.min())
-            max_material_id = int(material_ids.max())
-            max_lookup_size = 100_000
+            min_material_id: int = int(material_ids.min())
+            max_material_id: int = int(material_ids.max())
             if (
                 min_material_id >= 0
-                and max_material_id <= max_lookup_size
-                and max_material_id - min_material_id <= max_lookup_size
+                and max_material_id <= MAX_LOOKUP_MATERIAL_ID
+                and max_material_id - min_material_id <= MAX_LOOKUP_MATERIAL_ID
             ):
-                lookup = np.full(
+                lookup: np.ndarray = np.full(
                     max_material_id + 1, default_tile_id, dtype=np.uint8
                 )
                 for material_id, tile_id in tile_overrides.items():
