@@ -141,7 +141,7 @@ def save_game_state(
     # Note: Using BytesIO is necessary as write_ipc needs a file-like object
     buf = io.BytesIO()
     mobs_df.write_ipc(buf)
-    ipc_bytes = buf.getvalue()
+    ipc_bytes = buf.getbuffer()
 
     # Conditionally compress (creates a copy if enabled)
     if compress_ipc:

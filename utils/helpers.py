@@ -30,6 +30,13 @@ def roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
         log.error("Dice roll attempted without RNG instance!")
         raise ValueError("RNG instance is required for roll_dice.")
 
+    if "d" not in dice_str and "D" not in dice_str:
+        try:
+            return int(dice_str)
+        except ValueError:
+            log.error("Invalid dice string format", dice_str=dice_str)
+            return 0
+
     match = DICE_PATTERN.match(dice_str)
     if match:
         num_dice_str, sides_str, operator, bonus_str = match.groups()
@@ -42,7 +49,10 @@ def roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
             return bonus
         # Use the passed RNG instance
         try:
-            roll_total = sum(rng.get_int(1, sides) for _ in range(num_dice))
+            rng_get_int = rng.get_int
+            roll_total = 0
+            for _ in range(num_dice):
+                roll_total += rng_get_int(1, sides)
             return roll_total + bonus
         except AttributeError:
             log.error(

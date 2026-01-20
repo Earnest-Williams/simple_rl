@@ -21,12 +21,15 @@ def load_shaped_map_as_arrays(
     df = pl.read_ipc(arrow_path)
 
     required = {"x", "y", "material_id"}
-    missing = required - set(df.columns)
+    df_columns = set(df.columns)
+    missing = required - df_columns
     if missing:
         raise ValueError(f"Missing columns in shaped map: {sorted(missing)}")
 
-    x = np.rint(df.get_column("x").to_numpy()).astype(np.int32)
-    y = np.rint(df.get_column("y").to_numpy()).astype(np.int32)
+    x_col = df.get_column("x").to_numpy()
+    y_col = df.get_column("y").to_numpy()
+    x = np.rint(x_col).astype(np.int32)
+    y = np.rint(y_col).astype(np.int32)
 
     min_x, max_x = int(x.min()), int(x.max())
     min_y, max_y = int(y.min()), int(y.max())
@@ -50,7 +53,7 @@ def load_shaped_map_as_arrays(
         "shape": (height, width),
     }
 
-    if "height" in df.columns:
+    if "height" in df_columns:
         height_grid = np.full(
             (height, width),
             default_height,
@@ -60,7 +63,7 @@ def load_shaped_map_as_arrays(
         height_grid[gy, gx] = df.get_column("height").to_numpy().astype(np.float32)
         out["height_grid"] = height_grid
 
-    if "floor_depth" in df.columns:
+    if "floor_depth" in df_columns:
         floor_depth_grid = np.full(
             (height, width),
             default_floor_depth,
@@ -72,7 +75,7 @@ def load_shaped_map_as_arrays(
         )
         out["floor_depth_grid"] = floor_depth_grid
 
-    if "chamber_id" in df.columns:
+    if "chamber_id" in df_columns:
         chamber_id_grid = np.full(
             (height, width),
             default_chamber_id,
@@ -99,12 +102,15 @@ def shaped_dataframe_to_game_map(
         raise ValueError("Shaped map DataFrame is empty.")
 
     required = {"x", "y"}
-    missing = required - set(df.columns)
+    df_columns = set(df.columns)
+    missing = required - df_columns
     if missing:
         raise ValueError(f"Missing columns in shaped map: {sorted(missing)}")
 
-    x = np.rint(df.get_column("x").to_numpy()).astype(np.int32)
-    y = np.rint(df.get_column("y").to_numpy()).astype(np.int32)
+    x_col = df.get_column("x").to_numpy()
+    y_col = df.get_column("y").to_numpy()
+    x = np.rint(x_col).astype(np.int32)
+    y = np.rint(y_col).astype(np.int32)
 
     min_x, max_x = int(x.min()), int(x.max())
     min_y, max_y = int(y.min()), int(y.max())
@@ -134,14 +140,31 @@ def shaped_dataframe_to_game_map(
         }
     )
 
-    if "walkable" in df.columns:
+    if "walkable" in df_columns:
         walkable = df.get_column("walkable").to_numpy().astype(bool)
         tile_id_grid[gy, gx] = np.where(walkable, TILE_ID_FLOOR, TILE_ID_WALL)
-    elif "material_id" in df.columns:
+    elif "material_id" in df_columns:
         material_ids = df.get_column("material_id").to_numpy().astype(np.int32)
         mapped_tiles = np.full(material_ids.shape, default_tile_id, dtype=np.uint8)
-        for material_id, tile_id in tile_overrides.items():
-            mapped_tiles[material_ids == material_id] = tile_id
+        if material_ids.size > 0:
+            min_material_id = int(material_ids.min())
+            max_material_id = int(material_ids.max())
+            max_lookup_size = 100_000
+            if (
+                min_material_id >= 0
+                and max_material_id <= max_lookup_size
+                and max_material_id - min_material_id <= max_lookup_size
+            ):
+                lookup = np.full(
+                    max_material_id + 1, default_tile_id, dtype=np.uint8
+                )
+                for material_id, tile_id in tile_overrides.items():
+                    if 0 <= material_id <= max_material_id:
+                        lookup[material_id] = tile_id
+                mapped_tiles = lookup[material_ids]
+            else:
+                for material_id, tile_id in tile_overrides.items():
+                    mapped_tiles[material_ids == material_id] = tile_id
         tile_id_grid[gy, gx] = mapped_tiles
     else:
         tile_id_grid[gy, gx] = TILE_ID_FLOOR
@@ -149,7 +172,7 @@ def shaped_dataframe_to_game_map(
     game_map = GameMap(width=width, height=height)
     game_map.tiles[:, :] = tile_id_grid
 
-    if "height" in df.columns:
+    if "height" in df_columns:
         height_vals = df.get_column("height").to_numpy()
         height_vals = np.nan_to_num(height_vals, nan=default_height)
         height_grid = np.full(
@@ -159,11 +182,11 @@ def shaped_dataframe_to_game_map(
         game_map.height_map = height_grid
 
     ceiling_grid = np.full((height, width), default_ceiling, dtype=np.int16, order="C")
-    if "ceiling_depth" in df.columns:
+    if "ceiling_depth" in df_columns:
         ceiling_vals = df.get_column("ceiling_depth").to_numpy()
         ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
         ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
-    elif "floor_depth" in df.columns and "height" in df.columns:
+    elif "floor_depth" in df_columns and "height" in df_columns:
         floor_vals = df.get_column("floor_depth").to_numpy()
         height_vals = df.get_column("height").to_numpy()
         ceiling_vals = floor_vals - height_vals
@@ -171,7 +194,7 @@ def shaped_dataframe_to_game_map(
         ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
     game_map.ceiling_map = ceiling_grid
 
-    if "height" not in df.columns and "floor_depth" in df.columns:
+    if "height" not in df_columns and "floor_depth" in df_columns:
         depth_vals = df.get_column("floor_depth").to_numpy()
         depth_vals = np.nan_to_num(depth_vals, nan=default_floor_depth)
         depth_grid = np.full(
