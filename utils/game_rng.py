@@ -27,10 +27,10 @@ import threading
 import time
 import uuid
 import warnings
-from collections import deque, OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Sequence
 
 import numpy as np
 
@@ -87,7 +87,7 @@ class MetricsCollector:
     updates_queue: deque[tuple[str, int]] = field(default_factory=deque)
     running: bool = False
     stop_event: threading.Event = field(default_factory=threading.Event)
-    collection_thread: Optional[threading.Thread] = None
+    collection_thread: threading.Thread | None = None
     lock: threading.RLock = field(default_factory=threading.RLock)
 
     def start(self) -> None:
@@ -181,9 +181,9 @@ class GameRNG:
 
     def __init__(
         self,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         metrics: bool = False,
-        noise_seed: Optional[int] = None,
+        noise_seed: int | None = None,
     ) -> None:
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
         self.rng = np.random.default_rng(self.initial_seed)
@@ -209,7 +209,8 @@ class GameRNG:
     # ------------------------------------------------------------------
     # small helpers
     # ------------------------------------------------------------------
-    def _normalize_dist(self, dist_type: Union[str, Distribution]) -> str:
+    @staticmethod
+    def _normalize_dist(dist_type: str | Distribution) -> str:
         """Return lowercase distribution key for either enum or string input."""
         if isinstance(dist_type, Distribution):
             return dist_type.name.lower()
@@ -258,7 +259,7 @@ class GameRNG:
         return [int(x) for x in vals]
 
     def get_randrange(
-        self, start: int, stop: Optional[int] = None, step: int = 1
+        self, start: int, stop: int | None = None, step: int = 1
     ) -> int:
         """Returns a random element from range(start, stop, step)."""
         if step == 0:
@@ -342,7 +343,7 @@ class GameRNG:
         u = self.get_float(0.0, np.nextafter(1.0, 0.0))
         return -math.log(1.0 - u) / lambd
 
-    def get_distribution(self, dist_type: Union[str, Distribution], **kwargs: Any) -> float:
+    def get_distribution(self, dist_type: str | Distribution, **kwargs: Any) -> float:
         """Retrieves a single sample from a named distribution."""
         key = self._normalize_dist(dist_type)
 
@@ -366,7 +367,7 @@ class GameRNG:
         self,
         min_val: float,
         max_val: float,
-        dist_type: Union[str, Distribution],
+        dist_type: str | Distribution,
         **kwargs: Any
     ) -> float:
         """Returns a distributed value mapped to the range [min_val, max_val]."""
@@ -551,7 +552,7 @@ class GameRNG:
 
     def coin_flip(
         self, num_flips: int = 1, heads_probability: float = 0.5
-    ) -> Union[str, List[str]]:
+    ) -> str | List[str]:
         """Simulates coin flips with a specific bias toward 'heads'."""
         if not 0.0 <= heads_probability <= 1.0:
             raise ValueError("probability out of range")
@@ -662,7 +663,8 @@ class GameRNG:
             seed = (seed * 6364136223846793005 + v + 1) & 0xFFFFFFFFFFFFFFFF
         return seed
 
-    def _splitmix64(self, x: int) -> int:
+    @staticmethod
+    def _splitmix64(x: int) -> int:
         """Internal 64-bit mixer for noise generation."""
         x = (x + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
         x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9 & 0xFFFFFFFFFFFFFFFF
@@ -779,7 +781,7 @@ class GameRNG:
         with self._rng_lock:
             if "random_state" in state:
                 try:
-                    # BitGenerator.state assignment co-erces lists back to arrays.
+                    # BitGenerator.state assignment coerces lists back to arrays.
                     self.rng.bit_generator.state = state["random_state"]
                 except Exception as e:
                     raise ValueError("Invalid RNG random_state structure") from e
@@ -802,7 +804,7 @@ class GameRNG:
         np.savez_compressed(filename, **arrays)
 
     def load_state_from_file(self, filename: str) -> None:
-        """Loads state from .npz or .json file (autodetect by extension)."""
+        """Loads state from .npz or .json file (auto-detect by extension)."""
         if filename.lower().endswith(".json"):
             with open(filename, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
@@ -828,14 +830,14 @@ class GameRNG:
 
         self.set_state(loaded)
 
-    def get_metrics(self) -> Optional[Dict[str, Any]]:
+    def get_metrics(self) -> Dict[str, Any] | None:
         """Returns metric snapshot if tracking is enabled."""
         if not self.metrics_enabled or not self.metrics:
             return None
         return self.metrics.get_metrics()
 
     def reset(
-        self, seed: Optional[int] = None, noise_seed: Optional[int] = None
+        self, seed: int | None = None, noise_seed: int | Literal["reset"] | None = None
     ) -> None:
         """Resets the engine with a new seed."""
         self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
