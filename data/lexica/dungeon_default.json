@@ -1,0 +1,63 @@
+{
+  "adjectives": [
+    "damp", "musty", "echoing", "glittering", "shadowy",
+    "ancient", "crumbling", "vast", "narrow", "twisted",
+    "frozen", "scorched", "luminous", "dark", "silent",
+    "oppressive", "cavernous", "claustrophobic", "ornate", "decrepit",
+    "pristine", "weathered", "ethereal", "foreboding", "serene"
+  ],
+  "nouns": [
+    "chamber", "corridor", "cavern", "passage", "hall",
+    "vault", "alcove", "grotto", "tunnel", "crypt",
+    "antechamber", "sanctuary", "pit", "gallery", "rotunda",
+    "niche", "vestibule", "catacomb", "dungeon", "ossuary"
+  ],
+  "features": [
+    "a pool of ink-dark water",
+    "stalagmites rising like teeth",
+    "bioluminescent moss coating the walls",
+    "a broken altar to forgotten gods",
+    "ancient carvings depicting strange rituals",
+    "scattered bones of previous explorers",
+    "a cracked statue of a hooded figure",
+    "dripping stalactites overhead",
+    "a partially collapsed ceiling",
+    "phosphorescent fungi growing in clusters",
+    "rusted chains hanging from the walls",
+    "a faded mural showing a great battle",
+    "crystalline formations that sing in the breeze",
+    "deep gouges in the stone floor",
+    "a pile of moldering scrolls",
+    "columns carved with serpentine patterns",
+    "a stone sarcophagus, lid askew",
+    "braziers that still smolder faintly",
+    "a dry fountain with an empty basin",
+    "niches holding crumbling urns"
+  ],
+  "verbs": [
+    "enter", "discover", "stumble into", "reach", "find",
+    "emerge into", "arrive at", "venture into", "step into", "descend into"
+  ],
+  "adverbs": [
+    "cautiously", "quickly", "silently", "suddenly", "slowly",
+    "carefully", "deliberately", "hesitantly", "boldly", "nervously",
+    "steadily", "warily", "eagerly", "reluctantly", "confidently"
+  ],
+  "clauses": [
+    "The air grows colder.",
+    "You hear distant echoes.",
+    "A faint breeze stirs.",
+    "Water drips somewhere nearby.",
+    "The walls seem to close in.",
+    "Your footsteps echo loudly.",
+    "Dust motes dance in the dim light.",
+    "A musty smell fills your nostrils.",
+    "You sense a presence watching.",
+    "The silence is oppressive.",
+    "Strange shadows flicker.",
+    "Your torch casts dancing shadows.",
+    "The darkness presses close.",
+    "Something skitters in the shadows.",
+    "Ancient magic lingers here."
+  ]
+}

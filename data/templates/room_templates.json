@@ -1,0 +1,26 @@
+{
+  "terse": [
+    "{adj} {noun}. {feature}.",
+    "{adj} {noun}.",
+    "{noun}. {feature}."
+  ],
+  "neutral": [
+    "A {adj} {noun} dominated by {feature}.",
+    "You {verb} a {adj} {noun}; {feature} catches your eye.",
+    "A {adj}, low-ceilinged {noun} with {feature} scattered about.",
+    "{adverb}, you enter a {adj} {noun}. {feature} here.",
+    "This {adj} {noun} contains {feature}."
+  ],
+  "ornate": [
+    "You {verb} {adverb} into a {adj} {noun}, its vastness marked by {feature} that speak of ages past.",
+    "A {adj} {noun} unfolds before you, dominated by {feature} of haunting beauty.",
+    "The {adj} expanse of this {noun} is punctuated by {feature}, silent witnesses to forgotten times.",
+    "Before you stretches a {adj} {noun}, where {feature} stand as testament to what once was."
+  ],
+  "wry": [
+    "Yet another {adj} {noun}. At least this one has {feature}.",
+    "A {adj} {noun}. {feature} here. How original.",
+    "You {verb} a {adj} {noun}. {feature} greets you, as expected.",
+    "Surprise: a {adj} {noun} with {feature}. Haven't seen that before."
+  ]
+}
