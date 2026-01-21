@@ -51,12 +51,16 @@ If two rules conflict, follow the **more restrictive** rule.
 
 * **Rule:** Avoid object-oriented clutter. Prefer structural clarity, explicit data flow, and throughput-oriented design.
 
+---
+
 ## 2. Tooling and CI (Critical)
 
 ### 2.1 Tool version pinning (Critical)
 
 * **Rule:** `pyproject.toml` must pin **mypy**, **black**, and the repository linter versions (for example, ruff), and they must be consistent across developer machines and CI.
 * **Rule:** CI must run the formatter, linter, and type checker in a way that matches local expectations.
+
+---
 
 ## 3. Development workflow (Strong)
 
@@ -82,6 +86,8 @@ If two rules conflict, follow the **more restrictive** rule.
 * When adding or changing behavior, update relevant docs in `docs/` and component README files.
 * Document complex algorithms and design decisions with clear examples.
 
+---
+
 ## 4. Project context for LLMs (Guideline)
 
 * This is a simulation-heavy roguelike/RPG research project emphasizing determinism, modularity, and high-performance Python.
@@ -91,6 +97,8 @@ If two rules conflict, follow the **more restrictive** rule.
   * Numba + NumPy for fast kernels and numerical work.
   * `GameRNG` for deterministic randomness.
 
+---
+
 ## 5. LLM operating rules (Critical)
 
 These rules exist to prevent incorrect or low-quality automated edits.
@@ -99,3 +107,5 @@ These rules exist to prevent incorrect or low-quality automated edits.
 * **Rule:** Prefer minimal diffs. Avoid drive-by refactors.
 * **Rule:** Every code change must satisfy all **Critical** rules in this document.
 * **Rule:** If you are uncertain about a requirement, stop and request the missing information rather than guessing.
+
+---
