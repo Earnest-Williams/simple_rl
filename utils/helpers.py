@@ -25,8 +25,9 @@ class DiceRoll(BaseModel):
     @field_validator("num_dice", "sides")
     @classmethod
     def must_be_positive(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError("Number of dice and sides must be non-negative")
+    def must_be_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("Number of dice and sides must be positive")
         return v
 
     @classmethod
