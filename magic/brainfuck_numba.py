@@ -2,6 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from multiprocessing import Pipe, get_context
+from multiprocessing.connection import Connection
+import resource
+import time
+from typing import Literal
+
 import numpy as np
 
 # Try to import numba explicitly; if missing we'll fall back.
@@ -31,6 +37,15 @@ class BFResult:
     error: str | None
     steps: int
     halted: bool
+
+
+SandboxMode = Literal["auto", "always", "never"]
+BFResultTuple = tuple[bool, str, str | None, int, bool]
+
+_SANDBOX_STEP_THRESHOLD = 1_000_000
+_DEFAULT_SANDBOX_CPU_SECONDS = 1
+_DEFAULT_SANDBOX_WALL_TIME_S = 1.0
+_DEFAULT_SANDBOX_MEMORY_BYTES = 256 * 1024 * 1024
 
 
 # -----------------------
@@ -342,7 +357,14 @@ def _run_numba_core(
     return (output_str, int(steps), bool(halted_flag), None)
 
 
-def run_brainfuck(
+def _apply_resource_limits(cpu_time_s: int, memory_bytes: int) -> None:
+    if cpu_time_s > 0 and hasattr(resource, "RLIMIT_CPU"):
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_s, cpu_time_s))
+    if memory_bytes > 0 and hasattr(resource, "RLIMIT_AS"):
+        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+
+
+def _run_brainfuck_internal(
     code: str,
     input_data: str = "",
     *,
@@ -401,3 +423,198 @@ def run_brainfuck(
     # Fallback: pure interpreter
     out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
     return BFResult(success=(error is None), output=out, error=error, steps=steps, halted=halted)
+
+
+def _sandbox_worker(
+    code: str,
+    input_data: str,
+    tape_size: int,
+    max_steps: int,
+    wrap_pointer: bool,
+    clamp_pointer: bool,
+    use_numba: bool | None,
+    cpu_time_s: int,
+    memory_bytes: int,
+    conn: Connection,
+) -> None:
+    _apply_resource_limits(cpu_time_s, memory_bytes)
+    result = _run_brainfuck_internal(
+        code,
+        input_data,
+        tape_size=tape_size,
+        max_steps=max_steps,
+        wrap_pointer=wrap_pointer,
+        clamp_pointer=clamp_pointer,
+        use_numba=use_numba,
+    )
+    payload: BFResultTuple = (
+        result.success,
+        result.output,
+        result.error,
+        result.steps,
+        result.halted,
+    )
+    conn.send(payload)
+    conn.close()
+
+
+def _should_use_sandbox(clean_code: str, max_steps: int, mode: SandboxMode) -> bool:
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+    if max_steps >= _SANDBOX_STEP_THRESHOLD:
+        return True
+    return len(clean_code) >= _SANDBOX_STEP_THRESHOLD
+
+
+def _run_brainfuck_sandboxed(
+    code: str,
+    input_data: str,
+    *,
+    tape_size: int,
+    max_steps: int,
+    wrap_pointer: bool,
+    clamp_pointer: bool,
+    use_numba: bool | None,
+    wall_time_s: float,
+    cpu_time_s: int,
+    memory_bytes: int,
+) -> BFResult:
+    if wall_time_s <= 0.0:
+        return BFResult(
+            success=False,
+            output="",
+            error="sandbox_invalid_wall_time",
+            steps=0,
+            halted=False,
+        )
+    if cpu_time_s <= 0:
+        return BFResult(
+            success=False,
+            output="",
+            error="sandbox_invalid_cpu_limit",
+            steps=0,
+            halted=False,
+        )
+    if memory_bytes <= 0:
+        return BFResult(
+            success=False,
+            output="",
+            error="sandbox_invalid_memory_limit",
+            steps=0,
+            halted=False,
+        )
+
+    parent_conn, child_conn = Pipe(duplex=False)
+    ctx = get_context("spawn")
+    process = ctx.Process(
+        target=_sandbox_worker,
+        args=(
+            code,
+            input_data,
+            tape_size,
+            max_steps,
+            wrap_pointer,
+            clamp_pointer,
+            use_numba,
+            cpu_time_s,
+            memory_bytes,
+            child_conn,
+        ),
+    )
+    process.start()
+    child_conn.close()
+
+    deadline = time.monotonic() + wall_time_s
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.0:
+            break
+        if parent_conn.poll(remaining):
+            result_tuple = parent_conn.recv()
+            process.join(timeout=0.1)
+            return BFResult(
+                success=result_tuple[0],
+                output=result_tuple[1],
+                error=result_tuple[2],
+                steps=result_tuple[3],
+                halted=result_tuple[4],
+            )
+        if not process.is_alive():
+            break
+
+    if parent_conn.poll(0.0):
+        result_tuple = parent_conn.recv()
+        process.join(timeout=0.1)
+        return BFResult(
+            success=result_tuple[0],
+            output=result_tuple[1],
+            error=result_tuple[2],
+            steps=result_tuple[3],
+            halted=result_tuple[4],
+        )
+    if not process.is_alive():
+        process.join(timeout=0.1)
+        return BFResult(
+            success=False,
+            output="",
+            error="sandbox_execution_failed",
+            steps=0,
+            halted=False,
+        )
+
+    process.terminate()
+    process.join(timeout=0.1)
+    return BFResult(
+        success=False,
+        output="",
+        error="sandbox_timeout",
+        steps=0,
+        halted=False,
+    )
+
+
+def run_brainfuck(
+    code: str,
+    input_data: str = "",
+    *,
+    tape_size: int = 30_000,
+    max_steps: int = 10_000_000,
+    wrap_pointer: bool = True,
+    clamp_pointer: bool = False,
+    use_numba: bool | None = None,
+    sandbox_mode: SandboxMode = "auto",
+    sandbox_wall_time_s: float = _DEFAULT_SANDBOX_WALL_TIME_S,
+    sandbox_cpu_time_s: int = _DEFAULT_SANDBOX_CPU_SECONDS,
+    sandbox_memory_bytes: int = _DEFAULT_SANDBOX_MEMORY_BYTES,
+) -> BFResult:
+    """
+    Run brainfuck code with an explicit Numba backend attempt.
+
+    If use_numba is True we insist on trying numba; if False we skip it.
+    If None we auto-decide based on availability and I/O presence.
+    """
+    clean = sanitize(code)
+    if _should_use_sandbox(clean, max_steps, sandbox_mode):
+        return _run_brainfuck_sandboxed(
+            code,
+            input_data,
+            tape_size=tape_size,
+            max_steps=max_steps,
+            wrap_pointer=wrap_pointer,
+            clamp_pointer=clamp_pointer,
+            use_numba=use_numba,
+            wall_time_s=sandbox_wall_time_s,
+            cpu_time_s=sandbox_cpu_time_s,
+            memory_bytes=sandbox_memory_bytes,
+        )
+    return _run_brainfuck_internal(
+        code,
+        input_data,
+        tape_size=tape_size,
+        max_steps=max_steps,
+        wrap_pointer=wrap_pointer,
+        clamp_pointer=clamp_pointer,
+        use_numba=use_numba,
+    )
