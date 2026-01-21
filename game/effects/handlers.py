@@ -1,7 +1,6 @@
 # game/effects/handlers.py
 # Contains the actual Python functions that implement effect logic.
 
-import re
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 import structlog
@@ -9,6 +8,7 @@ import polars as pl
 
 # Imports for type hinting and GameRNG
 from utils.game_rng import GameRNG
+from utils.helpers import roll_dice as _roll_dice
 from ..world import line_of_sight
 from ..systems.death_system import handle_entity_death
 from magic.models import Art, Substance
@@ -42,36 +42,6 @@ def is_visible_to_player(entity_id: int | None, gs: "GameState") -> bool:
     if not gs.game_map.in_bounds(pos.x, pos.y):
         return False
     return bool(gs.game_map.visible[pos.y, pos.x])
-
-
-# --- Dice Rolling Utility ---
-DICE_PATTERN = re.compile(r"(\d+)?d(\d+)(?:([+-])(\d+))?")
-
-
-def _roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
-    if not dice_str:
-        return 0
-    if rng is None:
-        log.warning("Dice roll attempted without RNG context!")
-        return 0
-    match = DICE_PATTERN.match(dice_str)
-    if match:
-        num_dice_str, sides_str, operator, bonus_str = match.groups()
-        num_dice = int(num_dice_str) if num_dice_str else 1
-        sides = int(sides_str)
-        bonus = int(f"{operator}{bonus_str}") if operator and bonus_str else 0
-        if sides <= 0:
-            return bonus
-        if num_dice <= 0:
-            return bonus
-        roll_total = sum(rng.get_int(1, sides) for _ in range(num_dice))
-        return roll_total + bonus
-    else:
-        try:
-            return int(dice_str)
-        except ValueError:
-            log.error("Invalid dice string format", dice_str=dice_str)
-            return 0
 
 
 # --- AOE Helper ---
