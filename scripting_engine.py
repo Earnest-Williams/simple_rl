@@ -15,7 +15,7 @@ from typing import Dict, Literal, Protocol, TypedDict
 
 from magic.brainfuck_numba import BFResult, run_brainfuck
 
-_MACRO_TOKEN: re.Pattern[str] = re.compile(r"(!\w+)")
+_MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
 MacroExpansionReason = Literal[
     "char_limit_exceeded",
     "depth_exceeded",
