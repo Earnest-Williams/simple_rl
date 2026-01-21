@@ -96,9 +96,7 @@ def find_visible_enemies(
     if faction is not None:
         filter_expr &= pl.col("faction") != faction
     enemy_df = game_state.entity_registry.entities_df.filter(filter_expr)
-    enemy_rows = {
-        int(row["entity_id"]): row for row in enemy_df.iter_rows(named=True)
-    }
+    enemy_rows = {int(row["entity_id"]): row for row in enemy_df.iter_rows(named=True)}
 
     vision_range = int(entity_row.get("vision_range") or game_state.fov_radius)
     spatial_index = getattr(game_state, "spatial_index", None)

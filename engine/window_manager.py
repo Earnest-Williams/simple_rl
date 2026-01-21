@@ -258,7 +258,9 @@ class NodeInspectorDock(QDockWidget):
                 item.setBackground(QColor(255, 250, 200))
             self.steps_list.addItem(item)
 
-        self.json_view.setPlainText(orjson.dumps(node_dict, option=orjson.OPT_INDENT_2).decode())
+        self.json_view.setPlainText(
+            orjson.dumps(node_dict, option=orjson.OPT_INDENT_2).decode()
+        )
 
 
 class DiagnosticsDock(QDockWidget):
@@ -451,9 +453,7 @@ class DiagnosticsDock(QDockWidget):
                     self.node_tile_coords = {}
 
             # Convert image on main thread
-            img: QImage = tile_grid_to_qimage(
-                tile_grid, scale=self.preview_scale
-            )
+            img: QImage = tile_grid_to_qimage(tile_grid, scale=self.preview_scale)
 
             def ui_update() -> None:
                 self.append_log(
@@ -646,9 +646,7 @@ class DiagnosticsDock(QDockWidget):
 
         threshold = 6.0
         if best_nid is None or best_dist is None or best_dist > threshold:
-            self.append_log(
-                f"No backbone node within {threshold} tiles of ({y}, {x})."
-            )
+            self.append_log(f"No backbone node within {threshold} tiles of ({y}, {x}).")
             return
 
         self.show_node_in_inspector(best_nid)
@@ -1379,4 +1377,6 @@ class WindowManager(QMainWindow):
             self._diagnostics_dock.raise_()
             return
         self._diagnostics_dock = DiagnosticsDock(parent=self)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._diagnostics_dock)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self._diagnostics_dock
+        )

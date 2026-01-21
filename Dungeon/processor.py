@@ -206,24 +206,32 @@ def process_backbone_graph(
         .alias("parent_id"),
     )
 
-    df = df.with_columns(
-        pl.col("children_validation").struct.field("normalized").alias("children_ids"),
-        pl.col("children_validation").struct.field("errors").alias("children_errors"),
-    ).with_columns(
-        pl.concat_list(
+    df = (
+        df.with_columns(
+            pl.col("children_validation")
+            .struct.field("normalized")
+            .alias("children_ids"),
+            pl.col("children_validation")
+            .struct.field("errors")
+            .alias("children_errors"),
+        )
+        .with_columns(
+            pl.concat_list(
+                "id_errors",
+                "parent_id_errors",
+                "x_errors",
+                "y_errors",
+                "children_errors",
+            ).alias("processing_errors")
+        )
+        .drop(
             "id_errors",
             "parent_id_errors",
             "x_errors",
             "y_errors",
+            "children_validation",
             "children_errors",
-        ).alias("processing_errors")
-    ).drop(
-        "id_errors",
-        "parent_id_errors",
-        "x_errors",
-        "y_errors",
-        "children_validation",
-        "children_errors",
+        )
     )
 
     max_depth_value = (
@@ -293,9 +301,7 @@ def process_backbone_graph(
             math.hypot(segment_length_xy, delta_depth_m), 2
         )
         node_data["segment_incline_deg"] = round(incline_deg, 2)
-        node_data["bearing_deg"] = round(
-            math.degrees(math.atan2(delta_y, delta_x)), 2
-        )
+        node_data["bearing_deg"] = round(math.degrees(math.atan2(delta_y, delta_x)), 2)
 
         # --- Flagging is NO LONGER done here ---
         # Feature flags ('cliff_edge', 'shaft_opening') are assumed to be
@@ -365,9 +371,7 @@ def process_backbone_graph(
             return total_distance
 
         for node in nodes:
-            node["flow_distance_m"] = round(
-                compute_flow_distance(node["id"], set()), 2
-            )
+            node["flow_distance_m"] = round(compute_flow_distance(node["id"], set()), 2)
 
         accumulation = {node["id"]: 1 for node in nodes}
         nodes_by_depth = sorted(

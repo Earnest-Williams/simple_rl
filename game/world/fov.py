@@ -17,11 +17,7 @@ from .los import line_of_sight as _los_line_of_sight
 
 
 def line_of_sight(
-    x0: int,
-    y0: int,
-    x1: int,
-    y1: int,
-    transparency_map: np.ndarray,
+    x0: int, y0: int, x1: int, y1: int, transparency_map: np.ndarray
 ) -> bool:
     """Return True if tiles (x0, y0) and (x1, y1) have clear line of sight."""
     return _los_line_of_sight(x0, y0, x1, y1, transparency_map)

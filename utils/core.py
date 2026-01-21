@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 try:
     import polars as pl
+
     POLARS_AVAILABLE = True
 except ImportError:
     POLARS_AVAILABLE = False
@@ -47,6 +48,7 @@ from utils.game_rng import GameRNG
 
 class ToneProfile(Enum):
     """Output tone/persona for variation generation."""
+
     TERSE = auto()
     NEUTRAL = auto()
     ORNATE = auto()
@@ -55,6 +57,7 @@ class ToneProfile(Enum):
 
 class OutputMode(Enum):
     """Output format mode."""
+
     HUMAN = auto()  # Pretty, colored, with optional typing effects
     MACHINE = auto()  # Compact NDJSON with seed/state
 
@@ -67,6 +70,7 @@ class OutputMode(Enum):
 @dataclass
 class Lexicon:
     """Container for word lists used in text generation."""
+
     adjectives: list[str] = field(default_factory=list)
     nouns: list[str] = field(default_factory=list)
     features: list[str] = field(default_factory=list)
@@ -83,18 +87,19 @@ class Lexicon:
             features=data.get("features", []),
             verbs=data.get("verbs", []),
             adverbs=data.get("adverbs", []),
-            clauses=data.get("clauses", [])
+            clauses=data.get("clauses", []),
         )
 
     @classmethod
     def load_from_file(cls, path: str | Path) -> Lexicon:
         """Load lexicon from JSON or YAML file."""
         path = Path(path)
-        with open(path, 'r', encoding='utf-8') as f:
-            if path.suffix == '.json':
+        with open(path, "r", encoding="utf-8") as f:
+            if path.suffix == ".json":
                 data = json.load(f)
-            elif path.suffix in {'.yaml', '.yml'}:
+            elif path.suffix in {".yaml", ".yml"}:
                 import yaml
+
                 data = yaml.safe_load(f)
             else:
                 raise ValueError(f"Unsupported file format: {path.suffix}")
@@ -108,18 +113,19 @@ class Lexicon:
             "features": self.features,
             "verbs": self.verbs,
             "adverbs": self.adverbs,
-            "clauses": self.clauses
+            "clauses": self.clauses,
         }
 
     def save_to_file(self, path: str | Path) -> None:
         """Save lexicon to JSON or YAML file."""
         path = Path(path)
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             data = self.to_dict()
-            if path.suffix == '.json':
+            if path.suffix == ".json":
                 json.dump(data, f, indent=2)
-            elif path.suffix in {'.yaml', '.yml'}:
+            elif path.suffix in {".yaml", ".yml"}:
                 import yaml
+
                 yaml.dump(data, f, default_flow_style=False)
             else:
                 raise ValueError(f"Unsupported file format: {path.suffix}")
@@ -137,7 +143,7 @@ class VariationEngine:
         rng: GameRNG,
         lexicon: Lexicon | None = None,
         tone: ToneProfile = ToneProfile.NEUTRAL,
-        anti_repeat_size: int = 50
+        anti_repeat_size: int = 50,
     ) -> None:
         """Initialize variation engine.
 
@@ -157,13 +163,33 @@ class VariationEngine:
         """Create default lexicon with basic fantasy/dungeon vocabulary."""
         return Lexicon(
             adjectives=[
-                "damp", "musty", "echoing", "glittering", "shadowy",
-                "ancient", "crumbling", "vast", "narrow", "twisted",
-                "frozen", "scorched", "luminous", "dark", "silent"
+                "damp",
+                "musty",
+                "echoing",
+                "glittering",
+                "shadowy",
+                "ancient",
+                "crumbling",
+                "vast",
+                "narrow",
+                "twisted",
+                "frozen",
+                "scorched",
+                "luminous",
+                "dark",
+                "silent",
             ],
             nouns=[
-                "chamber", "corridor", "cavern", "passage", "hall",
-                "vault", "alcove", "grotto", "tunnel", "crypt"
+                "chamber",
+                "corridor",
+                "cavern",
+                "passage",
+                "hall",
+                "vault",
+                "alcove",
+                "grotto",
+                "tunnel",
+                "crypt",
             ],
             features=[
                 "a pool of ink-dark water",
@@ -175,21 +201,17 @@ class VariationEngine:
                 "a cracked statue",
                 "dripping stalactites",
                 "a collapsed ceiling",
-                "phosphorescent fungi"
+                "phosphorescent fungi",
             ],
-            verbs=[
-                "enter", "discover", "stumble into", "reach", "find"
-            ],
-            adverbs=[
-                "cautiously", "quickly", "silently", "suddenly", "slowly"
-            ],
+            verbs=["enter", "discover", "stumble into", "reach", "find"],
+            adverbs=["cautiously", "quickly", "silently", "suddenly", "slowly"],
             clauses=[
                 "The air grows colder.",
                 "You hear distant echoes.",
                 "A faint breeze stirs.",
                 "Water drips somewhere nearby.",
-                "The walls seem to close in."
-            ]
+                "The walls seem to close in.",
+            ],
         )
 
     def _choose(self, options: Sequence[str], allow_repeats: bool = True) -> str:
@@ -256,9 +278,7 @@ class VariationEngine:
         return ""
 
     def room_description(
-        self,
-        nouns: Sequence[str] | None = None,
-        include_clause: bool = True
+        self, nouns: Sequence[str] | None = None, include_clause: bool = True
     ) -> str:
         """Generate a varied room description.
 
@@ -281,7 +301,7 @@ class VariationEngine:
             "noun": self._choose(nouns, allow_repeats=True) if nouns else "void",
             "feature": self.feature() if self.lexicon.features else "nothing",
             "verb": self.verb() if self.lexicon.verbs else "enter",
-            "adverb": self.adverb() if self.lexicon.adverbs else "slowly"
+            "adverb": self.adverb() if self.lexicon.adverbs else "slowly",
         }
 
         result = template.format(**context)
@@ -298,34 +318,28 @@ class VariationEngine:
             "You {verb} a {adj} {noun}; {feature} catches your eye.",
             "A {adj}, low-ceilinged {noun} with {feature} scattered about.",
             "{adverb}, you enter a {adj} {noun}. {feature} here.",
-            "This {adj} {noun} contains {feature}."
+            "This {adj} {noun} contains {feature}.",
         ]
 
         if self.tone == ToneProfile.TERSE:
-            return [
-                "{adj} {noun}. {feature}.",
-                "{adj} {noun}.",
-                f"{noun}. {feature}."
-            ]
+            return ["{adj} {noun}. {feature}.", "{adj} {noun}.", f"{noun}. {feature}."]
         elif self.tone == ToneProfile.ORNATE:
             return [
                 "You {verb} {adverb} into a {adj} {noun}, its vastness marked by {feature} that speak of ages past.",
                 "A {adj} {noun} unfolds before you, dominated by {feature} of haunting beauty.",
-                "The {adj} expanse of this {noun} is punctuated by {feature}, silent witnesses to forgotten times."
+                "The {adj} expanse of this {noun} is punctuated by {feature}, silent witnesses to forgotten times.",
             ]
         elif self.tone == ToneProfile.WRY:
             return [
                 "Yet another {adj} {noun}. At least this one has {feature}.",
                 "A {adj} {noun}. {feature} here. How original.",
-                "You {verb} a {adj} {noun}. {feature} greets you, as expected."
+                "You {verb} a {adj} {noun}. {feature} greets you, as expected.",
             ]
         else:  # NEUTRAL
             return base_templates
 
     def substitute_synonyms(
-        self,
-        text: str,
-        synonym_map: dict[str, Sequence[str]]
+        self, text: str, synonym_map: dict[str, Sequence[str]]
     ) -> str:
         """Replace words in text with synonyms from a mapping.
 
@@ -341,7 +355,7 @@ class VariationEngine:
 
         for token in tokens:
             # Strip punctuation for lookup
-            clean_token = token.strip('.,;:!?').lower()
+            clean_token = token.strip(".,;:!?").lower()
 
             if clean_token in synonym_map:
                 options = synonym_map[clean_token]
@@ -352,7 +366,7 @@ class VariationEngine:
                     replacement = replacement.capitalize()
 
                 # Preserve punctuation
-                if token[-1] in '.,;:!?':
+                if token[-1] in ".,;:!?":
                     replacement = replacement + token[-1]
 
                 result.append(replacement)
@@ -370,6 +384,7 @@ class VariationEngine:
 @dataclass
 class OutputRecord:
     """Structured output record with RNG state for reproducibility."""
+
     tag: str
     text: str
     seed: int
@@ -385,7 +400,7 @@ class OutputRecord:
             "seed": self.seed,
             "rng_state": self.rng_state,
             "timestamp": self.timestamp,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     def to_json(self) -> str:
@@ -401,15 +416,12 @@ class OutputRecord:
             seed=data["seed"],
             rng_state=data["rng_state"],
             timestamp=data.get("timestamp", time.time()),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
         )
 
 
 def record_output(
-    rng: GameRNG,
-    tag: str,
-    text: str,
-    metadata: dict[str, Any] | None = None
+    rng: GameRNG, tag: str, text: str, metadata: dict[str, Any] | None = None
 ) -> OutputRecord:
     """Create a structured output record with RNG state.
 
@@ -427,7 +439,7 @@ def record_output(
         text=text,
         seed=rng.initial_seed,
         rng_state=rng.get_state(),
-        metadata=metadata or {}
+        metadata=metadata or {},
     )
 
 
@@ -439,9 +451,9 @@ def write_ndjson(records: Sequence[OutputRecord], path: str | Path) -> None:
         path: Output file path
     """
     path = Path(path)
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         for record in records:
-            f.write(record.to_json() + '\n')
+            f.write(record.to_json() + "\n")
 
 
 def read_ndjson(path: str | Path) -> list[OutputRecord]:
@@ -455,7 +467,7 @@ def read_ndjson(path: str | Path) -> list[OutputRecord]:
     """
     path = Path(path)
     records = []
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 data = json.loads(line)
@@ -471,6 +483,7 @@ def read_ndjson(path: str | Path) -> list[OutputRecord]:
 @dataclass
 class VarietyMetrics:
     """Metrics for analyzing output variety."""
+
     total: int
     unique: int
     unique_fraction: float
@@ -485,7 +498,7 @@ class VarietyMetrics:
             f"Unique outputs: {self.unique}",
             f"Unique fraction: {self.unique_fraction:.3f}",
             f"Duplicates: {self.duplicate_count}",
-            f"Entropy: {self.entropy:.3f}"
+            f"Entropy: {self.entropy:.3f}",
         ]
         if self.most_common:
             lines.append("\nMost common outputs:")
@@ -496,8 +509,7 @@ class VarietyMetrics:
 
 
 def compute_variety_metrics(
-    variants: Sequence[str],
-    include_entropy: bool = True
+    variants: Sequence[str], include_entropy: bool = True
 ) -> VarietyMetrics:
     """Compute variety metrics for a list of text variants.
 
@@ -525,6 +537,7 @@ def compute_variety_metrics(
     else:
         # Fallback to standard library
         from collections import Counter
+
         unique_count = len(set(variants))
         counter = Counter(variants)
         most_common = counter.most_common(10)
@@ -551,7 +564,7 @@ def compute_variety_metrics(
         unique_fraction=unique_frac,
         duplicate_count=duplicate_count,
         most_common=most_common,
-        entropy=entropy
+        entropy=entropy,
     )
 
 
@@ -611,25 +624,22 @@ class NameGenerator:
                 continue
 
             # Add start token
-            start = name[:self.order]
+            start = name[: self.order]
             self.start_tokens.append(start)
 
             # Build chain
             for i in range(len(name) - self.order):
-                context = name[i:i + self.order]
+                context = name[i : i + self.order]
                 next_char = name[i + self.order]
                 self.chain[context].append(next_char)
 
             # Add end marker
             if len(name) >= self.order:
-                final_context = name[-self.order:]
-                self.chain[final_context].append('\0')  # End marker
+                final_context = name[-self.order :]
+                self.chain[final_context].append("\0")  # End marker
 
     def generate(
-        self,
-        min_length: int = 4,
-        max_length: int = 12,
-        capitalize: bool = True
+        self, min_length: int = 4, max_length: int = 12, capitalize: bool = True
     ) -> str:
         """Generate a new name.
 
@@ -651,7 +661,7 @@ class NameGenerator:
 
             # Generate characters
             for _ in range(max_length - self.order):
-                context = name[-self.order:]
+                context = name[-self.order :]
 
                 if context not in self.chain:
                     break
@@ -659,7 +669,7 @@ class NameGenerator:
                 next_options = self.chain[context]
                 next_char = self.rng.choice(next_options)
 
-                if next_char == '\0':  # End marker
+                if next_char == "\0":  # End marker
                     if len(name) >= min_length:
                         break
                     else:
@@ -694,15 +704,58 @@ class NameGenerator:
 
         # Small corpus of fantasy names
         corpus = [
-            "aelric", "baldur", "cassia", "dorian", "elara", "fenris",
-            "gwendolyn", "hadrian", "isolde", "jaren", "kael", "lyra",
-            "magnus", "nyx", "orion", "petra", "quinn", "raven",
-            "soren", "thalia", "ulric", "vex", "wren", "xander",
-            "yara", "zephyr", "aldric", "brynn", "cedric", "daria",
-            "elden", "fiona", "gareth", "helena", "isen", "jorah",
-            "kira", "leander", "mira", "nolan", "ophelia", "piers",
-            "quintus", "rowan", "selene", "tristan", "ursula", "valen",
-            "willow", "xenia", "yorick", "zara"
+            "aelric",
+            "baldur",
+            "cassia",
+            "dorian",
+            "elara",
+            "fenris",
+            "gwendolyn",
+            "hadrian",
+            "isolde",
+            "jaren",
+            "kael",
+            "lyra",
+            "magnus",
+            "nyx",
+            "orion",
+            "petra",
+            "quinn",
+            "raven",
+            "soren",
+            "thalia",
+            "ulric",
+            "vex",
+            "wren",
+            "xander",
+            "yara",
+            "zephyr",
+            "aldric",
+            "brynn",
+            "cedric",
+            "daria",
+            "elden",
+            "fiona",
+            "gareth",
+            "helena",
+            "isen",
+            "jorah",
+            "kira",
+            "leander",
+            "mira",
+            "nolan",
+            "ophelia",
+            "piers",
+            "quintus",
+            "rowan",
+            "selene",
+            "tristan",
+            "ursula",
+            "valen",
+            "willow",
+            "xenia",
+            "yorick",
+            "zara",
         ]
 
         generator.train(corpus)
@@ -739,8 +792,8 @@ def make_jinja_env(rng: GameRNG) -> "Environment":
         idx = rng.get_int(0, len(seq) - 1)
         return seq[idx]
 
-    env.filters['choice'] = choice_filter
-    env.filters['rng_choice'] = choice_filter
+    env.filters["choice"] = choice_filter
+    env.filters["rng_choice"] = choice_filter
 
     return env
 
@@ -755,7 +808,7 @@ def type_out(
     rng: GameRNG,
     stream_write: Callable[[str], None],
     base_delay: float = 0.002,
-    jitter: float = 0.01
+    jitter: float = 0.01,
 ) -> None:
     """Type out text character by character with deterministic jitter.
 
@@ -767,6 +820,7 @@ def type_out(
         jitter: Maximum random jitter to add (seconds)
     """
     import sys
+
     for ch in text:
         stream_write(ch)
         sys.stdout.flush()

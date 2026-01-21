@@ -142,9 +142,7 @@ class UIOverlayManager:
                         overlay_layer, draw, text_font, gs
                     )
             elif otype == "image":
-                overlay_layer = self._render_image_overlay(
-                    overlay_layer, overlay_def
-                )
+                overlay_layer = self._render_image_overlay(overlay_layer, overlay_def)
 
         # 4. Message Log Overlay (Future)
         # self._render_message_log(draw, text_font, gs)

@@ -146,7 +146,8 @@ class MainLoop:
         if (
             self._cached_render_config is None
             or self._cached_fov_radius_sq != fov_radius_sq
-            or self._cached_render_config.show_height_vis != self.show_height_visualization
+            or self._cached_render_config.show_height_vis
+            != self.show_height_visualization
         ):
             render_config = RenderConfig(
                 show_height_vis=self.show_height_visualization,

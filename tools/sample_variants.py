@@ -52,7 +52,10 @@ def parse_tone(tone_str: str) -> ToneProfile:
     }
     tone_lower = tone_str.lower()
     if tone_lower not in tone_map:
-        print(f"Error: Unknown tone '{tone_str}'. Valid: {list(tone_map.keys())}", file=sys.stderr)
+        print(
+            f"Error: Unknown tone '{tone_str}'. Valid: {list(tone_map.keys())}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     return tone_map[tone_lower]
 
@@ -97,12 +100,13 @@ def generate_variants(args) -> None:
         if args.output and state_before is not None:
             # Create record with pre-generation state for proper replay
             from utils.core import OutputRecord
+
             record = OutputRecord(
                 tag=args.mode,
                 text=text,
                 seed=rng.initial_seed,
                 rng_state=state_before,
-                metadata={"index": i}
+                metadata={"index": i},
             )
             records.append(record)
 
@@ -122,12 +126,16 @@ def generate_variants(args) -> None:
         # Check threshold if specified
         if args.threshold is not None:
             if metrics.unique_fraction < args.threshold:
-                print(f"\nWARNING: Unique fraction {metrics.unique_fraction:.3f} "
-                      f"below threshold {args.threshold:.3f}")
+                print(
+                    f"\nWARNING: Unique fraction {metrics.unique_fraction:.3f} "
+                    f"below threshold {args.threshold:.3f}"
+                )
                 sys.exit(1)
             else:
-                print(f"\nPASS: Unique fraction {metrics.unique_fraction:.3f} "
-                      f"meets threshold {args.threshold:.3f}")
+                print(
+                    f"\nPASS: Unique fraction {metrics.unique_fraction:.3f} "
+                    f"meets threshold {args.threshold:.3f}"
+                )
 
     # Save to file if requested
     if args.output:
@@ -136,15 +144,15 @@ def generate_variants(args) -> None:
             write_ndjson(records, output_path)
             print(f"\nWrote {len(records)} records to {output_path}")
         elif output_path.suffix == ".json":
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 data = [r.to_dict() for r in records]
                 json.dump(data, f, indent=2)
             print(f"\nWrote {len(records)} records to {output_path}")
         else:
             # Plain text
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 for variant in variants:
-                    f.write(variant + '\n')
+                    f.write(variant + "\n")
             print(f"\nWrote {len(variants)} variants to {output_path}")
 
 
@@ -163,7 +171,10 @@ def replay_from_file(args) -> None:
     if args.index is not None:
         # Replay specific index
         if args.index >= len(records):
-            print(f"Error: Index {args.index} out of range (0-{len(records)-1})", file=sys.stderr)
+            print(
+                f"Error: Index {args.index} out of range (0-{len(records)-1})",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         record = records[args.index]
@@ -204,7 +215,7 @@ def analyze_file(args) -> None:
         records = read_ndjson(path)
         variants = [r.text for r in records]
     elif path.suffix == ".json":
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
                 # List of records or strings
@@ -214,7 +225,7 @@ def analyze_file(args) -> None:
                     variants = data
     else:
         # Plain text, one per line
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             variants = [line.strip() for line in f if line.strip()]
 
     print(f"Loaded {len(variants)} variants from {path}")
@@ -231,12 +242,16 @@ def analyze_file(args) -> None:
     # Check threshold if specified
     if args.threshold is not None:
         if metrics.unique_fraction < args.threshold:
-            print(f"\nFAIL: Unique fraction {metrics.unique_fraction:.3f} "
-                  f"below threshold {args.threshold:.3f}")
+            print(
+                f"\nFAIL: Unique fraction {metrics.unique_fraction:.3f} "
+                f"below threshold {args.threshold:.3f}"
+            )
             sys.exit(1)
         else:
-            print(f"\nPASS: Unique fraction {metrics.unique_fraction:.3f} "
-                  f"meets threshold {args.threshold:.3f}")
+            print(
+                f"\nPASS: Unique fraction {metrics.unique_fraction:.3f} "
+                f"meets threshold {args.threshold:.3f}"
+            )
 
 
 def main():
@@ -266,46 +281,80 @@ Examples:
 
   # Replay specific record from file
   %(prog)s replay output.ndjson --index 42
-        """
+        """,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Generate command
     gen_parser = subparsers.add_parser("generate", help="Generate text variants")
-    gen_parser.add_argument("-n", "--count", type=int, default=100,
-                           help="Number of variants to generate (default: 100)")
-    gen_parser.add_argument("-s", "--seed", type=int, default=12345,
-                           help="RNG seed for reproducibility (default: 12345)")
-    gen_parser.add_argument("--mode", choices=["room", "name"], default="room",
-                           help="Generation mode (default: room)")
-    gen_parser.add_argument("--lexicon", type=str,
-                           help="Path to lexicon JSON/YAML file")
-    gen_parser.add_argument("--tone", type=str, default="neutral",
-                           choices=["terse", "neutral", "ornate", "wry"],
-                           help="Tone profile (default: neutral)")
-    gen_parser.add_argument("-o", "--output", type=str,
-                           help="Output file (.ndjson, .json, or .txt)")
-    gen_parser.add_argument("-p", "--print", action="store_true",
-                           help="Print variants to stdout")
-    gen_parser.add_argument("-m", "--metrics", action="store_true",
-                           help="Compute and display variety metrics")
-    gen_parser.add_argument("--threshold", type=float,
-                           help="Minimum unique fraction threshold (fails if below)")
+    gen_parser.add_argument(
+        "-n",
+        "--count",
+        type=int,
+        default=100,
+        help="Number of variants to generate (default: 100)",
+    )
+    gen_parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        default=12345,
+        help="RNG seed for reproducibility (default: 12345)",
+    )
+    gen_parser.add_argument(
+        "--mode",
+        choices=["room", "name"],
+        default="room",
+        help="Generation mode (default: room)",
+    )
+    gen_parser.add_argument(
+        "--lexicon", type=str, help="Path to lexicon JSON/YAML file"
+    )
+    gen_parser.add_argument(
+        "--tone",
+        type=str,
+        default="neutral",
+        choices=["terse", "neutral", "ornate", "wry"],
+        help="Tone profile (default: neutral)",
+    )
+    gen_parser.add_argument(
+        "-o", "--output", type=str, help="Output file (.ndjson, .json, or .txt)"
+    )
+    gen_parser.add_argument(
+        "-p", "--print", action="store_true", help="Print variants to stdout"
+    )
+    gen_parser.add_argument(
+        "-m",
+        "--metrics",
+        action="store_true",
+        help="Compute and display variety metrics",
+    )
+    gen_parser.add_argument(
+        "--threshold",
+        type=float,
+        help="Minimum unique fraction threshold (fails if below)",
+    )
 
     # Replay command
     replay_parser = subparsers.add_parser("replay", help="Replay from saved file")
-    replay_parser.add_argument("replay_file", type=str,
-                              help="NDJSON file to replay from")
-    replay_parser.add_argument("--index", type=int,
-                              help="Specific record index to replay")
+    replay_parser.add_argument(
+        "replay_file", type=str, help="NDJSON file to replay from"
+    )
+    replay_parser.add_argument(
+        "--index", type=int, help="Specific record index to replay"
+    )
 
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Analyze variety metrics")
-    analyze_parser.add_argument("file", type=str,
-                               help="File to analyze (.ndjson, .json, or .txt)")
-    analyze_parser.add_argument("--threshold", type=float,
-                               help="Minimum unique fraction threshold (fails if below)")
+    analyze_parser.add_argument(
+        "file", type=str, help="File to analyze (.ndjson, .json, or .txt)"
+    )
+    analyze_parser.add_argument(
+        "--threshold",
+        type=float,
+        help="Minimum unique fraction threshold (fails if below)",
+    )
 
     args = parser.parse_args()
 

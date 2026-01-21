@@ -83,7 +83,9 @@ class GOAPPlanner:
         self.actions: list[Action] = available_actions
         self.action_weights: defaultdict[str, float] = defaultdict(lambda: 1.0)
 
-    def plan(self, world: WorldLike, agent: AgentLike, goal_state: StateDict) -> list[Action] | None:
+    def plan(
+        self, world: WorldLike, agent: AgentLike, goal_state: StateDict
+    ) -> list[Action] | None:
         """Plans a sequence of actions using A* search."""
         start_time = time.time()
         initial_state = self._get_world_state_representation(world, agent)
@@ -128,13 +130,16 @@ class GOAPPlanner:
                     new_plan = action_plan + [action]
 
                     heapq.heappush(
-                        open_list, (new_f_score, counter, next_state, new_plan, new_cost)
+                        open_list,
+                        (new_f_score, counter, next_state, new_plan, new_cost),
                     )
                     counter += 1
 
         return None
 
-    def _get_world_state_representation(self, world: WorldLike, agent: AgentLike) -> StateDict:
+    def _get_world_state_representation(
+        self, world: WorldLike, agent: AgentLike
+    ) -> StateDict:
         """Creates a dictionary representing the current world state relevant to the agent."""
         item_id, item_dist = world.get_nearest_entity(agent, "item")
         enemy_id, enemy_dist = world.get_nearest_entity(agent, "enemy")
@@ -158,7 +163,8 @@ class GOAPPlanner:
             _safe_item_name(item) == "Health Potion" for item in inventory_items
         )
         has_weapon_in_inv = any(
-            (_safe_item_kind(item) or "").lower() == "weapon" for item in inventory_items
+            (_safe_item_kind(item) or "").lower() == "weapon"
+            for item in inventory_items
         )
 
         nearest_item_is_slime_mold = False
@@ -222,7 +228,9 @@ class GOAPPlanner:
             if isinstance(desired_value, bool):
                 satisfied = current_value == desired_value
             elif callable(desired_value):
-                satisfied = desired_value(current_value) if current_value is not None else False
+                satisfied = (
+                    desired_value(current_value) if current_value is not None else False
+                )
             elif current_value is None:
                 satisfied = False
             else:
@@ -241,7 +249,9 @@ class GOAPPlanner:
             if isinstance(desired_value, bool):
                 is_satisfied = current_value == desired_value
             elif callable(desired_value):
-                is_satisfied = desired_value(current_value) if current_value is not None else False
+                is_satisfied = (
+                    desired_value(current_value) if current_value is not None else False
+                )
             elif current_value is None:
                 is_satisfied = False
             else:
@@ -263,7 +273,9 @@ class GOAPPlanner:
             elif state.get("can_find_item"):
                 cost += state.get("nearest_item_dist", 0) / 3.0
 
-        if goal_state.get("flee_goal_achieved", False) and state.get("can_find_enemy", False):
+        if goal_state.get("flee_goal_achieved", False) and state.get(
+            "can_find_enemy", False
+        ):
             cost += max(
                 0,
                 ENEMY_NEARBY_FLEE_DISTANCE
@@ -280,12 +292,16 @@ class GOAPPlanner:
 
         return cost
 
-    def update_weights(self, executed_action_names: list[str], success_metric: float) -> None:
+    def update_weights(
+        self, executed_action_names: list[str], success_metric: float
+    ) -> None:
         """Updates action weights based on the success of the executed plan."""
         if not executed_action_names:
             return
 
-        learning_adjustment = (success_metric - LEARNING_SCORE_BASELINE) * LEARNING_RATE_FACTOR
+        learning_adjustment = (
+            success_metric - LEARNING_SCORE_BASELINE
+        ) * LEARNING_RATE_FACTOR
         updated_names = set()
 
         for name in executed_action_names:
@@ -294,7 +310,9 @@ class GOAPPlanner:
 
             current_weight = self.action_weights[name]
             new_weight = current_weight * (1.0 - learning_adjustment)
-            self.action_weights[name] = max(ACTION_WEIGHT_MIN, min(new_weight, ACTION_WEIGHT_MAX))
+            self.action_weights[name] = max(
+                ACTION_WEIGHT_MIN, min(new_weight, ACTION_WEIGHT_MAX)
+            )
             updated_names.add(name)
 
 
@@ -374,7 +392,8 @@ class AgentAI:
         def pre_can_flee(state: StateDict) -> bool:
             return (
                 state.get("can_find_enemy", False)
-                and state.get("nearest_enemy_dist", float("inf")) < ENEMY_NEARBY_FLEE_DISTANCE
+                and state.get("nearest_enemy_dist", float("inf"))
+                < ENEMY_NEARBY_FLEE_DISTANCE
             )
 
         def pre_item_adjacent(state: StateDict) -> bool:
@@ -399,8 +418,12 @@ class AgentAI:
             state["agent_pos"] = None
             state["enemy_is_adjacent"] = False
             state["item_is_adjacent"] = False
-            state["nearest_enemy_dist"] = state.get("nearest_enemy_dist", float("inf")) + 1
-            state["nearest_item_dist"] = state.get("nearest_item_dist", float("inf")) + 1
+            state["nearest_enemy_dist"] = (
+                state.get("nearest_enemy_dist", float("inf")) + 1
+            )
+            state["nearest_item_dist"] = (
+                state.get("nearest_item_dist", float("inf")) + 1
+            )
             return state
 
         def effect_attack_enemy(state: StateDict) -> StateDict:
@@ -443,7 +466,9 @@ class AgentAI:
             return state
 
         def effect_consume_slime_mold(state: StateDict) -> StateDict:
-            state["agent_hunger"] = state.get("agent_hunger", 0) + SLIME_MOLD_HUNGER_RECOVERY
+            state["agent_hunger"] = (
+                state.get("agent_hunger", 0) + SLIME_MOLD_HUNGER_RECOVERY
+            )
             state["has_slime_mold"] = False
             state["is_starving"] = state.get("agent_hunger", 0) <= 0
             state["inventory_count"] = max(state.get("inventory_count", 1) - 1, 0)
@@ -452,7 +477,9 @@ class AgentAI:
             return state
 
         def effect_consume_health_potion(state: StateDict) -> StateDict:
-            state["agent_health"] = state.get("agent_health", 0) + HEALTH_POTION_RECOVERY
+            state["agent_health"] = (
+                state.get("agent_health", 0) + HEALTH_POTION_RECOVERY
+            )
             state["has_health_potion"] = False
             state["is_healthy"] = state.get("agent_health", 0) > HEALTHY_THRESHOLD
             state["is_critically_injured"] = (
@@ -607,7 +634,13 @@ class AgentAI:
                     effect_attack_enemy,
                     execute_attack_adjacent_enemy,
                 ),
-                Action("Explore", cost_explore, pre_always_true, effect_explore, execute_explore),
+                Action(
+                    "Explore",
+                    cost_explore,
+                    pre_always_true,
+                    effect_explore,
+                    execute_explore,
+                ),
                 Action("Flee", cost_flee, pre_can_flee, effect_flee, execute_flee),
                 Action("Wait", cost_wait, pre_always_true, effect_wait, execute_wait),
             ]
@@ -627,7 +660,10 @@ class AgentAI:
         if state["is_critically_injured"]:
             if state["has_health_potion"]:
                 return {"is_healthy": True}
-            if state["can_find_enemy"] and state["nearest_enemy_dist"] < ENEMY_NEARBY_FLEE_DISTANCE:
+            if (
+                state["can_find_enemy"]
+                and state["nearest_enemy_dist"] < ENEMY_NEARBY_FLEE_DISTANCE
+            ):
                 return {"flee_goal_achieved": True}
             if state["can_find_item"] and not state["inventory_full"]:
                 return {"has_health_potion": True}
@@ -671,15 +707,21 @@ class AgentAI:
         if not self.current_plan:
             return False
         next_action = self.current_plan[0]
-        current_state_rep = self.planner._get_world_state_representation(self.world, agent)
+        current_state_rep = self.planner._get_world_state_representation(
+            self.world, agent
+        )
         return next_action.check_preconditions(current_state_rep)
 
     def plan_for(self, agent: AgentLike) -> list[Action]:
         """Return a plan without executing it."""
-        current_state_rep = self.planner._get_world_state_representation(self.world, agent)
+        current_state_rep = self.planner._get_world_state_representation(
+            self.world, agent
+        )
         needs_replan = not self.current_plan or not self._is_plan_still_valid(agent)
 
-        if self.current_goal and self.planner._goal_satisfied(current_state_rep, self.current_goal):
+        if self.current_goal and self.planner._goal_satisfied(
+            current_state_rep, self.current_goal
+        ):
             needs_replan = True
 
         if needs_replan:
@@ -695,7 +737,9 @@ class AgentAI:
 
     def act(self, agent: AgentLike) -> str | None:
         self.last_action_name = None
-        current_state_rep = self.planner._get_world_state_representation(self.world, agent)
+        current_state_rep = self.planner._get_world_state_representation(
+            self.world, agent
+        )
 
         needs_replan = False
         if not self.current_plan:
@@ -718,17 +762,27 @@ class AgentAI:
                 self.last_executed_plan_actions = []
 
                 wait_action = next((a for a in self.actions if a.name == "Wait"), None)
-                explore_action = next((a for a in self.actions if a.name == "Explore"), None)
+                explore_action = next(
+                    (a for a in self.actions if a.name == "Explore"), None
+                )
 
                 if wait_action and agent.health < START_HEALTH * 0.9:
                     if wait_action.execute and wait_action.execute(self.world, agent):
                         self.last_action_name = wait_action.name
                 elif explore_action:
-                    if explore_action.execute and explore_action.execute(self.world, agent):
+                    if explore_action.execute and explore_action.execute(
+                        self.world, agent
+                    ):
                         self.last_action_name = explore_action.name
                 else:
-                    random_move = next((a for a in self.actions if a.name == "Explore"), None)
-                    if random_move and random_move.execute and random_move.execute(self.world, agent):
+                    random_move = next(
+                        (a for a in self.actions if a.name == "Explore"), None
+                    )
+                    if (
+                        random_move
+                        and random_move.execute
+                        and random_move.execute(self.world, agent)
+                    ):
                         self.last_action_name = "RandomMove"
 
                 if self.last_action_name:
@@ -737,7 +791,9 @@ class AgentAI:
 
         if self.current_plan:
             action_to_execute = self.current_plan.popleft()
-            if action_to_execute.execute and action_to_execute.execute(self.world, agent):
+            if action_to_execute.execute and action_to_execute.execute(
+                self.world, agent
+            ):
                 self.last_action_name = action_to_execute.name
             else:
                 self.current_plan = deque()

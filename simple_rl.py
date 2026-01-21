@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import warnings
+from typing import Any
 
 # Suppress numpy overflow warnings that are expected with uint64 operations
 warnings.filterwarnings(
@@ -160,15 +161,17 @@ class Skeleton(Entity):
 
 
 # --- Utility Functions ---
-def is_adjacent(e1, e2):
+def is_adjacent(e1: Any, e2: Any) -> bool:
     return abs(e1.x - e2.x) <= 1 and abs(e1.y - e2.y) <= 1
 
 
-def get_entity_at(x, y, entities):
+def get_entity_at(x: int, y: int, entities: list[Any]) -> Any | None:
     return next((e for e in entities if e.x == x and e.y == y), None)
 
 
-def get_dungeon_string(dungeon, player, skeletons):
+def get_dungeon_string(
+    dungeon: list[list[str]], player: Any, skeletons: list[Any]
+) -> str:
     # Use dungeon_generator's function with our entities
     entities = {"player": player, "enemies": skeletons}
     return dungeon_generator.get_dungeon_string(dungeon, entities)
@@ -176,10 +179,10 @@ def get_dungeon_string(dungeon, player, skeletons):
 
 # --- Game State Class ---
 class GameState:
-    def __init__(self):
+    def __init__(self) -> None:
         self.new_game()
 
-    def new_game(self, seed=None):
+    def new_game(self, seed: int | None = None) -> None:
         # Reset RNG with a new seed if provided
         global game_rng
         if seed is not None:

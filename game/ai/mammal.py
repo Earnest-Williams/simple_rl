@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Tuple
 
 import structlog
 
@@ -26,11 +26,11 @@ def _random_direction(rng: "GameRNG") -> Tuple[int, int]:
 
 
 def take_turn(
-    entity_row,
+    entity_row: Any,
     game_state: "GameState",
     rng: "GameRNG",
     perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
-    **kwargs,
+    **kwargs: Any,
 ) -> None:
     """Execute one turn for a pack-hunting mammal."""
     entity_id = entity_row["entity_id"]

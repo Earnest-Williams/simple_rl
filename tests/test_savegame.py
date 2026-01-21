@@ -2,6 +2,7 @@
 
 Tests correctness of serialization/deserialization and proper error handling.
 """
+
 from __future__ import annotations
 
 import base64
@@ -58,7 +59,11 @@ class TestRoundTripSerialization:
 
     def test_lists_stay_lists(self) -> None:
         """Lists should remain lists, not become numpy arrays."""
-        obj = {"simple_list": [1, 2, 3], "empty_list": [], "nested_list": [[1, 2], [3, 4]]}
+        obj = {
+            "simple_list": [1, 2, 3],
+            "empty_list": [],
+            "nested_list": [[1, 2], [3, 4]],
+        }
         serialized = _make_json_serializable(obj)
         restored = _restore_numpy_if_list_like(serialized)
 
@@ -88,7 +93,9 @@ class TestRoundTripSerialization:
 
         assert isinstance(restored["float_array"], np.ndarray)
         assert restored["float_array"].dtype == np.float64
-        np.testing.assert_array_almost_equal(restored["float_array"], np.array([1.5, 2.5]))
+        np.testing.assert_array_almost_equal(
+            restored["float_array"], np.array([1.5, 2.5])
+        )
 
         assert isinstance(restored["2d_array"], np.ndarray)
         assert restored["2d_array"].shape == (2, 2)
@@ -302,7 +309,9 @@ class TestFullRoundTrip:
 
         assert save_path.exists()
 
-        loaded_mobs, loaded_world, loaded_global, loaded_rng = load_game_state(save_path)
+        loaded_mobs, loaded_world, loaded_global, loaded_rng = load_game_state(
+            save_path
+        )
 
         # Check DataFrame
         assert loaded_mobs.shape == mobs_df.shape

@@ -48,7 +48,9 @@ def test_arrays_stay_arrays() -> None:
     restored = _restore_numpy_if_list_like(serialized)
 
     assert isinstance(restored["int_array"], np.ndarray), "Array became list!"
-    assert restored["int_array"].dtype == np.int32, f"Dtype changed: {restored['int_array'].dtype}"
+    assert (
+        restored["int_array"].dtype == np.int32
+    ), f"Dtype changed: {restored['int_array'].dtype}"
     assert isinstance(restored["float_array"], np.ndarray), "Float array became list!"
     print("✓ Arrays correctly preserved with proper dtypes")
 
@@ -121,7 +123,9 @@ def test_full_roundtrip() -> None:
         )
 
         # Load
-        loaded_mobs, loaded_world, loaded_global, loaded_rng = load_game_state(save_path)
+        loaded_mobs, loaded_world, loaded_global, loaded_rng = load_game_state(
+            save_path
+        )
 
         # Verify DataFrame
         assert loaded_mobs.shape == mobs_df.shape
@@ -174,7 +178,9 @@ def test_ipc_error_handling() -> None:
         except ValueError as e:
             # Check that error message is clear
             error_msg = str(e).lower()
-            assert "polars" in error_msg or "ipc" in error_msg or "dataframe" in error_msg
+            assert (
+                "polars" in error_msg or "ipc" in error_msg or "dataframe" in error_msg
+            )
             print(f"✓ Clear error message: {e}")
 
 

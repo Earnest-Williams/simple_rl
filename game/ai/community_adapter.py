@@ -86,7 +86,9 @@ def _normalize_habits(
 def _apply_traits(agent: AgentF, traits: TraitProfile) -> None:
     agent.traits = traits
     agent.fatigue = FatigueSystem(endurance=traits.endurance)
-    agent.illness = IllnessSystem(endurance=traits.endurance, will=traits.will, rng=agent.rng)
+    agent.illness = IllnessSystem(
+        endurance=traits.endurance, will=traits.will, rng=agent.rng
+    )
     agent.memory = ExperienceMemory(ingenuity=traits.ingenuity)
     agent.self_concept = SelfConcept(resonance=traits.resonance)
 
@@ -103,7 +105,9 @@ def _build_home(template_data: Dict[str, Any]) -> Home:
     return home
 
 
-def _build_profile(template_id: str | None, traits: TraitProfile, habits: list[Habit]) -> CommunityProfile:
+def _build_profile(
+    template_id: str | None, traits: TraitProfile, habits: list[Habit]
+) -> CommunityProfile:
     trait_payload = {
         "endurance": traits.endurance,
         "ingenuity": traits.ingenuity,
@@ -112,7 +116,9 @@ def _build_profile(template_id: str | None, traits: TraitProfile, habits: list[H
         "resonance": traits.resonance,
     }
     habit_names = tuple(habit.name for habit in habits)
-    return CommunityProfile(template_id=template_id, traits=trait_payload, habits=habit_names)
+    return CommunityProfile(
+        template_id=template_id, traits=trait_payload, habits=habit_names
+    )
 
 
 class CommunityManager:
@@ -205,7 +211,10 @@ class CommunityManager:
                 if row.get("community_profile"):
                     profile = row["community_profile"]
                     if profile.get("template_id") == template_id:
-                        if region_x <= row["x"] < region_x + region_w and region_y <= row["y"] < region_y + region_h:
+                        if (
+                            region_x <= row["x"] < region_x + region_w
+                            and region_y <= row["y"] < region_y + region_h
+                        ):
                             existing += 1
             for _ in range(max(0, desired - existing)):
                 spawn_x = self.rng.get_int(region_x, region_x + region_w - 1)
@@ -223,7 +232,9 @@ class CommunityManager:
 
         if agent.thirst > 0.6 and agent.home.water_storage > 0:
             if agent.drink():
-                agent.daily_behavior_log.append((agent._capture_state_snapshot(), "drink"))
+                agent.daily_behavior_log.append(
+                    (agent._capture_state_snapshot(), "drink")
+                )
                 action_taken = True
         elif agent.hunger > 0.6:
             for store_name in ("cooked_food", "raw_inventory"):

@@ -4,7 +4,7 @@ This module provides a comprehensive sound effects and background music system
 that integrates with the game's event-driven architecture. It supports:
 
 - Situational background music based on game state
-- Context-aware sound effects 
+- Context-aware sound effects
 - Distance-based audio falloff
 - Environmental audio effects
 - Volume and audio settings management
@@ -59,7 +59,9 @@ except Exception:  # pragma: no cover - backend availability depends on environm
 class SoundEffect:
     """Represents a single sound effect with its properties."""
 
-    def __init__(self, config: Dict[str, Any], base_path: Path, rng: GameRNG | None = None) -> None:
+    def __init__(
+        self, config: Dict[str, Any], base_path: Path, rng: GameRNG | None = None
+    ) -> None:
         self.effect_type = config.get("type", "file")
         self.files = config.get("files", [])
         self.generator = config.get("generator")
@@ -148,7 +150,9 @@ class BackgroundMusic:
 class SoundManager:
     """Main sound system manager."""
 
-    def __init__(self, config_path: Path | None = None, rng: GameRNG | None = None) -> None:
+    def __init__(
+        self, config_path: Path | None = None, rng: GameRNG | None = None
+    ) -> None:
         self.enabled = False
         self.sound_effects: Dict[str, SoundEffect] = {}
         self.background_music: Dict[str, BackgroundMusic] = {}
@@ -204,7 +208,9 @@ class SoundManager:
         base_sound_path = config_path.parent / "sounds"
 
         for sfx_name, sfx_data in sfx_config.items():
-            self.sound_effects[sfx_name] = SoundEffect(sfx_data, base_sound_path, self.rng)
+            self.sound_effects[sfx_name] = SoundEffect(
+                sfx_data, base_sound_path, self.rng
+            )
 
         # Load background music
         music_config = config.get("background_music", {})
@@ -527,7 +533,9 @@ class SoundManager:
             )
         return segment
 
-    def _apply_eq(self, segment: AudioSegment, eq_cfg: Dict[str, float]) -> AudioSegment:
+    def _apply_eq(
+        self, segment: AudioSegment, eq_cfg: Dict[str, float]
+    ) -> AudioSegment:
         """Very simple two-band EQ for bass and treble adjustments."""
         bass_gain = eq_cfg.get("bass")
         treble_gain = eq_cfg.get("treble")

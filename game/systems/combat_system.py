@@ -41,9 +41,7 @@ def handle_melee_attack(
     rng: "GameRNG" = gs.rng_instance  # Get RNG from GameState
     game_map = gs.game_map
 
-    att = entity_reg.get_entity_components(
-        attacker_id, ["name", "strength", "x", "y"]
-    )
+    att = entity_reg.get_entity_components(attacker_id, ["name", "strength", "x", "y"])
     defn = entity_reg.get_entity_components(
         defender_id,
         [

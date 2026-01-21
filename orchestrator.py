@@ -188,9 +188,9 @@ def run_pipeline(
                 tile_x_arr = np.rint(x_arr[idxs]).astype(np.int32)
                 tile_y_arr = np.rint(y_arr[idxs]).astype(np.int32)
 
-                for i, ((nid, (nx, ny)), idx) in enumerate(zip(
-                    zip(node_ids, node_coords), idxs.tolist()
-                )):
+                for i, ((nid, (nx, ny)), idx) in enumerate(
+                    zip(zip(node_ids, node_coords), idxs.tolist())
+                ):
                     tile_x = tile_x_arr[i]
                     tile_y = tile_y_arr[i]
                     node_map_rows.append(
@@ -240,12 +240,14 @@ def run_pipeline(
         try:
             with node_map_json_path.open("rb") as node_map_file:
                 node_map_rows_local = orjson.loads(node_map_file.read())
-            node_map_rows = NODE_MAP_ROWS_ADAPTER.validate_python(
-                node_map_rows_local
-            )
+            node_map_rows = NODE_MAP_ROWS_ADAPTER.validate_python(node_map_rows_local)
             # Vectorize coordinate transformations for efficiency
-            tile_ys = np.array([row_obj.tile_y for row_obj in node_map_rows], dtype=np.float64)
-            tile_xs = np.array([row_obj.tile_x for row_obj in node_map_rows], dtype=np.float64)
+            tile_ys = np.array(
+                [row_obj.tile_y for row_obj in node_map_rows], dtype=np.float64
+            )
+            tile_xs = np.array(
+                [row_obj.tile_x for row_obj in node_map_rows], dtype=np.float64
+            )
             rows = np.rint(tile_ys - min_y).astype(np.int32)
             cols = np.rint(tile_xs - min_x).astype(np.int32)
 
@@ -255,9 +257,15 @@ def run_pipeline(
             log.exception("Failed to load node_map JSON: %s", exc)
     elif isinstance(augmented_nodes, list):
         # Vectorize node coordinate transformations for efficiency
-        node_ids = np.array([int(node.get("id")) for node in augmented_nodes], dtype=np.int32)
-        node_xs = np.array([float(node.get("x", 0.0)) for node in augmented_nodes], dtype=np.float64)
-        node_ys = np.array([float(node.get("y", 0.0)) for node in augmented_nodes], dtype=np.float64)
+        node_ids = np.array(
+            [int(node.get("id")) for node in augmented_nodes], dtype=np.int32
+        )
+        node_xs = np.array(
+            [float(node.get("x", 0.0)) for node in augmented_nodes], dtype=np.float64
+        )
+        node_ys = np.array(
+            [float(node.get("y", 0.0)) for node in augmented_nodes], dtype=np.float64
+        )
         cols = np.rint(node_xs - min_x).astype(np.int32)
         rows = np.rint(node_ys - min_y).astype(np.int32)
 

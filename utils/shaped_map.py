@@ -84,7 +84,9 @@ def load_shaped_map_as_arrays(
             dtype=np.int32,
             order="C",
         )
-        chamber_id_grid[gy, gx] = df.get_column("chamber_id").to_numpy().astype(np.int32)
+        chamber_id_grid[gy, gx] = (
+            df.get_column("chamber_id").to_numpy().astype(np.int32)
+        )
         out["chamber_id_grid"] = chamber_id_grid
 
     return out

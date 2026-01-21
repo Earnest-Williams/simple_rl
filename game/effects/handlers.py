@@ -1,7 +1,6 @@
 # game/effects/handlers.py
 # Contains the actual Python functions that implement effect logic.
 
-import re
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 import structlog
@@ -9,6 +8,7 @@ import polars as pl
 
 # Imports for type hinting and GameRNG
 from utils.game_rng import GameRNG
+from utils.helpers import roll_dice as _roll_dice
 from ..world import line_of_sight
 from ..systems.death_system import handle_entity_death
 from magic.models import Art, Substance
@@ -42,36 +42,6 @@ def is_visible_to_player(entity_id: int | None, gs: "GameState") -> bool:
     if not gs.game_map.in_bounds(pos.x, pos.y):
         return False
     return bool(gs.game_map.visible[pos.y, pos.x])
-
-
-# --- Dice Rolling Utility ---
-DICE_PATTERN = re.compile(r"(\d+)?d(\d+)(?:([+-])(\d+))?")
-
-
-def _roll_dice(dice_str: str | None, rng: GameRNG | None) -> int:
-    if not dice_str:
-        return 0
-    if rng is None:
-        log.warning("Dice roll attempted without RNG context!")
-        return 0
-    match = DICE_PATTERN.match(dice_str)
-    if match:
-        num_dice_str, sides_str, operator, bonus_str = match.groups()
-        num_dice = int(num_dice_str) if num_dice_str else 1
-        sides = int(sides_str)
-        bonus = int(f"{operator}{bonus_str}") if operator and bonus_str else 0
-        if sides <= 0:
-            return bonus
-        if num_dice <= 0:
-            return bonus
-        roll_total = sum(rng.get_int(1, sides) for _ in range(num_dice))
-        return roll_total + bonus
-    else:
-        try:
-            return int(dice_str)
-        except ValueError:
-            log.error("Invalid dice string format", dice_str=dice_str)
-            return 0
 
 
 # --- AOE Helper ---
@@ -123,7 +93,7 @@ def _get_entities_in_aoe(
 # --- Handler Functions ---
 
 
-def heal_target(context: Dict[str, Any], params: Dict[str, Any]):
+def heal_target(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Heals the target entity."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
@@ -186,7 +156,7 @@ def heal_target(context: Dict[str, Any], params: Dict[str, Any]):
             log.error("Failed to set new HP for heal target", target_id=target_id)
 
 
-def modify_resource(context: Dict[str, Any], params: Dict[str, Any]):
+def modify_resource(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Modifies a generic entity resource (e.g., fullness, mana). Requires component exists."""
     gs: "GameState" = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
@@ -265,7 +235,7 @@ def modify_resource(context: Dict[str, Any], params: Dict[str, Any]):
         )
 
 
-def recall_ammo(context: Dict[str, Any], params: Dict[str, Any]):
+def recall_ammo(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Returns a projectile item to its owner's inventory."""
     gs: "GameState" = context.get("game_state")
     projectile_item_id = context.get("projectile_item_id")
@@ -323,7 +293,7 @@ def recall_ammo(context: Dict[str, Any], params: Dict[str, Any]):
         )
 
 
-def apply_status(context: Dict[str, Any], params: Dict[str, Any]):
+def apply_status(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Applies a status effect to the target entity."""
     gs: "GameState" = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
@@ -433,7 +403,7 @@ def apply_status(context: Dict[str, Any], params: Dict[str, Any]):
 
 
 # --- Implemented AOE ---
-def apply_status_in_aoe(context: Dict[str, Any], params: Dict[str, Any]):
+def apply_status_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Applies a status effect to all valid targets within an AOE."""
     gs: "GameState" = context.get("game_state")
     center_pos = context.get("target_pos")
@@ -457,7 +427,7 @@ def apply_status_in_aoe(context: Dict[str, Any], params: Dict[str, Any]):
 
 
 # --- Implemented Damage ---
-def deal_damage(context: Dict[str, Any], params: Dict[str, Any]):
+def deal_damage(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Deals damage to a target entity."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
@@ -584,7 +554,7 @@ def deal_damage(context: Dict[str, Any], params: Dict[str, Any]):
 
 
 # --- Implemented AOE Damage ---
-def deal_damage_in_aoe(context: Dict[str, Any], params: Dict[str, Any]):
+def deal_damage_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Deals damage to all valid targets within an AOE."""
     gs: "GameState" = context.get("game_state")
     center_pos = context.get("target_pos")
@@ -615,7 +585,7 @@ def deal_damage_in_aoe(context: Dict[str, Any], params: Dict[str, Any]):
 
 
 # --- Implemented Dig Tunnel (minor refinement) ---
-def dig_tunnel(context: Dict[str, Any], params: Dict[str, Any]):
+def dig_tunnel(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     gs: "GameState" = context.get("game_state")
     source_entity_id = context.get("source_entity_id")
     direction = context.get("target_direction")
@@ -666,7 +636,7 @@ def dig_tunnel(context: Dict[str, Any], params: Dict[str, Any]):
         gs.game_map.update_tile_transparency()  # Crucial after changing tiles
 
 
-def create_portal(context: Dict[str, Any], params: Dict[str, Any]):
+def create_portal(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Creates a portal entity at the target location."""
     gs: "GameState" = context.get("game_state")
     target_pos = context.get("target_pos")
@@ -730,7 +700,7 @@ def create_portal(context: Dict[str, Any], params: Dict[str, Any]):
         log.error("Failed to create portal entity", pos=target_pos)
 
 
-def attempt_spawn_entity(context: Dict[str, Any], params: Dict[str, Any]):
+def attempt_spawn_entity(context: Dict[str, Any], params: Dict[str, Any]) -> None:
     """Attempts to spawn a specified entity at the target location based on chance."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")

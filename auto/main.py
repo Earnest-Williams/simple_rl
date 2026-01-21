@@ -51,7 +51,9 @@ except ImportError:
             enemy_act,
         )
     except ImportError as e:
-        print(f"Failed to import simulation components or GameRNG: {e}", file=sys.stderr)
+        print(
+            f"Failed to import simulation components or GameRNG: {e}", file=sys.stderr
+        )
         sys.exit(1)
 
 
@@ -144,7 +146,9 @@ def run_single_headless(
         world.spawn_random_enemy(rng=local_rng)  # Pass RNG
 
         # Resting Health Regen (No RNG needed here)
-        agent_rested = action_taken_this_turn == "Wait" or action_taken_this_turn is None
+        agent_rested = (
+            action_taken_this_turn == "Wait" or action_taken_this_turn is None
+        )
         if agent_rested and not agent_was_attacked_this_turn:
             if agent.health < START_HEALTH:
                 new_health = min(START_HEALTH, agent.health + REST_HEALTH_REGEN)
@@ -159,7 +163,9 @@ def run_single_headless(
     elif agent_survived:
         final_outcome = "Survived (Unknown)"
     else:
-        final_outcome = cause_of_death if cause_of_death != "Unknown" else "Defeated (Unknown)"
+        final_outcome = (
+            cause_of_death if cause_of_death != "Unknown" else "Defeated (Unknown)"
+        )
 
     # Learning Step
     agent_ai.learn(turns_survived)
@@ -176,16 +182,27 @@ def run_single_headless(
 
 # --- Main Execution Logic ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run GOAP Simulation (GUI or Headless)")
-    parser.add_argument("--mode", choices=["gui", "headless"], default="gui", help="Mode")
+    parser = argparse.ArgumentParser(
+        description="Run GOAP Simulation (GUI or Headless)"
+    )
+    parser.add_argument(
+        "--mode", choices=["gui", "headless"], default="gui", help="Mode"
+    )
     parser.add_argument(
         "-n", "--num-runs", type=int, default=DEFAULT_NUM_RUNS, help="Number of runs"
     )
     parser.add_argument(
-        "-w", "--workers", type=int, default=DEFAULT_NUM_WORKERS, help="Number of workers"
+        "-w",
+        "--workers",
+        type=int,
+        default=DEFAULT_NUM_WORKERS,
+        help="Number of workers",
     )
     parser.add_argument(
-        "--learn", choices=["independent", "shared"], default="independent", help="Learning mode"
+        "--learn",
+        choices=["independent", "shared"],
+        default="independent",
+        help="Learning mode",
     )
     parser.add_argument(
         "--seed",
@@ -210,7 +227,8 @@ if __name__ == "__main__":
                 file=sys.stderr,
             )
             print(
-                "If running directly, ensure script is in the correct directory.", file=sys.stderr
+                "If running directly, ensure script is in the correct directory.",
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -255,7 +273,11 @@ if __name__ == "__main__":
 
         # Prepare arguments for each run (run_id, initial_weights, seed)
         run_args = [
-            (i + 1, initial_weights_arg if args.learn == "shared" else None, run_seeds[i])
+            (
+                i + 1,
+                initial_weights_arg if args.learn == "shared" else None,
+                run_seeds[i],
+            )
             for i in range(args.num_runs)
         ]
 
@@ -264,7 +286,9 @@ if __name__ == "__main__":
 
         try:
             if num_actual_workers > 1:
-                print(f"Using multiprocessing Pool with {num_actual_workers} workers...")
+                print(
+                    f"Using multiprocessing Pool with {num_actual_workers} workers..."
+                )
                 with Pool(processes=num_actual_workers) as pool:
                     if profiler:
                         profiler.enable()
@@ -322,7 +346,9 @@ if __name__ == "__main__":
                 print(f"  - {name:<20}: {weight:.3f}")
 
         total_end_time = time.time()
-        print(f"\nTotal Headless Execution Time: {total_end_time - total_start_time:.2f}s")
+        print(
+            f"\nTotal Headless Execution Time: {total_end_time - total_start_time:.2f}s"
+        )
 
         if profiler:
             print("\n--- cProfile Results (First Run) ---")
