@@ -167,7 +167,7 @@ class MacroManager:
                         f"Warning: Detected recursion for macro {macro_name}. "
                         "Stopping expansion here."
                     )
-                    print(warning_message)
+                    print(warning_message)  # TODO: Replace with logging.warning
                     current_expansion += macro_name  # Keep the macro name as is
                 elif macro_name in self.macros:
                     # Expand the macro
