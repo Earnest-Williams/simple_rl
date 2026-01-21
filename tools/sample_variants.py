@@ -12,7 +12,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -79,6 +79,9 @@ def generate_variants(args) -> None:
     records = []
 
     for i in range(args.count):
+        # Capture RNG state BEFORE generation for reproducibility
+        state_before = rng.get_state() if args.output else None
+
         if args.mode == "room":
             text = engine.room_description()
         elif args.mode == "name":
@@ -90,9 +93,17 @@ def generate_variants(args) -> None:
 
         variants.append(text)
 
-        # Create record if saving
-        if args.output:
-            record = record_output(rng, args.mode, text, {"index": i})
+        # Create record if saving (using pre-generation state)
+        if args.output and state_before is not None:
+            # Create record with pre-generation state for proper replay
+            from utils.core import OutputRecord
+            record = OutputRecord(
+                tag=args.mode,
+                text=text,
+                seed=rng.initial_seed,
+                rng_state=state_before,
+                metadata={"index": i}
+            )
             records.append(record)
 
         # Print if requested

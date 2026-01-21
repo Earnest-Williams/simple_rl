@@ -25,14 +25,14 @@ from utils.core import (
 class TestLexicon:
     """Tests for Lexicon class."""
 
-    def test_create_empty_lexicon(self):
+    def test_create_empty_lexicon(self) -> None:
         """Test creating an empty lexicon."""
         lex = Lexicon()
         assert lex.adjectives == []
         assert lex.nouns == []
         assert lex.features == []
 
-    def test_create_lexicon_from_dict(self):
+    def test_create_lexicon_from_dict(self) -> None:
         """Test creating lexicon from dictionary."""
         data = {
             "adjectives": ["dark", "light"],
@@ -44,7 +44,7 @@ class TestLexicon:
         assert lex.nouns == ["room", "hall"]
         assert lex.features == ["a torch", "a statue"]
 
-    def test_lexicon_to_dict(self):
+    def test_lexicon_to_dict(self) -> None:
         """Test converting lexicon to dictionary."""
         lex = Lexicon(
             adjectives=["dark", "light"],
@@ -54,7 +54,7 @@ class TestLexicon:
         assert data["adjectives"] == ["dark", "light"]
         assert data["nouns"] == ["room", "hall"]
 
-    def test_save_load_json(self):
+    def test_save_load_json(self) -> None:
         """Test saving and loading lexicon as JSON."""
         lex = Lexicon(
             adjectives=["dark", "bright"],
@@ -75,21 +75,21 @@ class TestLexicon:
 class TestVariationEngine:
     """Tests for VariationEngine class."""
 
-    def test_create_engine_with_default_lexicon(self):
+    def test_create_engine_with_default_lexicon(self) -> None:
         """Test creating engine with default lexicon."""
         rng = GameRNG(seed=12345)
         engine = VariationEngine(rng)
         assert engine.lexicon is not None
         assert len(engine.lexicon.adjectives) > 0
 
-    def test_create_engine_with_custom_lexicon(self):
+    def test_create_engine_with_custom_lexicon(self) -> None:
         """Test creating engine with custom lexicon."""
         rng = GameRNG(seed=12345)
         lex = Lexicon(adjectives=["custom"], nouns=["test"])
         engine = VariationEngine(rng, lexicon=lex)
         assert engine.lexicon.adjectives == ["custom"]
 
-    def test_adjective_selection_deterministic(self):
+    def test_adjective_selection_deterministic(self) -> None:
         """Test that adjective selection is deterministic."""
         rng1 = GameRNG(seed=42)
         rng2 = GameRNG(seed=42)
@@ -102,7 +102,7 @@ class TestVariationEngine:
 
         assert adj1 == adj2
 
-    def test_room_description_deterministic(self):
+    def test_room_description_deterministic(self) -> None:
         """Test that room descriptions are deterministic."""
         rng1 = GameRNG(seed=99)
         rng2 = GameRNG(seed=99)
@@ -115,7 +115,7 @@ class TestVariationEngine:
 
         assert desc1 == desc2
 
-    def test_room_description_variety(self):
+    def test_room_description_variety(self) -> None:
         """Test that room descriptions produce variety."""
         rng = GameRNG(seed=123)
         engine = VariationEngine(rng)
@@ -126,7 +126,7 @@ class TestVariationEngine:
         # Should have at least 30% unique descriptions
         assert unique / 50 >= 0.3
 
-    def test_tone_profile_changes_output(self):
+    def test_tone_profile_changes_output(self) -> None:
         """Test that different tone profiles produce different outputs."""
         rng = GameRNG(seed=456)
 
@@ -144,7 +144,7 @@ class TestVariationEngine:
         ornate_templates = ornate._get_templates_for_tone()
         assert terse_templates != ornate_templates
 
-    def test_optional_clause(self):
+    def test_optional_clause(self) -> None:
         """Test optional clause generation."""
         rng = GameRNG(seed=789)
         engine = VariationEngine(rng)
@@ -157,7 +157,7 @@ class TestVariationEngine:
         clause = engine.optional_clause(probability=1.0)
         assert len(clause) > 0
 
-    def test_synonym_substitution(self):
+    def test_synonym_substitution(self) -> None:
         """Test synonym substitution functionality."""
         rng = GameRNG(seed=111)
         engine = VariationEngine(rng)
@@ -174,7 +174,7 @@ class TestVariationEngine:
         assert any(syn in result for syn in ["shadowy", "gloomy", "murky"])
         assert any(syn in result for syn in ["chamber", "hall", "space"])
 
-    def test_anti_repeat_biasing(self):
+    def test_anti_repeat_biasing(self) -> None:
         """Test that anti-repeat biasing reduces immediate repetitions."""
         rng = GameRNG(seed=222)
 
@@ -199,7 +199,7 @@ class TestVariationEngine:
 class TestOutputRecord:
     """Tests for OutputRecord and structured logging."""
 
-    def test_create_output_record(self):
+    def test_create_output_record(self) -> None:
         """Test creating an output record."""
         rng = GameRNG(seed=333)
         record = record_output(rng, "test", "Sample text", {"extra": "data"})
@@ -210,7 +210,7 @@ class TestOutputRecord:
         assert record.metadata["extra"] == "data"
         assert "rng_state" in record.to_dict()
 
-    def test_output_record_to_json(self):
+    def test_output_record_to_json(self) -> None:
         """Test converting output record to JSON."""
         rng = GameRNG(seed=444)
         record = record_output(rng, "test", "Sample")
@@ -222,7 +222,7 @@ class TestOutputRecord:
         assert data["text"] == "Sample"
         assert data["seed"] == 444
 
-    def test_output_record_roundtrip(self):
+    def test_output_record_roundtrip(self) -> None:
         """Test converting output record to dict and back."""
         rng = GameRNG(seed=555)
         original = record_output(rng, "test", "Sample text")
@@ -234,7 +234,7 @@ class TestOutputRecord:
         assert restored.text == original.text
         assert restored.seed == original.seed
 
-    def test_write_read_ndjson(self):
+    def test_write_read_ndjson(self) -> None:
         """Test writing and reading NDJSON files."""
         rng = GameRNG(seed=666)
 
@@ -259,13 +259,13 @@ class TestOutputRecord:
 class TestVarietyMetrics:
     """Tests for variety metrics computation."""
 
-    def test_compute_metrics_empty(self):
+    def test_compute_metrics_empty(self) -> None:
         """Test metrics computation with empty list."""
         metrics = compute_variety_metrics([])
         assert metrics.total == 0
         assert metrics.unique == 0
 
-    def test_compute_metrics_all_unique(self):
+    def test_compute_metrics_all_unique(self) -> None:
         """Test metrics with all unique items."""
         variants = ["a", "b", "c", "d", "e"]
         metrics = compute_variety_metrics(variants)
@@ -275,7 +275,7 @@ class TestVarietyMetrics:
         assert metrics.unique_fraction == 1.0
         assert metrics.duplicate_count == 0
 
-    def test_compute_metrics_all_same(self):
+    def test_compute_metrics_all_same(self) -> None:
         """Test metrics with all identical items."""
         variants = ["same"] * 10
         metrics = compute_variety_metrics(variants)
@@ -285,7 +285,7 @@ class TestVarietyMetrics:
         assert metrics.unique_fraction == 0.1
         assert metrics.duplicate_count == 9
 
-    def test_compute_metrics_mixed(self):
+    def test_compute_metrics_mixed(self) -> None:
         """Test metrics with mixed unique and duplicate items."""
         variants = ["a", "a", "b", "c", "c", "c", "d"]
         metrics = compute_variety_metrics(variants)
@@ -294,7 +294,7 @@ class TestVarietyMetrics:
         assert metrics.unique == 4  # a, b, c, d
         assert metrics.duplicate_count == 3
 
-    def test_entropy_computation(self):
+    def test_entropy_computation(self) -> None:
         """Test entropy computation."""
         # Uniform distribution should have maximum entropy
         uniform = ["a", "b", "c", "d"]
@@ -306,7 +306,7 @@ class TestVarietyMetrics:
 
         assert metrics_uniform.entropy > metrics_skewed.entropy
 
-    def test_most_common_tracking(self):
+    def test_most_common_tracking(self) -> None:
         """Test that most common items are tracked."""
         variants = ["a"] * 5 + ["b"] * 3 + ["c"] * 2 + ["d"]
         metrics = compute_variety_metrics(variants)
@@ -315,7 +315,7 @@ class TestVarietyMetrics:
         # Most common should be "a" with count 5
         assert metrics.most_common[0] == ("a", 5)
 
-    def test_variety_metrics_str_representation(self):
+    def test_variety_metrics_str_representation(self) -> None:
         """Test string representation of metrics."""
         variants = ["x", "y", "z"]
         metrics = compute_variety_metrics(variants)
@@ -328,19 +328,19 @@ class TestVarietyMetrics:
 class TestJaccardSimilarity:
     """Tests for Jaccard similarity computation."""
 
-    def test_identical_sets(self):
+    def test_identical_sets(self) -> None:
         """Test Jaccard similarity of identical sets."""
         set1 = {"a", "b", "c"}
         set2 = {"a", "b", "c"}
         assert jaccard_similarity(set1, set2) == 1.0
 
-    def test_disjoint_sets(self):
+    def test_disjoint_sets(self) -> None:
         """Test Jaccard similarity of disjoint sets."""
         set1 = {"a", "b", "c"}
         set2 = {"d", "e", "f"}
         assert jaccard_similarity(set1, set2) == 0.0
 
-    def test_partial_overlap(self):
+    def test_partial_overlap(self) -> None:
         """Test Jaccard similarity with partial overlap."""
         set1 = {"a", "b", "c"}
         set2 = {"b", "c", "d"}
@@ -349,7 +349,7 @@ class TestJaccardSimilarity:
         # Jaccard = 2/4 = 0.5
         assert jaccard_similarity(set1, set2) == 0.5
 
-    def test_empty_sets(self):
+    def test_empty_sets(self) -> None:
         """Test Jaccard similarity of empty sets."""
         set1 = set()
         set2 = set()
@@ -359,13 +359,13 @@ class TestJaccardSimilarity:
 class TestNameGenerator:
     """Tests for Markov chain name generator."""
 
-    def test_create_generator(self):
+    def test_create_generator(self) -> None:
         """Test creating a name generator."""
         rng = GameRNG(seed=777)
         gen = NameGenerator(rng, order=2)
         assert gen.order == 2
 
-    def test_train_generator(self):
+    def test_train_generator(self) -> None:
         """Test training the generator."""
         rng = GameRNG(seed=888)
         gen = NameGenerator(rng, order=2)
@@ -376,7 +376,7 @@ class TestNameGenerator:
         assert len(gen.start_tokens) > 0
         assert len(gen.chain) > 0
 
-    def test_generate_name_deterministic(self):
+    def test_generate_name_deterministic(self) -> None:
         """Test that name generation is deterministic."""
         corpus = ["frodo", "bilbo", "gandalf", "aragorn", "legolas"]
 
@@ -392,7 +392,7 @@ class TestNameGenerator:
 
         assert name1 == name2
 
-    def test_generate_multiple_unique_names(self):
+    def test_generate_multiple_unique_names(self) -> None:
         """Test generating multiple names produces variety."""
         rng = GameRNG(seed=1111)
         gen = NameGenerator(rng, order=2)
@@ -409,7 +409,7 @@ class TestNameGenerator:
         # Should generate at least 10 unique names
         assert unique >= 10
 
-    def test_generate_respects_length_constraints(self):
+    def test_generate_respects_length_constraints(self) -> None:
         """Test that generated names respect length constraints."""
         rng = GameRNG(seed=1212)
         gen = NameGenerator(rng, order=2)
@@ -420,7 +420,7 @@ class TestNameGenerator:
         name = gen.generate(min_length=5, max_length=8)
         assert 5 <= len(name) <= 8
 
-    def test_capitalize_option(self):
+    def test_capitalize_option(self) -> None:
         """Test name capitalization option."""
         rng = GameRNG(seed=1313)
         gen = NameGenerator(rng, order=2)
@@ -437,7 +437,7 @@ class TestNameGenerator:
         name_lower = gen.generate(capitalize=False)
         assert name_lower[0].islower()
 
-    def test_default_fantasy_generator(self):
+    def test_default_fantasy_generator(self) -> None:
         """Test creating default fantasy name generator."""
         rng = GameRNG(seed=1414)
         gen = NameGenerator.default_fantasy_generator(rng)
@@ -450,7 +450,7 @@ class TestNameGenerator:
 class TestIntegrationVarietyWorkflow:
     """Integration tests for full variety workflow."""
 
-    def test_generate_analyze_workflow(self):
+    def test_generate_analyze_workflow(self) -> None:
         """Test complete workflow: generate variants and analyze."""
         rng = GameRNG(seed=2000)
         engine = VariationEngine(rng)
@@ -465,7 +465,7 @@ class TestIntegrationVarietyWorkflow:
         assert metrics.unique_fraction > 0.5
         assert metrics.total == 100
 
-    def test_record_and_replay_workflow(self):
+    def test_record_and_replay_workflow(self) -> None:
         """Test recording outputs and replaying from state."""
         rng = GameRNG(seed=3000)
 
@@ -485,7 +485,7 @@ class TestIntegrationVarietyWorkflow:
         # Should generate same text when replaying from same RNG state
         assert text1 == text2
 
-    def test_save_load_replay_workflow(self):
+    def test_save_load_replay_workflow(self) -> None:
         """Test full save/load/replay workflow with NDJSON."""
         rng = GameRNG(seed=4000)
         engine = VariationEngine(rng)
@@ -517,7 +517,7 @@ class TestIntegrationVarietyWorkflow:
 class TestToneProfiles:
     """Tests for tone profile variations."""
 
-    def test_all_tone_profiles_work(self):
+    def test_all_tone_profiles_work(self) -> None:
         """Test that all tone profiles can generate text."""
         rng = GameRNG(seed=5000)
 
@@ -526,7 +526,7 @@ class TestToneProfiles:
             desc = engine.room_description()
             assert len(desc) > 0
 
-    def test_tone_profiles_produce_different_styles(self):
+    def test_tone_profiles_produce_different_styles(self) -> None:
         """Test that tone profiles produce stylistically different output."""
         # Generate samples with each tone
         samples = {}

@@ -25,13 +25,17 @@ from collections import deque, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Callable
 
 try:
     import polars as pl
     POLARS_AVAILABLE = True
 except ImportError:
     POLARS_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from jinja2 import Environment
 
 from utils.game_rng import GameRNG
 
@@ -63,15 +67,15 @@ class OutputMode(Enum):
 @dataclass
 class Lexicon:
     """Container for word lists used in text generation."""
-    adjectives: List[str] = field(default_factory=list)
-    nouns: List[str] = field(default_factory=list)
-    features: List[str] = field(default_factory=list)
-    verbs: List[str] = field(default_factory=list)
-    adverbs: List[str] = field(default_factory=list)
-    clauses: List[str] = field(default_factory=list)
+    adjectives: list[str] = field(default_factory=list)
+    nouns: list[str] = field(default_factory=list)
+    features: list[str] = field(default_factory=list)
+    verbs: list[str] = field(default_factory=list)
+    adverbs: list[str] = field(default_factory=list)
+    clauses: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, List[str]]) -> Lexicon:
+    def from_dict(cls, data: dict[str, list[str]]) -> Lexicon:
         """Create lexicon from dictionary."""
         return cls(
             adjectives=data.get("adjectives", []),
@@ -83,7 +87,7 @@ class Lexicon:
         )
 
     @classmethod
-    def load_from_file(cls, path: Union[str, Path]) -> Lexicon:
+    def load_from_file(cls, path: str | Path) -> Lexicon:
         """Load lexicon from JSON or YAML file."""
         path = Path(path)
         with open(path, 'r', encoding='utf-8') as f:
@@ -96,7 +100,7 @@ class Lexicon:
                 raise ValueError(f"Unsupported file format: {path.suffix}")
         return cls.from_dict(data)
 
-    def to_dict(self) -> Dict[str, List[str]]:
+    def to_dict(self) -> dict[str, list[str]]:
         """Export lexicon to dictionary."""
         return {
             "adjectives": self.adjectives,
@@ -107,7 +111,7 @@ class Lexicon:
             "clauses": self.clauses
         }
 
-    def save_to_file(self, path: Union[str, Path]) -> None:
+    def save_to_file(self, path: str | Path) -> None:
         """Save lexicon to JSON or YAML file."""
         path = Path(path)
         with open(path, 'w', encoding='utf-8') as f:
@@ -131,7 +135,7 @@ class VariationEngine:
     def __init__(
         self,
         rng: GameRNG,
-        lexicon: Optional[Lexicon] = None,
+        lexicon: Lexicon | None = None,
         tone: ToneProfile = ToneProfile.NEUTRAL,
         anti_repeat_size: int = 50
     ) -> None:
@@ -253,7 +257,7 @@ class VariationEngine:
 
     def room_description(
         self,
-        nouns: Optional[Sequence[str]] = None,
+        nouns: Sequence[str] | None = None,
         include_clause: bool = True
     ) -> str:
         """Generate a varied room description.
@@ -287,7 +291,7 @@ class VariationEngine:
 
         return result
 
-    def _get_templates_for_tone(self) -> List[str]:
+    def _get_templates_for_tone(self) -> list[str]:
         """Get template list based on current tone profile."""
         base_templates = [
             "A {adj} {noun} dominated by {feature}.",
@@ -321,7 +325,7 @@ class VariationEngine:
     def substitute_synonyms(
         self,
         text: str,
-        synonym_map: Dict[str, Sequence[str]]
+        synonym_map: dict[str, Sequence[str]]
     ) -> str:
         """Replace words in text with synonyms from a mapping.
 
@@ -369,11 +373,11 @@ class OutputRecord:
     tag: str
     text: str
     seed: int
-    rng_state: Dict[str, Any]
+    rng_state: dict[str, Any]
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "tag": self.tag,
@@ -389,7 +393,7 @@ class OutputRecord:
         return json.dumps(self.to_dict())
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> OutputRecord:
+    def from_dict(cls, data: dict[str, Any]) -> OutputRecord:
         """Create from dictionary."""
         return cls(
             tag=data["tag"],
@@ -405,7 +409,7 @@ def record_output(
     rng: GameRNG,
     tag: str,
     text: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 ) -> OutputRecord:
     """Create a structured output record with RNG state.
 
@@ -427,7 +431,7 @@ def record_output(
     )
 
 
-def write_ndjson(records: Sequence[OutputRecord], path: Union[str, Path]) -> None:
+def write_ndjson(records: Sequence[OutputRecord], path: str | Path) -> None:
     """Write records as newline-delimited JSON.
 
     Args:
@@ -440,7 +444,7 @@ def write_ndjson(records: Sequence[OutputRecord], path: Union[str, Path]) -> Non
             f.write(record.to_json() + '\n')
 
 
-def read_ndjson(path: Union[str, Path]) -> List[OutputRecord]:
+def read_ndjson(path: str | Path) -> list[OutputRecord]:
     """Read records from newline-delimited JSON.
 
     Args:
@@ -471,7 +475,7 @@ class VarietyMetrics:
     unique: int
     unique_fraction: float
     duplicate_count: int
-    most_common: List[tuple[str, int]] = field(default_factory=list)
+    most_common: list[tuple[str, int]] = field(default_factory=list)
     entropy: float = 0.0
 
     def __str__(self) -> str:
@@ -589,8 +593,8 @@ class NameGenerator:
         """
         self.rng = rng
         self.order = order
-        self.chain: Dict[str, List[str]] = defaultdict(list)
-        self.start_tokens: List[str] = []
+        self.chain: dict[str, list[str]] = defaultdict(list)
+        self.start_tokens: list[str] = []
 
     def train(self, names: Sequence[str]) -> None:
         """Train the Markov chain on a corpus of names.
@@ -640,30 +644,40 @@ class NameGenerator:
         if not self.start_tokens:
             raise ValueError("Must train generator before generating names")
 
-        # Pick a random start
-        name = self.rng.choice(self.start_tokens)
+        # Try up to 10 times to generate a valid name
+        for attempt in range(10):
+            # Pick a random start
+            name = self.rng.choice(self.start_tokens)
 
-        # Generate characters
-        for _ in range(max_length - self.order):
-            context = name[-self.order:]
+            # Generate characters
+            for _ in range(max_length - self.order):
+                context = name[-self.order:]
 
-            if context not in self.chain:
-                break
-
-            next_options = self.chain[context]
-            next_char = self.rng.choice(next_options)
-
-            if next_char == '\0':  # End marker
-                if len(name) >= min_length:
+                if context not in self.chain:
                     break
-                else:
-                    continue  # Too short, try to continue
 
-            name += next_char
+                next_options = self.chain[context]
+                next_char = self.rng.choice(next_options)
 
+                if next_char == '\0':  # End marker
+                    if len(name) >= min_length:
+                        break
+                    else:
+                        # Too short but hit end marker, restart with new seed
+                        break
+
+                name += next_char
+
+            # If name meets minimum length, return it
+            if len(name) >= min_length:
+                if capitalize:
+                    name = name.capitalize()
+                return name
+
+        # Fallback: if all attempts failed, return padded start token
+        name = self.rng.choice(self.start_tokens)
         if capitalize:
             name = name.capitalize()
-
         return name
 
     @classmethod
@@ -700,7 +714,7 @@ class NameGenerator:
 # ---------------------------------------------------------------------------
 
 
-def make_jinja_env(rng: GameRNG) -> Any:
+def make_jinja_env(rng: GameRNG) -> "Environment":
     """Create a Jinja2 environment with RNG-based filters.
 
     Requires jinja2 to be installed.

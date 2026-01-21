@@ -20,7 +20,7 @@ from utils.core import (
 class TestVarietyCoverageThresholds:
     """Tests to ensure minimum variety thresholds are met."""
 
-    def test_room_description_variety_threshold(self):
+    def test_room_description_variety_threshold(self) -> None:
         """Ensure room descriptions meet minimum variety threshold."""
         rng = GameRNG(seed=42)
         engine = VariationEngine(rng)
@@ -42,7 +42,7 @@ class TestVarietyCoverageThresholds:
             f"Room descriptions have low entropy: {metrics.entropy:.3f}"
         )
 
-    def test_terse_tone_variety_threshold(self):
+    def test_terse_tone_variety_threshold(self) -> None:
         """Ensure terse tone maintains variety."""
         rng = GameRNG(seed=100)
         engine = VariationEngine(rng, tone=ToneProfile.TERSE)
@@ -56,7 +56,7 @@ class TestVarietyCoverageThresholds:
             f"{metrics.unique_fraction:.3f} < 0.4"
         )
 
-    def test_ornate_tone_variety_threshold(self):
+    def test_ornate_tone_variety_threshold(self) -> None:
         """Ensure ornate tone maintains variety."""
         rng = GameRNG(seed=200)
         engine = VariationEngine(rng, tone=ToneProfile.ORNATE)
@@ -70,7 +70,7 @@ class TestVarietyCoverageThresholds:
             f"{metrics.unique_fraction:.3f} < 0.5"
         )
 
-    def test_name_generation_variety_threshold(self):
+    def test_name_generation_variety_threshold(self) -> None:
         """Ensure name generation produces diverse names."""
         rng = GameRNG(seed=300)
         gen = NameGenerator.default_fantasy_generator(rng)
@@ -85,7 +85,7 @@ class TestVarietyCoverageThresholds:
             f"{metrics.unique_fraction:.3f} < 0.70"
         )
 
-    def test_custom_lexicon_variety(self):
+    def test_custom_lexicon_variety(self) -> None:
         """Test variety with custom lexicon."""
         rng = GameRNG(seed=400)
 
@@ -114,7 +114,7 @@ class TestVarietyCoverageThresholds:
             f"{metrics.unique_fraction:.3f} < 0.3"
         )
 
-    def test_anti_repeat_effectiveness(self):
+    def test_anti_repeat_effectiveness(self) -> None:
         """Test that anti-repeat biasing reduces consecutive duplicates."""
         rng = GameRNG(seed=500)
 
@@ -141,7 +141,7 @@ class TestVarietyCoverageThresholds:
             f"Too many consecutive duplicates: {consecutive_dupes} >= 10"
         )
 
-    def test_no_empty_outputs(self):
+    def test_no_empty_outputs(self) -> None:
         """Ensure generation never produces empty strings."""
         rng = GameRNG(seed=600)
         engine = VariationEngine(rng)
@@ -158,7 +158,7 @@ class TestVarietyCoverageThresholds:
             "Found suspiciously short output"
         )
 
-    def test_deterministic_variety(self):
+    def test_deterministic_variety(self) -> None:
         """Ensure variety metrics are deterministic for same seed."""
         # Run 1
         rng1 = GameRNG(seed=700)
@@ -191,7 +191,7 @@ class TestVarietyRegression:
             "names_200": 0.70,  # Adjusted for Markov chain behavior
         }
 
-    def test_room_neutral_regression(self, baseline_variety):
+    def test_room_neutral_regression(self, baseline_variety) -> None:
         """Test room descriptions don't regress below baseline."""
         rng = GameRNG(seed=1000)
         engine = VariationEngine(rng, tone=ToneProfile.NEUTRAL)
@@ -204,7 +204,7 @@ class TestVarietyRegression:
             f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
         )
 
-    def test_room_terse_regression(self, baseline_variety):
+    def test_room_terse_regression(self, baseline_variety) -> None:
         """Test terse descriptions don't regress below baseline."""
         rng = GameRNG(seed=1100)
         engine = VariationEngine(rng, tone=ToneProfile.TERSE)
@@ -217,7 +217,7 @@ class TestVarietyRegression:
             f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
         )
 
-    def test_room_ornate_regression(self, baseline_variety):
+    def test_room_ornate_regression(self, baseline_variety) -> None:
         """Test ornate descriptions don't regress below baseline."""
         rng = GameRNG(seed=1200)
         engine = VariationEngine(rng, tone=ToneProfile.ORNATE)
@@ -230,7 +230,7 @@ class TestVarietyRegression:
             f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
         )
 
-    def test_names_regression(self, baseline_variety):
+    def test_names_regression(self, baseline_variety) -> None:
         """Test name generation doesn't regress below baseline."""
         rng = GameRNG(seed=1300)
         gen = NameGenerator.default_fantasy_generator(rng)
@@ -247,7 +247,7 @@ class TestVarietyRegression:
 class TestEdgeCases:
     """Edge case tests for variety metrics."""
 
-    def test_single_template_still_varies(self):
+    def test_single_template_still_varies(self) -> None:
         """Test that even single template produces some variety."""
         rng = GameRNG(seed=2000)
 
@@ -269,7 +269,7 @@ class TestEdgeCases:
         # Should still get some variety from lexicon choices
         assert metrics.unique > 10
 
-    def test_very_small_lexicon_warning(self):
+    def test_very_small_lexicon_warning(self) -> None:
         """Test behavior with extremely small lexicon."""
         rng = GameRNG(seed=3000)
 
