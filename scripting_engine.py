@@ -13,9 +13,13 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Literal, Protocol, TypedDict
 
+import structlog
+
 from magic.brainfuck_numba import BFResult, run_brainfuck
 
 _MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
+_MACRO_NAME: re.Pattern[str] = re.compile(r"^!\w+$")
+log = structlog.get_logger()
 MacroExpansionReason = Literal[
     "char_limit_exceeded",
     "depth_exceeded",
@@ -61,6 +65,25 @@ BFRunResult = BFRunSuccess | BFRunFailure
 class ErrorResult(TypedDict):
     error: str
     is_error: bool
+
+
+MacroErrorCode = Literal[
+    "invalid_macro_name",
+    "macro_definition_too_large",
+    "macro_store_full",
+    "macro_definition_invalid_format",
+] | MacroExpansionReason
+
+
+@dataclass(frozen=True)
+class MacroError:
+    code: MacroErrorCode
+    message: str
+
+
+class MacroErrorResult(TypedDict):
+    success: Literal[False]
+    error: MacroError
 
 
 class BrainfuckRunner:
@@ -115,6 +138,9 @@ class MacroManager:
     Also handles Brainfuck code execution through integration with BrainfuckRunner.
     """
 
+    MAX_MACROS: int = 1024
+    MAX_DEF_LEN: int = 4096
+
     def __init__(self, game_state: GameStateProtocol | None = None) -> None:
         """
         Initialize the MacroManager.
@@ -128,7 +154,7 @@ class MacroManager:
         )
         self.bf_runner: BrainfuckRunner = BrainfuckRunner()
 
-    def define(self, name: str, sequence: str) -> str:
+    def define(self, name: str, sequence: str) -> str | MacroError:
         """
         Define a new macro with the given name and command sequence.
 
@@ -139,14 +165,26 @@ class MacroManager:
         Returns:
             str: Confirmation message or error message
         """
-        # Add basic validation for macro names
-        if not re.match(r"^!\w+$", name):
-            error_message = (
-                f"Error: Invalid macro name '{name}'. Must start with ! and "
-                "contain only letters, numbers, or _."
+        if not _MACRO_NAME.match(name):
+            return MacroError(
+                code="invalid_macro_name",
+                message=(
+                    "Macro names must start with ! and contain only letters, "
+                    "numbers, or _."
+                ),
             )
-            return error_message
+        if len(sequence) > self.MAX_DEF_LEN:
+            return MacroError(
+                code="macro_definition_too_large",
+                message="Macro definition exceeds maximum size.",
+            )
+        if len(self.macros) >= self.MAX_MACROS and name not in self.macros:
+            return MacroError(
+                code="macro_store_full",
+                message="Macro store is full.",
+            )
         self.macros[name] = sequence
+        log.debug("macro_defined", macro=name, length=len(sequence))
         return f"Defined macro {name} = {sequence}"
 
     def expand_macros(self, text: str, expansion_limit: int = 10) -> str:
@@ -286,7 +324,7 @@ class MacroManager:
         # Return the final display state text
         return outputs[-1] if outputs else "No valid commands executed."
 
-    def process_line(self, line: str) -> str | ErrorResult:
+    def process_line(self, line: str) -> str | ErrorResult | MacroErrorResult:
         """
         Process a line of input, which could be a macro definition, macro execution,
         Brainfuck code, or direct game commands.
@@ -301,25 +339,48 @@ class MacroManager:
 
         # Define a new macro
         if line.startswith("!") and "=" in line:
-            # Ensure correct splitting, handle potential '=' in sequence
             parts: list[str] = line.split("=", 1)
             if len(parts) == 2:
                 name: str
                 seq: str
                 name, seq = map(str.strip, parts)
-                if name.startswith("!"):  # Validate name starts with !
-                    return self.define(name, seq)
-                else:
-                    return "Error: Macro name must start with '!'"
-            else:  # Handle case like "!foo=" or just "!foo"
-                return "Error: Invalid macro definition format. Use !name=sequence"
+                if not name.startswith("!"):
+                    return {
+                        "success": False,
+                        "error": MacroError(
+                            code="invalid_macro_name",
+                            message="Macro name must start with '!'.",
+                        ),
+                    }
+                define_result: str | MacroError = self.define(name, seq)
+                if isinstance(define_result, MacroError):
+                    return {"success": False, "error": define_result}
+                return define_result
+            return {
+                "success": False,
+                "error": MacroError(
+                    code="macro_definition_invalid_format",
+                    message="Invalid macro definition format. Use !name=sequence.",
+                ),
+            }
 
         # Expand potential macros in the line first
         # Limit expansion depth to prevent infinite loops
         try:
             expanded_line: str = self.expand_macros(line, expansion_limit=10)
-        except Exception as exc:
-            return f"Error during macro expansion: {exc}"
+        except MacroExpansionError as exc:
+            log.warning(
+                "macro_expansion_failed",
+                code=exc.reason,
+                msg=str(exc),
+            )
+            return {
+                "success": False,
+                "error": MacroError(
+                    code=exc.reason,
+                    message=str(exc),
+                ),
+            }
 
         # Execute a macro (check if the fully expanded line is just a known macro name)
         if expanded_line.startswith("!") and expanded_line in self.macros:
@@ -350,7 +411,7 @@ class MacroManager:
                     if bf_output:
                         # Convert Brainfuck output to game commands
                         # Note: BF output might not be valid game commands!
-                        print(f"Brainfuck output: {bf_output}")  # Log BF output
+                        log.debug("brainfuck_output", output=bf_output)
                         return self.execute_command_sequence(bf_output)
                     else:
                         return "Brainfuck program executed with no command output."
