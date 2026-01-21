@@ -76,7 +76,7 @@ def tokenize(source: str) -> list[Token]:
 
     parser = create_work_grammar(keywords)
     try:
-        parsed = parser.parseString(source, parseAll=False)
+        parsed = parser.parseString(source, parseAll=True)
     except ParseException as exc:
         raise ValueError("Failed to tokenize work declaration") from exc
 
@@ -103,6 +103,8 @@ def parse(source: str) -> Work:
     resulting declaration is then converted into an engine-level
     :class:`~magic.models.Work` using :func:`compile_ledger_work`.
 
+    Clauses can appear in any order, but all required clauses must be present.
+
     Parameters
     ----------
     source:
@@ -115,58 +117,45 @@ def parse(source: str) -> Work:
     """
 
     tokens = tokenize(source)
-    index = 0
 
-    def expect_keyword(name: str) -> None:
-        nonlocal index
-        if index >= len(tokens) or tokens[index] != ("KEYWORD", name):
-            raise ValueError(f"Expected clause {name}")
-        index += 1
-
-    def read_value() -> str:
-        nonlocal index
-        if index >= len(tokens) or tokens[index][0] != "VALUE":
-            raise ValueError("Expected value following clause keyword")
-        value = tokens[index][1]
-        index += 1
-        return value
-
-    expect_keyword("ART")
-    art = ArtClause(read_value())
-    expect_keyword("BOUNDS")
-    bounds = BoundsClause(read_value())
-    expect_keyword("BALANCES")
-    balances = BalancesClause(read_value())
-    expect_keyword("FLOW")
-    flow = FlowClause(read_value())
-    expect_keyword("SEALS")
-    seals = SealsClause(read_value())
-    expect_keyword("PROVISIONS")
-    provisions = ProvisionsClause(read_value())
-    expect_keyword("INTENT")
-    intent = IntentClause(read_value())
-
-    seat: SeatClause | None = None
-    tending: TendingClause | None = None
-    while index < len(tokens):
-        token_type, token_value = tokens[index]
+    # Convert token stream to a dictionary mapping clause names to values
+    clauses: dict[str, str] = {}
+    i = 0
+    while i < len(tokens):
+        token_type, token_value = tokens[i]
         if token_type != "KEYWORD":
-            raise ValueError(f"Unexpected token {token_value}")
-        if token_value == "SEAT":
-            if seat is not None:
-                raise ValueError("Duplicate SEAT clause")
-            index += 1
-            seat = SeatClause(read_value())
-        elif token_value == "TENDING":
-            if tending is not None:
-                raise ValueError("Duplicate TENDING clause")
-            index += 1
-            tending = TendingClause(read_value())
-        else:
-            raise ValueError(f"Unexpected clause {token_value}")
+            raise ValueError(f"Expected KEYWORD, got {token_type}: {token_value}")
 
-    if index != len(tokens):
-        raise ValueError("Unexpected trailing tokens")
+        # Check for duplicate clauses
+        if token_value in clauses:
+            raise ValueError(f"Duplicate {token_value} clause")
+
+        # Read the value following the keyword
+        i += 1
+        if i >= len(tokens) or tokens[i][0] != "VALUE":
+            raise ValueError(f"Expected value following {token_value} clause keyword")
+
+        clauses[token_value] = tokens[i][1]
+        i += 1
+
+    # Check that all required clauses are present
+    required = ["ART", "BOUNDS", "BALANCES", "FLOW", "SEALS", "PROVISIONS", "INTENT"]
+    for clause_name in required:
+        if clause_name not in clauses:
+            raise ValueError(f"Missing required clause {clause_name}")
+
+    # Construct clause objects
+    art = ArtClause(clauses["ART"])
+    bounds = BoundsClause(clauses["BOUNDS"])
+    balances = BalancesClause(clauses["BALANCES"])
+    flow = FlowClause(clauses["FLOW"])
+    seals = SealsClause(clauses["SEALS"])
+    provisions = ProvisionsClause(clauses["PROVISIONS"])
+    intent = IntentClause(clauses["INTENT"])
+
+    # Optional clauses
+    seat = SeatClause(clauses["SEAT"]) if "SEAT" in clauses else None
+    tending = TendingClause(clauses["TENDING"]) if "TENDING" in clauses else None
 
     decl = WorkDecl(
         art=art,

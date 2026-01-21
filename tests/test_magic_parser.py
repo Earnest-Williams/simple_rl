@@ -1,5 +1,5 @@
-from magic.work_parser import tokenize, parse
 from magic.models import Art, Substance
+from magic.work_parser import parse, tokenize
 
 
 def test_tokenize_basic():
@@ -70,3 +70,30 @@ def test_parse_preserves_fields_and_effect_level():
         - work.balances.risk
     )
     assert work.calculate_effect_level() == expected
+
+
+def test_parse_accepts_clauses_in_any_order():
+    """Test that required clauses can appear in any order."""
+    source = (
+        "INTENT test "
+        "FLOW strength=3 "
+        "SEALS none "
+        "ART create(2) on fire(1) "
+        "PROVISIONS none "
+        "BALANCES cost=0 "
+        "BOUNDS range=1 "
+        "SEAT stone "
+        "TENDING gentle"
+    )
+    work = parse(source)
+    assert work.art is Art.CREATE
+    assert work.substance is Substance.FIRE
+    assert work.art_rank == 2
+    assert work.substance_rank == 1
+    assert work.balances.cost == 0
+    assert work.flow.strength == 3
+    assert work.seals.description == "none"
+    assert work.provisions == "none"
+    assert work.intent == "test"
+    assert work.tending == "gentle"
+    assert work.seat == "stone"
