@@ -10,6 +10,7 @@ inspired by Sil, optimized for Python using NumPy, Numba, Polars, and Joblib.
 Designed as a starting point for iteration with custom map data.
 """
 
+import logging
 import os  # For determining CPU count
 import time
 from collections import deque
@@ -27,6 +28,8 @@ from game.world.los import line_of_sight as los_line_of_sight
 from utils.game_rng import GameRNG
 
 # --- Constants ---
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # Map dimensions (replace with actual dimensions)
@@ -705,15 +708,17 @@ def monster_perception(
 
     end_time = time.time()
     duration_s: float = end_time - start_time
-    print(
-        f"Monster perception for {num_monsters} monsters took {duration_s:.4f}s "
-        f"using {N_JOBS} jobs."
+    logger.info(
+        "Monster perception for %d monsters took %.4fs using %d jobs.",
+        num_monsters,
+        duration_s,
+        N_JOBS,
     )
 
     # --- Update Monster State (Post-Parallel) ---
     # Now that we have all alerted IDs, update the main DataFrame or trigger AI
     if all_alerted_ids:
-        print(f"Monsters alerted: {all_alerted_ids}")
+        logger.info("Monsters alerted: %s", all_alerted_ids)
         # Example: Update a 'heard_player' flag in the main DataFrame
         # This is safer than trying to modify the DF from parallel workers.
         # monster_df = monster_df.with_columns(
