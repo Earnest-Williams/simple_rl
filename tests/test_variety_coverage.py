@@ -66,7 +66,7 @@ class TestVarietyCoverageThresholds:
 
         # Ornate should have good variety
         assert metrics.unique_fraction >= 0.5, (
-            f"Ornate tone failed variety threshold: "
+            "Ornate tone failed variety threshold: "
             f"{metrics.unique_fraction:.3f} < 0.5"
         )
 
