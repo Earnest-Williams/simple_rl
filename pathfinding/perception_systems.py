@@ -665,7 +665,7 @@ def monster_perception(
     # --- Filter Monsters ---
     # Select only monsters that are alive and potentially relevant
     # (e.g., within a max perception range if known, or just !is_dead)
-    active_monsters_df = monster_df.filter(pl.col("is_dead") is False)
+    active_monsters_df = monster_df.filter(~pl.col("is_dead"))
 
     num_monsters = active_monsters_df.height
     if num_monsters == 0:
@@ -704,9 +704,10 @@ def monster_perception(
     all_alerted_ids: List[int] = [item for sublist in results for item in sublist]
 
     end_time = time.time()
+    duration_s: float = end_time - start_time
     print(
-        f"Monster perception for {num_monsters} monsters took {
-            end_time - start_time:.4f}s using {N_JOBS} jobs."
+        f"Monster perception for {num_monsters} monsters took {duration_s:.4f}s "
+        f"using {N_JOBS} jobs."
     )
 
     # --- Update Monster State (Post-Parallel) ---
