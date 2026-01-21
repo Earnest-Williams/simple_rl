@@ -7,117 +7,41 @@ and interpreting scripts. It includes:
 - BrainfuckRunner: A simple Brainfuck interpreter for script execution
 """
 
+from __future__ import annotations
+
 import re
-import warnings
-from io import StringIO
+from typing import Dict, Literal, Protocol, TypedDict
 
-import numpy as np
-
-# Suppress numpy overflow warnings that are expected with uint64 operations
-warnings.filterwarnings(
-    "ignore", category=RuntimeWarning, message="overflow encountered"
-)
+from magic.brainfuck_numba import BFResult, run_brainfuck
 
 
-# --- EBF Interpreter ---
-def _sanitize(code):
-    """Clean Brainfuck code by removing any non-command characters"""
-    return "".join(c for c in code if c in "><+-.,[]")
+class GameStateProtocol(Protocol):
+    def is_game_over(self) -> bool:
+        ...
+
+    def get_display_text(self) -> str:
+        ...
+
+    def process_turn(self, command: str) -> str:
+        ...
 
 
-def _generate_bf_func(code, tape_size=30000):
-    """
-    Dynamically generate a Python function that interprets the Brainfuck code.
-
-    Args:
-        code (str): The Brainfuck code to interpret
-        tape_size (int): Size of the virtual memory tape
-
-    Returns:
-        function: A Python function that runs the Brainfuck code
-    """
-    # This function generates Python code dynamically, which can be complex
-    # Consider using a more direct interpreter if possible, or ensure thorough testing
-    lines = [
-        "def bf_program(tape, input_stream, output_stream):",
-        "    ptr = 0",
-        "    input_pos = 0",
-    ]
-    indent = "    "
-    stack = []
-
-    for c in _sanitize(code):
-        if c == ">":
-            lines.append(f"{indent}ptr = (ptr + 1) % len(tape)")  # Wrap pointer
-        elif c == "<":
-            lines.append(
-                f"{indent}ptr = (ptr - 1 + len(tape)) % len(tape)"
-            )  # Wrap pointer
-        elif c == "+":
-            lines.append(f"{indent}tape[ptr] = (tape[ptr] + 1) % 256")
-        elif c == "-":
-            # Ensure result is non-negative before modulo
-            lines.append(f"{indent}tape[ptr] = (tape[ptr] - 1 + 256) % 256")
-        elif c == ".":
-            lines.append(f"{indent}output_stream.write(chr(tape[ptr]))")
-        elif c == ",":
-            # Read from input buffer if available
-            lines.append(f"{indent}if input_pos < len(input_stream):")
-            lines.append(f"{indent}    tape[ptr] = ord(input_stream[input_pos]) % 256")
-            lines.append(f"{indent}    input_pos += 1")
-            lines.append(f"{indent}else:")
-            # Define behavior for EOF - often 0 or -1 (here 0)
-            lines.append(f"{indent}    tape[ptr] = 0")
-        elif c == "[":
-            lines.append(f"{indent}while tape[ptr] != 0:")
-            stack.append(indent)
-            indent += "    "
-        elif c == "]":
-            if not stack:
-                raise SyntaxError("Unmatched ']'")
-            indent = stack.pop()
-            lines.append(f"{indent}# End of loop")  # Add comment for clarity
-
-    if stack:
-        raise SyntaxError("Unmatched '['")
-
-    # Add return statement or final processing if needed
-    lines.append(f"{indent}return ''.join(output_stream.getvalue())")
-
-    full_code = "\n".join(lines)
-    # print("Generated BF Code:\n", full_code) # For debugging generated code
-    namespace = {}
-    try:
-        exec(full_code, namespace)
-        return namespace["bf_program"]
-    except Exception as e:
-        print(f"Error executing generated BF code: {e}")
-        raise  # Re-raise the error
+class BFRunSuccess(TypedDict):
+    success: Literal[True]
+    output: str
 
 
-def _should_jit(code):
-    """
-    Determine if JIT compilation should be used for the given Brainfuck code.
+class BFRunFailure(TypedDict):
+    success: Literal[False]
+    error: str
 
-    Args:
-        code (str): The Brainfuck code
 
-    Returns:
-        bool: True if JIT should be used, False otherwise
-    """
-    # Simple heuristic, may need refinement
-    clean = _sanitize(code)
-    length = len(clean)
-    loop_count = clean.count("[")
-    io_count = clean.count(".") + clean.count(",")
+BFRunResult = BFRunSuccess | BFRunFailure
 
-    # Avoid JIT for very short code or code with lots of I/O
-    if length < 50 or io_count > length // 5:
-        return False
-    # Favor JIT for longer code with loops
-    if loop_count > 2 and length > 100:
-        return True
-    return False  # Default to no JIT
+
+class ErrorResult(TypedDict):
+    error: str
+    is_error: bool
 
 
 class BrainfuckRunner:
@@ -125,17 +49,19 @@ class BrainfuckRunner:
     A simple and efficient Brainfuck interpreter with optional JIT compilation.
     """
 
-    def __init__(self, tape_size=30000):
+    def __init__(self, tape_size: int = 30000) -> None:
         """
         Initialize the Brainfuck interpreter.
 
         Args:
             tape_size (int): Size of the virtual memory tape
         """
-        self.tape_size = tape_size
+        self.tape_size: int = tape_size
         # Remove self.output state, run should return output directly
 
-    def run(self, code, input_data="", jit=None):
+    def run(
+        self, code: str, input_data: str = "", jit: bool | None = None
+    ) -> BFRunResult:
         """
         Execute Brainfuck code and return the result.
 
@@ -147,62 +73,21 @@ class BrainfuckRunner:
         Returns:
             dict: A dictionary with 'success' status and 'output' or 'error'
         """
-
-        # Check if numba is available
-        has_njit = False
-        if jit is not False:  # Allow forcing JIT off
-            try:
-                from numba import njit
-
-                has_njit = True
-            except ImportError:
-                jit = False  # Force JIT off if numba not available
-
-        output_stream = StringIO()
-
         try:
-            use_jit = _should_jit(code) if jit is None else jit
+            bf_result: BFResult = run_brainfuck(
+                code,
+                input_data=input_data,
+                tape_size=self.tape_size,
+                use_numba=jit,
+            )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
 
-            # Pass input/output streams to generated function
-            bf_func = _generate_bf_func(code, self.tape_size)
-            tape = np.zeros(self.tape_size, dtype=np.uint8)  # Use uint8 for BF tape
+        if bf_result.success:
+            return {"success": True, "output": bf_result.output}
 
-            if use_jit and has_njit:
-                try:
-                    # Numba doesn't easily support StringIO, need wrapper or different approach
-                    # For now, disable JIT if I/O is involved, or handle I/O outside JITted part
-                    if "." in code or "," in code:
-                        print(
-                            "Warning: JIT compilation with I/O might be slow or unsupported. Running interpreted."
-                        )
-                        output = bf_func(tape, input_data, output_stream)
-                    else:
-                        # JIT compile the function without I/O arguments initially
-                        # This is complex; direct interpretation might be better
-                        # compiled_func = njit(lambda t: bf_func(t, "", StringIO()))
-                        # compiled_func(tape)
-                        # output = output_stream.getvalue() # This won't work as StringIO isn't updated by JIT
-                        print(
-                            "Warning: JIT with I/O needs complex handling. Running interpreted."
-                        )
-                        output = bf_func(tape, input_data, output_stream)
-
-                except Exception as e:
-                    print(
-                        f"Numba JIT compilation failed: {e}. Falling back to interpreter."
-                    )
-                    # Fallback to non-JIT
-                    output = bf_func(tape, input_data, output_stream)
-            else:
-                # Run interpreted
-                output = bf_func(tape, input_data, output_stream)
-
-            return {"success": True, "output": output}
-        except Exception as e:
-
-            # print(f"Brainfuck execution error: {e}\n{traceback.format_exc()}") # More detailed error
-            return {"success": False, "error": str(e)}
-        # No finally needed as StringIO closes automatically
+        error_message = bf_result.error or "unknown_brainfuck_error"
+        return {"success": False, "error": error_message}
 
 
 class MacroManager:
@@ -211,20 +96,20 @@ class MacroManager:
     Also handles Brainfuck code execution through integration with BrainfuckRunner.
     """
 
-    def __init__(self, game_state=None):
+    def __init__(self, game_state: GameStateProtocol | None = None) -> None:
         """
         Initialize the MacroManager.
 
         Args:
             game_state: Reference to the game state for command execution
         """
-        self.macros = {}
-        self.game_state = (
+        self.macros: Dict[str, str] = {}
+        self.game_state: GameStateProtocol | None = (
             game_state  # Ensure this is updated if game_state changes (e.g., on load)
         )
-        self.bf_runner = BrainfuckRunner()
+        self.bf_runner: BrainfuckRunner = BrainfuckRunner()
 
-    def define(self, name, sequence):
+    def define(self, name: str, sequence: str) -> str:
         """
         Define a new macro with the given name and command sequence.
 
@@ -237,11 +122,15 @@ class MacroManager:
         """
         # Add basic validation for macro names
         if not re.match(r"^!\w+$", name):
-            return f"Error: Invalid macro name '{name}'. Must start with ! and contain only letters, numbers, or _."
+            error_message = (
+                f"Error: Invalid macro name '{name}'. Must start with ! and "
+                "contain only letters, numbers, or _."
+            )
+            return error_message
         self.macros[name] = sequence
         return f"Defined macro {name} = {sequence}"
 
-    def expand_macros(self, text, expansion_limit=10):
+    def expand_macros(self, text: str, expansion_limit: int = 10) -> str:
         """
         Expand all macros in the given text, with limits to prevent infinite recursion.
 
@@ -253,18 +142,20 @@ class MacroManager:
             str: The text with all macros expanded
         """
         # Prevent infinite recursion more robustly
-        pattern = re.compile(r"!\w+")
-        expanded_text = text
-        depth = 0
-        seen_macros = set()  # Track macros used in current expansion chain
+        pattern: re.Pattern[str] = re.compile(r"!\w+")
+        expanded_text: str = text
+        depth: int = 0
+        seen_macros: set[str] = set()  # Track macros used in current expansion chain
 
         while depth < expansion_limit:
-            found_macro = False
-            current_expansion = ""
-            last_end = 0
+            found_macro: bool = False
+            current_expansion: str = ""
+            last_end: int = 0
 
             for match in pattern.finditer(expanded_text):
-                macro_name = match.group(0)
+                macro_name: str = match.group(0)
+                start: int
+                end: int
                 start, end = match.span()
 
                 # Append text before the macro
@@ -272,17 +163,19 @@ class MacroManager:
 
                 if macro_name in seen_macros:
                     # Prevent direct recursion within this expansion path
-                    print(
-                        f"Warning: Detected recursion for macro {macro_name}. Stopping expansion here."
+                    warning_message = (
+                        f"Warning: Detected recursion for macro {macro_name}. "
+                        "Stopping expansion here."
                     )
+                    print(warning_message)
                     current_expansion += macro_name  # Keep the macro name as is
                 elif macro_name in self.macros:
                     # Expand the macro
-                    replacement = self.macros[macro_name]
+                    replacement: str = self.macros[macro_name]
                     current_expansion += replacement
                     found_macro = True
-                    # We could add 'macro_name' to seen_macros here for stricter recursion check
-                    # but simple depth limit might be enough
+                    # We could add 'macro_name' to seen_macros here for stricter
+                    # recursion check, but simple depth limit might be enough.
                 else:
                     # Macro not found, keep it as is
                     current_expansion += macro_name
@@ -298,14 +191,14 @@ class MacroManager:
 
             expanded_text = current_expansion
             depth += 1
-            seen_macros.clear()  # Reset seen set for the next level of expansion if needed, depends on desired recursion depth handling
+            seen_macros.clear()  # Reset seen set for the next level of expansion.
 
         if depth >= expansion_limit:
             print(f"Warning: Macro expansion reached depth limit ({expansion_limit}).")
 
         return expanded_text
 
-    def execute_command_sequence(self, command_string):
+    def execute_command_sequence(self, command_string: str) -> str:
         """
         Execute a sequence of game commands.
 
@@ -316,13 +209,13 @@ class MacroManager:
             str: The game state display text after execution
         """
         # Split by semicolons to handle command sequences
-        command_groups = [
+        command_groups: list[str] = [
             cmd.strip() for cmd in command_string.split(";") if cmd.strip()
         ]
-        outputs = []
+        outputs: list[str] = []
 
         # Ensure game_state is valid before processing
-        if not self.game_state:
+        if self.game_state is None:
             return "Error: Game state not available."
 
         for group in command_groups:
@@ -337,7 +230,7 @@ class MacroManager:
                     outputs.append(self.game_state.get_display_text())
                     break  # Stop processing sequence if game ended
 
-                result = self.game_state.process_turn(char)
+                result: str = self.game_state.process_turn(char)
                 outputs.append(
                     result
                 )  # Append the display text returned by process_turn
@@ -349,7 +242,7 @@ class MacroManager:
         # Return the final display state text
         return outputs[-1] if outputs else "No valid commands executed."
 
-    def process_line(self, line):
+    def process_line(self, line: str) -> str | ErrorResult:
         """
         Process a line of input, which could be a macro definition, macro execution,
         Brainfuck code, or direct game commands.
@@ -365,8 +258,10 @@ class MacroManager:
         # Define a new macro
         if line.startswith("!") and "=" in line:
             # Ensure correct splitting, handle potential '=' in sequence
-            parts = line.split("=", 1)
+            parts: list[str] = line.split("=", 1)
             if len(parts) == 2:
+                name: str
+                seq: str
                 name, seq = map(str.strip, parts)
                 if name.startswith("!"):  # Validate name starts with !
                     return self.define(name, seq)
@@ -378,34 +273,36 @@ class MacroManager:
         # Expand potential macros in the line first
         # Limit expansion depth to prevent infinite loops
         try:
-            expanded_line = self.expand_macros(line, expansion_limit=10)
-        except Exception as e:
-            return f"Error during macro expansion: {e}"
+            expanded_line: str = self.expand_macros(line, expansion_limit=10)
+        except Exception as exc:
+            return f"Error during macro expansion: {exc}"
 
         # Execute a macro (check if the fully expanded line is just a known macro name)
         if expanded_line.startswith("!") and expanded_line in self.macros:
             # This case might be redundant if expand_macros handles it,
             # but could be kept for clarity or direct single macro execution.
             # We re-expand here in case the macro itself contains other macros.
-            final_sequence = self.expand_macros(
+            final_sequence: str = self.expand_macros(
                 self.macros[expanded_line], expansion_limit=10
             )
             return self.execute_command_sequence(final_sequence)
 
         # Check if the expanded line looks like Brainfuck code
         # Use a stricter check: must contain BF chars and potentially brackets
-        is_bf_chars = set(expanded_line) <= set("><+-.,[]")
-        has_brackets = "[" in expanded_line and "]" in expanded_line
-        likely_bf = is_bf_chars or has_brackets  # Adjust logic as needed
+        is_bf_chars: bool = set(expanded_line) <= set("><+-.,[]")
+        has_brackets: bool = "[" in expanded_line and "]" in expanded_line
+        likely_bf: bool = is_bf_chars or has_brackets  # Adjust logic as needed
 
         if likely_bf and len(expanded_line) > 0:  # Check length > 0
             try:
                 # Execute Brainfuck code
                 # Pass empty string "" as default input for now
-                result = self.bf_runner.run(expanded_line, input_data="")
+                result: BFRunResult = self.bf_runner.run(
+                    expanded_line, input_data=""
+                )
 
                 if result["success"]:
-                    bf_output = result["output"]
+                    bf_output: str = result["output"]
                     if bf_output:
                         # Convert Brainfuck output to game commands
                         # Note: BF output might not be valid game commands!
@@ -419,10 +316,15 @@ class MacroManager:
                         "error": f"Brainfuck Error: {result['error']}",
                         "is_error": True,
                     }
-            except Exception as e:
+            except Exception as exc:
 
-                # print(f"Error processing Brainfuck line: {e}\n{traceback.format_exc()}")
-                return {"error": f"Brainfuck Processing Error: {e}", "is_error": True}
+                # print(
+                #     f"Error processing Brainfuck line: {e}\n{traceback.format_exc()}"
+                # )
+                return {
+                    "error": f"Brainfuck Processing Error: {exc}",
+                    "is_error": True,
+                }
 
         # Otherwise, assume it's a sequence of game commands
         else:
