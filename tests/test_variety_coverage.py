@@ -52,7 +52,7 @@ class TestVarietyCoverageThresholds:
 
         # Terse has fewer templates, so slightly lower threshold
         assert metrics.unique_fraction >= 0.4, (
-            f"Terse tone failed variety threshold: "
+            "Terse tone failed variety threshold: "
             f"{metrics.unique_fraction:.3f} < 0.4"
         )
 
