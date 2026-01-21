@@ -163,7 +163,8 @@ class MacroManager:
             sequence (str): The command sequence for this macro
 
         Returns:
-            str: Confirmation message or error message
+            str | MacroError: Confirmation message on success, or a MacroError
+            object on failure.
         """
         if not _MACRO_NAME.match(name):
             return MacroError(
@@ -344,14 +345,6 @@ class MacroManager:
                 name: str
                 seq: str
                 name, seq = map(str.strip, parts)
-                if not name.startswith("!"):
-                    return {
-                        "success": False,
-                        "error": MacroError(
-                            code="invalid_macro_name",
-                            message="Macro name must start with '!'.",
-                        ),
-                    }
                 define_result: str | MacroError = self.define(name, seq)
                 if isinstance(define_result, MacroError):
                     return {"success": False, "error": define_result}
