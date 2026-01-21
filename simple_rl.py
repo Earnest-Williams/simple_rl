@@ -169,7 +169,9 @@ def get_entity_at(x: int, y: int, entities: list[Any]) -> Any | None:
     return next((e for e in entities if e.x == x and e.y == y), None)
 
 
-def get_dungeon_string(dungeon: list[list[str]], player: Any, skeletons: list[Any]) -> str:
+def get_dungeon_string(
+    dungeon: list[list[str]], player: Any, skeletons: list[Any]
+) -> str:
     # Use dungeon_generator's function with our entities
     entities = {"player": player, "enemies": skeletons}
     return dungeon_generator.get_dungeon_string(dungeon, entities)

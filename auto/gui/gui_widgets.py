@@ -23,7 +23,9 @@ class AsciiGridView(QWidget):
     def __init__(self, grid_size: int, parent=None):
         super().__init__(parent)
         self.grid_size = grid_size
-        self.entities = {}  # Store entities for rendering {id: {'x', 'y', 'kind', 'health'}}
+        self.entities = (
+            {}
+        )  # Store entities for rendering {id: {'x', 'y', 'kind', 'health'}}
         self.agent_health = 0  # Store separately if needed for display elsewhere
 
         # Character and Color Mapping
@@ -47,7 +49,9 @@ class AsciiGridView(QWidget):
 
         # Use QLabel to render HTML content
         self.display_label = QLabel()
-        self.display_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.display_label.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         # Important for preformatted text
         self.display_label.setWordWrap(False)
 
@@ -58,7 +62,9 @@ class AsciiGridView(QWidget):
         self.display_label.setFont(font)
 
         # Ensure label size adjusts (might need scroll area if large)
-        self.display_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.display_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
 
         # Add ScrollArea in case grid is very large
         scroll_area = QScrollArea()
@@ -82,7 +88,10 @@ class AsciiGridView(QWidget):
         # Create a 2D list representing the characters/colors (creation is
         # usually fast)
         char_grid = [
-            [(self.char_map["empty"], self.color_map["empty"]) for _ in range(self.grid_size)]
+            [
+                (self.char_map["empty"], self.color_map["empty"])
+                for _ in range(self.grid_size)
+            ]
             for _ in range(self.grid_size)
         ]
 
@@ -120,7 +129,9 @@ class AsciiGridView(QWidget):
         self.display_label.setText(full_html)
 
     @Slot(list, list, int, int, int)  # Matching worker signal
-    def update_world(self, grid_list_ignored, entities_list, agent_health, turn, grid_size):
+    def update_world(
+        self, grid_list_ignored, entities_list, agent_health, turn, grid_size
+    ):
         """Updates the view with new world state."""
         # Update internal state (fast)
         if grid_size != self.grid_size:
@@ -144,7 +155,9 @@ class ActionViewWidget(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(2)
         self.table.setHorizontalHeaderLabels(["Action Name", "Weight"])
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)  # Read-only
+        self.table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )  # Read-only
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)  # Nice touch
 

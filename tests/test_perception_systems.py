@@ -82,6 +82,13 @@ def test_scent_respects_line_of_sight():
     terrain[3, 4] = FeatureType.WALL
     cave_when = np.zeros((7, 7), dtype=np.int32)
     transparency = terrain_transparency_map(terrain)
-    _lay_scent_kernel(cave_when, transparency, py=3, px=3, current_scent_when=100, scent_adjust=SCENT_ADJUST_TABLE)
+    _lay_scent_kernel(
+        cave_when,
+        transparency,
+        py=3,
+        px=3,
+        current_scent_when=100,
+        scent_adjust=SCENT_ADJUST_TABLE,
+    )
     assert cave_when[3, 5] == 0
     assert cave_when[3, 2] > 0

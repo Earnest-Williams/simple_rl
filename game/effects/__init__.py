@@ -12,7 +12,9 @@ from .handlers import ART_SUBSTANCE_DISPATCHER
 from magic.executor import register_handler
 
 
-def _adapt_handler(handler: Callable[[dict[str, Any], dict[str, Any]], None]) -> Callable[[Any, Any], None]:
+def _adapt_handler(
+    handler: Callable[[dict[str, Any], dict[str, Any]], None],
+) -> Callable[[Any, Any], None]:
     """Wrap legacy handlers to match ``(Work, GameState)`` signature."""
 
     def wrapper(work: Any, game_state: Any) -> None:

@@ -82,9 +82,7 @@ class EquippedItemCache:
     def __init__(self) -> None:
         self._equipped_cache: Dict[int, Dict[str, Any]] = {}
 
-    def on_equip_changed(
-        self, entity_id: int, equipped_items: pl.DataFrame
-    ) -> None:
+    def on_equip_changed(self, entity_id: int, equipped_items: pl.DataFrame) -> None:
         self._equipped_cache[entity_id] = {
             row["equipped_slot"]: row for row in equipped_items.iter_rows(named=True)
         }
@@ -576,9 +574,7 @@ def equip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
     if entity_id == gs.player_id:
         gs.add_message(f"You equip the {item_name} ({target_slot}).")
     apply_passive_effects(item_id, entity_id, gs)
-    EQUIPPED_CACHE.on_equip_changed(
-        entity_id, item_reg.get_entity_equipped(entity_id)
-    )
+    EQUIPPED_CACHE.on_equip_changed(entity_id, item_reg.get_entity_equipped(entity_id))
 
     return True
 
@@ -704,9 +700,7 @@ def unequip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
     if entity_id == gs.player_id:
         gs.add_message(f"You unequip the {item_name}.")
     remove_passive_effects(item_id, entity_id, gs)
-    EQUIPPED_CACHE.on_equip_changed(
-        entity_id, item_reg.get_entity_equipped(entity_id)
-    )
+    EQUIPPED_CACHE.on_equip_changed(entity_id, item_reg.get_entity_equipped(entity_id))
 
     return True
 

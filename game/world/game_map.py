@@ -55,7 +55,7 @@ TILE_NAME_TO_ID: Final[Dict[str, int]] = {
 
 
 def _normalize_tile_modifier_overrides(
-    overrides: Dict[str | int, float]
+    overrides: Dict[str | int, float],
 ) -> Dict[int, float]:
     """Convert user-provided keys (names or IDs) to tile ID -> modifier."""
     normalized: Dict[int, float] = {}

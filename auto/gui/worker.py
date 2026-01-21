@@ -74,13 +74,17 @@ class SimulationWorker(QObject):
         self.status_update.emit("Simulation started.")
         try:
             # Ensure world has an rng instance before reset or access
-            if not hasattr(self.world, "rng") or not isinstance(self.world.rng, GameRNG):
+            if not hasattr(self.world, "rng") or not isinstance(
+                self.world.rng, GameRNG
+            ):
                 # Attempt to create one if missing? Or raise error?
                 # For now, let's assume reset handles it or it's passed in world.__init__
                 # If not, this will raise an AttributeError later, which is informative.
                 pass
 
-            self.world.reset(rng=self.world.rng)  # Reset world at the beginning of a run
+            self.world.reset(
+                rng=self.world.rng
+            )  # Reset world at the beginning of a run
             agent = self.world.agent
             if not agent:
                 raise RuntimeError("Agent not created during world reset.")
@@ -138,7 +142,9 @@ class SimulationWorker(QObject):
                     if self.agent_ai.current_goal
                     else "Goal: None"
                 )
-                current_plan_list = [action.name for action in self.agent_ai.current_plan]
+                current_plan_list = [
+                    action.name for action in self.agent_ai.current_plan
+                ]
                 goal_changed = current_goal_str != self.last_emitted_goal_str
                 plan_changed = current_plan_list != self.last_emitted_plan_list
 
@@ -173,7 +179,9 @@ class SimulationWorker(QObject):
                 for enemy_id in current_enemy_ids:
                     if enemy_id in self.world.entities:
                         enemy = self.world.entities[enemy_id]
-                        enemy_act(enemy, self.world, self.world.rng)  # Enemy logic execution
+                        enemy_act(
+                            enemy, self.world, self.world.rng
+                        )  # Enemy logic execution
                     if agent.health <= 0:
                         self.status_update.emit(
                             f"Agent defeated by an enemy (Turn {self.world.turn})."
@@ -194,7 +202,9 @@ class SimulationWorker(QObject):
                     )
 
                 # *** CORRECTED LINE BELOW ***
-                if self.world.rng.get_float() < ENEMY_SPAWN_CHANCE:  # Use GameRNG instance
+                if (
+                    self.world.rng.get_float() < ENEMY_SPAWN_CHANCE
+                ):  # Use GameRNG instance
                     self.world.spawn_random_enemy(rng=self.world.rng)
                 # --- End World Events ---
 
@@ -299,7 +309,9 @@ class SimulationWorker(QObject):
             if not self._running:
                 return
             self._paused = not self._paused
-            self.status_update.emit("Simulation Paused" if self._paused else "Simulation Resumed")
+            self.status_update.emit(
+                "Simulation Paused" if self._paused else "Simulation Resumed"
+            )
             if not self._paused:
                 self._step = False
 

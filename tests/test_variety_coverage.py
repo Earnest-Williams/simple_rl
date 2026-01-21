@@ -38,9 +38,9 @@ class TestVarietyCoverageThresholds:
         )
 
         # Should have reasonable entropy
-        assert metrics.entropy >= 5.0, (
-            f"Room descriptions have low entropy: {metrics.entropy:.3f}"
-        )
+        assert (
+            metrics.entropy >= 5.0
+        ), f"Room descriptions have low entropy: {metrics.entropy:.3f}"
 
     def test_terse_tone_variety_threshold(self) -> None:
         """Ensure terse tone maintains variety."""
@@ -93,15 +93,9 @@ class TestVarietyCoverageThresholds:
         lex = Lexicon(
             adjectives=["dark", "light", "dim", "bright", "shadowy"],
             nouns=["room", "hall", "chamber"],
-            features=[
-                "a torch",
-                "a statue",
-                "a pool",
-                "moss",
-                "carvings"
-            ],
+            features=["a torch", "a statue", "a pool", "moss", "carvings"],
             verbs=["enter", "find", "discover"],
-            adverbs=["slowly", "quickly", "cautiously"]
+            adverbs=["slowly", "quickly", "cautiously"],
         )
 
         engine = VariationEngine(rng, lexicon=lex)
@@ -120,7 +114,16 @@ class TestVarietyCoverageThresholds:
 
         # Larger lexicon for more realistic testing
         lex = Lexicon(
-            adjectives=["dark", "light", "dim", "bright", "shadowy", "glowing", "murky", "clear"]
+            adjectives=[
+                "dark",
+                "light",
+                "dim",
+                "bright",
+                "shadowy",
+                "glowing",
+                "murky",
+                "clear",
+            ]
         )
 
         engine = VariationEngine(rng, lexicon=lex, anti_repeat_size=20)
@@ -130,16 +133,15 @@ class TestVarietyCoverageThresholds:
 
         # Count consecutive duplicates
         consecutive_dupes = sum(
-            1 for i in range(len(selections) - 1)
-            if selections[i] == selections[i + 1]
+            1 for i in range(len(selections) - 1) if selections[i] == selections[i + 1]
         )
 
         # With 8 options, expect very few consecutive duplicates
         # (random would be ~12.5%, anti-repeat should be much lower)
         # Allow some statistical variation but should be significantly better than random
-        assert consecutive_dupes < 10, (
-            f"Too many consecutive duplicates: {consecutive_dupes} >= 10"
-        )
+        assert (
+            consecutive_dupes < 10
+        ), f"Too many consecutive duplicates: {consecutive_dupes} >= 10"
 
     def test_no_empty_outputs(self) -> None:
         """Ensure generation never produces empty strings."""
@@ -149,14 +151,10 @@ class TestVarietyCoverageThresholds:
         variants = [engine.room_description() for _ in range(100)]
 
         # No variant should be empty
-        assert all(len(v) > 0 for v in variants), (
-            "Found empty output in variants"
-        )
+        assert all(len(v) > 0 for v in variants), "Found empty output in variants"
 
         # All variants should have reasonable minimum length
-        assert all(len(v) >= 10 for v in variants), (
-            "Found suspiciously short output"
-        )
+        assert all(len(v) >= 10 for v in variants), "Found suspiciously short output"
 
     def test_deterministic_variety(self) -> None:
         """Ensure variety metrics are deterministic for same seed."""
@@ -200,9 +198,9 @@ class TestVarietyRegression:
         metrics = compute_variety_metrics(variants)
 
         baseline = baseline_variety["room_neutral_1000"]
-        assert metrics.unique_fraction >= baseline, (
-            f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
-        )
+        assert (
+            metrics.unique_fraction >= baseline
+        ), f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
 
     def test_room_terse_regression(self, baseline_variety) -> None:
         """Test terse descriptions don't regress below baseline."""
@@ -213,9 +211,9 @@ class TestVarietyRegression:
         metrics = compute_variety_metrics(variants)
 
         baseline = baseline_variety["room_terse_500"]
-        assert metrics.unique_fraction >= baseline, (
-            f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
-        )
+        assert (
+            metrics.unique_fraction >= baseline
+        ), f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
 
     def test_room_ornate_regression(self, baseline_variety) -> None:
         """Test ornate descriptions don't regress below baseline."""
@@ -226,9 +224,9 @@ class TestVarietyRegression:
         metrics = compute_variety_metrics(variants)
 
         baseline = baseline_variety["room_ornate_500"]
-        assert metrics.unique_fraction >= baseline, (
-            f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
-        )
+        assert (
+            metrics.unique_fraction >= baseline
+        ), f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
 
     def test_names_regression(self, baseline_variety) -> None:
         """Test name generation doesn't regress below baseline."""
@@ -239,9 +237,9 @@ class TestVarietyRegression:
         metrics = compute_variety_metrics(names)
 
         baseline = baseline_variety["names_200"]
-        assert metrics.unique_fraction >= baseline, (
-            f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
-        )
+        assert (
+            metrics.unique_fraction >= baseline
+        ), f"Regression detected: {metrics.unique_fraction:.3f} < {baseline}"
 
 
 class TestEdgeCases:
@@ -257,7 +255,7 @@ class TestEdgeCases:
             nouns=["room", "hall", "chamber", "vault", "crypt"],
             features=["a torch", "moss", "carvings", "water", "bones"],
             verbs=["enter", "find"],
-            adverbs=["slowly", "quickly"]
+            adverbs=["slowly", "quickly"],
         )
 
         engine = VariationEngine(rng, lexicon=lex)
@@ -274,11 +272,7 @@ class TestEdgeCases:
         rng = GameRNG(seed=3000)
 
         # Minimal lexicon
-        lex = Lexicon(
-            adjectives=["dark"],
-            nouns=["room"],
-            features=["nothing"]
-        )
+        lex = Lexicon(adjectives=["dark"], nouns=["room"], features=["nothing"])
 
         engine = VariationEngine(rng, lexicon=lex)
         variants = [engine.room_description() for _ in range(10)]

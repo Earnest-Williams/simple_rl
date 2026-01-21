@@ -84,7 +84,9 @@ def load_shaped_map_as_arrays(
             dtype=np.int32,
             order="C",
         )
-        chamber_id_grid[gy, gx] = df.get_column("chamber_id").to_numpy().astype(np.int32)
+        chamber_id_grid[gy, gx] = (
+            df.get_column("chamber_id").to_numpy().astype(np.int32)
+        )
         out["chamber_id_grid"] = chamber_id_grid
 
     return out
@@ -202,9 +204,7 @@ def shaped_dataframe_to_game_map(
     if "height" not in df_columns and "floor_depth" in df_columns:
         depth_vals = df.get_column("floor_depth").to_numpy()
         depth_vals = np.nan_to_num(depth_vals, nan=default_floor_depth)
-        depth_grid = np.full(
-            (height, width), default_height, dtype=np.int16, order="C"
-        )
+        depth_grid = np.full((height, width), default_height, dtype=np.int16, order="C")
         depth_grid[gy, gx] = np.rint(depth_vals).astype(np.int16)
         game_map.height_map = depth_grid
 

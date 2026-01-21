@@ -171,6 +171,7 @@ class MetricsCollector:
 
 class Distribution(Enum):
     """Supported non-uniform distributions."""
+
     BELL = auto()
     TRIANGLE = auto()
     POWER = auto()
@@ -197,7 +198,9 @@ class GameRNG:
         if self.metrics:
             self.metrics.start()
 
-        self.weighted_choice_cache: OrderedDict[Any, tuple[np.ndarray, float, int]] = OrderedDict()
+        self.weighted_choice_cache: OrderedDict[Any, tuple[np.ndarray, float, int]] = (
+            OrderedDict()
+        )
         self.weighted_choice_cache_size = 100
 
         self.distributions: Dict[str, Callable[..., float]] = {
@@ -259,9 +262,7 @@ class GameRNG:
             self.metrics.update("bits_consumed", (b - a).bit_length() * count)
         return [int(x) for x in vals]
 
-    def get_randrange(
-        self, start: int, stop: int | None = None, step: int = 1
-    ) -> int:
+    def get_randrange(self, start: int, stop: int | None = None, step: int = 1) -> int:
         """Returns a random element from range(start, stop, step)."""
         if step == 0:
             raise ValueError("step must not be zero")
@@ -369,7 +370,7 @@ class GameRNG:
         min_val: float,
         max_val: float,
         dist_type: str | Distribution,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> float:
         """Returns a distributed value mapped to the range [min_val, max_val]."""
         key = self._normalize_dist(dist_type)
@@ -417,7 +418,9 @@ class GameRNG:
                 cached_data = self.weighted_choice_cache.get(cache_key)
                 if cached_data:
                     c_cdf, c_total, c_len = cached_data
-                    if c_len == len(weights) and math.isclose(c_total, total, rel_tol=1e-9):
+                    if c_len == len(weights) and math.isclose(
+                        c_total, total, rel_tol=1e-9
+                    ):
                         cdf = c_cdf
                         total = c_total
                         self.weighted_choice_cache.move_to_end(cache_key)
@@ -433,12 +436,19 @@ class GameRNG:
                 cdf = np.cumsum(w_arr)
                 cdf[-1] = total
                 if cache_key is not None:
-                    if len(self.weighted_choice_cache) >= self.weighted_choice_cache_size:
+                    if (
+                        len(self.weighted_choice_cache)
+                        >= self.weighted_choice_cache_size
+                    ):
                         self.weighted_choice_cache.popitem(last=False)
                     # store as read-only copy to avoid accidental mutation
                     cdf_copy = cdf.copy()
                     cdf_copy.flags.writeable = False
-                    self.weighted_choice_cache[cache_key] = (cdf_copy, total, len(weights))
+                    self.weighted_choice_cache[cache_key] = (
+                        cdf_copy,
+                        total,
+                        len(weights),
+                    )
 
             r = self._get_float_raw() * total
             idx = int(np.searchsorted(cdf, r, side="left"))
@@ -693,7 +703,9 @@ class GameRNG:
             raise ValueError("scale must be positive")
         input_x = math.floor(x / scale)
         input_y = math.floor(y / scale)
-        return self._rand_float_from_seed(self._hash_seed(input_x, input_y, seed_offset))
+        return self._rand_float_from_seed(
+            self._hash_seed(input_x, input_y, seed_offset)
+        )
 
     # ------------------------------------------------------------------
     # state management (.npz binary serialization) + JSON compatibility

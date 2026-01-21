@@ -37,7 +37,7 @@ class TestLexicon:
         data = {
             "adjectives": ["dark", "light"],
             "nouns": ["room", "hall"],
-            "features": ["a torch", "a statue"]
+            "features": ["a torch", "a statue"],
         }
         lex = Lexicon.from_dict(data)
         assert lex.adjectives == ["dark", "light"]
@@ -46,10 +46,7 @@ class TestLexicon:
 
     def test_lexicon_to_dict(self) -> None:
         """Test converting lexicon to dictionary."""
-        lex = Lexicon(
-            adjectives=["dark", "light"],
-            nouns=["room", "hall"]
-        )
+        lex = Lexicon(adjectives=["dark", "light"], nouns=["room", "hall"])
         data = lex.to_dict()
         assert data["adjectives"] == ["dark", "light"]
         assert data["nouns"] == ["room", "hall"]
@@ -59,7 +56,7 @@ class TestLexicon:
         lex = Lexicon(
             adjectives=["dark", "bright"],
             nouns=["cavern", "tunnel"],
-            features=["moss", "crystals"]
+            features=["moss", "crystals"],
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -164,7 +161,7 @@ class TestVariationEngine:
 
         synonym_map = {
             "dark": ["shadowy", "gloomy", "murky"],
-            "room": ["chamber", "hall", "space"]
+            "room": ["chamber", "hall", "space"],
         }
 
         text = "A dark room."
@@ -187,13 +184,14 @@ class TestVariationEngine:
 
         # Check for consecutive duplicates
         consecutive_dupes = sum(
-            1 for i in range(len(selections) - 1)
-            if selections[i] == selections[i + 1]
+            1 for i in range(len(selections) - 1) if selections[i] == selections[i + 1]
         )
 
         # With anti-repeat, should have very few consecutive dupes
         # (some might occur when buffer is full or by random chance)
-        assert consecutive_dupes < 8  # Relaxed threshold to account for statistical variation
+        assert (
+            consecutive_dupes < 8
+        )  # Relaxed threshold to account for statistical variation
 
 
 class TestOutputRecord:
@@ -241,7 +239,7 @@ class TestOutputRecord:
         records = [
             record_output(rng, "test1", "First"),
             record_output(rng, "test2", "Second"),
-            record_output(rng, "test3", "Third")
+            record_output(rng, "test3", "Third"),
         ]
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -398,8 +396,16 @@ class TestNameGenerator:
         gen = NameGenerator(rng, order=2)
 
         corpus = [
-            "aelric", "baldur", "cassia", "dorian", "elara",
-            "fenris", "gwen", "hadrian", "isolde", "jaren"
+            "aelric",
+            "baldur",
+            "cassia",
+            "dorian",
+            "elara",
+            "fenris",
+            "gwen",
+            "hadrian",
+            "isolde",
+            "jaren",
         ]
         gen.train(corpus)
 

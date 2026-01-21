@@ -6,6 +6,7 @@ Adapter shim so simple_rl.py can use either:
 The adapter now prefers the in-repo Dungeon package (simple_rl.Dungeon or Dungeon.core)
 and will attempt to use CaveGenerator if present.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -48,7 +49,9 @@ def _load_real_module() -> tuple[ModuleType | None, str | None]:
     alt_path = os.path.join(here, "Dungeon", "core.py")
     if os.path.isfile(alt_path):
         try:
-            spec = importlib.util.spec_from_file_location("Dungeon_core_from_path", alt_path)
+            spec = importlib.util.spec_from_file_location(
+                "Dungeon_core_from_path", alt_path
+            )
             if spec and spec.loader:
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)  # type: ignore
@@ -129,7 +132,11 @@ def create_dungeon(
                     # older signatures often look like generate(width, height, rng)
                     return real.generate(width, height, rng)
         except Exception as exc:
-            warnings.warn(f"Real generator top-level call failed: {exc}", RuntimeWarning, stacklevel=2)
+            warnings.warn(
+                f"Real generator top-level call failed: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # Try exporter classes
         # 1) 'DungeonGenerator' (legacy)
@@ -149,7 +156,11 @@ def create_dungeon(
                 if hasattr(dg, "generate"):
                     return dg.generate(width, height, rng=rng)
         except Exception as exc:
-            warnings.warn(f"Real DungeonGenerator call failed: {exc}", RuntimeWarning, stacklevel=2)
+            warnings.warn(
+                f"Real DungeonGenerator call failed: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # 2) CaveGenerator (the real Dungeon/core.py exports this class)
         try:
@@ -164,7 +175,14 @@ def create_dungeon(
                 # instantiate with rng (core.CaveGenerator expects rng as 3rd arg)
                 cg = CaveGenerator(max_nodes, max_depth, rng)
                 # Try common runner names; call the first available
-                runner_names = ["run", "generate", "grow", "execute", "run_generation", "generate_backbone"]
+                runner_names = [
+                    "run",
+                    "generate",
+                    "grow",
+                    "execute",
+                    "run_generation",
+                    "generate_backbone",
+                ]
                 for rn in runner_names:
                     if hasattr(cg, rn):
                         try:
@@ -184,9 +202,19 @@ def create_dungeon(
 
                 if raw_nodes:
                     # Rasterize a simple grid from backbone nodes as fallback renderer.
-                    return _rasterize_from_nodes(raw_nodes, width, height, num_rooms, min_room_size, max_room_size, rng)
+                    return _rasterize_from_nodes(
+                        raw_nodes,
+                        width,
+                        height,
+                        num_rooms,
+                        min_room_size,
+                        max_room_size,
+                        rng,
+                    )
         except Exception as exc:
-            warnings.warn(f"Real CaveGenerator usage failed: {exc}", RuntimeWarning, stacklevel=2)
+            warnings.warn(
+                f"Real CaveGenerator usage failed: {exc}", RuntimeWarning, stacklevel=2
+            )
 
     # Nothing workable from real generator; use fallback
     return _fallback_create_dungeon(
@@ -200,7 +228,9 @@ def create_dungeon(
     )
 
 
-def _rasterize_from_nodes(raw_nodes, width, height, num_rooms, min_room_size, max_room_size, rng):
+def _rasterize_from_nodes(
+    raw_nodes, width, height, num_rooms, min_room_size, max_room_size, rng
+):
     """
     Build a simple '#' / '.' grid from backbone nodes.
     raw_nodes: sequence of objects (CaveNode) or dicts with x,y,id,parent_id
@@ -210,21 +240,44 @@ def _rasterize_from_nodes(raw_nodes, width, height, num_rooms, min_room_size, ma
     for n in raw_nodes:
         if isinstance(n, dict):
             d = n
-            norm.append({"id": d.get("id"), "x": float(d.get("x", 0)), "y": float(d.get("y", 0)), "parent_id": d.get("parent_id")})
+            norm.append(
+                {
+                    "id": d.get("id"),
+                    "x": float(d.get("x", 0)),
+                    "y": float(d.get("y", 0)),
+                    "parent_id": d.get("parent_id"),
+                }
+            )
         else:
             # try attributes or to_dict
             if hasattr(n, "to_dict"):
                 d = n.to_dict()
-                norm.append({"id": d.get("id"), "x": float(d.get("x", 0)), "y": float(d.get("y", 0)), "parent_id": d.get("parent_id")})
+                norm.append(
+                    {
+                        "id": d.get("id"),
+                        "x": float(d.get("x", 0)),
+                        "y": float(d.get("y", 0)),
+                        "parent_id": d.get("parent_id"),
+                    }
+                )
             else:
                 pid = getattr(n, "parent", None)
                 pid_val = pid.id if pid else getattr(n, "parent_id", None)
-                norm.append({"id": getattr(n, "id", None), "x": float(getattr(n, "x", 0.0)), "y": float(getattr(n, "y", 0.0)), "parent_id": pid_val})
+                norm.append(
+                    {
+                        "id": getattr(n, "id", None),
+                        "x": float(getattr(n, "x", 0.0)),
+                        "y": float(getattr(n, "y", 0.0)),
+                        "parent_id": pid_val,
+                    }
+                )
 
     xs = [n["x"] for n in norm]
     ys = [n["y"] for n in norm]
     if not xs or not ys:
-        return _fallback_create_dungeon(width, height, num_rooms, min_room_size, max_room_size, room_gap, rng)
+        return _fallback_create_dungeon(
+            width, height, num_rooms, min_room_size, max_room_size, room_gap, rng
+        )
 
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
@@ -254,7 +307,11 @@ def _rasterize_from_nodes(raw_nodes, width, height, num_rooms, min_room_size, ma
         try:
             rmin = max(1, int(min_room_size // 2))
             rmax = max(1, int(max_room_size // 2))
-            radius = rng.get_int(rmin, rmax) if hasattr(rng, "get_int") else max(1, (rmin + rmax) // 2)
+            radius = (
+                rng.get_int(rmin, rmax)
+                if hasattr(rng, "get_int")
+                else max(1, (rmin + rmax) // 2)
+            )
         except Exception:
             radius = max(1, int((min_room_size + max_room_size) // 4))
 
@@ -335,7 +392,9 @@ def is_valid_position(dungeon: list[list[str]] | Any, x: int, y: int) -> bool:
     return grid[y][x] == "."
 
 
-def find_empty_position(dungeon: list[list[str]], room: list[tuple[int, int]], rng: Any) -> tuple[int, int] | None:
+def find_empty_position(
+    dungeon: list[list[str]], room: list[tuple[int, int]], rng: Any
+) -> tuple[int, int] | None:
     real = _get_real_module()
     if real and hasattr(real, "find_empty_position"):
         try:
@@ -351,7 +410,9 @@ def find_empty_position(dungeon: list[list[str]], room: list[tuple[int, int]], r
     floor_tiles = [
         tile
         for tile in room
-        if 0 <= tile[0] < width and 0 <= tile[1] < height and dungeon[tile[1]][tile[0]] == "."
+        if 0 <= tile[0] < width
+        and 0 <= tile[1] < height
+        and dungeon[tile[1]][tile[0]] == "."
     ]
     if not floor_tiles:
         return None
@@ -365,7 +426,11 @@ def find_empty_position(dungeon: list[list[str]], room: list[tuple[int, int]], r
         idx = rng_get_int(0, len(floor_tiles) - 1)
         return floor_tiles[idx]
 
-    warnings.warn("RNG does not provide choice or get_int; using first available tile.", RuntimeWarning, stacklevel=2)
+    warnings.warn(
+        "RNG does not provide choice or get_int; using first available tile.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
     return floor_tiles[0]
 
 

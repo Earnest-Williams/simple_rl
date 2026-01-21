@@ -38,6 +38,7 @@ except ImportError:
 try:
     from utils.game_rng import GameRNG
 except ImportError:
+
     class GameRNG:  # type: ignore
         pass
 

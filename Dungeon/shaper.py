@@ -14,6 +14,7 @@ import polars as pl
 from numba import njit
 
 from common.constants import Material
+
 # Import GameRNG using relative path
 try:
     # Adjust path relative to main.py's location
@@ -543,7 +544,9 @@ def _calculate_grid_bounds(
 
 def _initialize_grids(
     height: int, width: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, int]] | None:  # Unchanged logic
+) -> (
+    Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, int]] | None
+):  # Unchanged logic
     """Initializes the main grid, depth grid, and type grid."""
     try:
         grid = np.full((height, width), Material.SOLID_ROCK, dtype=np.int8)
@@ -793,9 +796,7 @@ def _rasterize_segment(  # Added rng parameter
 
 def initialize_cave_grid(  # Added rng parameter
     augmented_nodes: list[Dict], augmented_node_map: Dict[int, Dict], rng: GameRNG
-) -> Tuple[
-    np.ndarray | None, np.ndarray | None, np.ndarray | None, Tuple[int, int]
-]:
+) -> Tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, Tuple[int, int]]:
     """Creates initial 2D grid footprint by orchestrating helper functions."""
     # Removed global debug dump variables
     if not augmented_nodes:
@@ -891,7 +892,9 @@ def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:  # CA Step (unchanged)
 
     # Apply rules based on neighbor count
     # Use central constant
-    born = (grid == Material.SOLID_ROCK) & (non_solid_neighbor_count >= CA_BIRTH_THRESHOLD)
+    born = (grid == Material.SOLID_ROCK) & (
+        non_solid_neighbor_count >= CA_BIRTH_THRESHOLD
+    )
     # Use central constant
     survived = (grid != Material.SOLID_ROCK) & (
         non_solid_neighbor_count >= CA_SURVIVAL_THRESHOLD
@@ -983,7 +986,9 @@ def create_map_dataframe(  # Added rng parameter
     col_mat_id = mat_ids.astype(np.uint16)
     # Define walkable based on material ID (e.g., excluding rock, cliffs)
     # Use central constants
-    walkable_mask = (col_mat_id != Material.SOLID_ROCK) & (col_mat_id != Material.CLIFF_EDGE)
+    walkable_mask = (col_mat_id != Material.SOLID_ROCK) & (
+        col_mat_id != Material.CLIFF_EDGE
+    )
     col_walkable = walkable_mask.astype(bool)
 
     # Calculate heights (vectorized where possible)

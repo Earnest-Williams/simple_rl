@@ -76,7 +76,9 @@ class _GameStateWorldAdapter:
         self.item_df = game_state.item_registry.items_df
         self.walkable = _build_walkable(game_state)
 
-    def get_nearest_entity(self, agent: _GameAgentAdapter, kind: str) -> tuple[Any | None, float]:
+    def get_nearest_entity(
+        self, agent: _GameAgentAdapter, kind: str
+    ) -> tuple[Any | None, float]:
         ax, ay = agent.get_position()
         best_id = None
         best_dist = float("inf")

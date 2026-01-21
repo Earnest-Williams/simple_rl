@@ -44,14 +44,19 @@ def run_regression(
             "num_runs": num_runs,
             "completed_runs": len(results),
             "max_turns": auto_main.MAX_TURNS,
-            "average_turns": (sum(turns_survived) / len(turns_survived))
-            if turns_survived
-            else 0.0,
+            "average_turns": (
+                (sum(turns_survived) / len(turns_survived)) if turns_survived else 0.0
+            ),
             "min_turns": min(turns_survived) if turns_survived else 0,
             "max_turns_survived": max(turns_survived) if turns_survived else 0,
             "outcomes": dict(outcome_counts),
             "runs": [
-                {"run": run_id, "seed": run_seed, "turns_survived": turns, "outcome": outcome}
+                {
+                    "run": run_id,
+                    "seed": run_seed,
+                    "turns_survived": turns,
+                    "outcome": outcome,
+                }
                 for run_id, run_seed, (turns, _weights, outcome) in zip(
                     range(1, num_runs + 1), run_seeds, results
                 )
@@ -68,7 +73,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run the GOAP auto headless harness and emit JSON."
     )
-    parser.add_argument("--seed", type=int, default=1337, help="Seed for reproducibility.")
+    parser.add_argument(
+        "--seed", type=int, default=1337, help="Seed for reproducibility."
+    )
     parser.add_argument(
         "-n",
         "--num-runs",
@@ -84,7 +91,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    summary = run_regression(seed=args.seed, num_runs=args.num_runs, max_turns=args.max_turns)
+    summary = run_regression(
+        seed=args.seed, num_runs=args.num_runs, max_turns=args.max_turns
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
 
 

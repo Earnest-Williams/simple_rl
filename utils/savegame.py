@@ -18,6 +18,7 @@ SchemaVersion = str
 
 class SaveGameSerializationError(Exception):
     """Raised when an object cannot be serialized to the save format."""
+
     pass
 
 
@@ -44,7 +45,7 @@ def _make_json_serializable(obj: Any) -> Any:
         return {
             "__ndarray__": obj.tolist(),
             "dtype": str(obj.dtype),
-            "shape": list(obj.shape)
+            "shape": list(obj.shape),
         }
     if isinstance(obj, dict):
         # Optimize: only convert key to string if not already a string
@@ -54,9 +55,7 @@ def _make_json_serializable(obj: Any) -> Any:
         }
     if isinstance(obj, tuple):
         # Mark tuples for restoration
-        return {
-            "__tuple__": [_make_json_serializable(v) for v in obj]
-        }
+        return {"__tuple__": [_make_json_serializable(v) for v in obj]}
     if isinstance(obj, list):
         return [_make_json_serializable(v) for v in obj]
 

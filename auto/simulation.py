@@ -40,7 +40,10 @@ from .goap_engine import Action, AgentAI, GOAPPlanner
 try:
     from numba import njit
 except ImportError:
-    print("Warning: Numba not found, distance calculation will be slower.", file=sys.stderr)
+    print(
+        "Warning: Numba not found, distance calculation will be slower.",
+        file=sys.stderr,
+    )
 
     # Dummy decorator if Numba not available
     def njit(func=None, **options):  # type: ignore # noqa
@@ -110,13 +113,19 @@ class Utility(Item):
 # Factory functions for items
 def create_slime_mold() -> Consumable:
     return Consumable(
-        "Slime Mold", restores="hunger", amount=40.0, description="A quivering, edible mold."
+        "Slime Mold",
+        restores="hunger",
+        amount=40.0,
+        description="A quivering, edible mold.",
     )
 
 
 def create_health_potion() -> Consumable:
     return Consumable(
-        "Health Potion", restores="health", amount=50.0, description="Restores some health."
+        "Health Potion",
+        restores="health",
+        amount=50.0,
+        description="Restores some health.",
     )
 
 
@@ -217,7 +226,9 @@ class Entity:
         # --- Hunger Initialization ---
         if hunger is None:
             # Assume relevant entities start full, others have no hunger concept
-            self.hunger: float = START_HUNGER if kind in ["agent", "enemy", "slime"] else 0.0
+            self.hunger: float = (
+                START_HUNGER if kind in ["agent", "enemy", "slime"] else 0.0
+            )
         else:
             self.hunger = float(hunger)
 
@@ -268,13 +279,19 @@ class World:
         self.rng: GameRNG = rng  # Store RNG instance
 
         # --- State Attributes ---
-        self.grid: list[list[OptionalEntity]] = [[None for _ in range(size)] for _ in range(size)]
+        self.grid: list[list[OptionalEntity]] = [
+            [None for _ in range(size)] for _ in range(size)
+        ]
         self.entities: dict[EntityID, Entity] = {}
         self.entity_df: pl.DataFrame = self._create_empty_entity_df()
-        self.entities_by_kind: defaultdict[str, dict[EntityID, Entity]] = defaultdict(dict)
+        self.entities_by_kind: defaultdict[str, dict[EntityID, Entity]] = defaultdict(
+            dict
+        )
         self.agent: OptionalEntity = None
         self.turn: int = 0
-        self._free_tiles: set[Position] = set((x, y) for x in range(size) for y in range(size))
+        self._free_tiles: set[Position] = set(
+            (x, y) for x in range(size) for y in range(size)
+        )
 
         # --- Constants accessible via instance if needed ---
         self.HUNGER_PER_TURN = PASSIVE_HUNGER_PER_TURN  # Example constant
@@ -325,7 +342,9 @@ class World:
             can_place = True
         elif existing_entity.kind == "item" and entity.kind != "item":
             # Agent/Enemy overwrites item (item might be picked up later or destroyed)
-            print(f"Warning: Entity {entity.kind} displacing item {existing_entity.id} at {pos}.")
+            print(
+                f"Warning: Entity {entity.kind} displacing item {existing_entity.id} at {pos}."
+            )
             self.remove_entity(existing_entity)  # Remove the item first
             can_place = True
         elif entity.kind == "item" and existing_entity.kind != "item":
@@ -344,7 +363,9 @@ class World:
             can_place = False
 
         if not can_place:
-            print(f"Warning: Position {pos} occupied, cannot add {entity.kind} {entity.id}.")
+            print(
+                f"Warning: Position {pos} occupied, cannot add {entity.kind} {entity.id}."
+            )
             return False
 
         # Place entity
@@ -481,7 +502,9 @@ class World:
             or self.grid[current_pos[0]][current_pos[1]] != entity
         ):
             # This might indicate a state inconsistency
-            print(f"Warning: Entity {entity_id} not found at expected position {current_pos}.")
+            print(
+                f"Warning: Entity {entity_id} not found at expected position {current_pos}."
+            )
             # Allow move anyway if target is clear? Or return False? Let's be strict.
             return False
 
@@ -547,7 +570,9 @@ class World:
 
             # Filter by max_dist if provided
             if max_dist is not None:
-                target_df_filtered = target_df_with_dist.filter(pl.col("dist") <= max_dist)
+                target_df_filtered = target_df_with_dist.filter(
+                    pl.col("dist") <= max_dist
+                )
                 if target_df_filtered.is_empty():
                     return None, float("inf")
                 target_df_to_search = target_df_filtered
@@ -571,7 +596,9 @@ class World:
             min_d = float("inf")
             nearest_id = None
             # Safely iterate using .get()
-            for entity_id_loop, entity_obj in self.entities_by_kind.get(kind, {}).items():
+            for entity_id_loop, entity_obj in self.entities_by_kind.get(
+                kind, {}
+            ).items():
                 # Check if it's the source entity itself (e.g., finding nearest *other* item)
                 if entity_obj.id == source_entity.id:
                     continue
@@ -581,7 +608,9 @@ class World:
                     nearest_id = entity_id_loop
             return nearest_id, min_d
 
-    def _get_random_free_pos(self, rng: GameRNG) -> OptionalPosition:  # Added rng parameter
+    def _get_random_free_pos(
+        self, rng: GameRNG
+    ) -> OptionalPosition:  # Added rng parameter
         """Gets a random free position from the available set."""
         if not self._free_tiles:
             return None
@@ -645,14 +674,20 @@ class World:
                 self.add_entity(slime)
 
         # Place Items (Potions, Daggers)
-        item_factories = [create_health_potion, create_dagger, create_torch]  # Example items
+        item_factories = [
+            create_health_potion,
+            create_dagger,
+            create_torch,
+        ]  # Example items
         for _ in range(num_items):
             pos = self._get_random_free_pos(rng)
             if pos:
                 # Use rng.choice to select item factory
                 item_factory = rng.choice(item_factories)
                 item_obj = item_factory()
-                item_entity = Entity(pos[0], pos[1], "item", rng=rng, item=item_obj)  # Pass rng
+                item_entity = Entity(
+                    pos[0], pos[1], "item", rng=rng, item=item_obj
+                )  # Pass rng
                 self.add_entity(item_entity)
 
     def reset(  # Added rng parameter
@@ -670,7 +705,9 @@ class World:
         self.entities_by_kind = defaultdict(dict)
         self.agent = None
         self.turn = 0
-        self._free_tiles = set((x, y) for x in range(self.size) for y in range(self.size))
+        self._free_tiles = set(
+            (x, y) for x in range(self.size) for y in range(self.size)
+        )
         # Populate using the provided RNG instance
         self.populate_world(rng, num_food, num_enemies, num_slimes, num_items)
 
@@ -754,7 +791,10 @@ class World:
 
                 neighbor_entity = self.grid[neighbor_pos[0]][neighbor_pos[1]]
                 # Check walkability (allow moving onto items)
-                if neighbor_entity is not None and neighbor_entity.kind not in ["item", "food"]:
+                if neighbor_entity is not None and neighbor_entity.kind not in [
+                    "item",
+                    "food",
+                ]:
                     continue
 
                 # Cost to move to neighbor is 1
@@ -765,7 +805,12 @@ class World:
                     came_from[neighbor_pos] = current_pos
                     g_score[neighbor_pos] = tentative_g_score
                     f_score[neighbor_pos] = tentative_g_score + float(
-                        distance(neighbor_pos[0], neighbor_pos[1], target_pos[0], target_pos[1])
+                        distance(
+                            neighbor_pos[0],
+                            neighbor_pos[1],
+                            target_pos[0],
+                            target_pos[1],
+                        )
                     )
                     heapq.heappush(open_set, (f_score[neighbor_pos], neighbor_pos))
 
@@ -806,7 +851,9 @@ def enemy_act(enemy: Entity, world: World, rng: GameRNG):  # Added rng parameter
                 if world.is_valid(nx, ny):
                     target_entity = world.grid[nx][ny]
                     if target_entity is None or target_entity.kind == "item":
-                        dist_from_agent = float(distance(nx, ny, agent_pos[0], agent_pos[1]))
+                        dist_from_agent = float(
+                            distance(nx, ny, agent_pos[0], agent_pos[1])
+                        )
                         if dist_from_agent > max_dist_from_agent:
                             max_dist_from_agent = dist_from_agent
                             best_flee_spot = (nx, ny)
