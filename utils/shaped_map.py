@@ -204,7 +204,9 @@ def shaped_dataframe_to_game_map(
     if "height" not in df_columns and "floor_depth" in df_columns:
         depth_vals = df.get_column("floor_depth").to_numpy()
         depth_vals = np.nan_to_num(depth_vals, nan=default_floor_depth)
-        depth_grid = np.full((height, width), default_height, dtype=np.int16, order="C")
+        depth_grid = np.full(
+            (height, width), default_floor_depth, dtype=np.int16, order="C"
+        )
         depth_grid[gy, gx] = np.rint(depth_vals).astype(np.int16)
         game_map.height_map = depth_grid
 

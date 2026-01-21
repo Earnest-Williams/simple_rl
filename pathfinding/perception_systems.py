@@ -10,6 +10,7 @@ inspired by Sil, optimized for Python using NumPy, Numba, Polars, and Joblib.
 Designed as a starting point for iteration with custom map data.
 """
 
+import logging
 import os  # For determining CPU count
 import time
 from collections import deque
@@ -28,6 +29,8 @@ from utils.game_rng import GameRNG
 
 # --- Constants ---
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 # --- Configuration ---
 # Map dimensions (replace with actual dimensions)
 MAP_HGT: int = 64
@@ -39,7 +42,9 @@ NOISE_MAX_DIST: int = 200  # Clamping value for get_noise_dist
 SMELL_STRENGTH: int = 80  # Threshold for scent aging/reset
 SCENT_RESET_AGE: int = 250  # Base age for scent reset cycle
 # Parallelism
-N_JOBS: int = max(1, os.cpu_count() // 2)  # Use half the CPU cores for Joblib
+_cpu_count: int | None = os.cpu_count()
+_safe_cpu_count: int = _cpu_count if _cpu_count is not None else 1
+N_JOBS: int = max(1, _safe_cpu_count // 2)  # Use half the CPU cores for Joblib
 
 
 # --- Enums ---
@@ -665,7 +670,7 @@ def monster_perception(
     # --- Filter Monsters ---
     # Select only monsters that are alive and potentially relevant
     # (e.g., within a max perception range if known, or just !is_dead)
-    active_monsters_df = monster_df.filter(pl.col("is_dead") is False)
+    active_monsters_df = monster_df.filter(~pl.col("is_dead"))
 
     num_monsters = active_monsters_df.height
     if num_monsters == 0:
@@ -704,15 +709,18 @@ def monster_perception(
     all_alerted_ids: List[int] = [item for sublist in results for item in sublist]
 
     end_time = time.time()
-    print(
-        f"Monster perception for {num_monsters} monsters took {
-            end_time - start_time:.4f}s using {N_JOBS} jobs."
+    duration_s: float = end_time - start_time
+    logger.info(
+        "Monster perception for %d monsters took %.4fs using %d jobs.",
+        num_monsters,
+        duration_s,
+        N_JOBS,
     )
 
     # --- Update Monster State (Post-Parallel) ---
     # Now that we have all alerted IDs, update the main DataFrame or trigger AI
     if all_alerted_ids:
-        print(f"Monsters alerted: {all_alerted_ids}")
+        logger.info("Monsters alerted: %s", all_alerted_ids)
         # Example: Update a 'heard_player' flag in the main DataFrame
         # This is safer than trying to modify the DF from parallel workers.
         # monster_df = monster_df.with_columns(
