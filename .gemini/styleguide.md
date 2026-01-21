@@ -1,5 +1,7 @@
 # Supplemental Style Rules
 
+REFER TO THE AGENTS.md IN THE ROOT OF THE REPO.
+
 In addition to the base rules, all code must adhere to these "maximalist" performance and typing standards. Violations of these rules are considered "Critical."
 
 ## 1. Type Declaration & PEP 604
