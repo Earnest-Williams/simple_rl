@@ -532,28 +532,16 @@ def _run_brainfuck_sandboxed(
         if remaining <= 0.0:
             break
         if parent_conn.poll(remaining):
-            result_tuple = parent_conn.recv()
+            result_tuple: BFResultTuple = parent_conn.recv()
             process.join(timeout=0.1)
-            return BFResult(
-                success=result_tuple[0],
-                output=result_tuple[1],
-                error=result_tuple[2],
-                steps=result_tuple[3],
-                halted=result_tuple[4],
-            )
+            return BFResult(*result_tuple)
         if not process.is_alive():
             break
 
     if parent_conn.poll(0.0):
-        result_tuple = parent_conn.recv()
+        result_tuple: BFResultTuple = parent_conn.recv()
         process.join(timeout=0.1)
-        return BFResult(
-            success=result_tuple[0],
-            output=result_tuple[1],
-            error=result_tuple[2],
-            steps=result_tuple[3],
-            halted=result_tuple[4],
-        )
+        return BFResult(*result_tuple)
     if not process.is_alive():
         process.join(timeout=0.1)
         return BFResult(
