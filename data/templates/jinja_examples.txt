@@ -1,0 +1,29 @@
+# Example Jinja2 Templates for VariationEngine
+
+## Basic Choice Filter
+You see {{ ['a torch', 'a statue', 'a pool'] | choice }}.
+
+## Multiple Choices
+The {{ ['warrior', 'mage', 'rogue'] | choice }} {{ ['attacks', 'defends', 'dodges'] | choice }}.
+
+## Conditional with Choice
+{% if include_detail %}
+A {{ ['magnificent', 'terrifying', 'mysterious'] | choice }} sight awaits.
+{% else %}
+You see something interesting.
+{% endif %}
+
+## Nested Choices
+The {{ ['ancient', 'forgotten', 'hidden'] | choice }} {{ ['temple', 'shrine', 'altar'] | choice }} contains {{ ['treasures', 'secrets', 'dangers'] | choice }}.
+
+## Loop with Choice
+{% for i in range(3) %}
+- {{ ['Gold', 'Silver', 'Bronze', 'Iron'] | choice }} {{ ['coin', 'ring', 'amulet'] | choice }}
+{% endfor %}
+
+## Complex Description
+You enter a {{ adjectives | choice }} {{ rooms | choice }}.
+{{ features | choice }} dominates the space.
+{% if include_atmosphere %}
+{{ atmosphere | choice }}
+{% endif %}

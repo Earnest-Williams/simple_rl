@@ -1,0 +1,44 @@
+{
+  "adjectives": [
+    "devastating", "precise", "brutal", "swift", "crushing",
+    "deadly", "vicious", "powerful", "lightning-fast", "merciless",
+    "calculated", "reckless", "defensive", "aggressive", "tactical"
+  ],
+  "nouns": [
+    "strike", "blow", "attack", "slash", "thrust",
+    "parry", "counter", "riposte", "feint", "charge",
+    "assault", "maneuver", "gambit", "swing", "jab"
+  ],
+  "features": [
+    "finding a gap in the defense",
+    "exploiting a momentary lapse",
+    "following through with full force",
+    "pivoting at the last moment",
+    "catching them off-guard",
+    "reading their next move perfectly",
+    "overwhelming with sheer strength",
+    "dancing past their guard",
+    "turning their momentum against them",
+    "striking before they can react"
+  ],
+  "verbs": [
+    "deliver", "execute", "launch", "unleash", "perform",
+    "attempt", "strike with", "land", "connect with", "press"
+  ],
+  "adverbs": [
+    "decisively", "skillfully", "brutally", "elegantly", "forcefully",
+    "desperately", "confidently", "recklessly", "carefully", "smoothly"
+  ],
+  "clauses": [
+    "Blood spatters the ground.",
+    "Metal clashes against metal.",
+    "The enemy staggers backward.",
+    "Victory seems within reach.",
+    "The battle intensifies.",
+    "Your muscles burn with exertion.",
+    "Sweat stings your eyes.",
+    "Time seems to slow.",
+    "Your training takes over.",
+    "Adrenaline surges through you."
+  ]
+}

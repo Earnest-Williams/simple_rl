@@ -1,0 +1,48 @@
+{
+  "adjectives": [
+    "gleaming", "tarnished", "ornate", "simple", "exquisite",
+    "ancient", "pristine", "battered", "jeweled", "engraved",
+    "mysterious", "elegant", "crude", "masterwork", "enchanted"
+  ],
+  "nouns": [
+    "treasure", "hoard", "cache", "trove", "collection",
+    "bounty", "fortune", "wealth", "spoils", "riches"
+  ],
+  "features": [
+    "coins of various denominations",
+    "a sword with an unusual hilt",
+    "jewelry that catches the light",
+    "gemstones of remarkable clarity",
+    "scrolls bound in leather",
+    "potions in crystalline vials",
+    "armor pieces still in good condition",
+    "books with gilded pages",
+    "religious artifacts and icons",
+    "maps to unknown locations",
+    "keys of strange design",
+    "figurines carved from precious stone",
+    "rings bearing noble seals",
+    "amulets pulsing with faint magic",
+    "weapons of exceptional craftsmanship"
+  ],
+  "verbs": [
+    "discover", "uncover", "find", "spot", "notice",
+    "stumble upon", "reveal", "unearth", "locate", "identify"
+  ],
+  "adverbs": [
+    "carefully", "eagerly", "cautiously", "excitedly", "greedily",
+    "thoughtfully", "hastily", "methodically", "reverently", "suspiciously"
+  ],
+  "clauses": [
+    "Your heart races with excitement.",
+    "This could change everything.",
+    "The value is substantial.",
+    "Such finds are rare.",
+    "Fortune smiles upon you.",
+    "Your eyes widen in amazement.",
+    "This surpasses your expectations.",
+    "A worthy prize indeed.",
+    "The risks were worth it.",
+    "Others would kill for this."
+  ]
+}
