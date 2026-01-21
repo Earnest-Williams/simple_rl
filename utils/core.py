@@ -305,7 +305,7 @@ class VariationEngine:
             return [
                 "{adj} {noun}. {feature}.",
                 "{adj} {noun}.",
-                "{noun}. {feature}."
+                f"{noun}. {feature}."
             ]
         elif self.tone == ToneProfile.ORNATE:
             return [
