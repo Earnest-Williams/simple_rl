@@ -76,7 +76,7 @@ def test_input_exhaustion():
     # Read one input, then try to read another when none available
     r = run_brainfuck(",>,.", input_data="A")
     assert r.success
-    # First char is 'A', second is 0 (null byte)
+    # Reads 'A', moves to the next cell, which is set to 0 on input exhaustion, and then outputs it.
     assert len(r.output) == 1
     assert r.output[0] == '\x00'
 
