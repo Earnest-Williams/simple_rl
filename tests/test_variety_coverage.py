@@ -81,7 +81,7 @@ class TestVarietyCoverageThresholds:
 
         # Should have at least 70% unique names (Markov chains produce some duplicates)
         assert metrics.unique_fraction >= 0.70, (
-            f"Name generation failed variety threshold: "
+            "Name generation failed variety threshold: "
             f"{metrics.unique_fraction:.3f} < 0.70"
         )
 
