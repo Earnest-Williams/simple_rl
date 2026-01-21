@@ -10,9 +10,28 @@ and interpreting scripts. It includes:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Dict, Literal, Protocol, TypedDict
 
 from magic.brainfuck_numba import BFResult, run_brainfuck
+
+_MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
+MacroExpansionReason = Literal[
+    "char_limit_exceeded",
+    "depth_exceeded",
+    "recursion_detected",
+]
+
+
+@dataclass(frozen=True)
+class MacroExpansionError(Exception):
+    reason: MacroExpansionReason
+    macro_name: str | None = None
+
+    def __str__(self) -> str:
+        if self.reason == "recursion_detected" and self.macro_name is not None:
+            return f"{self.reason}:{self.macro_name}"
+        return self.reason
 
 
 class GameStateProtocol(Protocol):
@@ -141,61 +160,86 @@ class MacroManager:
         Returns:
             str: The text with all macros expanded
         """
-        # Prevent infinite recursion more robustly
-        pattern: re.Pattern[str] = re.compile(r"!\w+")
-        expanded_text: str = text
-        depth: int = 0
-        seen_macros: set[str] = set()  # Track macros used in current expansion chain
+        return self.expand_macros_strict(
+            text,
+            max_depth=expansion_limit,
+            max_chars=50_000,
+        )
 
-        while depth < expansion_limit:
-            found_macro: bool = False
-            current_expansion: str = ""
-            last_end: int = 0
+    def expand_macros_strict(
+        self,
+        text: str,
+        max_depth: int = 20,
+        max_chars: int = 50_000,
+    ) -> str:
+        """
+        Expand macros using depth-first traversal with recursion detection.
 
-            for match in pattern.finditer(expanded_text):
-                macro_name: str = match.group(0)
+        Args:
+            text (str): The text containing macros to expand
+            max_depth (int): Maximum recursive expansion depth
+            max_chars (int): Maximum total expanded character count
+
+        Returns:
+            str: The text with all macros expanded
+        """
+        if max_depth < 0:
+            raise ValueError("max_depth must be >= 0.")
+        if max_chars <= 0:
+            raise ValueError("max_chars must be > 0.")
+
+        def _append_text(
+            out_parts: list[str],
+            text_part: str,
+            char_count: int,
+        ) -> int:
+            if not text_part:
+                return char_count
+            new_count: int = char_count + len(text_part)
+            if new_count > max_chars:
+                raise MacroExpansionError("char_limit_exceeded")
+            out_parts.append(text_part)
+            return new_count
+
+        def _expand_segment(
+            seg: str,
+            path: list[str],
+            depth: int,
+            char_count: int,
+        ) -> tuple[str, int]:
+            if depth > max_depth:
+                raise MacroExpansionError("depth_exceeded")
+            out_parts: list[str] = []
+            pos: int = 0
+            for match in _MACRO_TOKEN.finditer(seg):
                 start: int
                 end: int
                 start, end = match.span()
+                char_count = _append_text(out_parts, seg[pos:start], char_count)
 
-                # Append text before the macro
-                current_expansion += expanded_text[last_end:start]
-
-                if macro_name in seen_macros:
-                    # Prevent direct recursion within this expansion path
-                    warning_message = (
-                        f"Warning: Detected recursion for macro {macro_name}. "
-                        "Stopping expansion here."
-                    )
-                    print(warning_message)  # TODO: Replace with logging.warning
-                    current_expansion += macro_name  # Keep the macro name as is
-                elif macro_name in self.macros:
-                    # Expand the macro
-                    replacement: str = self.macros[macro_name]
-                    current_expansion += replacement
-                    found_macro = True
-                    # We could add 'macro_name' to seen_macros here for stricter
-                    # recursion check, but simple depth limit might be enough.
+                token: str = match.group(1)
+                if token in path:
+                    raise MacroExpansionError("recursion_detected", token)
+                if token not in self.macros:
+                    char_count = _append_text(out_parts, token, char_count)
                 else:
-                    # Macro not found, keep it as is
-                    current_expansion += macro_name
+                    path.append(token)
+                    expanded: str
+                    expanded, char_count = _expand_segment(
+                        self.macros[token],
+                        path,
+                        depth + 1,
+                        char_count,
+                    )
+                    path.pop()
+                    out_parts.append(expanded)
+                pos = end
 
-                last_end = end
+            char_count = _append_text(out_parts, seg[pos:], char_count)
+            return "".join(out_parts), char_count
 
-            # Append any remaining text after the last macro
-            current_expansion += expanded_text[last_end:]
-
-            if not found_macro:
-                # No more macros found in this pass
-                break
-
-            expanded_text = current_expansion
-            depth += 1
-            seen_macros.clear()  # Reset seen set for the next level of expansion.
-
-        if depth >= expansion_limit:
-            print(f"Warning: Macro expansion reached depth limit ({expansion_limit}).")
-
+        expanded_text: str
+        expanded_text, _ = _expand_segment(text, [], 0, 0)
         return expanded_text
 
     def execute_command_sequence(self, command_string: str) -> str:
