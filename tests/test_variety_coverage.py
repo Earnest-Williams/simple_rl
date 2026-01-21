@@ -182,7 +182,7 @@ class TestVarietyRegression:
     """Regression tests to catch variety decreases."""
 
     @pytest.fixture
-    def baseline_variety(self):
+    def baseline_variety(self) -> dict[str, float]:
         """Baseline variety metrics for regression testing."""
         return {
             "room_neutral_1000": 0.60,  # Minimum unique fraction
