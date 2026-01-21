@@ -1,5 +1,3 @@
----
-
 # LLM + Human Style Guide (Simple RL)
 
 ## 0. Scope and priority
@@ -13,8 +11,6 @@ This document is the single source of truth for code style and engineering const
 * **Guideline**: Preferable defaults.
 
 If two rules conflict, follow the **more restrictive** rule.
-
----
 
 ## 1. Baselines (Critical)
 
