@@ -30,10 +30,10 @@ def test_step_limit():
 
 def test_numba_path_long_compute():
     """Test Numba path with longer computation (or fallback if Numba unavailable)."""
-    # Force use_numba=True only if numba present in env.
-    r = run_brainfuck("+" * 500 + "[+]", use_numba=True, max_steps=100000)
-    # We don't assert exact output, but ensure it doesn't crash; if numba not available or fails we still get fallback.
-    assert isinstance(r.success, bool)
+    # Force use_numba=True. The code +[] creates an infinite loop that should hit max_steps.
+    r = run_brainfuck("+" * 500 + "+[]", use_numba=True, max_steps=100000)
+    # This should always fail due to max_steps being exceeded
+    assert not r.success and r.error == "max_steps_exceeded"
 
 
 def test_hello_world():

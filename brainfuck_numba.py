@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
 import numpy as np
 
 # Try to import numba explicitly; if missing we'll fall back.
@@ -12,6 +11,17 @@ try:
 except Exception:
     njit = None  # type: ignore
     _NUMBA_AVAILABLE = False
+
+
+# Brainfuck command ASCII values
+CMD_GT = ord('>')      # 62
+CMD_LT = ord('<')      # 60
+CMD_PLUS = ord('+')    # 43
+CMD_MINUS = ord('-')   # 45
+CMD_DOT = ord('.')     # 46
+CMD_COMMA = ord(',')   # 44
+CMD_LBRACKET = ord('[')  # 91
+CMD_RBRACKET = ord(']')  # 93
 
 
 @dataclass(frozen=True)
@@ -31,14 +41,14 @@ def sanitize(code: str) -> str:
     return "".join(c for c in code if c in "><+-.,[]")
 
 
-def build_bracket_map(code: str) -> Dict[int, int]:
+def build_bracket_map(code: str) -> dict[int, int]:
     """
     Build bidirectional bracket mapping.
 
     Raises SyntaxError on unmatched brackets.
     """
     stack: list[int] = []
-    mapping: Dict[int, int] = {}
+    mapping: dict[int, int] = {}
     for i, c in enumerate(code):
         if c == "[":
             stack.append(i)
@@ -58,11 +68,11 @@ def _interpret_pure(
     code: str,
     input_bytes: bytes,
     tape: np.ndarray,
-    bracket_map: Dict[int, int],
+    bracket_map: dict[int, int],
     max_steps: int,
     wrap_pointer: bool,
     clamp_pointer: bool,
-) -> Tuple[str, int, bool, str | None]:
+) -> tuple[str, int, bool, str | None]:
     """
     A safe, pure-Python interpreter loop. Returns:
       (output_str, steps_executed, halted_bool, error_or_None)
@@ -157,19 +167,19 @@ if _NUMBA_AVAILABLE:
     # primitive types and numpy arrays; it returns numeric diagnostics.
     @njit(cache=True)
     def _numba_core(
-        code_arr,
+        code_arr: np.ndarray,
         code_len: int,
-        bracket_map_arr,
-        tape,
+        bracket_map_arr: np.ndarray,
+        tape: np.ndarray,
         tape_len: int,
-        input_arr,
+        input_arr: np.ndarray,
         input_len: int,
-        output_arr,
+        output_arr: np.ndarray,
         max_output: int,
         max_steps: int,
         wrap_flag: int,
         clamp_flag: int,
-    ):
+    ) -> tuple[int, int, int, int]:
         # Return tuple: (steps, halted_flag(0/1), out_len, error_code)
         # error_code: 0 = OK, 1 = max_steps_exceeded, 2 = output_overflow, 3 = runtime_error
         ip = 0
@@ -184,9 +194,7 @@ if _NUMBA_AVAILABLE:
                     return steps, 0, out_len, 1
                 cmd = code_arr[ip]
 
-                # '>' == 62, '<' == 60, '+' == 43, '-' == 45
-                # '.' == 46, ',' == 44, '[' == 91, ']' == 93
-                if cmd == 62:  # '>'
+                if cmd == CMD_GT:  # '>'
                     if wrap_flag == 1:
                         ptr = (ptr + 1) % tape_len
                     elif clamp_flag == 1:
@@ -196,7 +204,7 @@ if _NUMBA_AVAILABLE:
                         ptr = (ptr + 1) % tape_len
                     ip += 1
 
-                elif cmd == 60:  # '<'
+                elif cmd == CMD_LT:  # '<'
                     if wrap_flag == 1:
                         ptr = (ptr - 1 + tape_len) % tape_len
                     elif clamp_flag == 1:
@@ -206,16 +214,16 @@ if _NUMBA_AVAILABLE:
                         ptr = (ptr - 1 + tape_len) % tape_len
                     ip += 1
 
-                elif cmd == 43:  # '+'
+                elif cmd == CMD_PLUS:  # '+'
                     # uint8 wrap
                     tape[ptr] = (int(tape[ptr]) + 1) & 0xFF
                     ip += 1
 
-                elif cmd == 45:  # '-'
+                elif cmd == CMD_MINUS:  # '-'
                     tape[ptr] = (int(tape[ptr]) - 1) & 0xFF
                     ip += 1
 
-                elif cmd == 46:  # '.'
+                elif cmd == CMD_DOT:  # '.'
                     if out_len >= max_output:
                         return steps, 0, out_len, 2
                     # write raw byte value to output buffer (as int)
@@ -223,7 +231,7 @@ if _NUMBA_AVAILABLE:
                     out_len += 1
                     ip += 1
 
-                elif cmd == 44:  # ','
+                elif cmd == CMD_COMMA:  # ','
                     if input_pos < input_len:
                         tape[ptr] = int(input_arr[input_pos]) & 0xFF
                         input_pos += 1
@@ -231,14 +239,14 @@ if _NUMBA_AVAILABLE:
                         tape[ptr] = 0
                     ip += 1
 
-                elif cmd == 91:  # '['
+                elif cmd == CMD_LBRACKET:  # '['
                     if tape[ptr] == 0:
                         # jump to matching ']' (bracket_map_arr[ip])
                         ip = bracket_map_arr[ip] + 1
                     else:
                         ip += 1
 
-                elif cmd == 93:  # ']'
+                elif cmd == CMD_RBRACKET:  # ']'
                     if tape[ptr] != 0:
                         ip = bracket_map_arr[ip] + 1
                     else:
@@ -266,11 +274,11 @@ def _run_numba_core(
     clean: str,
     input_bytes: bytes,
     tape: np.ndarray,
-    bracket_map: Dict[int, int],
+    bracket_map: dict[int, int],
     max_steps: int,
     wrap_pointer: bool,
     clamp_pointer: bool,
-) -> Tuple[str, int, bool, str | None]:
+) -> tuple[str, int, bool, str | None]:
     """
     Prepare arrays and call the njit core. Reconstruct output string from output buffer.
     Returns: (output_str, steps, halted_bool, error_or_None)
@@ -280,16 +288,14 @@ def _run_numba_core(
     if code_len == 0:
         return ("", 0, True, None)
 
-    code_arr = np.empty(code_len, dtype=np.int32)
-    for i, c in enumerate(clean):
-        code_arr[i] = ord(c)
+    code_arr = np.frombuffer(clean.encode("ascii"), dtype=np.uint8).astype(np.int32)
 
     # bracket map as int32 array, -1 for non-bracket positions
     bracket_map_arr = np.full(code_len, -1, dtype=np.int32)
-    for idx, match in bracket_map.items():
-        # mapping contains both directions; this safely overwrites duplicates
-        if 0 <= idx < code_len:
-            bracket_map_arr[idx] = match
+    if bracket_map:
+        indices = np.array(list(bracket_map.keys()), dtype=np.int32)
+        values = np.array(list(bracket_map.values()), dtype=np.int32)
+        bracket_map_arr[indices] = values
 
     tape_len = int(tape.shape[0])
 
@@ -328,19 +334,18 @@ def _run_numba_core(
         # Compilation / runtime error: propagate to caller for fallback
         raise RuntimeError(f"Numba execution failed: {exc}")
 
-    if error_code != 0:
-        if error_code == 1:
-            return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "max_steps_exceeded")
-        if error_code == 2:
-            return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "output_buffer_overflow")
-        return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "numba_runtime_error")
-
-    # reconstruct output bytes and decode; use latin1 to preserve raw byte values 0..255
+    # reconstruct output string from output buffer
     if out_len > 0:
-        byte_vals = bytes(int(output_arr[i]) for i in range(out_len))
-        output_str = byte_vals.decode("latin1")
+        output_str = output_arr[:out_len].astype(np.uint8).tobytes().decode("latin1")
     else:
         output_str = ""
+
+    if error_code != 0:
+        if error_code == 1:
+            return (output_str, int(steps), False, "max_steps_exceeded")
+        if error_code == 2:
+            return (output_str, int(steps), False, "output_buffer_overflow")
+        return (output_str, int(steps), False, "numba_runtime_error")
 
     return (output_str, int(steps), bool(halted_flag), None)
 
