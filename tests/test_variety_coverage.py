@@ -110,7 +110,7 @@ class TestVarietyCoverageThresholds:
 
         # Even with small lexicon, should get reasonable variety
         assert metrics.unique_fraction >= 0.3, (
-            f"Small lexicon failed minimum variety: "
+            "Small lexicon failed minimum variety: "
             f"{metrics.unique_fraction:.3f} < 0.3"
         )
 
