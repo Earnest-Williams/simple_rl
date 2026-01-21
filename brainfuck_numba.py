@@ -1,0 +1,406 @@
+# brainfuck_numba.py
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Tuple
+import numpy as np
+
+# Try to import numba explicitly; if missing we'll fall back.
+try:
+    from numba import njit  # type: ignore
+    _NUMBA_AVAILABLE = True
+except Exception:
+    njit = None  # type: ignore
+    _NUMBA_AVAILABLE = False
+
+
+@dataclass(frozen=True)
+class BFResult:
+    success: bool
+    output: str
+    error: str | None
+    steps: int
+    halted: bool
+
+
+# -----------------------
+# Utilities (pure python)
+# -----------------------
+def sanitize(code: str) -> str:
+    """Keep only Brainfuck command characters."""
+    return "".join(c for c in code if c in "><+-.,[]")
+
+
+def build_bracket_map(code: str) -> Dict[int, int]:
+    """
+    Build bidirectional bracket mapping.
+
+    Raises SyntaxError on unmatched brackets.
+    """
+    stack: list[int] = []
+    mapping: Dict[int, int] = {}
+    for i, c in enumerate(code):
+        if c == "[":
+            stack.append(i)
+        elif c == "]":
+            if not stack:
+                raise SyntaxError(f"Unmatched ']' at position {i}")
+            opening = stack.pop()
+            mapping[opening] = i
+            mapping[i] = opening
+    if stack:
+        opening = stack.pop()
+        raise SyntaxError(f"Unmatched '[' at position {opening}")
+    return mapping
+
+
+def _interpret_pure(
+    code: str,
+    input_bytes: bytes,
+    tape: np.ndarray,
+    bracket_map: Dict[int, int],
+    max_steps: int,
+    wrap_pointer: bool,
+    clamp_pointer: bool,
+) -> Tuple[str, int, bool, str | None]:
+    """
+    A safe, pure-Python interpreter loop. Returns:
+      (output_str, steps_executed, halted_bool, error_or_None)
+    """
+    code_len = len(code)
+    ip = 0
+    ptr = 0
+    input_pos = 0
+    output_chars: list[str] = []
+    steps = 0
+    tape_len = int(tape.shape[0])
+    tape_view = tape  # local alias
+
+    try:
+        while ip < code_len:
+            if steps >= max_steps:
+                return ("".join(output_chars), steps, False, "max_steps_exceeded")
+            cmd = code[ip]
+
+            if cmd == ">":
+                if wrap_pointer:
+                    ptr = (ptr + 1) % tape_len
+                elif clamp_pointer:
+                    ptr = min(ptr + 1, tape_len - 1)
+                else:
+                    ptr = (ptr + 1) % tape_len
+                ip += 1
+
+            elif cmd == "<":
+                if wrap_pointer:
+                    ptr = (ptr - 1 + tape_len) % tape_len
+                elif clamp_pointer:
+                    ptr = max(ptr - 1, 0)
+                else:
+                    ptr = (ptr - 1 + tape_len) % tape_len
+                ip += 1
+
+            elif cmd == "+":
+                tape_view[ptr] = (int(tape_view[ptr]) + 1) & 0xFF
+                ip += 1
+
+            elif cmd == "-":
+                tape_view[ptr] = (int(tape_view[ptr]) - 1) & 0xFF
+                ip += 1
+
+            elif cmd == ".":
+                output_chars.append(chr(int(tape_view[ptr])))
+                ip += 1
+
+            elif cmd == ",":
+                if input_pos < len(input_bytes):
+                    tape_view[ptr] = int(input_bytes[input_pos]) & 0xFF
+                    input_pos += 1
+                else:
+                    tape_view[ptr] = 0
+                ip += 1
+
+            elif cmd == "[":
+                if tape_view[ptr] == 0:
+                    ip = bracket_map[ip] + 1
+                else:
+                    ip += 1
+
+            elif cmd == "]":
+                if tape_view[ptr] != 0:
+                    ip = bracket_map[ip] + 1
+                else:
+                    ip += 1
+
+            else:
+                # should not happen thanks to sanitize
+                ip += 1
+
+            steps += 1
+
+    except Exception as exc:
+        return ("".join(output_chars), steps, False, f"runtime_error: {exc}")
+
+    return ("".join(output_chars), steps, True, None)
+
+
+# -----------------------
+# Numba core (compiled)
+# -----------------------
+# Numba requires simple numpy arrays and numeric types only.
+# We encode commands as integer ordinals (int32) and bracket map as int32 array
+# of length code_len, with -1 for non-bracket positions.
+
+_numba_core = None
+if _NUMBA_AVAILABLE:
+    # Implement the njit-compiled core loop. This function only uses
+    # primitive types and numpy arrays; it returns numeric diagnostics.
+    @njit(cache=True)
+    def _numba_core(
+        code_arr,
+        code_len: int,
+        bracket_map_arr,
+        tape,
+        tape_len: int,
+        input_arr,
+        input_len: int,
+        output_arr,
+        max_output: int,
+        max_steps: int,
+        wrap_flag: int,
+        clamp_flag: int,
+    ):
+        # Return tuple: (steps, halted_flag(0/1), out_len, error_code)
+        # error_code: 0 = OK, 1 = max_steps_exceeded, 2 = output_overflow, 3 = runtime_error
+        ip = 0
+        ptr = 0
+        input_pos = 0
+        out_len = 0
+        steps = 0
+
+        try:
+            while ip < code_len:
+                if steps >= max_steps:
+                    return steps, 0, out_len, 1
+                cmd = code_arr[ip]
+
+                # '>' == 62, '<' == 60, '+' == 43, '-' == 45
+                # '.' == 46, ',' == 44, '[' == 91, ']' == 93
+                if cmd == 62:  # '>'
+                    if wrap_flag == 1:
+                        ptr = (ptr + 1) % tape_len
+                    elif clamp_flag == 1:
+                        if ptr < tape_len - 1:
+                            ptr += 1
+                    else:
+                        ptr = (ptr + 1) % tape_len
+                    ip += 1
+
+                elif cmd == 60:  # '<'
+                    if wrap_flag == 1:
+                        ptr = (ptr - 1 + tape_len) % tape_len
+                    elif clamp_flag == 1:
+                        if ptr > 0:
+                            ptr -= 1
+                    else:
+                        ptr = (ptr - 1 + tape_len) % tape_len
+                    ip += 1
+
+                elif cmd == 43:  # '+'
+                    # uint8 wrap
+                    tape[ptr] = (int(tape[ptr]) + 1) & 0xFF
+                    ip += 1
+
+                elif cmd == 45:  # '-'
+                    tape[ptr] = (int(tape[ptr]) - 1) & 0xFF
+                    ip += 1
+
+                elif cmd == 46:  # '.'
+                    if out_len >= max_output:
+                        return steps, 0, out_len, 2
+                    # write raw byte value to output buffer (as int)
+                    output_arr[out_len] = int(tape[ptr])
+                    out_len += 1
+                    ip += 1
+
+                elif cmd == 44:  # ','
+                    if input_pos < input_len:
+                        tape[ptr] = int(input_arr[input_pos]) & 0xFF
+                        input_pos += 1
+                    else:
+                        tape[ptr] = 0
+                    ip += 1
+
+                elif cmd == 91:  # '['
+                    if tape[ptr] == 0:
+                        # jump to matching ']' (bracket_map_arr[ip])
+                        ip = bracket_map_arr[ip] + 1
+                    else:
+                        ip += 1
+
+                elif cmd == 93:  # ']'
+                    if tape[ptr] != 0:
+                        ip = bracket_map_arr[ip] + 1
+                    else:
+                        ip += 1
+
+                else:
+                    # Shouldn't get here; skip
+                    ip += 1
+
+                steps += 1
+
+        except Exception:
+            # We can't produce Python exceptions from compiled code reliably for the caller,
+            # return runtime error code.
+            return steps, 0, out_len, 3
+
+        # normal termination
+        return steps, 1, out_len, 0
+
+
+# -----------------------
+# Numba-wrapper and driver
+# -----------------------
+def _run_numba_core(
+    clean: str,
+    input_bytes: bytes,
+    tape: np.ndarray,
+    bracket_map: Dict[int, int],
+    max_steps: int,
+    wrap_pointer: bool,
+    clamp_pointer: bool,
+) -> Tuple[str, int, bool, str | None]:
+    """
+    Prepare arrays and call the njit core. Reconstruct output string from output buffer.
+    Returns: (output_str, steps, halted_bool, error_or_None)
+    """
+    # convert code to int32 ordinals
+    code_len = len(clean)
+    if code_len == 0:
+        return ("", 0, True, None)
+
+    code_arr = np.empty(code_len, dtype=np.int32)
+    for i, c in enumerate(clean):
+        code_arr[i] = ord(c)
+
+    # bracket map as int32 array, -1 for non-bracket positions
+    bracket_map_arr = np.full(code_len, -1, dtype=np.int32)
+    for idx, match in bracket_map.items():
+        # mapping contains both directions; this safely overwrites duplicates
+        if 0 <= idx < code_len:
+            bracket_map_arr[idx] = match
+
+    tape_len = int(tape.shape[0])
+
+    # input arr
+    input_arr = np.frombuffer(input_bytes, dtype=np.uint8).astype(np.int32)
+    input_len = int(input_arr.shape[0])
+
+    # output buffer (store byte ordinals). Reserve reasonable size:
+    # Worst case: output cannot exceed max_steps; but that's huge. Instead reserve smaller:
+    # choose min(max_steps, 1_000_000) as safety but make it dynamic if needed.
+    max_output = min(max_steps, 1_000_000)
+    output_arr = np.zeros(max_output, dtype=np.int32)
+
+    wrap_flag = 1 if wrap_pointer else 0
+    clamp_flag = 1 if clamp_pointer else 0
+
+    if not _NUMBA_AVAILABLE or _numba_core is None:
+        raise RuntimeError("Numba core not available")
+
+    try:
+        steps, halted_flag, out_len, error_code = _numba_core(
+            code_arr,
+            code_len,
+            bracket_map_arr,
+            tape,
+            tape_len,
+            input_arr,
+            input_len,
+            output_arr,
+            max_output,
+            max_steps,
+            wrap_flag,
+            clamp_flag,
+        )
+    except Exception as exc:
+        # Compilation / runtime error: propagate to caller for fallback
+        raise RuntimeError(f"Numba execution failed: {exc}")
+
+    if error_code != 0:
+        if error_code == 1:
+            return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "max_steps_exceeded")
+        if error_code == 2:
+            return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "output_buffer_overflow")
+        return ("".join(chr(int(x)) for x in output_arr[:out_len]), int(steps), False, "numba_runtime_error")
+
+    # reconstruct output bytes and decode; use latin1 to preserve raw byte values 0..255
+    if out_len > 0:
+        byte_vals = bytes(int(output_arr[i]) for i in range(out_len))
+        output_str = byte_vals.decode("latin1")
+    else:
+        output_str = ""
+
+    return (output_str, int(steps), bool(halted_flag), None)
+
+
+def run_brainfuck(
+    code: str,
+    input_data: str = "",
+    *,
+    tape_size: int = 30_000,
+    max_steps: int = 10_000_000,
+    wrap_pointer: bool = True,
+    clamp_pointer: bool = False,
+    use_numba: bool | None = None,
+) -> BFResult:
+    """
+    Run brainfuck code with an explicit Numba backend attempt.
+
+    If use_numba is True we insist on trying numba; if False we skip it.
+    If None we auto-decide based on availability and I/O presence.
+    """
+    clean = sanitize(code)
+    try:
+        bracket_map = build_bracket_map(clean)
+    except SyntaxError as e:
+        return BFResult(success=False, output="", error=str(e), steps=0, halted=False)
+
+    try:
+        tape = np.zeros(tape_size, dtype=np.uint8)
+    except Exception as exc:
+        return BFResult(success=False, output="", error=f"tape_init_error: {exc}", steps=0, halted=False)
+
+    # prepare input bytes: UTF-8 with replacement to avoid exceptions
+    input_bytes = input_data.encode("utf-8", errors="replace")
+
+    # decide about numba
+    has_io = ("." in clean) or ("," in clean)
+    if use_numba is None:
+        use_numba = _NUMBA_AVAILABLE and (not has_io) and (len(clean) > 200 and clean.count("[") > 2)
+
+    if use_numba and _NUMBA_AVAILABLE:
+        try:
+            out, steps, halted, error = _run_numba_core(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
+            if error is None:
+                return BFResult(success=True, output=out, error=None, steps=steps, halted=halted)
+            else:
+                # Numba executed but returned an error; fall through to pure interpreter fallback.
+                # We return fallback result below.
+                pass
+        except Exception as exc:
+            # Numba compile/runtime failure: log-ish fallback by returning fallback result
+            # Caller can inspect error message if needed.
+            numba_err = str(exc)
+            # Fall back to pure interpreter (safe)
+            out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
+            if error is None:
+                return BFResult(success=True, output=out, error=None, steps=steps, halted=halted)
+            else:
+                # Both numba and pure failed
+                return BFResult(success=False, output=out, error=f"numba_error: {numba_err}; pure_error: {error}", steps=steps, halted=halted)
+
+    # Fallback: pure interpreter
+    out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
+    return BFResult(success=(error is None), output=out, error=error, steps=steps, halted=halted)
