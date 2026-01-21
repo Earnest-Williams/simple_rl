@@ -1,15 +1,17 @@
-"""Utilities for simple magic system involving Works, Wards and Counterseals, and a simple in-memory library of Works."""
+"""Utilities for simple magic system involving Works, Wards and Counterseals."""
 
-# ``Work`` is defined in multiple modules.  The executor's ``Work`` represents the
-# runtime action that can be performed, while the library module uses a simpler
-# data container for tracking knowledge.  Export the executor's ``Work`` as the
-# public class and alias the library variant to avoid confusion.
-from .library import MagicLibrary, Work as LibraryWork, learn_work, research_work
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .models import *  # noqa: F401,F403
-from .executor import Work, execute_work
-from .wards import Ward, Counterseal, is_blocked
 
-__all__ = [
+if TYPE_CHECKING:
+    from .executor import Work, execute_work
+    from .library import MagicLibrary, Work as LibraryWork, learn_work, research_work
+    from .wards import Counterseal, Ward, is_blocked
+
+__all__: list[str] = [
     "MagicLibrary",
     "LibraryWork",
     "Work",
@@ -20,3 +22,44 @@ __all__ = [
     "Counterseal",
     "is_blocked",
 ]
+
+
+def __getattr__(name: str) -> object:
+    if name in {
+        "MagicLibrary",
+        "LibraryWork",
+        "learn_work",
+        "research_work",
+    }:
+        from .library import (
+            MagicLibrary,
+            Work as LibraryWork,
+            learn_work,
+            research_work,
+        )
+
+        lookup = {
+            "MagicLibrary": MagicLibrary,
+            "LibraryWork": LibraryWork,
+            "learn_work": learn_work,
+            "research_work": research_work,
+        }
+        return lookup[name]
+
+    if name in {"Work", "execute_work"}:
+        from .executor import Work, execute_work
+
+        lookup = {"Work": Work, "execute_work": execute_work}
+        return lookup[name]
+
+    if name in {"Ward", "Counterseal", "is_blocked"}:
+        from .wards import Counterseal, Ward, is_blocked
+
+        lookup = {"Ward": Ward, "Counterseal": Counterseal, "is_blocked": is_blocked}
+        return lookup[name]
+
+    raise AttributeError(f"module 'magic' has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)
