@@ -33,7 +33,7 @@ class TestVarietyCoverageThresholds:
 
         # Should have at least 60% unique descriptions
         assert metrics.unique_fraction >= 0.6, (
-            f"Room descriptions failed variety threshold: "
+            "Room descriptions failed variety threshold: "
             f"{metrics.unique_fraction:.3f} < 0.6"
         )
 
