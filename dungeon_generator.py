@@ -14,7 +14,7 @@ import os
 import warnings
 from functools import lru_cache
 from types import ModuleType
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any
 
 # Prefer the local/Django package names first so the repo's Dungeon/ is picked up.
 _DEFAULT_CANDIDATES = [
@@ -32,10 +32,10 @@ _DEFAULT_CANDIDATES = [
 
 
 @lru_cache(maxsize=1)
-def _load_real_module() -> Tuple[Optional[ModuleType], Optional[str]]:
+def _load_real_module() -> tuple[ModuleType | None, str | None]:
     """Try to import a real generator module, prefer local Dungeon.* packages."""
-    candidates: List[str] = [c for c in _DEFAULT_CANDIDATES if c]
-    import_errors: List[str] = []
+    candidates: list[str] = [c for c in _DEFAULT_CANDIDATES if c]
+    import_errors: list[str] = []
     for name in candidates:
         try:
             module = importlib.import_module(name)
@@ -67,7 +67,7 @@ def _load_real_module() -> Tuple[Optional[ModuleType], Optional[str]]:
     return None, None
 
 
-def _get_real_module() -> Optional[ModuleType]:
+def _get_real_module() -> ModuleType | None:
     module, _ = _load_real_module()
     return module
 
@@ -84,7 +84,7 @@ def create_dungeon(
     max_room_size: int,
     room_gap: int,
     rng: Any,
-) -> Tuple[List[List[str]], List[Tuple[List[Tuple[int, int]], Tuple[int, int]]]]:
+) -> tuple[list[list[str]], list[tuple[list[tuple[int, int]], tuple[int, int]]]]:
     """
     Return (dungeon_grid, room_data)
     - dungeon_grid: list of rows (each row a list of single-char strings, '.' walkable, '#' wall)
@@ -318,8 +318,8 @@ def _rasterize_from_nodes(raw_nodes, width, height, num_rooms, min_room_size, ma
     return grid, room_data
 
 
-def is_valid_position(dungeon: List[List[str]] | Any, x: int, y: int) -> bool:
-    grid: List[List[str]] | None = None
+def is_valid_position(dungeon: list[list[str]] | Any, x: int, y: int) -> bool:
+    grid: list[list[str]] | None = None
     if isinstance(dungeon, list):
         grid = dungeon
     elif hasattr(dungeon, "grid"):
@@ -335,7 +335,7 @@ def is_valid_position(dungeon: List[List[str]] | Any, x: int, y: int) -> bool:
     return grid[y][x] == "."
 
 
-def find_empty_position(dungeon: List[List[str]], room: List[Tuple[int, int]], rng: Any) -> Tuple[int, int] | None:
+def find_empty_position(dungeon: list[list[str]], room: list[tuple[int, int]], rng: Any) -> tuple[int, int] | None:
     real = _get_real_module()
     if real and hasattr(real, "find_empty_position"):
         try:
@@ -369,7 +369,7 @@ def find_empty_position(dungeon: List[List[str]], room: List[Tuple[int, int]], r
     return floor_tiles[0]
 
 
-def line_of_sight(dungeon: List[List[str]], x1: int, y1: int, x2: int, y2: int) -> bool:
+def line_of_sight(dungeon: list[list[str]], x1: int, y1: int, x2: int, y2: int) -> bool:
     real = _get_real_module()
     if real and hasattr(real, "line_of_sight"):
         try:
@@ -418,7 +418,7 @@ def line_of_sight(dungeon: List[List[str]], x1: int, y1: int, x2: int, y2: int) 
     return dungeon[y2][x2] != "#"
 
 
-def get_dungeon_string(dungeon: List[List[str]], entities: Dict[str, Any]) -> str:
+def get_dungeon_string(dungeon: list[list[str]], entities: dict[str, Any]) -> str:
     real = _get_real_module()
     if real:
         try:
@@ -456,10 +456,10 @@ def _fallback_create_dungeon(
     max_room_size: int,
     room_gap: int,
     rng: Any,
-) -> Tuple[List[List[str]], List[Tuple[List[Tuple[int, int]], Tuple[int, int]]]]:
+) -> tuple[list[list[str]], list[tuple[list[tuple[int, int]], tuple[int, int]]]]:
     dungeon = [["#" for _ in range(width)] for _ in range(height)]
-    rooms: List[Tuple[int, int, int, int]] = []
-    room_data: List[Tuple[List[Tuple[int, int]], Tuple[int, int]]] = []
+    rooms: list[tuple[int, int, int, int]] = []
+    room_data: list[tuple[list[tuple[int, int]], tuple[int, int]]] = []
 
     def overlaps(
         *,
@@ -506,7 +506,7 @@ def _fallback_create_dungeon(
             continue
 
         rooms.append((x, y, w, h))
-        tiles: List[Tuple[int, int]] = []
+        tiles: list[tuple[int, int]] = []
         for yy in range(y, min(y + h, height - 1)):
             for xx in range(x, min(x + w, width - 1)):
                 dungeon[yy][xx] = "."
