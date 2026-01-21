@@ -93,20 +93,16 @@ def _interpret_pure(
             cmd = code[ip]
 
             if cmd == ">":
-                if wrap_pointer:
-                    ptr = (ptr + 1) % tape_len
-                elif clamp_pointer:
+                if clamp_pointer:
                     ptr = min(ptr + 1, tape_len - 1)
-                else:
+                else:  # Default behavior is to wrap
                     ptr = (ptr + 1) % tape_len
                 ip += 1
 
             elif cmd == "<":
-                if wrap_pointer:
-                    ptr = (ptr - 1 + tape_len) % tape_len
-                elif clamp_pointer:
+                if clamp_pointer:
                     ptr = max(ptr - 1, 0)
-                else:
+                else:  # Default behavior is to wrap
                     ptr = (ptr - 1 + tape_len) % tape_len
                 ip += 1
 
@@ -195,22 +191,18 @@ if _NUMBA_AVAILABLE:
                 cmd = code_arr[ip]
 
                 if cmd == CMD_GT:  # '>'
-                    if wrap_flag == 1:
-                        ptr = (ptr + 1) % tape_len
-                    elif clamp_flag == 1:
+                    if clamp_flag == 1:
                         if ptr < tape_len - 1:
                             ptr += 1
-                    else:
+                    else:  # Default behavior is to wrap
                         ptr = (ptr + 1) % tape_len
                     ip += 1
 
                 elif cmd == CMD_LT:  # '<'
-                    if wrap_flag == 1:
-                        ptr = (ptr - 1 + tape_len) % tape_len
-                    elif clamp_flag == 1:
+                    if clamp_flag == 1:
                         if ptr > 0:
                             ptr -= 1
-                    else:
+                    else:  # Default behavior is to wrap
                         ptr = (ptr - 1 + tape_len) % tape_len
                     ip += 1
 
