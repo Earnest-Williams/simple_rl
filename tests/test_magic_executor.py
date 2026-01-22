@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from magic.executor import (
     Art,
     Substance,
@@ -25,6 +27,12 @@ class _EntityRegistryStub:
     ):  # pragma: no cover - trivial
         self.components.setdefault(entity_id, {})[component] = value
         return True
+
+
+@dataclass(frozen=True)
+class _WorkStub:
+    art: object
+    substances: list[object]
 
 
 class DummyGameState:
@@ -116,6 +124,16 @@ def test_execute_work_blocked_by_ward_without_counterseal():
         work, DummyGameState(), wards=[ward], counterseals=[counterseal]
     )
     assert result is False
+
+
+def test_ward_blocks_with_normalized_art_and_substance_names() -> None:
+    ward: Ward = Ward(arts={"create"}, substances={"fire"})
+    work: Work = make_basic_work(art=Art.CREATE, substance=Substance.FIRE)
+    assert ward.blocks(work)
+
+    string_work: _WorkStub = _WorkStub(art="CREATE", substances=["FIRE"])
+    enum_ward: Ward = Ward(arts={Art.CREATE}, substances={Substance.FIRE})
+    assert enum_ward.blocks(string_work)
 
 
 def test_friction_increases_and_triggers_thresholds(monkeypatch):

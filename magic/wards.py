@@ -20,11 +20,18 @@ class WorkLike(Protocol):
 
     Any object with ``art`` and ``substances`` attributes can be checked by a
     :class:`Ward` or :class:`Counterseal`.  ``substances`` is expected to be an
-    iterable of strings (a set is ideal).
+    iterable of objects that can be stringified or expose a ``name`` attribute.
     """
 
-    art: str
-    substances: Iterable[str]
+    art: object
+    substances: Iterable[object]
+
+
+def _normalize_name(value: object) -> str:
+    name_attr = getattr(value, "name", None)
+    if isinstance(name_attr, str):
+        return name_attr.lower()
+    return str(value).lower()
 
 
 @dataclass(frozen=True)
@@ -37,10 +44,15 @@ class Ward:
     def blocks(self, work: WorkLike) -> bool:
         """Return ``True`` if this Ward prevents ``work`` from executing."""
 
-        if work.art in self.arts:
+        art_name = _normalize_name(work.art)
+        arts_normalized = {_normalize_name(art) for art in self.arts}
+        if art_name in arts_normalized:
             return True
-        # ``substances`` may be any iterable; convert to ``set`` for intersection
-        return bool(self.substances.intersection(set(work.substances)))
+        work_substances = {_normalize_name(substance) for substance in work.substances}
+        substances_normalized = {
+            _normalize_name(substance) for substance in self.substances
+        }
+        return bool(work_substances.intersection(substances_normalized))
 
 
 @dataclass(frozen=True)
@@ -53,9 +65,15 @@ class Counterseal:
     def allows(self, work: WorkLike) -> bool:
         """Return ``True`` if this Counterseal negates a blocking Ward."""
 
-        if work.art in self.arts:
+        art_name = _normalize_name(work.art)
+        arts_normalized = {_normalize_name(art) for art in self.arts}
+        if art_name in arts_normalized:
             return True
-        return bool(self.substances.intersection(set(work.substances)))
+        work_substances = {_normalize_name(substance) for substance in work.substances}
+        substances_normalized = {
+            _normalize_name(substance) for substance in self.substances
+        }
+        return bool(work_substances.intersection(substances_normalized))
 
 
 def is_blocked(
