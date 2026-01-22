@@ -222,6 +222,12 @@ _INT_RE = re.compile(
     r"(?P<key>range|duration|target|strength|power|cost|risk)\s*=\s*(-?\d+)", re.I
 )
 
+_ART_RANK_MAX = 20
+_BOUNDS_FIELD_MAX = 1_000
+_BALANCE_FIELD_MAX = 10_000
+_FLOW_STRENGTH_MAX = 10_000
+_SEAL_POWER_MAX = 10_000
+
 
 def _kv_ints(s: str) -> dict[str, int]:
     out: dict[str, int] = {}
@@ -229,6 +235,14 @@ def _kv_ints(s: str) -> dict[str, int]:
         key = m.group("key").lower()
         out[key] = int(m.group(2))
     return out
+
+
+def _clamp_int(v: int, minv: int, maxv: int, strict: bool) -> int:
+    if v < minv or v > maxv:
+        if strict:
+            raise ValueError(f"value_out_of_range:{v} not in [{minv},{maxv}]")
+        return max(minv, min(maxv, v))
+    return v
 
 
 def _parse_art_and_ranks(text: str) -> tuple[Art, int, Substance, int]:
@@ -307,17 +321,36 @@ def _parse_seals(text: str) -> Seals:
     return Seals(description=desc, power=kv.get("power", 0))
 
 
-def compile_ledger_work(decl: WorkDecl) -> Work:
+def compile_ledger_work(decl: WorkDecl, strict: bool = False) -> Work:
     """
     Best-effort conversion from a parsed ledger `WorkDecl` to an engine `Work`.
     Unknown or absent numeric fields default to zero. Non-numeric fields are
-    preserved verbatim but generally do not affect effect level.
+    preserved verbatim but generally do not affect effect level. When strict,
+    invalid numeric fields raise instead of clamping.
     """
     art, art_rank, substance, sub_rank = _parse_art_and_ranks(decl.art.value)
-    bounds = _parse_bounds(decl.bounds.value)
-    balances = _parse_balances(decl.balances.value)
-    flow = _parse_flow(decl.flow.value)
-    seals = _parse_seals(decl.seals.value)
+    art_rank = _clamp_int(art_rank, 0, _ART_RANK_MAX, strict)
+    sub_rank = _clamp_int(sub_rank, 0, _ART_RANK_MAX, strict)
+    parsed_bounds = _parse_bounds(decl.bounds.value)
+    bounds = Bounds(
+        range=_clamp_int(parsed_bounds.range, 0, _BOUNDS_FIELD_MAX, strict),
+        duration=_clamp_int(parsed_bounds.duration, 0, _BOUNDS_FIELD_MAX, strict),
+        target=_clamp_int(parsed_bounds.target, 0, _BOUNDS_FIELD_MAX, strict),
+    )
+    parsed_balances = _parse_balances(decl.balances.value)
+    balances = Balances(
+        cost=_clamp_int(parsed_balances.cost, 0, _BALANCE_FIELD_MAX, strict),
+        risk=_clamp_int(parsed_balances.risk, 0, _BALANCE_FIELD_MAX, strict),
+    )
+    parsed_flow = _parse_flow(decl.flow.value)
+    flow = Flow(
+        strength=_clamp_int(parsed_flow.strength, 0, _FLOW_STRENGTH_MAX, strict)
+    )
+    parsed_seals = _parse_seals(decl.seals.value)
+    seals = Seals(
+        description=parsed_seals.description,
+        power=_clamp_int(parsed_seals.power, 0, _SEAL_POWER_MAX, strict),
+    )
     provisions = (decl.provisions.value or "").strip()
     intent = (decl.intent.value or "").strip()
     seat = (decl.seat.value or "").strip() if decl.seat else ""
