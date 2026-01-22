@@ -25,6 +25,8 @@ from magic.bf_backend import (
 
 _MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
 _MACRO_NAME: re.Pattern[str] = re.compile(r"^!\w+$")
+BF_CHARS: set[str] = set("><+-.,[]")
+_MIN_BF_LEN: int = 3
 log = structlog.get_logger()
 MacroExpansionReason = Literal[
     "char_limit_exceeded",
@@ -149,6 +151,31 @@ class BrainfuckRunner:
 
         error_message = bf_result.error or "unknown_brainfuck_error"
         return {"success": False, "error": error_message}
+
+
+def is_brainfuck(line: str, require_prefix: bool = True) -> tuple[bool, str]:
+    line = line.strip()
+    if require_prefix:
+        if line.lower().startswith("bf:"):
+            payload: str = line[3:].strip()
+            if all(c in BF_CHARS for c in payload) and len(payload) >= _MIN_BF_LEN:
+                return True, payload
+            error_message: str = (
+                "Invalid Brainfuck payload: must contain only valid characters "
+                "(><+-.,[]) and be at least "
+                f"{_MIN_BF_LEN} characters long."
+            )
+            raise ValueError(error_message)
+        return False, ""
+
+    if line and all(c in BF_CHARS for c in line) and len(line) >= _MIN_BF_LEN:
+        return True, line
+    if "[" in line and "]" in line:
+        bf_char_count: int = sum(1 for c in line if c in BF_CHARS)
+        if bf_char_count >= 4:
+            bf_payload: str = "".join(c for c in line if c in BF_CHARS)
+            return True, bf_payload
+    return False, ""
 
 
 class MacroManager:
@@ -429,18 +456,20 @@ class MacroManager:
             )
             return self.execute_command_sequence(final_sequence)
 
-        # Check if the expanded line looks like Brainfuck code
-        # Use a stricter check: must contain BF chars and potentially brackets
-        is_bf_chars: bool = set(expanded_line) <= set("><+-.,[]")
-        has_brackets: bool = "[" in expanded_line and "]" in expanded_line
-        likely_bf: bool = is_bf_chars or has_brackets  # Adjust logic as needed
+        try:
+            is_bf, bf_payload = is_brainfuck(expanded_line, require_prefix=True)
+        except ValueError as exc:
+            return {
+                "error": f"Brainfuck Error: {exc}",
+                "is_error": True,
+            }
 
-        if likely_bf and len(expanded_line) > 0:  # Check length > 0
+        if is_bf:
             try:
                 # Execute Brainfuck code
                 # Pass empty string "" as default input for now
                 result: BFRunResult = self._run_brainfuck(
-                    expanded_line, input_data=""
+                    bf_payload, input_data=""
                 )
 
                 if result["success"]:
