@@ -74,6 +74,10 @@ except ImportError as e:
         DEFAULT_ENTITY_CATEGORY = "medium"
         TORCH_COLOR_RGB = (0, 0, 0)
         ORB_COLOR_RGB = (0, 0, 0)
+        PLAYER_COLOR_RGB = (0, 0, 0)
+        WALL_COLOR_RGB = (0, 0, 0)
+        PILLAR_COLOR_RGB = (0, 0, 0)
+        FLOOR_COLOR_RGB = (0, 0, 0)
         MAX_LOS_DISTANCE = 10
         MAX_LIGHT_LEVEL_FOR_VIS_CHECK = 5
         LIGHT_LEVEL_DATA = {}
@@ -711,6 +715,23 @@ def _get_brightness_from_rgb_sum(rgb_sum: np.ndarray) -> float:
     return min(1.0, max_comp / 255.0)
 
 
+def _apply_lighting_to_base(
+    base_rgb: Tuple[int, int, int],
+    rgb_sum: np.ndarray,
+    brightness: float,
+) -> Tuple[int, int, int]:
+    max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
+    tint_scale_r = float(rgb_sum[0]) / max_comp
+    tint_scale_g = float(rgb_sum[1]) / max_comp
+    tint_scale_b = float(rgb_sum[2]) / max_comp
+    tinted_rgb = (
+        int(max(0, min(255, base_rgb[0] * tint_scale_r))),
+        int(max(0, min(255, base_rgb[1] * tint_scale_g))),
+        int(max(0, min(255, base_rgb[2] * tint_scale_b))),
+    )
+    return _interpolate_color(brightness, constants.AMBIENT_COLOR_RGB, tinted_rgb)
+
+
 # ============================================================
 # --- GameState Class (Modified to use RNG) ---
 # ============================================================
@@ -987,35 +1008,32 @@ class GameState:
                 if is_visible:
                     rgb_sum = rgb_sum_array[y, x]
                     brightness = _get_brightness_from_rgb_sum(rgb_sum)
+                    base_rgb = constants.FLOOR_COLOR_RGB
+                    if is_player_tile:
+                        char = constants.PLAYER_CHAR
+                        base_rgb = constants.PLAYER_COLOR_RGB
+                    elif light_source_at_tile is not None:
+                        char = constants.LIGHT_CHAR
+                        base_rgb = light_source_at_tile.base_color_rgb
+                    else:
+                        if tile_id == constants.WALL_ID:
+                            char = constants.VISIBLE_WALL
+                            base_rgb = constants.WALL_COLOR_RGB
+                        elif tile_id == constants.PILLAR_ID:
+                            char = constants.VISIBLE_PILLAR
+                            base_rgb = constants.PILLAR_COLOR_RGB
+                        else:
+                            char = constants.VISIBLE_FLOOR
+                            base_rgb = constants.FLOOR_COLOR_RGB
                     if brightness > 0.001:
-                        max_comp = max(rgb_sum[0], rgb_sum[1], rgb_sum[2], 1.0)
-                        norm_r = rgb_sum[0] / max_comp
-                        norm_g = rgb_sum[1] / max_comp
-                        norm_b = rgb_sum[2] / max_comp
-                        blend_hue_rgb = (
-                            int(norm_r * 255),
-                            int(norm_g * 255),
-                            int(norm_b * 255),
-                        )
-                        final_rgb = _interpolate_color(
-                            brightness, constants.AMBIENT_COLOR_RGB, blend_hue_rgb
+                        final_rgb = _apply_lighting_to_base(
+                            base_rgb, rgb_sum, brightness
                         )
                         final_color_code = _format_true_color(final_rgb)
                     else:
                         final_color_code = _format_true_color(
                             constants.AMBIENT_COLOR_RGB
                         )
-                    if is_player_tile:
-                        char = constants.PLAYER_CHAR
-                    elif light_source_at_tile is not None:
-                        char = constants.LIGHT_CHAR
-                    else:
-                        if tile_id == constants.WALL_ID:
-                            char = constants.VISIBLE_WALL
-                        elif tile_id == constants.PILLAR_ID:
-                            char = constants.VISIBLE_PILLAR
-                        else:
-                            char = constants.VISIBLE_FLOOR
                 elif memory_intensity > 0.0:
                     final_color_code = constants.MEMORY_COLOR
                     if is_player_tile:

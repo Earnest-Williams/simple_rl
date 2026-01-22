@@ -22,6 +22,12 @@ VISIBLE_FLOOR = "·"
 MEMORY_LIGHT = "+"
 UNSEEN = " "
 
+# --- Base Tile/Entity Colors ---
+PLAYER_COLOR_RGB: Tuple[int, int, int] = (255, 225, 180)  # Warm highlight
+WALL_COLOR_RGB: Tuple[int, int, int] = (130, 130, 150)  # Stone gray
+PILLAR_COLOR_RGB: Tuple[int, int, int] = (150, 135, 120)  # Aged stone
+FLOOR_COLOR_RGB: Tuple[int, int, int] = (90, 90, 110)  # Cool slate
+
 # --- Memory Fade ---
 MEMORY_DURATION = 60.0
 MEMORY_SIGMOID_MIDPOINT = MEMORY_DURATION / 2.0
@@ -64,7 +70,7 @@ AMBIENT_COLOR_RGB: Tuple[int, int, int] = (30, 30, 45)  # Dim, slightly blue/pur
 MAX_LIGHT_LEVEL_FOR_VIS_CHECK = 6
 
 # --- Memory Color ---
-MEMORY_COLOR = COLOR["DIM"] + COLOR["BRIGHT_BLACK"]
+MEMORY_COLOR = COLOR["DIM"] + COLOR["BRIGHT_BLUE"]
 
 # --- Light Falloff ---
 # Note: The inverse square calculation is now done directly in the Numba func.
