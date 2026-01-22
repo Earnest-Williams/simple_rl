@@ -158,12 +158,17 @@ def is_brainfuck(line: str, require_prefix: bool = True) -> tuple[bool, str]:
     if require_prefix:
         if line.lower().startswith("bf:"):
             payload: str = line[3:].strip()
-            if set(payload) <= BF_CHARS and len(payload) >= _MIN_BF_LEN:
+            if all(c in BF_CHARS for c in payload) and len(payload) >= _MIN_BF_LEN:
                 return True, payload
-            raise ValueError("bf_payload_invalid")
+            error_message: str = (
+                "Invalid Brainfuck payload: must contain only valid characters "
+                "(><+-.,[]) and be at least "
+                f"{_MIN_BF_LEN} characters long."
+            )
+            raise ValueError(error_message)
         return False, ""
 
-    if line and set(line) <= BF_CHARS and len(line) >= _MIN_BF_LEN:
+    if line and all(c in BF_CHARS for c in line) and len(line) >= _MIN_BF_LEN:
         return True, line
     if "[" in line and "]" in line:
         bf_char_count: int = sum(1 for c in line if c in BF_CHARS)
