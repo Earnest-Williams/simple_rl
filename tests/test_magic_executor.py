@@ -17,7 +17,7 @@ class _EntityRegistryStub:
     """Minimal stand-in for ``EntityRegistry`` used in tests."""
 
     def __init__(self) -> None:
-        self.components: Dict[int, Dict[str, object]] = {
+        self.components: dict[int, dict[str, object]] = {
             0: {"status_effects": [], "hp": 10}
         }
 
