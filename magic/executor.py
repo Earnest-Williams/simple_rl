@@ -20,7 +20,16 @@ optional :class:`Counterseal`s to ensure the Work is permitted.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Tuple, Iterable, Set, TYPE_CHECKING, List
+from typing import (
+    Callable,
+    Dict,
+    Tuple,
+    Iterable,
+    Set,
+    TYPE_CHECKING,
+    List,
+    Literal,
+)
 
 import structlog
 
@@ -116,13 +125,31 @@ class Work:
         return self.func()
 
 
+ExecutionReason = Literal[
+    "blocked_by_ward",
+    "seals_failed",
+    "fonts_failed",
+    "vents_failed",
+    "handler_error",
+    "callable_error",
+    "no_handler_or_callable",
+]
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    executed: bool
+    reason: ExecutionReason | None = None
+    diagnostics: Dict[str, str] | None = None
+
+
 def execute_work(
     work: Work,
     context: GameState,
     *,
     wards: Iterable[Ward] = (),
     counterseals: Iterable[Counterseal] = (),
-) -> bool:
+) -> ExecutionResult:
     """Attempt to execute ``work`` within the game context.
 
     Order:
@@ -132,49 +159,60 @@ def execute_work(
       4) Friction update and threshold handling.
 
     Returns:
-        True if execution occurred (handler or callable ran), False otherwise.
+        ExecutionResult describing whether execution occurred and the reason if
+        it did not.
     """
     log.debug("Executing work", art=work.art, substance=work.substance)
 
     # 1) Ward gate
     if is_blocked(work, wards, counterseals):
         log.info("Work blocked by ward", art=work.art, substances=list(work.substances))
-        return False
+        return ExecutionResult(False, "blocked_by_ward")
 
     # 2) Placeholder validations
     if not _verify_seals(work, context):
         log.warning("Seal verification failed", work=work)
-        return False
+        return ExecutionResult(False, "seals_failed")
     if not _verify_fonts(work, context):
         log.warning("Font verification failed", work=work)
-        return False
+        return ExecutionResult(False, "fonts_failed")
     if not _verify_vents(work, context):
         log.warning("Vent verification failed", work=work)
-        return False
+        return ExecutionResult(False, "vents_failed")
 
     # 3) Apply effect
-    handler = EFFECT_HANDLERS.get((work.art, work.substance))
-    ran = False
+    handler: EffectHandler | None = EFFECT_HANDLERS.get((work.art, work.substance))
     if handler:
         log.debug("Applying effect handler", art=work.art, substance=work.substance)
-        handler(work, context)
-        ran = True
-    elif work.func is not None:
-        log.debug("No handler; invoking work callable")
-        work.perform()
-        ran = True
-    else:
-        log.info(
-            "No effect handler or callable for work",
-            art=work.art,
-            substance=work.substance,
-        )
-
-    # 4) Friction processing (only if something executed)
-    if ran:
+        try:
+            handler(work, context)
+        except Exception as err:
+            log.exception(
+                "Effect handler failed",
+                art=work.art,
+                substance=work.substance,
+                error=str(err),
+            )
+            return ExecutionResult(False, "handler_error", {"error": str(err)})
         _update_friction(work, context)
+        return ExecutionResult(True)
 
-    return ran
+    if work.func is not None:
+        log.debug("No handler; invoking work callable")
+        try:
+            work.perform()
+        except Exception as err:
+            log.exception("Work callable failed", error=str(err))
+            return ExecutionResult(False, "callable_error", {"error": str(err)})
+        _update_friction(work, context)
+        return ExecutionResult(True)
+
+    log.info(
+        "No effect handler or callable for work",
+        art=work.art,
+        substance=work.substance,
+    )
+    return ExecutionResult(False, "no_handler_or_callable")
 
 
 def _verify_seals(work: Work, context: GameState) -> bool:
@@ -301,6 +339,7 @@ __all__ = [
     "Art",
     "Substance",
     "Work",
+    "ExecutionResult",
     "execute_work",
     "register_handler",
     "register_friction_callback",

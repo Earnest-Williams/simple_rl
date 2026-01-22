@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from .models import *  # noqa: F401,F403
 
 if TYPE_CHECKING:
-    from .executor import Work, execute_work
+    from .executor import ExecutionResult, Work, execute_work
     from .library import MagicLibrary, Work as LibraryWork, learn_work, research_work
     from .wards import Counterseal, Ward, is_blocked
 
@@ -15,6 +15,7 @@ __all__: list[str] = [
     "MagicLibrary",
     "LibraryWork",
     "Work",
+    "ExecutionResult",
     "learn_work",
     "research_work",
     "execute_work",
@@ -46,10 +47,14 @@ def __getattr__(name: str) -> object:
         }
         return lookup[name]
 
-    if name in {"Work", "execute_work"}:
-        from .executor import Work, execute_work
+    if name in {"Work", "ExecutionResult", "execute_work"}:
+        from .executor import ExecutionResult, Work, execute_work
 
-        lookup = {"Work": Work, "execute_work": execute_work}
+        lookup = {
+            "Work": Work,
+            "ExecutionResult": ExecutionResult,
+            "execute_work": execute_work,
+        }
         return lookup[name]
 
     if name in {"Ward", "Counterseal", "is_blocked"}:

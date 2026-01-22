@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+from typing import Callable, Dict, List, Sequence, Tuple
 
 from magic.executor import (
     Art,
+    ExecutionResult,
     Substance,
     Work,
     execute_work,
@@ -14,17 +16,19 @@ from magic.wards import Ward, Counterseal
 class _EntityRegistryStub:
     """Minimal stand-in for ``EntityRegistry`` used in tests."""
 
-    def __init__(self):
-        self.components = {0: {"status_effects": [], "hp": 10}}
+    def __init__(self) -> None:
+        self.components: Dict[int, Dict[str, object]] = {
+            0: {"status_effects": [], "hp": 10}
+        }
 
     def get_entity_component(
         self, entity_id: int, component: str
-    ):  # pragma: no cover - trivial
+    ) -> object | None:  # pragma: no cover - trivial
         return self.components.get(entity_id, {}).get(component)
 
     def set_entity_component(
-        self, entity_id: int, component: str, value
-    ):  # pragma: no cover - trivial
+        self, entity_id: int, component: str, value: object
+    ) -> bool:  # pragma: no cover - trivial
         self.components.setdefault(entity_id, {})[component] = value
         return True
 
@@ -32,7 +36,7 @@ class _EntityRegistryStub:
 @dataclass(frozen=True)
 class _WorkStub:
     art: object
-    substances: list[object]
+    substances: List[object]
 
 
 class DummyGameState:
@@ -43,7 +47,13 @@ class DummyGameState:
     stub provides simple set-based implementations suitable for unit tests.
     """
 
-    def __init__(self, *, seals=("s",), fonts=("f",), vents=("v",)):
+    def __init__(
+        self,
+        *,
+        seals: Sequence[str] = ("s",),
+        fonts: Sequence[str] = ("f",),
+        vents: Sequence[str] = ("v",),
+    ) -> None:
         self.player_id = 0
         self._seals = set(seals)
         self._fonts = set(fonts)
@@ -67,9 +77,9 @@ class DummyGameState:
         return target in self._vents
 
 
-def make_basic_work(**kwargs):
+def make_basic_work(**kwargs: object) -> Work:
     """Helper to create a Work with mandatory validation fields populated."""
-    defaults = {
+    defaults: Dict[str, object] = {
         "art": Art.CREATE,
         "substance": Substance.FIRE,
         "seals": ["s"],
@@ -81,7 +91,7 @@ def make_basic_work(**kwargs):
     return Work(**defaults)
 
 
-def test_seal_font_vent_verifications_pass_and_fail():
+def test_seal_font_vent_verifications_pass_and_fail() -> None:
     """Each validation succeeds when resources exist and fails otherwise."""
 
     work = make_basic_work(seals=["alpha"], fonts=["beta"], vents=["gamma"])
@@ -91,39 +101,48 @@ def test_seal_font_vent_verifications_pass_and_fail():
     assert executor._verify_seals(work, gs_ok)
     assert executor._verify_fonts(work, gs_ok)
     assert executor._verify_vents(work, gs_ok)
-    assert execute_work(work, gs_ok)
+    result: ExecutionResult = execute_work(work, gs_ok)
+    assert result.executed is True
+    assert result.reason is None
 
     # Missing each resource should fail the respective check and execution
     gs_missing_seal = DummyGameState(seals=(), fonts=("beta",), vents=("gamma",))
     assert not executor._verify_seals(work, gs_missing_seal)
-    assert not execute_work(
+    result = execute_work(
         make_basic_work(seals=["alpha"], fonts=["beta"], vents=["gamma"]),
         gs_missing_seal,
     )
+    assert result.executed is False
+    assert result.reason == "seals_failed"
 
     gs_missing_font = DummyGameState(seals=("alpha",), fonts=(), vents=("gamma",))
     assert not executor._verify_fonts(work, gs_missing_font)
-    assert not execute_work(
+    result = execute_work(
         make_basic_work(seals=["alpha"], fonts=["beta"], vents=["gamma"]),
         gs_missing_font,
     )
+    assert result.executed is False
+    assert result.reason == "fonts_failed"
 
     gs_missing_vent = DummyGameState(seals=("alpha",), fonts=("beta",), vents=())
     assert not executor._verify_vents(work, gs_missing_vent)
-    assert not execute_work(
+    result = execute_work(
         make_basic_work(seals=["alpha"], fonts=["beta"], vents=["gamma"]),
         gs_missing_vent,
     )
+    assert result.executed is False
+    assert result.reason == "vents_failed"
 
 
-def test_execute_work_blocked_by_ward_without_counterseal():
+def test_execute_work_blocked_by_ward_without_counterseal() -> None:
     work = make_basic_work()
     ward = Ward(arts={Art.CREATE})
     counterseal = Counterseal(arts={Art.DESTROY})  # does not match the ward
-    result = execute_work(
+    result: ExecutionResult = execute_work(
         work, DummyGameState(), wards=[ward], counterseals=[counterseal]
     )
-    assert result is False
+    assert result.executed is False
+    assert result.reason == "blocked_by_ward"
 
 
 def test_ward_blocks_with_normalized_art_and_substance_names() -> None:
@@ -136,11 +155,11 @@ def test_ward_blocks_with_normalized_art_and_substance_names() -> None:
     assert enum_ward.blocks(string_work)
 
 
-def test_friction_increases_and_triggers_thresholds(monkeypatch):
-    calls = []
+def test_friction_increases_and_triggers_thresholds(monkeypatch) -> None:
+    calls: List[str] = []
 
-    def recorder(name):
-        def _rec(work, ctx):
+    def recorder(name: str) -> Callable[[Work, DummyGameState], None]:
+        def _rec(work: Work, ctx: DummyGameState) -> None:
             calls.append(name)
 
         return _rec
@@ -158,16 +177,18 @@ def test_friction_increases_and_triggers_thresholds(monkeypatch):
     )
     gs = DummyGameState()
 
-    frictions = []
+    frictions: List[float] = []
     for _ in range(4):
-        execute_work(work, gs)
+        result: ExecutionResult = execute_work(work, gs)
+        assert result.executed is True
+        assert result.reason is None
         frictions.append(work.friction)
 
     assert frictions == [1.0, 2.0, 3.0, 0.0]
     assert calls == ["quiver", "warp", "shiver", "backlash"]
 
 
-def test_threshold_handlers_modify_state_and_emit_events(monkeypatch):
+def test_threshold_handlers_modify_state_and_emit_events(monkeypatch) -> None:
     """Threshold effects update GameState and fire registered callbacks."""
 
     # Reset callback registry
@@ -177,9 +198,11 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch):
         {"quiver": [], "warp": [], "shiver": [], "backlash": []},
     )
 
-    events: list[str] = []
+    events: List[str] = []
     for evt in ("quiver", "warp", "shiver", "backlash"):
-        executor.register_friction_callback(evt, lambda w, c, e=evt: events.append(e))
+        executor.register_friction_callback(
+            evt, lambda w, c, e=evt: events.append(e)
+        )
 
     work = make_basic_work(
         quiver_threshold=1,
@@ -204,7 +227,9 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch):
     ]
 
     for idx in range(4):
-        execute_work(work, gs)
+        result: ExecutionResult = execute_work(work, gs)
+        assert result.executed is True
+        assert result.reason is None
         assert gs.player_fuel == expected_fuel[idx]
         statuses = gs.entity_registry.get_entity_component(
             gs.player_id, "status_effects"
@@ -217,24 +242,25 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch):
     assert hp == 9
 
 
-def test_registered_handlers_are_invoked(monkeypatch):
-    called = []
+def test_registered_handlers_are_invoked(monkeypatch) -> None:
+    called: List[Tuple[Work, DummyGameState]] = []
     monkeypatch.setattr(executor, "EFFECT_HANDLERS", {})
 
-    def handler(work, state):
+    def handler(work: Work, state: DummyGameState) -> None:
         called.append((work, state))
 
     register_handler(Art.DESTROY, Substance.WATER, handler)
 
     work = make_basic_work(art=Art.DESTROY, substance=Substance.WATER, func=None)
     gs = DummyGameState()
-    result = execute_work(work, gs)
+    result: ExecutionResult = execute_work(work, gs)
 
-    assert result is True
+    assert result.executed is True
+    assert result.reason is None
     assert called == [(work, gs)]
 
 
-def test_game_effects_register_existing_handlers(monkeypatch):
+def test_game_effects_register_existing_handlers(monkeypatch) -> None:
     monkeypatch.setattr(executor, "EFFECT_HANDLERS", {})
 
     import importlib
