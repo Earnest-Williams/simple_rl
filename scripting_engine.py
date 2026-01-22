@@ -104,11 +104,7 @@ class BrainfuckRunner:
             backend (BFBackend | None): Backend implementation (defaults to Numba)
         """
         self.tape_size: int = tape_size
-        if backend is None:
-            selected_backend: BFBackend = NumbaBackend()
-        else:
-            selected_backend = backend
-        self.backend: BFBackend = selected_backend
+        self.backend: BFBackend = backend or NumbaBackend()
         # Remove self.output state, run should return output directly
 
     def run(
