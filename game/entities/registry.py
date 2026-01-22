@@ -65,6 +65,9 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
     "vent_targets": pl.List(pl.Utf8),
     "community_ai": pl.Object,
     "community_profile": pl.Object,
+    # Skill system
+    "skills": pl.Object,  # Dict[Skill, SkillProgress]
+    "skill_training": pl.Object,  # SkillTrainingConfig
 }
 
 
@@ -220,6 +223,9 @@ class EntityRegistry:
             "vent_targets": [[]],
             "community_ai": [None],
             "community_profile": [None],
+            # Skill system defaults
+            "skills": [{}],  # Empty skills dict
+            "skill_training": [None],  # Will be initialized when needed
         }
         try:
             new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
@@ -517,3 +523,28 @@ class EntityRegistry:
             )
             return False
         return self.set_entity_component(entity_id, "equipped_item_ids", equipped_ids)
+
+    # ===== Skill System Methods =====
+
+    def get_skills(self, entity_id: int) -> Dict[Any, Any] | None:
+        """Get the skills dictionary for an entity."""
+        return self.get_entity_component(entity_id, "skills")
+
+    def set_skills(self, entity_id: int, skills: Dict[Any, Any]) -> bool:
+        """Set the skills dictionary for an entity."""
+        if not isinstance(skills, dict):
+            log.error(
+                "Invalid skills type provided to set_skills",
+                entity_id=entity_id,
+                type=type(skills),
+            )
+            return False
+        return self.set_entity_component(entity_id, "skills", skills)
+
+    def get_skill_training(self, entity_id: int) -> Any | None:
+        """Get the skill training configuration for an entity."""
+        return self.get_entity_component(entity_id, "skill_training")
+
+    def set_skill_training(self, entity_id: int, config: Any) -> bool:
+        """Set the skill training configuration for an entity."""
+        return self.set_entity_component(entity_id, "skill_training", config)
