@@ -107,3 +107,16 @@ dmypy.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Project-specific: local development files
+.envrc
+.envrc.*
+*.old
+code_simple_rl.txt
+scroll.txt
+*.arrow
+temp.sh
+backup.sh
+.style.yapf
+.gemini/
+!.gemini/styleguide.md
