@@ -112,16 +112,13 @@ def setup_logging(
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
         print(
-            f"Logging configured. Console: {
-                logging.getLevelName(log_level)}, File: {
-                logging.getLevelName(file_log_level)} ({filename})",
+            f"Logging configured. Console: {logging.getLevelName(log_level)}, File: {logging.getLevelName(file_log_level)} ({filename})",
             file=sys.stderr,
         )
     except Exception as e:
         # Fallback if file logging fails (e.g., permissions)
         print(
-            f"Error setting up file logger ({filename}): {
-                e}. Logging to console only.",
+            f"Error setting up file logger ({filename}): {e}. Logging to console only.",
             file=sys.stderr,
         )
 
@@ -484,7 +481,9 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG | None = None) -> pl.DataFrame:
+def initialize_monsters(
+    num_monsters: int, height: int, width: int, rng: GameRNG | None = None
+) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
     if rng is None:
         rng = GameRNG()
@@ -510,7 +509,9 @@ def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG
 # --- Perception System (Parallelized) ---
 
 
-def skill_check(actor_skill: int, difficulty: int, target_skill: int, rng: GameRNG | None = None) -> bool:
+def skill_check(
+    actor_skill: int, difficulty: int, target_skill: int, rng: GameRNG | None = None
+) -> bool:
     """Placeholder skill check."""
     if rng is None:
         rng = GameRNG()
@@ -609,7 +610,12 @@ def monster_perception(
 
     results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
-            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE, rng
+            chunk,
+            cave_cost,
+            flow_centers,
+            player_stealth_skill,
+            FlowType.REAL_NOISE,
+            rng,
         )
         for chunk in df_chunks
     )

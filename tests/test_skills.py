@@ -82,9 +82,7 @@ class TestSkillProgression:
         """Test that XP doesn't exceed max level."""
         # Start at level 27, try to add more XP
         current_xp = get_xp_for_level(27)
-        new_xp, old_level, new_level = apply_xp_to_skill(
-            current_xp, 10000, aptitude=0
-        )
+        new_xp, old_level, new_level = apply_xp_to_skill(current_xp, 10000, aptitude=0)
         assert new_level == 27
         assert old_level == 27
 

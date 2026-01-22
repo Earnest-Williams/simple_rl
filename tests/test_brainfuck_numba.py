@@ -1,4 +1,5 @@
 """Tests for the Numba-accelerated Brainfuck interpreter."""
+
 from brainfuck_numba import run_brainfuck
 
 
@@ -60,7 +61,9 @@ def test_hello_world() -> None:
     """
     r = run_brainfuck(code)
     assert r.success
-    assert "Hello World" in r.output or len(r.output) > 0  # Output will vary by implementation
+    assert (
+        "Hello World" in r.output or len(r.output) > 0
+    )  # Output will vary by implementation
 
 
 def test_unmatched_brackets() -> None:
@@ -92,7 +95,7 @@ def test_input_exhaustion() -> None:
     assert r.success
     # Reads 'A', moves to the next cell, which is set to 0 on input exhaustion, and then outputs it.
     assert len(r.output) == 1
-    assert r.output[0] == '\x00'
+    assert r.output[0] == "\x00"
 
 
 def test_wrap_pointer_mode() -> None:

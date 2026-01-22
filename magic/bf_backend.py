@@ -24,8 +24,7 @@ class BFBackend(ABC):
         max_steps: int = 10_000_000,
         wrap_pointer: bool = True,
         clamp_pointer: bool = False,
-    ) -> BFResult:
-        ...
+    ) -> BFResult: ...
 
 
 class _BaseBackend(BFBackend):

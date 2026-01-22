@@ -169,9 +169,7 @@ def set_training_mode(
 
     config.mode = mode
     entity_registry.set_skill_training(entity_id, config)
-    log.info(
-        "Updated entity training mode", entity_id=entity_id, mode=mode.name
-    )
+    log.info("Updated entity training mode", entity_id=entity_id, mode=mode.name)
 
 
 def record_skill_usage(

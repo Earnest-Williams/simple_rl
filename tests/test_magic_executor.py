@@ -200,9 +200,7 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch) -> None:
 
     events: List[str] = []
     for evt in ("quiver", "warp", "shiver", "backlash"):
-        executor.register_friction_callback(
-            evt, lambda w, c, e=evt: events.append(e)
-        )
+        executor.register_friction_callback(evt, lambda w, c, e=evt: events.append(e))
 
     work = make_basic_work(
         quiver_threshold=1,
