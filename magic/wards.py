@@ -40,19 +40,27 @@ class Ward:
 
     arts: Set[str] = field(default_factory=set)
     substances: Set[str] = field(default_factory=set)
+    _arts_normalized: frozenset[str] = field(init=False, repr=False)
+    _substances_normalized: frozenset[str] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        normalized_arts = {_normalize_name(art) for art in self.arts}
+        normalized_substances = {
+            _normalize_name(substance) for substance in self.substances
+        }
+        object.__setattr__(self, "_arts_normalized", frozenset(normalized_arts))
+        object.__setattr__(
+            self, "_substances_normalized", frozenset(normalized_substances)
+        )
 
     def blocks(self, work: WorkLike) -> bool:
         """Return ``True`` if this Ward prevents ``work`` from executing."""
 
         art_name = _normalize_name(work.art)
-        arts_normalized = {_normalize_name(art) for art in self.arts}
-        if art_name in arts_normalized:
+        if art_name in self._arts_normalized:
             return True
         work_substances = {_normalize_name(substance) for substance in work.substances}
-        substances_normalized = {
-            _normalize_name(substance) for substance in self.substances
-        }
-        return bool(work_substances.intersection(substances_normalized))
+        return bool(work_substances.intersection(self._substances_normalized))
 
 
 @dataclass(frozen=True)
@@ -61,19 +69,27 @@ class Counterseal:
 
     arts: Set[str] = field(default_factory=set)
     substances: Set[str] = field(default_factory=set)
+    _arts_normalized: frozenset[str] = field(init=False, repr=False)
+    _substances_normalized: frozenset[str] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        normalized_arts = {_normalize_name(art) for art in self.arts}
+        normalized_substances = {
+            _normalize_name(substance) for substance in self.substances
+        }
+        object.__setattr__(self, "_arts_normalized", frozenset(normalized_arts))
+        object.__setattr__(
+            self, "_substances_normalized", frozenset(normalized_substances)
+        )
 
     def allows(self, work: WorkLike) -> bool:
         """Return ``True`` if this Counterseal negates a blocking Ward."""
 
         art_name = _normalize_name(work.art)
-        arts_normalized = {_normalize_name(art) for art in self.arts}
-        if art_name in arts_normalized:
+        if art_name in self._arts_normalized:
             return True
         work_substances = {_normalize_name(substance) for substance in work.substances}
-        substances_normalized = {
-            _normalize_name(substance) for substance in self.substances
-        }
-        return bool(work_substances.intersection(substances_normalized))
+        return bool(work_substances.intersection(self._substances_normalized))
 
 
 def is_blocked(
