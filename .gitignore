@@ -119,4 +119,5 @@ temp.sh
 backup.sh
 .style.yapf
 .gemini/
+!.gemini/
 !.gemini/styleguide.md
