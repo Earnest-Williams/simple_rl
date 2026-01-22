@@ -1,7 +1,6 @@
 # brainfuck_numba.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from multiprocessing import Pipe, get_context
 from multiprocessing.connection import Connection
 import resource
@@ -10,6 +9,7 @@ from typing import Literal
 
 import numpy as np
 
+from magic.bf_backend import BFResult
 # Try to import numba explicitly; if missing we'll fall back.
 try:
     from numba import njit  # type: ignore
@@ -28,15 +28,6 @@ CMD_DOT = ord('.')     # 46
 CMD_COMMA = ord(',')   # 44
 CMD_LBRACKET = ord('[')  # 91
 CMD_RBRACKET = ord(']')  # 93
-
-
-@dataclass(frozen=True)
-class BFResult:
-    success: bool
-    output: str
-    error: str | None
-    steps: int
-    halted: bool
 
 
 SandboxMode = Literal["auto", "always", "never"]
@@ -423,6 +414,79 @@ def _run_brainfuck_internal(
     # Fallback: pure interpreter
     out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
     return BFResult(success=(error is None), output=out, error=error, steps=steps, halted=halted)
+
+
+def _run_numba_core_internal(
+    code: str,
+    input_data: str = "",
+    *,
+    tape_size: int = 30_000,
+    max_steps: int = 10_000_000,
+    wrap_pointer: bool = True,
+    clamp_pointer: bool = False,
+) -> BFResult:
+    clean = sanitize(code)
+    if "." in clean or "," in clean:
+        return BFResult(
+            success=False,
+            output="",
+            error="jit_refuses_io",
+            steps=0,
+            halted=False,
+        )
+    if not _NUMBA_AVAILABLE or _numba_core is None:
+        return BFResult(
+            success=False,
+            output="",
+            error="jit_unavailable",
+            steps=0,
+            halted=False,
+        )
+
+    try:
+        bracket_map = build_bracket_map(clean)
+    except SyntaxError as exc:
+        return BFResult(success=False, output="", error=str(exc), steps=0, halted=False)
+
+    try:
+        tape = np.zeros(tape_size, dtype=np.uint8)
+    except Exception as exc:
+        return BFResult(
+            success=False,
+            output="",
+            error=f"tape_init_error: {exc}",
+            steps=0,
+            halted=False,
+        )
+
+    input_bytes = input_data.encode("utf-8", errors="replace")
+
+    try:
+        out, steps, halted, error = _run_numba_core(
+            clean,
+            input_bytes,
+            tape,
+            bracket_map,
+            max_steps,
+            wrap_pointer,
+            clamp_pointer,
+        )
+    except Exception as exc:
+        return BFResult(
+            success=False,
+            output="",
+            error=f"jit_error: {exc}",
+            steps=0,
+            halted=False,
+        )
+
+    return BFResult(
+        success=(error is None),
+        output=out,
+        error=error,
+        steps=steps,
+        halted=halted,
+    )
 
 
 def _sandbox_worker(
