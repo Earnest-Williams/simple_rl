@@ -71,3 +71,46 @@ class PureBackend(_BaseBackend):
     """Brainfuck backend that uses the pure Python interpreter."""
 
     _USE_NUMBA: bool | None = False
+
+
+class JitBackend(BFBackend):
+    """Brainfuck backend that uses the numba core and refuses I/O."""
+
+    @staticmethod
+    def supports_code(code: str) -> bool:
+        return "." not in code and "," not in code
+
+    def run(
+        self,
+        code: str,
+        input_data: str = "",
+        *,
+        tape_size: int = 30_000,
+        max_steps: int = 10_000_000,
+        wrap_pointer: bool = True,
+        clamp_pointer: bool = False,
+    ) -> BFResult:
+        if not self.supports_code(code):
+            return BFResult(False, "", "jit_refuses_io", 0, False)
+
+        from magic import brainfuck_numba as bf_numba
+
+        try:
+            result: bf_numba.BFResult = bf_numba._run_numba_core_internal(
+                code,
+                input_data,
+                tape_size=tape_size,
+                max_steps=max_steps,
+                wrap_pointer=wrap_pointer,
+                clamp_pointer=clamp_pointer,
+            )
+        except Exception as exc:
+            return BFResult(False, "", f"jit_error:{exc}", 0, False)
+
+        return BFResult(
+            success=result.success,
+            output=result.output,
+            error=result.error,
+            steps=result.steps,
+            halted=result.halted,
+        )

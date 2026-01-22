@@ -15,7 +15,13 @@ from typing import Dict, Literal, Protocol, TypedDict
 
 import structlog
 
-from magic.bf_backend import BFBackend, BFResult, NumbaBackend, PureBackend
+from magic.bf_backend import (
+    BFBackend,
+    BFResult,
+    JitBackend,
+    NumbaBackend,
+    PureBackend,
+)
 
 _MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
 _MACRO_NAME: re.Pattern[str] = re.compile(r"^!\w+$")
@@ -154,7 +160,12 @@ class MacroManager:
     MAX_MACROS: int = 1024
     MAX_DEF_LEN: int = 4096
 
-    def __init__(self, game_state: GameStateProtocol | None = None) -> None:
+    def __init__(
+        self,
+        game_state: GameStateProtocol | None = None,
+        trusted: bool = False,
+        sandboxed: bool = False,
+    ) -> None:
         """
         Initialize the MacroManager.
 
@@ -166,6 +177,29 @@ class MacroManager:
             game_state  # Ensure this is updated if game_state changes (e.g., on load)
         )
         self.bf_runner: BrainfuckRunner = BrainfuckRunner()
+        self.trusted: bool = trusted
+        self.sandboxed: bool = sandboxed
+
+    def _jit_backend_allowed(self, code: str) -> bool:
+        return (self.trusted or self.sandboxed) and JitBackend.supports_code(code)
+
+    def _run_brainfuck(self, code: str, input_data: str) -> BFRunResult:
+        if self._jit_backend_allowed(code):
+            backend: BFBackend = JitBackend()
+            try:
+                bf_result: BFResult = backend.run(
+                    code,
+                    input_data=input_data,
+                    tape_size=self.bf_runner.tape_size,
+                )
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+            if bf_result.success:
+                return {"success": True, "output": bf_result.output}
+            error_message = bf_result.error or "unknown_brainfuck_error"
+            return {"success": False, "error": error_message}
+
+        return self.bf_runner.run(code, input_data=input_data)
 
     def define(self, name: str, sequence: str) -> str | MacroError:
         """
@@ -408,7 +442,7 @@ class MacroManager:
             try:
                 # Execute Brainfuck code
                 # Pass empty string "" as default input for now
-                result: BFRunResult = self.bf_runner.run(
+                result: BFRunResult = self._run_brainfuck(
                     expanded_line, input_data=""
                 )
 
