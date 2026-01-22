@@ -23,7 +23,7 @@ The components developed here are intended for eventual integration into the mai
 * **FOV/LOS:** Octant-based recursive shadow casting implemented in Numba (`_compute_octant_for_boolean_array`) for performance. Relies on the `Dungeon.blocks_light` method.
 * **Lighting:** Calculates light spread and intensity using an inverse square falloff. Blends RGB values from multiple sources. Implemented in Numba (`_compute_octant_for_color`).
 * **Memory Fade:** Uses elapsed time (`Dungeon.current_time`, `Dungeon.last_seen_time`) and a sigmoid function (`_update_memory_fade_internal` in Numba) to decay `Dungeon.memory_intensity` for non-visible tiles. Intensity affects rendering character choice.
-* **Rendering:** Outputs to console using ANSI True Color escape codes for blended lighting and specific characters for different visibility/memory states.
+* **Rendering:** Outputs to console using ANSI True Color escape codes, blending lighting with intuitive base colors per tile/entity and dimmed memory colors for recalled tiles.
 
 ## Dependencies
 
