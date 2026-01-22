@@ -186,14 +186,11 @@ class MacroManager:
     def _run_brainfuck(self, code: str, input_data: str) -> BFRunResult:
         if self._jit_backend_allowed(code):
             backend: BFBackend = JitBackend()
-            try:
-                bf_result: BFResult = backend.run(
-                    code,
-                    input_data=input_data,
-                    tape_size=self.bf_runner.tape_size,
-                )
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
+            bf_result: BFResult = backend.run(
+                code,
+                input_data=input_data,
+                tape_size=self.bf_runner.tape_size,
+            )
             if bf_result.success:
                 return {"success": True, "output": bf_result.output}
             error_message = bf_result.error or "unknown_brainfuck_error"

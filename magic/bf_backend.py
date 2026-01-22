@@ -95,22 +95,11 @@ class JitBackend(BFBackend):
 
         from magic import brainfuck_numba as bf_numba
 
-        try:
-            result: bf_numba.BFResult = bf_numba._run_numba_core_internal(
-                code,
-                input_data,
-                tape_size=tape_size,
-                max_steps=max_steps,
-                wrap_pointer=wrap_pointer,
-                clamp_pointer=clamp_pointer,
-            )
-        except Exception as exc:
-            return BFResult(False, "", f"jit_error:{exc}", 0, False)
-
-        return BFResult(
-            success=result.success,
-            output=result.output,
-            error=result.error,
-            steps=result.steps,
-            halted=result.halted,
+        return bf_numba._run_numba_core_internal(
+            code,
+            input_data,
+            tape_size=tape_size,
+            max_steps=max_steps,
+            wrap_pointer=wrap_pointer,
+            clamp_pointer=clamp_pointer,
         )

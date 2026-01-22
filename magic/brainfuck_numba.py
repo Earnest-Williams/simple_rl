@@ -1,7 +1,6 @@
 # brainfuck_numba.py
 from __future__ import annotations
 
-from dataclasses import dataclass
 from multiprocessing import Pipe, get_context
 from multiprocessing.connection import Connection
 import resource
@@ -10,6 +9,7 @@ from typing import Literal
 
 import numpy as np
 
+from magic.bf_backend import BFResult
 # Try to import numba explicitly; if missing we'll fall back.
 try:
     from numba import njit  # type: ignore
@@ -28,15 +28,6 @@ CMD_DOT = ord('.')     # 46
 CMD_COMMA = ord(',')   # 44
 CMD_LBRACKET = ord('[')  # 91
 CMD_RBRACKET = ord(']')  # 93
-
-
-@dataclass(frozen=True)
-class BFResult:
-    success: bool
-    output: str
-    error: str | None
-    steps: int
-    halted: bool
 
 
 SandboxMode = Literal["auto", "always", "never"]
