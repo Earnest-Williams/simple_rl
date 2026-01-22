@@ -15,7 +15,7 @@ from typing import Dict, Literal, Protocol, TypedDict
 
 import structlog
 
-from magic.brainfuck_numba import BFResult, run_brainfuck
+from magic.bf_backend import BFBackend, BFResult, NumbaBackend, PureBackend
 
 _MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
 _MACRO_NAME: re.Pattern[str] = re.compile(r"^!\w+$")
@@ -91,14 +91,24 @@ class BrainfuckRunner:
     A simple and efficient Brainfuck interpreter with optional JIT compilation.
     """
 
-    def __init__(self, tape_size: int = 30000) -> None:
+    def __init__(
+        self,
+        tape_size: int = 30000,
+        backend: BFBackend | None = None,
+    ) -> None:
         """
         Initialize the Brainfuck interpreter.
 
         Args:
             tape_size (int): Size of the virtual memory tape
+            backend (BFBackend | None): Backend implementation (defaults to Numba)
         """
         self.tape_size: int = tape_size
+        if backend is None:
+            selected_backend: BFBackend = NumbaBackend()
+        else:
+            selected_backend = backend
+        self.backend: BFBackend = selected_backend
         # Remove self.output state, run should return output directly
 
     def run(
@@ -115,12 +125,19 @@ class BrainfuckRunner:
         Returns:
             dict: A dictionary with 'success' status and 'output' or 'error'
         """
+        backend: BFBackend
+        if jit is None:
+            backend = self.backend
+        elif jit:
+            backend = NumbaBackend()
+        else:
+            backend = PureBackend()
+
         try:
-            bf_result: BFResult = run_brainfuck(
+            bf_result: BFResult = backend.run(
                 code,
                 input_data=input_data,
                 tape_size=self.tape_size,
-                use_numba=jit,
             )
         except Exception as exc:
             return {"success": False, "error": str(exc)}
