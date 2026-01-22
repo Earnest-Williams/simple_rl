@@ -222,6 +222,12 @@ _INT_RE = re.compile(
     r"(?P<key>range|duration|target|strength|power|cost|risk)\s*=\s*(-?\d+)", re.I
 )
 
+_ART_RANK_MAX = 20
+_BOUNDS_FIELD_MAX = 1_000
+_BALANCE_FIELD_MAX = 10_000
+_FLOW_STRENGTH_MAX = 10_000
+_SEAL_POWER_MAX = 10_000
+
 
 def _kv_ints(s: str) -> dict[str, int]:
     out: dict[str, int] = {}
@@ -323,25 +329,27 @@ def compile_ledger_work(decl: WorkDecl, strict: bool = False) -> Work:
     invalid numeric fields raise instead of clamping.
     """
     art, art_rank, substance, sub_rank = _parse_art_and_ranks(decl.art.value)
-    art_rank = _clamp_int(art_rank, 0, 20, strict)
-    sub_rank = _clamp_int(sub_rank, 0, 20, strict)
-    bounds = _parse_bounds(decl.bounds.value)
+    art_rank = _clamp_int(art_rank, 0, _ART_RANK_MAX, strict)
+    sub_rank = _clamp_int(sub_rank, 0, _ART_RANK_MAX, strict)
+    parsed_bounds = _parse_bounds(decl.bounds.value)
     bounds = Bounds(
-        range=_clamp_int(bounds.range, 0, 1_000, strict),
-        duration=_clamp_int(bounds.duration, 0, 1_000, strict),
-        target=_clamp_int(bounds.target, 0, 1_000, strict),
+        range=_clamp_int(parsed_bounds.range, 0, _BOUNDS_FIELD_MAX, strict),
+        duration=_clamp_int(parsed_bounds.duration, 0, _BOUNDS_FIELD_MAX, strict),
+        target=_clamp_int(parsed_bounds.target, 0, _BOUNDS_FIELD_MAX, strict),
     )
-    balances = _parse_balances(decl.balances.value)
+    parsed_balances = _parse_balances(decl.balances.value)
     balances = Balances(
-        cost=_clamp_int(balances.cost, 0, 10_000, strict),
-        risk=_clamp_int(balances.risk, 0, 10_000, strict),
+        cost=_clamp_int(parsed_balances.cost, 0, _BALANCE_FIELD_MAX, strict),
+        risk=_clamp_int(parsed_balances.risk, 0, _BALANCE_FIELD_MAX, strict),
     )
-    flow = _parse_flow(decl.flow.value)
-    flow = Flow(strength=_clamp_int(flow.strength, 0, 10_000, strict))
-    seals = _parse_seals(decl.seals.value)
+    parsed_flow = _parse_flow(decl.flow.value)
+    flow = Flow(
+        strength=_clamp_int(parsed_flow.strength, 0, _FLOW_STRENGTH_MAX, strict)
+    )
+    parsed_seals = _parse_seals(decl.seals.value)
     seals = Seals(
-        description=seals.description,
-        power=_clamp_int(seals.power, 0, 10_000, strict),
+        description=parsed_seals.description,
+        power=_clamp_int(parsed_seals.power, 0, _SEAL_POWER_MAX, strict),
     )
     provisions = (decl.provisions.value or "").strip()
     intent = (decl.intent.value or "").strip()
