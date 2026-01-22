@@ -115,7 +115,9 @@ def line_of_sight(y1: int, x1: int, y2: int, x2: int, terrain_map: np.ndarray) -
     Converts terrain_map -> transparency_map and calls the numba LOS.
     """
     height, width = terrain_map.shape
-    if not (0 <= y1 < height and 0 <= x1 < width and 0 <= y2 < height and 0 <= x2 < width):
+    if not (
+        0 <= y1 < height and 0 <= x1 < width and 0 <= y2 < height and 0 <= x2 < width
+    ):
         return False
 
     transparency_map = terrain_transparency_map(terrain_map)
@@ -499,7 +501,9 @@ def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
 # --- Monster Data Representation (Polars DataFrame) ---
 
 
-def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG | None = None) -> pl.DataFrame:
+def initialize_monsters(
+    num_monsters: int, height: int, width: int, rng: GameRNG | None = None
+) -> pl.DataFrame:
     """Creates a Polars DataFrame with sample monster data."""
     if rng is None:
         rng = GameRNG()
@@ -510,8 +514,12 @@ def initialize_monsters(num_monsters: int, height: int, width: int, rng: GameRNG
         "fy": np.array([rng.get_int(0, height - 1) for _ in range(num_monsters)]),
         "fx": np.array([rng.get_int(0, width - 1) for _ in range(num_monsters)]),
         "is_dead": np.zeros(num_monsters, dtype=bool),
-        "perception_stat": np.array([rng.get_int(5, 14) for _ in range(num_monsters)]),  # Base perception
-        "alertness": np.array([rng.get_int(-10, 0) for _ in range(num_monsters)]),  # Example: mostly unwary/asleep
+        "perception_stat": np.array(
+            [rng.get_int(5, 14) for _ in range(num_monsters)]
+        ),  # Base perception
+        "alertness": np.array(
+            [rng.get_int(-10, 0) for _ in range(num_monsters)]
+        ),  # Example: mostly unwary/asleep
         # Add flags based on Sil RF flags if needed (e.g., RF2_SHORT_SIGHTED)
         # Placeholder for bitflags
         "flags": np.zeros(num_monsters, dtype=np.uint32),
@@ -700,7 +708,12 @@ def monster_perception(
         rng = GameRNG()
     results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
-            chunk, cave_cost, flow_centers, player_stealth_skill, FlowType.REAL_NOISE, rng
+            chunk,
+            cave_cost,
+            flow_centers,
+            player_stealth_skill,
+            FlowType.REAL_NOISE,
+            rng,
         )
         for chunk in df_chunks
     )
@@ -784,8 +797,7 @@ if __name__ == "__main__":
     )
 
     print(
-        f"Map: {MAP_HGT}x{MAP_WID}, Player: ({
-            player_y}, {player_x}), Monsters: {num_monsters}"
+        f"Map: {MAP_HGT}x{MAP_WID}, Player: ({player_y}, {player_x}), Monsters: {num_monsters}"
     )
     print(f"Using {N_JOBS} parallel jobs for perception.")
 
@@ -847,8 +859,7 @@ if __name__ == "__main__":
                 )
                 scent = get_scent(cave_when, m_y, m_x)
                 print(
-                    f"Example Monster {example_monster_id} at ({m_y}, {
-                        m_x}): Noise Dist={noise}, Scent Age={scent}"
+                    f"Example Monster {example_monster_id} at ({m_y}, {m_x}): Noise Dist={noise}, Scent Age={scent}"
                 )
 
         # (Player moves, monsters move, combat happens, etc. - not implemented)

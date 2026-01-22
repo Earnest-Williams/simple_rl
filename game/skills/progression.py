@@ -48,9 +48,7 @@ _BASE_XP_TABLE: dict[int, int] = {
 for level in range(28):
     expected = 25 * level * (level + 1)
     if level in _BASE_XP_TABLE:
-        assert (
-            _BASE_XP_TABLE[level] == expected
-        ), f"XP table mismatch at level {level}"
+        assert _BASE_XP_TABLE[level] == expected, f"XP table mismatch at level {level}"
 
 
 def get_xp_for_level(level: int) -> int:
@@ -103,9 +101,7 @@ def get_aptitude_multiplier(aptitude: int) -> float:
     return math.pow(2.0, -aptitude / 4.0)
 
 
-def get_skill_xp_cost(
-    from_level: int, to_level: int, aptitude: int = 0
-) -> float:
+def get_skill_xp_cost(from_level: int, to_level: int, aptitude: int = 0) -> float:
     """Calculate XP cost to go from one skill level to another.
 
     Args:

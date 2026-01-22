@@ -13,6 +13,7 @@ import numpy as np
 # Try to import numba explicitly; if missing we'll fall back.
 try:
     from numba import njit  # type: ignore
+
     _NUMBA_AVAILABLE = True
 except Exception:
     njit = None  # type: ignore
@@ -20,14 +21,14 @@ except Exception:
 
 
 # Brainfuck command ASCII values
-CMD_GT = ord('>')      # 62
-CMD_LT = ord('<')      # 60
-CMD_PLUS = ord('+')    # 43
-CMD_MINUS = ord('-')   # 45
-CMD_DOT = ord('.')     # 46
-CMD_COMMA = ord(',')   # 44
-CMD_LBRACKET = ord('[')  # 91
-CMD_RBRACKET = ord(']')  # 93
+CMD_GT = ord(">")  # 62
+CMD_LT = ord("<")  # 60
+CMD_PLUS = ord("+")  # 43
+CMD_MINUS = ord("-")  # 45
+CMD_DOT = ord(".")  # 46
+CMD_COMMA = ord(",")  # 44
+CMD_LBRACKET = ord("[")  # 91
+CMD_RBRACKET = ord("]")  # 93
 
 
 @dataclass(frozen=True)
@@ -389,7 +390,13 @@ def _run_brainfuck_internal(
     try:
         tape = np.zeros(tape_size, dtype=np.uint8)
     except Exception as exc:
-        return BFResult(success=False, output="", error=f"tape_init_error: {exc}", steps=0, halted=False)
+        return BFResult(
+            success=False,
+            output="",
+            error=f"tape_init_error: {exc}",
+            steps=0,
+            halted=False,
+        )
 
     # prepare input bytes: UTF-8 with replacement to avoid exceptions
     input_bytes = input_data.encode("utf-8", errors="replace")
@@ -397,13 +404,27 @@ def _run_brainfuck_internal(
     # decide about numba
     has_io = ("." in clean) or ("," in clean)
     if use_numba is None:
-        use_numba = _NUMBA_AVAILABLE and (not has_io) and (len(clean) > 200 and clean.count("[") > 2)
+        use_numba = (
+            _NUMBA_AVAILABLE
+            and (not has_io)
+            and (len(clean) > 200 and clean.count("[") > 2)
+        )
 
     if use_numba and _NUMBA_AVAILABLE:
         try:
-            out, steps, halted, error = _run_numba_core(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
+            out, steps, halted, error = _run_numba_core(
+                clean,
+                input_bytes,
+                tape,
+                bracket_map,
+                max_steps,
+                wrap_pointer,
+                clamp_pointer,
+            )
             if error is None:
-                return BFResult(success=True, output=out, error=None, steps=steps, halted=halted)
+                return BFResult(
+                    success=True, output=out, error=None, steps=steps, halted=halted
+                )
             else:
                 # Numba executed but returned an error; fall through to pure interpreter fallback.
                 # We return fallback result below.
@@ -413,16 +434,36 @@ def _run_brainfuck_internal(
             # Caller can inspect error message if needed.
             numba_err = str(exc)
             # Fall back to pure interpreter (safe)
-            out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
+            out, steps, halted, error = _interpret_pure(
+                clean,
+                input_bytes,
+                tape,
+                bracket_map,
+                max_steps,
+                wrap_pointer,
+                clamp_pointer,
+            )
             if error is None:
-                return BFResult(success=True, output=out, error=None, steps=steps, halted=halted)
+                return BFResult(
+                    success=True, output=out, error=None, steps=steps, halted=halted
+                )
             else:
                 # Both numba and pure failed
-                return BFResult(success=False, output=out, error=f"numba_error: {numba_err}; pure_error: {error}", steps=steps, halted=halted)
+                return BFResult(
+                    success=False,
+                    output=out,
+                    error=f"numba_error: {numba_err}; pure_error: {error}",
+                    steps=steps,
+                    halted=halted,
+                )
 
     # Fallback: pure interpreter
-    out, steps, halted, error = _interpret_pure(clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer)
-    return BFResult(success=(error is None), output=out, error=error, steps=steps, halted=halted)
+    out, steps, halted, error = _interpret_pure(
+        clean, input_bytes, tape, bracket_map, max_steps, wrap_pointer, clamp_pointer
+    )
+    return BFResult(
+        success=(error is None), output=out, error=error, steps=steps, halted=halted
+    )
 
 
 def _sandbox_worker(

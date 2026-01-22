@@ -47,14 +47,11 @@ class MacroExpansionError(Exception):
 
 
 class GameStateProtocol(Protocol):
-    def is_game_over(self) -> bool:
-        ...
+    def is_game_over(self) -> bool: ...
 
-    def get_display_text(self) -> str:
-        ...
+    def get_display_text(self) -> str: ...
 
-    def process_turn(self, command: str) -> str:
-        ...
+    def process_turn(self, command: str) -> str: ...
 
 
 class BFRunSuccess(TypedDict):
@@ -75,12 +72,15 @@ class ErrorResult(TypedDict):
     is_error: bool
 
 
-MacroErrorCode = Literal[
-    "invalid_macro_name",
-    "macro_definition_too_large",
-    "macro_store_full",
-    "macro_definition_invalid_format",
-] | MacroExpansionReason
+MacroErrorCode = (
+    Literal[
+        "invalid_macro_name",
+        "macro_definition_too_large",
+        "macro_store_full",
+        "macro_definition_invalid_format",
+    ]
+    | MacroExpansionReason
+)
 
 
 @dataclass(frozen=True)
@@ -468,9 +468,7 @@ class MacroManager:
             try:
                 # Execute Brainfuck code
                 # Pass empty string "" as default input for now
-                result: BFRunResult = self._run_brainfuck(
-                    bf_payload, input_data=""
-                )
+                result: BFRunResult = self._run_brainfuck(bf_payload, input_data="")
 
                 if result["success"]:
                     bf_output: str = result["output"]

@@ -3,7 +3,14 @@ import logging  # Import logging library
 
 # Import QTimer if needed later, not now
 from PySide6.QtCore import Qt, QThread, Slot
-from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QPushButton, QSpinBox, QStatusBar
+from PySide6.QtWidgets import (
+    QDockWidget,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSpinBox,
+    QStatusBar,
+)
 
 from ..simulation import GRID_SIZE, AgentAI, World  # Import simulation components
 from .gui_widgets import (
@@ -129,10 +136,7 @@ class MainWindow(QMainWindow):
         # Parent thread to main window context
         self.simulation_thread = QThread(self)
         self.worker.moveToThread(self.simulation_thread)
-        logging.debug(
-            f"Worker {self.worker} moved to thread {
-                self.simulation_thread}"
-        )
+        logging.debug(f"Worker {self.worker} moved to thread {self.simulation_thread}")
 
         # --- Connect Worker Signals to GUI Slots ---
         logging.debug("Connecting worker signals to GUI slots...")
@@ -167,7 +171,9 @@ class MainWindow(QMainWindow):
             self.simulation_thread.deleteLater
         )  # Delete thread AFTER thread finishes
         logging.debug("Connected simulation_thread.finished -> worker.deleteLater")
-        logging.debug("Connected simulation_thread.finished -> simulation_thread.deleteLater")
+        logging.debug(
+            "Connected simulation_thread.finished -> simulation_thread.deleteLater"
+        )
         # --- End Revised Cleanup ---
 
         logging.info("Starting simulation thread...")
@@ -193,10 +199,7 @@ class MainWindow(QMainWindow):
             # Update button based on the NEW state
             self.pause_button.setText("Resume" if target_pause_state else "Pause")
             self.step_button.setEnabled(target_pause_state)
-            logging.info(
-                f"Simulation {
-                    'paused' if target_pause_state else 'resumed'}."
-            )
+            logging.info(f"Simulation {'paused' if target_pause_state else 'resumed'}.")
         else:
             logging.warning("Pause clicked but worker does not exist.")
 
@@ -231,8 +234,7 @@ class MainWindow(QMainWindow):
         """Cleans up and resets UI state when simulation ends or is stopped."""
         logging.info(f"Simulation finished signal received. Reason: {reason}")
         self.status_bar.showMessage(
-            f"Simulation Finished: {
-                reason}",
+            f"Simulation Finished: {reason}",
             5000,
         )  # Show for 5 secs
 
