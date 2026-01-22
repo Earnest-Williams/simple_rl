@@ -78,7 +78,7 @@ def get_level_from_xp(xp: float) -> int:
     if xp <= 0:
         return 0
 
-    # Binary search for efficiency
+    # Search from the highest level downwards to find the correct level
     for level in range(MAX_SKILL_LEVEL, -1, -1):
         if xp >= _BASE_XP_TABLE[level]:
             return level

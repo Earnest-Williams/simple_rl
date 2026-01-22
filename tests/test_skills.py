@@ -238,12 +238,17 @@ class TestSkillEffects:
     def test_calculate_total_combat_bonuses(self) -> None:
         """Test total combat bonus calculation."""
         skills = {
-            Skill.FIGHTING: SkillProgress(level=10, xp_invested=2775.0),
-            Skill.LONG_BLADES: SkillProgress(level=15, xp_invested=6525.0),
+            Skill.FIGHTING: SkillProgress(level=10, xp_invested=2750.0),
+            Skill.LONG_BLADES: SkillProgress(level=15, xp_invested=6000.0),
             Skill.DODGING: SkillProgress(level=8, xp_invested=1800.0),
+            Skill.SHIELDS: SkillProgress(level=9, xp_invested=2250.0),
+            Skill.ARMOUR: SkillProgress(level=12, xp_invested=3900.0),
         }
 
-        bonuses = calculate_total_combat_bonuses(skills, Skill.LONG_BLADES)
+        # Test with base armor
+        bonuses = calculate_total_combat_bonuses(
+            skills, weapon_skill=Skill.LONG_BLADES, base_armor=10
+        )
 
         # HP bonus from Fighting level 10
         assert bonuses["hp_bonus"] == 10
@@ -254,6 +259,14 @@ class TestSkillEffects:
 
         # Accuracy from Fighting (10//2 = 5) and Long Blades (15)
         assert bonuses["accuracy_bonus"] == 20
+
+        # Defense from Shields (9 // 3 = 3)
+        assert bonuses["defense_bonus"] == 3
+
+        # Armor from Armour skill (12 * 0.03 * 10 = 3.6, rounded to 3)
+        # Formula: int(base_armor * (1 + level * 0.03)) - base_armor
+        # = int(10 * 1.36) - 10 = 13 - 10 = 3
+        assert bonuses["armor_bonus"] == 3
 
         # Evasion from Dodging level 8
         assert bonuses["evasion_bonus"] == 8

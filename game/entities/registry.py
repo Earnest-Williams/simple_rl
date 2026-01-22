@@ -1,10 +1,15 @@
 # game/entities/registry.py
-from typing import Any, Dict, List, Self
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Self
 
 import polars as pl
 import structlog
 
 from game.entities.components import Position
+
+if TYPE_CHECKING:
+    from game.skills.models import Skill, SkillProgress, SkillTrainingConfig
 
 try:
     from game.items.registry import BodySlotType, EquipSlot
@@ -526,11 +531,11 @@ class EntityRegistry:
 
     # ===== Skill System Methods =====
 
-    def get_skills(self, entity_id: int) -> Dict[Any, Any] | None:
+    def get_skills(self, entity_id: int) -> Dict[Skill, SkillProgress] | None:
         """Get the skills dictionary for an entity."""
         return self.get_entity_component(entity_id, "skills")
 
-    def set_skills(self, entity_id: int, skills: Dict[Any, Any]) -> bool:
+    def set_skills(self, entity_id: int, skills: Dict[Skill, SkillProgress]) -> bool:
         """Set the skills dictionary for an entity."""
         if not isinstance(skills, dict):
             log.error(
@@ -541,10 +546,10 @@ class EntityRegistry:
             return False
         return self.set_entity_component(entity_id, "skills", skills)
 
-    def get_skill_training(self, entity_id: int) -> Any | None:
+    def get_skill_training(self, entity_id: int) -> SkillTrainingConfig | None:
         """Get the skill training configuration for an entity."""
         return self.get_entity_component(entity_id, "skill_training")
 
-    def set_skill_training(self, entity_id: int, config: Any) -> bool:
+    def set_skill_training(self, entity_id: int, config: SkillTrainingConfig) -> bool:
         """Set the skill training configuration for an entity."""
         return self.set_entity_component(entity_id, "skill_training", config)

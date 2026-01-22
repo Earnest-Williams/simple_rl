@@ -159,7 +159,6 @@ def distribute_xp(
 
 def update_skill_training(
     entity_id: int,
-    skills: Dict[Skill, SkillProgress],
     config: SkillTrainingConfig,
     skill: Skill,
     state: TrainingState | None = None,
@@ -169,7 +168,6 @@ def update_skill_training(
 
     Args:
         entity_id: Entity ID (for logging)
-        skills: Current skill progress
         config: Training configuration to modify
         skill: Skill to update
         state: New training state (or None to keep current)

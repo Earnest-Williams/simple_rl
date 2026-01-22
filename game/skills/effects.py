@@ -182,13 +182,16 @@ def get_invocations_bonus_mp(invocations_level: int) -> float:
 
 
 def calculate_total_combat_bonuses(
-    skills: Dict[Skill, SkillProgress], weapon_skill: Skill | None = None
-) -> Dict[str, float]:
+    skills: Dict[Skill, SkillProgress],
+    weapon_skill: Skill | None = None,
+    base_armor: int = 0,
+) -> Dict[str, int | float]:
     """Calculate total combat bonuses from all relevant skills.
 
     Args:
         skills: Entity's skill progress mapping
         weapon_skill: The weapon skill being used (if any)
+        base_armor: Base armor value from equipment (for Armour skill bonus)
 
     Returns:
         Dictionary of bonus values:
@@ -196,13 +199,15 @@ def calculate_total_combat_bonuses(
         - damage_multiplier: Total damage multiplier
         - accuracy_bonus: To-hit bonus
         - defense_bonus: Defense bonus
+        - armor_bonus: Armor effectiveness bonus
         - evasion_bonus: Evasion bonus
     """
-    bonuses = {
+    bonuses: Dict[str, int | float] = {
         "hp_bonus": 0.0,
         "damage_multiplier": 1.0,
         "accuracy_bonus": 0,
         "defense_bonus": 0,
+        "armor_bonus": 0,
         "evasion_bonus": 0,
     }
 
@@ -222,6 +227,11 @@ def calculate_total_combat_bonuses(
         bonuses["accuracy_bonus"] += get_weapon_skill_accuracy_bonus(
             weapon_progress.level
         )
+
+    # Armour skill
+    armour = skills.get(Skill.ARMOUR)
+    if armour and base_armor > 0:
+        bonuses["armor_bonus"] += get_armour_bonus_defense(armour.level, base_armor)
 
     # Dodging
     dodging = skills.get(Skill.DODGING)

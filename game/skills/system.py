@@ -147,7 +147,7 @@ def set_skill_training(
 
     from game.skills.training import update_skill_training
 
-    update_skill_training(entity_id, {}, config, skill, state, target_level)
+    update_skill_training(entity_id, config, skill, state, target_level)
     entity_registry.set_skill_training(entity_id, config)
 
 
