@@ -203,7 +203,8 @@ def handle_melee_attack(
     attacker_skills = entity_reg.get_skills(attacker_id)
     weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id if "main_hand_weapon_id" in locals() else None)
 
-    fighting_level = attacker_skills.get(Skill.FIGHTING).level if attacker_skills.get(Skill.FIGHTING) else 0
+    fighting_level = (attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)).level
+    weapon_level = (attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)).level
     weapon_level = attacker_skills.get(weapon_skill).level if attacker_skills.get(weapon_skill) else 0
 
     # Get defender skills for armor/dodging
