@@ -2,10 +2,14 @@
 
 Adds skills_df DataFrame alongside existing entities_df.skills for backward compatibility.
 Implements dual-mode operation during migration.
+
+Thread safety: All mutation methods acquire self._skills_lock when present.
 """
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from threading import Lock
 from typing import Final
 
 import polars as pl
@@ -39,10 +43,12 @@ class SkillSystemMixin:
     Add this to EntityRegistry.__init__:
         self.skills_df: pl.DataFrame = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
         self.use_vectorized_skills: bool = False  # Feature flag
+        self._skills_lock: Lock = Lock()  # Thread safety for skills_df mutations
     """
 
     skills_df: pl.DataFrame
     use_vectorized_skills: bool
+    _skills_lock: Lock
 
     def initialize_entity_skills(
         self,
@@ -51,6 +57,8 @@ class SkillSystemMixin:
         initial_levels: dict[Skill, int] | None = None,
     ) -> None:
         """Initialize all 29 skills for an entity.
+
+        Thread-safe: Acquires self._skills_lock if present.
 
         Args:
             entity_id: Entity to initialize
@@ -63,7 +71,7 @@ class SkillSystemMixin:
             initial_levels = {}
 
         # Build initial skill rows
-        rows: list[dict[str, int | float]] = []
+        rows: list[dict[str, int | float | None]] = []
 
         for skill in Skill:
             aptitude: int = aptitudes.get(skill, 0)
@@ -88,9 +96,19 @@ class SkillSystemMixin:
                 }
             )
 
-        # Append to skills_df
+        # Append to skills_df (with lock if present)
         new_skills = pl.DataFrame(rows, schema=SKILL_TABLE_SCHEMA)
 
+        lock: Lock | None = getattr(self, "_skills_lock", None)
+        with lock if lock is not None else nullcontext():
+            self._initialize_entity_skills_impl(entity_id, new_skills)
+
+    def _initialize_entity_skills_impl(
+        self,
+        entity_id: int,
+        new_skills: pl.DataFrame,
+    ) -> None:
+        """Internal implementation of skill initialization without locking."""
         if self.use_vectorized_skills:
             self.skills_df = pl.concat([self.skills_df, new_skills], how="vertical")
         else:
@@ -139,10 +157,22 @@ class SkillSystemMixin:
     ) -> None:
         """Update entity's skills.
 
+        Thread-safe: Acquires self._skills_lock if present.
+
         Args:
             entity_id: Entity to update
             skills: New skill values
         """
+        lock: Lock | None = getattr(self, "_skills_lock", None)
+        with lock if lock is not None else nullcontext():
+            self._set_skills_impl(entity_id, skills)
+
+    def _set_skills_impl(
+        self,
+        entity_id: int,
+        skills: dict[Skill, SkillProgress],
+    ) -> None:
+        """Internal implementation of set_skills without locking."""
         if self.use_vectorized_skills:
             # Update skills_df rows
             updates: list[dict[str, int]] = []
@@ -234,15 +264,38 @@ class SkillSystemMixin:
     ) -> None:
         """Sync skills_df changes back to entities_df.skills dict.
 
-        For backward compatibility during migration.
+        For backward compatibility during migration. Converts vectorized
+        skill rows to legacy dict[Skill, SkillProgress] format.
 
         Args:
             entity_id: Entity being updated
             skills_update: DataFrame with skill updates
         """
-        # Get current skills dict from entities_df
-        # This is a placeholder - actual implementation depends on entities_df structure
-        pass
+        # Read current legacy dict (if any) via existing registry method
+        legacy: dict[Skill, SkillProgress] = {}
+        if hasattr(self, "get_entity_component"):
+            existing = self.get_entity_component(entity_id, "skills")  # type: ignore[attr-defined]
+            if existing is not None:
+                legacy = dict(existing)
+
+        # Build updates from skills_update rows
+        for row in skills_update.iter_rows(named=True):
+            skill = Skill(int(row["skill"]))
+            level: int = int(row.get("level", 0))
+            xp: int = int(row.get("xp", 0))
+            aptitude: int = int(row.get("aptitude", 0))
+
+            prog = SkillProgress(
+                skill=skill,
+                level=level,
+                xp=xp,
+                aptitude=aptitude,
+            )
+            legacy[skill] = prog
+
+        # Write back into entities_df via existing set_entity_component
+        if hasattr(self, "set_entity_component"):
+            self.set_entity_component(entity_id, "skills", legacy)  # type: ignore[attr-defined]
 
     def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
         """Legacy implementation reading from entities_df.skills."""
@@ -265,18 +318,24 @@ class SkillSystemMixin:
 def patch_entity_registry(registry_class: type) -> type:
     """Class decorator to add skill system to EntityRegistry.
 
+    Adds:
+      - skills_df: Polars DataFrame for vectorized skill storage
+      - use_vectorized_skills: Feature flag for migration
+      - _skills_lock: Threading lock for thread-safe mutations
+
     Usage:
         @patch_entity_registry
         class EntityRegistry:
             ...
     """
-    # Add skills_df and flag to __init__
+    # Add skills_df, flag, and lock to __init__
     original_init = registry_class.__init__
 
     def new_init(self: EntityRegistry, *args, **kwargs) -> None:  # type: ignore[name-defined]
         original_init(self, *args, **kwargs)
         self.skills_df = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
         self.use_vectorized_skills = False
+        self._skills_lock = Lock()
 
     registry_class.__init__ = new_init  # type: ignore[method-assign]
 
@@ -287,6 +346,8 @@ def patch_entity_registry(registry_class: type) -> type:
             "_get_skills_legacy",
             "_set_skills_legacy",
             "_get_skill_training_legacy",
+            "_initialize_entity_skills_impl",
+            "_set_skills_impl",
         ):
             attr = getattr(SkillSystemMixin, attr_name)
             if callable(attr):

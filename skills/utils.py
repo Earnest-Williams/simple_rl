@@ -186,16 +186,64 @@ def extract_from_registry_save(
 ) -> pl.DataFrame | None:
     """Extract skills from EntityRegistry save dict.
 
+    Validates schema after loading to fail fast on corrupted saves.
+
     Args:
         registry_save_dict: Registry save data
 
     Returns:
         Skills DataFrame or None if not present
+
+    Raises:
+        ValueError: If loaded data doesn't match expected schema
     """
     if "skills_table_v1" not in registry_save_dict:
         return None
 
-    return deserialize_skills(registry_save_dict["skills_table_v1"])
+    skills_df = deserialize_skills(registry_save_dict["skills_table_v1"])
+
+    # Validate schema matches expected columns
+    from skills.registry_integration import SKILL_TABLE_SCHEMA
+
+    expected_cols = set(SKILL_TABLE_SCHEMA.keys())
+    actual_cols = set(skills_df.columns)
+
+    if expected_cols != actual_cols:
+        missing = expected_cols - actual_cols
+        extra = actual_cols - expected_cols
+        raise ValueError(
+            f"Skills schema mismatch. Missing: {missing}, Extra: {extra}"
+        )
+
+    return skills_df
+
+
+def integrate_with_registry_save_dual_mode(
+    registry_save_dict: dict[str, Any],
+    skills_df: pl.DataFrame,
+    legacy_skills: dict[int, dict[Any, Any]] | None = None,
+) -> dict[str, Any]:
+    """Integrate skills into save dict with dual-mode compatibility.
+
+    Writes both vectorized skills_table_v1 and legacy format for
+    backward compatibility during migration window.
+
+    Args:
+        registry_save_dict: Existing registry save data
+        skills_df: Skills DataFrame to include
+        legacy_skills: Optional legacy dict format for backward compat
+
+    Returns:
+        Updated save dict with both formats
+    """
+    # Always write vectorized format
+    registry_save_dict["skills_table_v1"] = serialize_skills(skills_df)
+
+    # Optionally write legacy format for clients not yet migrated
+    if legacy_skills is not None:
+        registry_save_dict["legacy_skills"] = legacy_skills
+
+    return registry_save_dict
 
 
 def benchmark_serialization(n_entities: int = 10000) -> None:
