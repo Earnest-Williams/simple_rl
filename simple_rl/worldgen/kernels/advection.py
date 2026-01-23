@@ -15,6 +15,7 @@ def advect_moisture_step(
     wind_to_i32: NDArray[np.int32],  # int32[n_cells]
     sea_mask: NDArray[np.uint8],  # uint8[n_cells]
     temp_f32: NDArray[np.float32],  # float32[n_cells]
+    *,
     n_cells: int,
     transport_frac: float,
     orog_scale_m: float,
@@ -37,9 +38,7 @@ def advect_moisture_step(
 
         elev_u: float = float(elev_q_i32[u]) * ELEV_Q_M
         elev_v: float = float(elev_q_i32[v]) * ELEV_Q_M
-        dh: float = elev_v - elev_u
-        if dh < 0.0:
-            dh = 0.0
+        dh: float = max(0.0, elev_v - elev_u)
 
         p_orog: float = m * (1.0 - np.exp(-dh / orog_scale_m))
 
@@ -54,22 +53,15 @@ def advect_moisture_step(
         if sea_mask[u] == 1 and moist_next[u] < ocean_source:
             moist_next[u] = ocean_source
 
-    for u in range(n_cells):
         cap: float = cap_min + cap_slope * float(temp_f32[u])
-        if cap < cap_lo:
-            cap = cap_lo
-        elif cap > cap_hi:
-            cap = cap_hi
+        cap = max(cap_lo, min(cap, cap_hi))
 
         cond: float = float(moist_next[u]) - cap
         if cond > 0.0:
             precip_accum[u] += cond
             moist_next[u] = cap
 
-    for u in range(n_cells):
-        if moist_next[u] < 0.0:
-            moist_next[u] = 0.0
-        elif moist_next[u] > 1.0:
-            moist_next[u] = 1.0
+        clamped: float = max(0.0, min(float(moist_next[u]), 1.0))
+        moist_next[u] = clamped
 
     return moist_next

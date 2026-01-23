@@ -12,6 +12,7 @@ def hydraulic_erosion_step(
     elev_q_i32: NDArray[np.int32],  # int32[n_cells]
     flow_to_i32: NDArray[np.int32],  # int32[n_cells]
     accum_f32: NDArray[np.float32],  # float32[n_cells]
+    *,
     n_cells: int,
     hydraulic_k: float,
     base_elev_q_i32: NDArray[np.int32],  # int32[n_cells]
@@ -29,9 +30,9 @@ def hydraulic_erosion_step(
             continue
 
         capacity: float = float(accum_f32[u]) * (slope_q * ELEV_Q_M)
-        max_erosion_q: int = int(elev_q_i32[u]) - int(base_elev_q_i32[u])
-        if max_erosion_q < 0:
-            max_erosion_q = 0
+        max_erosion_q: int = max(
+            0, int(elev_q_i32[u]) - int(base_elev_q_i32[u])
+        )
 
         erosion_f: float = capacity * hydraulic_k / ELEV_Q_M
         erosion_q: int = int(min(erosion_f, float(max_erosion_q)))
@@ -47,6 +48,7 @@ def hydraulic_erosion_step(
 def thermal_erosion_step(
     elev_q_i32: NDArray[np.int32],  # int32[n_cells]
     nbr8: NDArray[np.int32],  # int32[n_cells, 8]
+    *,
     n_cells: int,
     talus_slope_q: int,
 ) -> NDArray[np.int32]:

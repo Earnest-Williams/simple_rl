@@ -29,13 +29,13 @@ from simple_rl.worldgen.kernels.noise import (
     smoothstep,
     splitmix64,
 )
+from simple_rl.worldgen.kernels.smoothing import smooth_f32_nbr4, smooth_i32_nbr4
 from simple_rl.worldgen.kernels.union_find import (
     uf_build_components,
     uf_find,
     uf_init,
     uf_union,
 )
-from simple_rl.worldgen.kernels.smoothing import smooth_f32_nbr4, smooth_i32_nbr4
 
 __all__: List[str] = [
     "advect_moisture_step",

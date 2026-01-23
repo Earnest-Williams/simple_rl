@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 def smooth_f32_nbr4(
     data: NDArray[np.float32],  # float32[n_cells]
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
+    *,
     n_cells: int,
     strength: float,
     cap: float,
@@ -33,10 +34,7 @@ def smooth_f32_nbr4(
         mean_nbr: float = total / count
         diff: float = mean_nbr - float(data[u])
 
-        if diff > cap:
-            diff = cap
-        elif diff < -cap:
-            diff = -cap
+        diff = max(-cap, min(diff, cap))
 
         result[u] = np.float32(float(data[u]) + diff * strength)
 
@@ -47,6 +45,7 @@ def smooth_f32_nbr4(
 def smooth_i32_nbr4(
     data_q: NDArray[np.int32],  # int32[n_cells]
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
+    *,
     n_cells: int,
     strength: float,
     cap_q: int,
@@ -71,10 +70,7 @@ def smooth_i32_nbr4(
         mean_nbr: float = total / count
         diff_f: float = mean_nbr - float(data_q[u])
 
-        if diff_f > cap_q:
-            diff_f = float(cap_q)
-        elif diff_f < -cap_q:
-            diff_f = float(-cap_q)
+        diff_f = max(float(-cap_q), min(diff_f, float(cap_q)))
 
         adjustment: int = int(np.round(diff_f * strength))
         result[u] = int(data_q[u]) + adjustment
