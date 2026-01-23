@@ -287,8 +287,9 @@ def _build_flow_direction_numba(
                     best_phi = int(phi[v])
                     best_v = v
                 elif phi[v] == best_phi and best_v != -1:
-                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
-                        seed, FLOW_DOMAIN, best_v
+                    if (
+                        coord_hash_domain(seed, FLOW_DOMAIN, v)
+                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
                     ):
                         best_v = v
             if best_v != -1:
