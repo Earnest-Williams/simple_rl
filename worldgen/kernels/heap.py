@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 def heap_init(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
-    heap_keys: NDArray[np.float32],  # float32[n_cells]
+    heap_keys: NDArray[np.float64],  # float64[n_cells]
 ) -> int:
     heap_pos[:] = -1
     return 0
@@ -19,7 +19,7 @@ def heap_init(
 def heap_push(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
-    heap_keys: NDArray[np.float32],  # float32[n_cells]
+    heap_keys: NDArray[np.float64],  # float64[n_cells]
     *,
     size: int,
     node: int,
@@ -48,7 +48,7 @@ def heap_push(
 def heap_pop_min(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
-    heap_keys: NDArray[np.float32],  # float32[n_cells]
+    heap_keys: NDArray[np.float64],  # float64[n_cells]
     size: int,
 ) -> tuple[int, int]:
     if size == 0:
@@ -103,7 +103,7 @@ def heap_pop_min(
 def heap_decrease_key(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
-    heap_keys: NDArray[np.float32],  # float32[n_cells]
+    heap_keys: NDArray[np.float64],  # float64[n_cells]
     *,
     node: int,
     new_key: float,
