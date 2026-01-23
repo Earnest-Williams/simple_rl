@@ -59,7 +59,7 @@ def _neighbor_from_face(
     return face2, i2, j2
 
 
-def build_default_edge_map() -> Dict[int, Dict[int, Dict[str, Any]]]:
+def build_default_edge_map() -> Dict[int, Dict[int, Dict[str, int]]]:
     edge_map: Dict[int, Dict[int, Dict[str, Any]]] = {}
     sample_i: int = 0
     sample_j: int = 0
