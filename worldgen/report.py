@@ -8,7 +8,7 @@ import numpy as np
 import orjson
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.config import ELEV_Q_M
+from worldgen.config import ELEV_Q_M
 
 
 class RiverStats(TypedDict):

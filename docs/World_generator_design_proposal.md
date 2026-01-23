@@ -340,9 +340,9 @@ This section captures the constraints that directly shape module design.
 
 1. Target Python 3.11+.
 2. Determinism rules:
-   1. Use `simple_rl.worldgen.game_rng.GameRNG` for any randomness in world logic.
+   1. Use `worldgen.game_rng.GameRNG` for any randomness in world logic.
    2. Do not use Python `random` or NumPy RNG in deterministic worldgen code paths.
-   3. Use `simple_rl.worldgen.utils_coord.coord_hash(seed, lin)` for deterministic tie-breaking and hash-based jitter; do not rely on unordered iteration (`dict`, `set`) for determinism.
+   3. Use `worldgen.utils_coord.coord_hash(seed, lin)` for deterministic tie-breaking and hash-based jitter; do not rely on unordered iteration (`dict`, `set`) for determinism.
 3. Formatting: Black, 88-character lines.
 4. Static typing:
    1. Explicit annotations everywhere; no type inference.
@@ -419,7 +419,7 @@ simple_rl/
 
 ### Config Conventions
 
-All tunables/configs live in `simple_rl/worldgen/config.py` and are **immutable** by default (`@dataclass(frozen=True)`). Configs must be JSON-serializable deterministically (sorted keys) to support hashing.
+All tunables/configs live in `worldgen/config.py` and are **immutable** by default (`@dataclass(frozen=True)`). Configs must be JSON-serializable deterministically (sorted keys) to support hashing.
 
 Canonical constant:
 - `ELEV_Q_M: float = 0.1` (elevation quantum in meters)
@@ -510,10 +510,10 @@ elev_m = elev_q_i32.astype(float32) * ELEV_Q_M
 Stages should compare thresholds (sea level selection, biome rules, erosion caps) in integer space when feasible, converting to float only when required by formulas.
 
 ### Top-Level API Surface
-Public entrypoints are exported from simple_rl.worldgen (simple_rl/worldgen/__init__.py). Every entrypoint must validate prerequisites, dtypes, shapes, and sentinels before doing expensive work.
+Public entrypoints are exported from worldgen (worldgen/__init__.py). Every entrypoint must validate prerequisites, dtypes, shapes, and sentinels before doing expensive work.
 
 ```python
-# simple_rl/worldgen/__init__.py
+# worldgen/__init__.py
 
 from __future__ import annotations
 
@@ -646,11 +646,11 @@ Indices are in-range or documented sentinels (-1).
 
 Basic range sanity (e.g., precip_f32 >= 0).
 
-Validation utilities should be centralized in simple_rl/worldgen/validation.py so error messages are consistent across stages.
+Validation utilities should be centralized in worldgen/validation.py so error messages are consistent across stages.
 
 Validation Helper
 ```python
-# simple_rl/worldgen/validation.py
+# worldgen/validation.py
 
 from __future__ import annotations
 
@@ -1629,7 +1629,7 @@ def carve_elevation(d: float, W: float, D: float) -> float:
 ### A.1: Indexed Min-Heap
 
 ```python
-# simple_rl/worldgen/kernels/heap.py
+# worldgen/kernels/heap.py
 
 from __future__ import annotations
 
@@ -1772,7 +1772,7 @@ def heap_decrease_key(
 ### A.2: Deterministic Union-Find
 
 ```python
-# simple_rl/worldgen/kernels/union_find.py
+# worldgen/kernels/union_find.py
 
 from __future__ import annotations
 
@@ -1851,7 +1851,7 @@ def uf_build_components(
 ### A.3: OpenSimplex3 Surrogate Noise
 
 ```python
-# simple_rl/worldgen/kernels/noise.py
+# worldgen/kernels/noise.py
 
 from __future__ import annotations
 
@@ -1999,7 +1999,7 @@ def eval_noise_sphere(
 ### A.4: Spherical Solid Angle (Cell Area)
 
 ```python
-# simple_rl/worldgen/kernels/geometry.py
+# worldgen/kernels/geometry.py
 
 from __future__ import annotations
 
@@ -2183,7 +2183,7 @@ def compute_all_cell_areas(
 ### A.5: Two-Phase Moisture Advection
 
 ```python
-# simple_rl/worldgen/kernels/advection.py
+# worldgen/kernels/advection.py
 
 from __future__ import annotations
 
@@ -2276,7 +2276,7 @@ def advect_moisture_step(
 ### A.6: Accumulation-Driven Erosion
 
 ```python
-# simple_rl/worldgen/kernels/erosion.py
+# worldgen/kernels/erosion.py
 
 from __future__ import annotations
 
@@ -2369,7 +2369,7 @@ def thermal_erosion_step(
 ### A.7: Seam-Aware Smoothing
 
 ```python
-# simple_rl/worldgen/kernels/smoothing.py
+# worldgen/kernels/smoothing.py
 
 from __future__ import annotations
 
@@ -2461,7 +2461,7 @@ def smooth_i32_nbr4(
 ## Appendix B: Report Generation
 
 ```python
-# simple_rl/worldgen/report.py
+# worldgen/report.py
 
 from __future__ import annotations
 

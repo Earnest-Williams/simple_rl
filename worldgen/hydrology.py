@@ -6,14 +6,14 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.kernels.heap import (
+from worldgen.kernels.heap import (
     heap_decrease_key,
     heap_pop_min,
     heap_push,
 )
-from simple_rl.worldgen.kernels.union_find import uf_find, uf_init, uf_union
-from simple_rl.worldgen.utils_coord import FLOW_DOMAIN, coord_hash_domain
-from simple_rl.worldgen.validation import validate_array
+from worldgen.kernels.union_find import uf_find, uf_init, uf_union
+from worldgen.utils_coord import FLOW_DOMAIN, coord_hash_domain
+from worldgen.validation import validate_array
 
 UNRESOLVED: int = -2
 SINK: int = -1
