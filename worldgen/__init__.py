@@ -7,7 +7,7 @@ from typing import Dict, List
 import numpy as np
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.config import (
+from worldgen.config import (
     ELEV_Q_M,
     ClimateConfig,
     ElevationConfig,
@@ -17,19 +17,19 @@ from simple_rl.worldgen.config import (
     config_as_dict,
     default_world_config,
 )
-from simple_rl.worldgen.hydrology import (
+from worldgen.hydrology import (
     build_flow_accumulation,
     build_flow_direction,
     build_rivers_derived_fields,
 )
-from simple_rl.worldgen.io import ensure_dir, read_layer, write_layer
-from simple_rl.worldgen.metadata import WorldMeta, build_world_meta, read_world_meta
-from simple_rl.worldgen.topology_cube_sphere import (
+from worldgen.io import ensure_dir, read_layer, write_layer
+from worldgen.metadata import WorldMeta, build_world_meta, read_world_meta
+from worldgen.topology_cube_sphere import (
     build_cell_area,
     build_nbr_tables,
     build_pos_xyz,
 )
-from simple_rl.worldgen.validation import validate_array
+from worldgen.validation import validate_array
 
 __all__: List[str] = [
     "ClimateConfig",

@@ -6,8 +6,8 @@ import numpy as np
 from numba import njit, prange
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.kernels.geometry import compute_cell_area
-from simple_rl.worldgen.utils_coord import (
+from worldgen.kernels.geometry import compute_cell_area
+from worldgen.utils_coord import (
     _cube_xyz,
     _face_uv,
     cube_face_from_xyz,

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.metadata import LayerMeta, WorldMeta, dtype_to_str
+from worldgen.metadata import LayerMeta, WorldMeta, dtype_to_str
 
 
 def ensure_dir(path: Path) -> None:

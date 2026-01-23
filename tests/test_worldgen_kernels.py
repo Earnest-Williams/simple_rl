@@ -3,12 +3,12 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from simple_rl.worldgen.kernels.advection import advect_moisture_step
-from simple_rl.worldgen.kernels.erosion import (
+from worldgen.kernels.advection import advect_moisture_step
+from worldgen.kernels.erosion import (
     hydraulic_erosion_step,
     thermal_erosion_step,
 )
-from simple_rl.worldgen.kernels.smoothing import smooth_f32_nbr4, smooth_i32_nbr4
+from worldgen.kernels.smoothing import smooth_f32_nbr4, smooth_i32_nbr4
 
 
 def _nbr4_line(n_cells: int) -> NDArray[np.int32]:
