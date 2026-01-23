@@ -33,6 +33,12 @@ def coord_hash(world_seed: int, lin: int) -> int:
 
 
 @njit(cache=True)
+def coord_hash_domain(world_seed: int, domain: int, lin: int) -> int:
+    combined: int = world_seed ^ domain
+    return coord_hash(combined, lin)
+
+
+@njit(cache=True)
 def hash01(world_seed: int, lin: int) -> float:
     hashed: int = coord_hash(world_seed, lin)
     mantissa: int = hashed >> 11
