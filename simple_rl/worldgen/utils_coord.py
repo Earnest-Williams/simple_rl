@@ -16,6 +16,7 @@ FLAT_DOMAIN: int = 0x464C4154
 _HASH_MASK: int = 0xFFFFFFFFFFFFFFFF
 
 
+@njit(cache=True)
 def _splitmix64(value: int) -> int:
     x: int = value & _HASH_MASK
     x = (x + 0x9E3779B97F4A7C15) & _HASH_MASK
@@ -25,17 +26,20 @@ def _splitmix64(value: int) -> int:
     return x & _HASH_MASK
 
 
+@njit(cache=True)
 def coord_hash(world_seed: int, lin: int) -> int:
     combined: int = (world_seed ^ lin) & _HASH_MASK
     return _splitmix64(combined)
 
 
+@njit(cache=True)
 def hash01(world_seed: int, lin: int) -> float:
     hashed: int = coord_hash(world_seed, lin)
     mantissa: int = hashed >> 11
     return mantissa * (1.0 / (1 << 53))
 
 
+@njit(cache=True)
 def hash01_domain(world_seed: int, domain: int, lin: int) -> float:
     combined: int = world_seed ^ domain
     return hash01(combined, lin)

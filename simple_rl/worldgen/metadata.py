@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 @dataclass
@@ -62,6 +63,59 @@ class WorldMeta:
         return path
 
 
+class LayerMetaModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    dtype: str
+    shape: List[int]
+    units: str | None = None
+    sentinel: int | float | None = None
+
+    @field_validator("shape")
+    @classmethod
+    def _shape_ints(cls, value: List[int]) -> List[int]:
+        for item in value:
+            if isinstance(item, bool) or not isinstance(item, int):
+                raise ValueError("shape entries must be integers")
+        return value
+
+    @field_validator("sentinel")
+    @classmethod
+    def _sentinel_not_bool(
+        cls, value: int | float | None
+    ) -> int | float | None:
+        if isinstance(value, bool):
+            raise ValueError("sentinel must be a number or null")
+        return value
+
+
+class WorldMetaModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format_version: str
+    world_seed: int
+    N: int
+    n_cells: int
+    planet_radius_m: float
+    elev_quantum_m: float
+    layers: Dict[str, LayerMetaModel]
+
+    @field_validator("world_seed", "N", "n_cells")
+    @classmethod
+    def _int_not_bool(cls, value: int) -> int:
+        if isinstance(value, bool):
+            raise ValueError("integer fields must not be boolean")
+        return value
+
+    @field_validator("planet_radius_m", "elev_quantum_m")
+    @classmethod
+    def _float_not_bool(cls, value: float) -> float:
+        if isinstance(value, bool):
+            raise ValueError("float fields must not be boolean")
+        return float(value)
+
+
 def build_world_meta(
     *,
     world_seed: int,
@@ -90,3 +144,30 @@ def build_world_meta(
 
 def dtype_to_str(dtype: np.dtype[np.generic]) -> str:
     return str(dtype)
+
+
+def read_world_meta(out_dir: Path) -> WorldMeta:
+    if not out_dir.exists():
+        raise FileNotFoundError("out_dir must exist before reading meta.json")
+    path: Path = out_dir / "meta.json"
+    if not path.exists():
+        raise FileNotFoundError("meta.json is missing in out_dir")
+    model: WorldMetaModel = WorldMetaModel.model_validate_json(path.read_text())
+    layers: Dict[str, LayerMeta] = {}
+    for key, layer in model.layers.items():
+        layers[key] = LayerMeta(
+            path=layer.path,
+            dtype=layer.dtype,
+            shape=tuple(layer.shape),
+            units=layer.units,
+            sentinel=layer.sentinel,
+        )
+    return WorldMeta(
+        format_version=model.format_version,
+        world_seed=model.world_seed,
+        N=model.N,
+        n_cells=model.n_cells,
+        planet_radius_m=float(model.planet_radius_m),
+        elev_quantum_m=float(model.elev_quantum_m),
+        layers=layers,
+    )
