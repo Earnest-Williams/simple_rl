@@ -66,14 +66,14 @@ def get_level_from_xp(xp: int) -> int:
     Note: old API did not take aptitude; this returns the level assuming aptitude
     0. For aptitude-aware queries use calculate_level_from_xp from skills.progression.
     """
-return int(calculate_level_from_xp(int(xp), 0)) # Explicitly cast to int
+    return int(calculate_level_from_xp(int(xp), 0))  # Explicitly cast to int
 
 
 def get_xp_to_next_level(current_level: int, current_xp: int) -> int:
     """Compatibility wrapper that calls calculate_xp_to_next_level."""
     # Note: old signature passed (current_level, current_xp). The new function
     # expects (xp, aptitude). We take a best-effort approach assuming aptitude 0.
-return int(calculate_xp_to_next_level(int(current_xp), 0)) # Explicitly cast to int
+    return int(calculate_xp_to_next_level(int(current_xp), 0))  # Explicitly cast to int
 
 
 def initialize_entity_skills(
@@ -113,7 +113,19 @@ def initialize_entity_skills(
         )
         return
 
-    # Otherwise, call the mixin's unbound implementation directly.
+    # Otherwise, check if the registry has been patched with required attributes
+    # before calling the unbound mixin implementation
+    if not hasattr(entity_registry, "_skills_lock"):
+        raise AttributeError(
+            "EntityRegistry must be patched with skill system support before calling "
+            "initialize_entity_skills. Either:\n"
+            "  1. Use @patch_entity_registry decorator on your EntityRegistry class\n"
+            "  2. Manually initialize: registry.skills_df = pl.DataFrame(schema=SKILL_TABLE_SCHEMA), "
+            "registry.use_vectorized_skills = False, registry._skills_lock = Lock()\n"
+            "  3. Add an initialize_entity_skills method to the registry"
+        )
+
+    # Call the mixin's unbound implementation directly
     SkillSystemMixin.initialize_entity_skills(
         entity_registry,
         entity_id,
