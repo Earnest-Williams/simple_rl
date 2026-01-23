@@ -76,6 +76,9 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
     # Skill system
     "skills": pl.Object,  # Dict[Skill, SkillProgress]
     "skill_training": pl.Object,  # SkillTrainingConfig
+    "active_manuals": pl.Object,  # Dict[int, Dict] - Active skill manuals
+    "shapeshifted_form": pl.Utf8,  # Current shapeshifted form (None = normal)
+    "training_mode": pl.UInt8,  # TrainingMode value
 }
 
 
@@ -240,6 +243,9 @@ class EntityRegistry:
             # Skill system defaults
             "skills": [{}],  # Empty skills dict
             "skill_training": [None],  # Will be initialized when needed
+            "active_manuals": [{}],  # No active manuals
+            "shapeshifted_form": [None],  # Normal form
+            "training_mode": [0],  # TrainingMode.MANUAL = 0
         }
         try:
             new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
