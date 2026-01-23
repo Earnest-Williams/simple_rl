@@ -54,20 +54,21 @@ def compute_seam_continuity(
 
     non_seam_total: float = 0.0
     non_seam_count: int = 0
-    u = 0
-    for u in range(n_cells):
-        if non_seam_count >= sample_size:
-            break
-        k: int
-        for k in range(4):
-            v: int = int(nbr4[u, k])
-            if v < 0 or v >= n_cells:
-                continue
-            if (u, v) in seam_set:
-                continue
-            non_seam_total += abs(float(layer[u] - layer[v]))
-            non_seam_count += 1
-            break
+    if n_cells > 0 and sample_size > 0:
+        stride = max(1, n_cells // sample_size)
+        for u in range(0, n_cells, stride):
+            if non_seam_count >= sample_size:
+                break
+            k: int
+            for k in range(4):
+                v: int = int(nbr4[u, k])
+                if v < 0 or v >= n_cells:
+                    continue
+                if (u, v) in seam_set:
+                    continue
+                non_seam_total += abs(float(layer[u] - layer[v]))
+                non_seam_count += 1
+                break
 
     seam_total: float = 0.0
     seam_count: int = 0
