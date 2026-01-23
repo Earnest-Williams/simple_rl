@@ -66,7 +66,7 @@ def get_level_from_xp(xp: int) -> int:
     Note: old API did not take aptitude; this returns the level assuming aptitude
     0. For aptitude-aware queries use calculate_level_from_xp from skills.progression.
     """
-    return int(calculate_level_from_xp(int(xp), 0))
+return int(calculate_level_from_xp(int(xp), 0)) # Explicitly cast to int
 
 
 def get_xp_to_next_level(current_level: int, current_xp: int) -> int:
