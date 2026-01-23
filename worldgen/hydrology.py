@@ -23,11 +23,11 @@ _HEAP_JITTER_SCALE: float = 1e-6
 
 
 @njit(cache=True)
-def _heap_key(phi: int, seed: int, node: int) -> float:
+def _heap_key(phi: int, seed: int, node: int) -> np.float64:
     jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & _HEAP_JITTER_MASK
     jitter: float = float(jitter_raw) * _HEAP_JITTER_SCALE
     # jitter < 1.0 ensures phi's integer spacing is preserved with stable tie-breaks.
-    return float(phi) + jitter
+    return np.float64(float(phi) + jitter)
 
 
 @njit(cache=True)
@@ -117,9 +117,8 @@ def _build_flow_direction_numba(
                 if cell_area_f32[v] > cell_area_f32[best_v]:
                     best_v = v
                 elif cell_area_f32[v] == cell_area_f32[best_v]:
-                    if (
-                        coord_hash_domain(seed, FLOW_DOMAIN, v)
-                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
+                        seed, FLOW_DOMAIN, best_v
                     ):
                         best_v = v
         flat_mask[u] = has_equal
@@ -173,7 +172,7 @@ def _build_flow_direction_numba(
             cursor[comp_id] += 1
 
     phi: NDArray[np.int32] = np.full(n_cells, _INF_I32, dtype=np.int32)
-    heap_keys: NDArray[np.float32] = np.empty(n_cells, dtype=np.float32)
+    heap_keys: NDArray[np.float64] = np.empty(n_cells, dtype=np.float64)
     heap_pos: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
 
     comp_id = 0
@@ -292,9 +291,8 @@ def _build_flow_direction_numba(
                     best_phi = int(phi[v])
                     best_v = v
                 elif phi[v] == best_phi and best_v != -1:
-                    if (
-                        coord_hash_domain(seed, FLOW_DOMAIN, v)
-                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
+                        seed, FLOW_DOMAIN, best_v
                     ):
                         best_v = v
             if best_v != -1:
