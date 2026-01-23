@@ -64,9 +64,9 @@ def spherical_triangle_area(
     cos_beta: float = -dot_3d(bc, ab)
     cos_gamma: float = -dot_3d(ca, bc)
 
-    cos_alpha = max(-1.0, min(1.0, cos_alpha))
-    cos_beta = max(-1.0, min(1.0, cos_beta))
-    cos_gamma = max(-1.0, min(1.0, cos_gamma))
+    cos_alpha = np.clip(cos_alpha, -1.0, 1.0)
+    cos_beta = np.clip(cos_beta, -1.0, 1.0)
+    cos_gamma = np.clip(cos_gamma, -1.0, 1.0)
 
     alpha: float = float(np.arccos(cos_alpha))
     beta: float = float(np.arccos(cos_beta))
