@@ -224,11 +224,13 @@ def _award_xp_impl(
     )
 
     # 10) Build level-up dict
+    # Use final_levels if cross-training was applied, otherwise use new_levels
+    levels_to_check = final_levels if cross_training_total else new_levels
     level_ups: dict[Skill, tuple[int, int]] = {}
 
     for i in range(len(old_levels)):
         old_lvl: int = int(old_levels[i])
-        new_lvl: int = int(new_levels[i])
+        new_lvl: int = int(levels_to_check[i])
 
         if new_lvl > old_lvl:
             skill = Skill(int(skills["skill"][i]))
