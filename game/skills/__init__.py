@@ -133,7 +133,7 @@ def get_entity_skill_level(entity_registry: Any, entity_id: int, skill: Skill) -
         # fallback to component-based access if implemented
         try:
             skills = entity_registry.get_entity_component(entity_id, "skills")
-        except Exception:
+        except (AttributeError, KeyError): # Catch specific exceptions
             skills = None
 
     if not skills:
