@@ -71,15 +71,18 @@ def compute_seam_continuity(
 
     seam_total: float = 0.0
     seam_count: int = 0
-    u = 0
-    v = 0
-    for u, v in seam_pairs[:sample_size]:
-        if u < 0 or v < 0:
-            continue
-        if u >= n_cells or v >= n_cells:
-            continue
-        seam_total += abs(float(layer[u] - layer[v]))
-        seam_count += 1
+    if len(seam_pairs) > 0 and sample_size > 0:
+        stride = max(1, len(seam_pairs) // sample_size)
+        for i in range(0, len(seam_pairs), stride):
+            if seam_count >= sample_size:
+                break
+            u, v = seam_pairs[i]
+            if u < 0 or v < 0:
+                continue
+            if u >= n_cells or v >= n_cells:
+                continue
+            seam_total += abs(float(layer[u] - layer[v]))
+            seam_count += 1
 
     if seam_count == 0 or non_seam_count == 0:
         return 1.0
