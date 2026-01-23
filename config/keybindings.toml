@@ -12,6 +12,7 @@ wait_alt          = { key = "Space", mods = [], desc = "Wait / Skip Turn", actio
 wait_alt2         = { key = "KP_5", mods = [], desc = "Wait / Skip Turn (Numpad)", action_type="action" }
 inventory         = { key = "I", mods = [], desc = "Open/Close Inventory", action_type="ui" }
 skill_screen      = { key = "M", mods = [], desc = "View Skills", action_type="ui" }
+skill_training    = { key = "M", mods = ["Shift"], desc = "Skill Training", action_type="ui" }
 
 # Modern WASD style bindings
 [bindings.modern]

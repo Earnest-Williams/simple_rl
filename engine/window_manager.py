@@ -1304,6 +1304,36 @@ class WindowManager(QMainWindow):
         except Exception as e:
             log.error("Failed to show skill screen", error=str(e), exc_info=True)
 
+    def ui_show_skill_training(self) -> None:
+        """Display the interactive skill training dialog."""
+        if not self.main_loop or not self.main_loop.game_state:
+            log.warning("Cannot show skill training: no game state")
+            return
+
+        game_state = self.main_loop.game_state
+        player_id = game_state.player_id
+
+        if player_id is None:
+            log.warning("Cannot show skill training: no player ID")
+            return
+
+        try:
+            from game.ui.skill_training_dialog import show_skill_training_dialog
+
+            accepted = show_skill_training_dialog(
+                game_state.entity_registry, player_id, self
+            )
+
+            if accepted:
+                log.info("Skill training configuration updated")
+                # Optionally show a confirmation message
+                if hasattr(game_state, "add_message"):
+                    game_state.add_message(
+                        "Training configuration updated", (0, 255, 255)
+                    )
+        except Exception as e:
+            log.error("Failed to show skill training dialog", error=str(e), exc_info=True)
+
     def ui_open_inventory_view(self) -> None:
         """Open inventory view (stub for compatibility)."""
         log.info("Inventory view requested (not yet implemented)")
