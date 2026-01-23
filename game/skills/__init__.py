@@ -73,7 +73,7 @@ def get_xp_to_next_level(current_level: int, current_xp: int) -> int:
     """Compatibility wrapper that calls calculate_xp_to_next_level."""
     # Note: old signature passed (current_level, current_xp). The new function
     # expects (xp, aptitude). We take a best-effort approach assuming aptitude 0.
-    return int(calculate_xp_to_next_level(int(current_xp), 0))
+return int(calculate_xp_to_next_level(int(current_xp), 0)) # Explicitly cast to int
 
 
 def initialize_entity_skills(
