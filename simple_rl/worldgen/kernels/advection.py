@@ -43,7 +43,7 @@ def advect_moisture_step(
         p_orog: float = m * (1.0 - np.exp(-dh / orog_scale_m))
 
         moist_delta[u] -= m
-        moist_delta[v] += (m - p_orog)
+        moist_delta[v] += m - p_orog
         precip_delta[v] += p_orog
 
     moist_next: NDArray[np.float32] = moist_cur + moist_delta

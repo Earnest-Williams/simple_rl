@@ -81,9 +81,7 @@ def test_advect_moisture_step_basic() -> None:
         cap_hi=1.0,
     )
 
-    expected_moist: NDArray[np.float32] = np.array(
-        [0.4, 0.5, 0.0], dtype=np.float32
-    )
+    expected_moist: NDArray[np.float32] = np.array([0.4, 0.5, 0.0], dtype=np.float32)
     expected_precip: NDArray[np.float32] = np.zeros(3, dtype=np.float32)
     np.testing.assert_allclose(result, expected_moist)
     np.testing.assert_allclose(precip_accum, expected_precip)
