@@ -44,25 +44,10 @@ def main() -> None:
     parser.add_argument("--precompile", action="store_true")
     args: argparse.Namespace = parser.parse_args()
     out_root: Path = args.out
-    if not isinstance(out_root, Path):
-        raise TypeError("Expected --out to be a pathlib.Path")
-
-    raw_ns: object = args.Ns
-    if not isinstance(raw_ns, list):
-        raise TypeError("Expected --Ns to be a list of integers")
-    Ns: List[int] = []
-    for value in raw_ns:
-        if not isinstance(value, int):
-            raise TypeError("Expected --Ns to contain integers")
-        Ns.append(value)
-
-    seed_val: object = args.seed
-    if not isinstance(seed_val, int):
-        raise TypeError("Expected --seed to be an integer")
-
-    precompile_val: object = args.precompile
-    if not isinstance(precompile_val, bool):
-        raise TypeError("Expected --precompile to be a boolean")
+    out_root: Path = args.out
+    Ns: List[int] = args.Ns
+    seed_val: int = args.seed
+    precompile_val: bool = args.precompile
 
     stats: Dict[str, Dict[str, float]] = run_profile(
         out_root,
