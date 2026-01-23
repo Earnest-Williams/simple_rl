@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
+from numba import njit
 from numpy.typing import NDArray
 
 BIOME_JITTER_DOMAIN: int = 0x42494F4D
@@ -40,6 +41,7 @@ def hash01_domain(world_seed: int, domain: int, lin: int) -> float:
     return hash01(combined, lin)
 
 
+@njit(cache=True)
 def _face_uv(face: int, i: int, j: int, N: int) -> Tuple[float, float]:
     if N <= 0:
         raise ValueError("N must be > 0")
@@ -50,6 +52,7 @@ def _face_uv(face: int, i: int, j: int, N: int) -> Tuple[float, float]:
     return u, v
 
 
+@njit(cache=True)
 def _cube_xyz(face: int, u: float, v: float) -> Tuple[float, float, float]:
     if face == 0:
         return 1.0, v, -u
@@ -66,10 +69,8 @@ def _cube_xyz(face: int, u: float, v: float) -> Tuple[float, float, float]:
     raise ValueError("face must be in [0, 5]")
 
 
-def pos_xyz(face: int, i: int, j: int, N: int) -> NDArray[np.float32]:
-    u: float
-    v: float
-    u, v = _face_uv(face, i, j, N)
+@njit(cache=True)
+def pos_xyz_from_uv(face: int, u: float, v: float) -> NDArray[np.float32]:
     x: float
     y: float
     z: float
@@ -82,6 +83,15 @@ def pos_xyz(face: int, i: int, j: int, N: int) -> NDArray[np.float32]:
     return vec
 
 
+@njit(cache=True)
+def pos_xyz(face: int, i: int, j: int, N: int) -> NDArray[np.float32]:
+    u: float
+    v: float
+    u, v = _face_uv(face, i, j, N)
+    return pos_xyz_from_uv(face, u, v)
+
+
+@njit(cache=True)
 def cube_face_from_xyz(x: float, y: float, z: float) -> Tuple[int, float, float]:
     ax: float = abs(x)
     ay: float = abs(y)

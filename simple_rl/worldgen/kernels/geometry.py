@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+from numba import njit
 from numpy.typing import NDArray
 
 
+@njit(cache=True)
 def cross_3d(a: NDArray[np.float32], b: NDArray[np.float32]) -> NDArray[np.float32]:
     result: NDArray[np.float32] = np.empty(3, dtype=np.float32)
     result[0] = a[1] * b[2] - a[2] * b[1]
@@ -12,10 +14,12 @@ def cross_3d(a: NDArray[np.float32], b: NDArray[np.float32]) -> NDArray[np.float
     return result
 
 
+@njit(cache=True)
 def dot_3d(a: NDArray[np.float32], b: NDArray[np.float32]) -> float:
     return float(a[0] * b[0] + a[1] * b[1] + a[2] * b[2])
 
 
+@njit(cache=True)
 def normalize_3d(v: NDArray[np.float32]) -> NDArray[np.float32]:
     length: float = float(np.sqrt(dot_3d(v, v)))
     if length <= 1e-10:
@@ -28,6 +32,7 @@ def normalize_3d(v: NDArray[np.float32]) -> NDArray[np.float32]:
     return result
 
 
+@njit(cache=True)
 def spherical_triangle_area(
     a: NDArray[np.float32],
     b: NDArray[np.float32],
@@ -71,6 +76,7 @@ def spherical_triangle_area(
     return abs(excess)
 
 
+@njit(cache=True)
 def compute_cell_area(corners: NDArray[np.float32], radius_m: float) -> float:
     area1: float = spherical_triangle_area(corners[0], corners[1], corners[2])
     area2: float = spherical_triangle_area(corners[0], corners[2], corners[3])
