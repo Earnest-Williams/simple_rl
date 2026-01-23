@@ -56,6 +56,10 @@ class SkillRegistryHost(Protocol):
         """Set a component value for an entity."""
         ...
 
+    def get_skill_training(self, entity_id: int) -> SkillTrainingConfig | None:
+        """Get entity's training configuration."""
+        ...
+
 
 class SkillSystemMixin:
     """Mixin to add to EntityRegistry for skill system support.
@@ -119,7 +123,7 @@ class SkillSystemMixin:
         new_skills = pl.DataFrame(rows, schema=SKILL_TABLE_SCHEMA)
 
         with self._skills_lock:
-            self._initialize_entity_skills_impl(entity_id, new_skills)
+            self._initialize_entity_skills_impl(entity_id, new_skills)  # type: ignore[attr-defined]
 
     def _initialize_entity_skills_impl(
         self: SkillRegistryHost,
@@ -132,7 +136,7 @@ class SkillSystemMixin:
 
         # Also sync to legacy format if not in vectorized-only mode
         if not self.use_vectorized_skills:
-            self._sync_skills_to_legacy(entity_id, new_skills)
+            self._sync_skills_to_legacy(entity_id, new_skills)  # type: ignore[attr-defined]
 
     def get_skills(
         self: SkillRegistryHost, entity_id: int
@@ -167,7 +171,7 @@ class SkillSystemMixin:
             return result
         else:
             # Legacy path: read from entities_df.skills
-            return self._get_skills_legacy(entity_id)
+            return self._get_skills_legacy(entity_id)  # type: ignore[attr-defined]
 
     def set_skills(
         self: SkillRegistryHost,
@@ -183,7 +187,7 @@ class SkillSystemMixin:
             skills: New skill values
         """
         with self._skills_lock:
-            self._set_skills_impl(entity_id, skills)
+            self._set_skills_impl(entity_id, skills)  # type: ignore[attr-defined]
 
     def _set_skills_impl(
         self: SkillRegistryHost,
@@ -231,7 +235,7 @@ class SkillSystemMixin:
 
         # Sync to legacy format for backward compatibility during migration
         if not self.use_vectorized_skills:
-            self._sync_skills_to_legacy(entity_id, update_df)
+            self._sync_skills_to_legacy(entity_id, update_df)  # type: ignore[attr-defined]
 
     def get_skill_training(
         self: SkillRegistryHost, entity_id: int
@@ -272,7 +276,7 @@ class SkillSystemMixin:
 
             return config
         else:
-            return self._get_skill_training_legacy(entity_id)
+            return self._get_skill_training_legacy(entity_id)  # type: ignore[attr-defined]
 
     def _sync_skills_to_legacy(
         self: SkillRegistryHost,
@@ -376,7 +380,7 @@ def patch_entity_registry(registry_class: type) -> type:
     original_init = registry_class.__init__  # type: ignore[misc]
 
     def new_init(self: Any, *args: Any, **kwargs: Any) -> None:
-        original_init(self, *args, **kwargs)  # type: ignore[misc]
+        original_init(self, *args, **kwargs)
         self.skills_df = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
         self.use_vectorized_skills = False
         self._skills_lock = Lock()
