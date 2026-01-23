@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Dict
+import hashlib
+from typing import Dict, Literal
+
+import orjson
 
 ELEV_Q_M: float = 0.1
 
@@ -90,3 +93,41 @@ def default_world_config() -> WorldConfig:
 
 def config_as_dict(cfg: WorldConfig) -> Dict[str, object]:
     return asdict(cfg)
+
+
+def extract_global_fields(cfg: WorldConfig) -> Dict[str, object]:
+    """Extract fields affecting global simulation layers (elevation, climate, hydrology).
+
+    All current WorldConfig fields affect the global simulation:
+    - elevation: tectonic plates, uplift, erosion
+    - climate: temperature, wind, moisture
+    - hydrology: flow direction, accumulation, rivers
+    - planet_radius_m: topology, cell areas
+    """
+    return config_as_dict(cfg)
+
+
+def extract_chunk_fields(cfg: WorldConfig) -> Dict[str, object]:
+    """Extract fields affecting only chunk-level detail generation.
+
+    Currently returns empty dict because there are no chunk-specific tunables
+    in WorldConfig yet. Chunk generation parameters like detail_cells_per_sim
+    are passed as arguments to get_chunk() rather than stored in the config.
+
+    When chunk-specific tunables are added to WorldConfig in the future
+    (e.g., detail resolution, noise parameters, interpolation settings),
+    this function should be updated to return only those fields.
+    """
+    return {}
+
+
+def compute_tunables_hash(
+    cfg: WorldConfig, *, scope: Literal["global", "chunk"]
+) -> str:
+    if scope == "global":
+        fields: Dict[str, object] = extract_global_fields(cfg)
+    else:
+        fields = extract_chunk_fields(cfg)
+    blob: bytes = orjson.dumps(fields, option=orjson.OPT_SORT_KEYS)
+    digest: str = hashlib.sha256(blob).hexdigest()
+    return f"sha256:{digest}"

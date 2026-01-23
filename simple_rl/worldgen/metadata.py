@@ -39,12 +39,14 @@ class WorldMeta:
     planet_radius_m: float
     elev_quantum_m: float
     layers: Dict[str, LayerMeta] = field(default_factory=dict)
+    global_tunables_hash: str | None = None
+    chunk_tunables_hash: str | None = None
 
     def to_dict(self) -> Dict[str, object]:
         layers_payload: Dict[str, object] = {
             key: value.to_dict() for key, value in sorted(self.layers.items())
         }
-        return {
+        payload: Dict[str, object] = {
             "format_version": self.format_version,
             "world_seed": self.world_seed,
             "N": self.N,
@@ -53,6 +55,11 @@ class WorldMeta:
             "elev_quantum_m": self.elev_quantum_m,
             "layers": layers_payload,
         }
+        if self.global_tunables_hash is not None:
+            payload["global_tunables_hash"] = self.global_tunables_hash
+        if self.chunk_tunables_hash is not None:
+            payload["chunk_tunables_hash"] = self.chunk_tunables_hash
+        return payload
 
     def write(self, out_dir: Path) -> Path:
         if not out_dir.exists():
@@ -100,6 +107,8 @@ class WorldMetaModel(BaseModel):
     planet_radius_m: float
     elev_quantum_m: float
     layers: Dict[str, LayerMetaModel]
+    global_tunables_hash: str | None = None
+    chunk_tunables_hash: str | None = None
 
     @field_validator("world_seed", "N", "n_cells")
     @classmethod
@@ -122,7 +131,9 @@ def build_world_meta(
     N: int,
     planet_radius_m: float,
     elev_quantum_m: float,
-    format_version: str = "0.1.0",
+    global_tunables_hash: str | None = None,
+    chunk_tunables_hash: str | None = None,
+    format_version: str = "2.0.0",
 ) -> WorldMeta:
     if N <= 0:
         raise ValueError("N must be > 0")
@@ -139,6 +150,8 @@ def build_world_meta(
         planet_radius_m=planet_radius_m,
         elev_quantum_m=elev_quantum_m,
         layers={},
+        global_tunables_hash=global_tunables_hash,
+        chunk_tunables_hash=chunk_tunables_hash,
     )
 
 
@@ -170,4 +183,6 @@ def read_world_meta(out_dir: Path) -> WorldMeta:
         planet_radius_m=float(model.planet_radius_m),
         elev_quantum_m=float(model.elev_quantum_m),
         layers=layers,
+        global_tunables_hash=model.global_tunables_hash,
+        chunk_tunables_hash=model.chunk_tunables_hash,
     )

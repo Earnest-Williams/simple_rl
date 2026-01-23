@@ -13,6 +13,7 @@ from simple_rl.worldgen.config import (
     ElevationConfig,
     HydrologyConfig,
     WorldConfig,
+    compute_tunables_hash,
     config_as_dict,
     default_world_config,
 )
@@ -65,11 +66,16 @@ def build_world(
         shutil.rmtree(out_dir)
     ensure_dir(out_dir)
 
+    global_hash: str = compute_tunables_hash(cfg, scope="global")
+    chunk_hash: str = compute_tunables_hash(cfg, scope="chunk")
+
     meta: WorldMeta = build_world_meta(
         world_seed=seed,
         N=N,
         planet_radius_m=cfg.planet_radius_m,
         elev_quantum_m=ELEV_Q_M,
+        global_tunables_hash=global_hash,
+        chunk_tunables_hash=chunk_hash,
     )
 
     pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
