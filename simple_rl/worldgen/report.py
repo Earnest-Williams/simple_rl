@@ -2,13 +2,38 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, TypedDict
 
 import numpy as np
 import orjson
 from numpy.typing import NDArray
 
 from simple_rl.worldgen.config import ELEV_Q_M
+
+
+class RiverStats(TypedDict):
+    """Statistics about river cells and stream orders."""
+
+    total_river_cells: int
+    order_histogram: List[int]
+
+
+class SeamContinuity(TypedDict):
+    """Ratios of seam vs non-seam discontinuity for different layers."""
+
+    elev_seam_vs_nonseam_ratio: float
+    temp_seam_vs_nonseam_ratio: float
+    precip_seam_vs_nonseam_ratio: float
+
+
+class WorldGenReport(TypedDict):
+    """Complete world generation validation report."""
+
+    land_fraction: float
+    temp_quantiles: Dict[str, float]
+    precip_quantiles: Dict[str, float]
+    river_stats: RiverStats
+    seam_continuity: SeamContinuity
 
 
 def compute_quantiles(
@@ -103,7 +128,7 @@ def generate_report(
     sea_level_q: int,
     seam_pairs: List[Tuple[int, int]],
     sample_size: int = 10000,
-) -> Dict[str, Any]:
+) -> WorldGenReport:
     if not out_dir.exists():
         raise FileNotFoundError("out_dir must exist before writing report.json")
     if elev_q_i32.shape[0] == 0:
@@ -112,9 +137,7 @@ def generate_report(
     land_mask: NDArray[np.bool_] = elev_q_i32 >= sea_level_q
     land_fraction: float = float(np.mean(land_mask))
 
-    temp_quantiles: Dict[str, float] = compute_quantiles(
-        temp_f32, [5, 25, 50, 75, 95]
-    )
+    temp_quantiles: Dict[str, float] = compute_quantiles(temp_f32, [5, 25, 50, 75, 95])
     precip_quantiles: Dict[str, float] = compute_quantiles(
         precip_f32, [5, 25, 50, 75, 95]
     )
@@ -145,7 +168,7 @@ def generate_report(
         sample_size,
     )
 
-    report: Dict[str, Any] = {
+    report: WorldGenReport = {
         "land_fraction": land_fraction,
         "temp_quantiles": temp_quantiles,
         "precip_quantiles": precip_quantiles,
