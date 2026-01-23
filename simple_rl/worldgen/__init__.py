@@ -20,7 +20,6 @@ from simple_rl.worldgen.io import ensure_dir, write_layer
 from simple_rl.worldgen.metadata import WorldMeta, build_world_meta
 from simple_rl.worldgen.topology_cube_sphere import (
     build_cell_area,
-    build_default_edge_map,
     build_nbr_tables,
     build_pos_xyz,
 )
@@ -67,10 +66,9 @@ def build_world(
     )
 
     pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
-    edge_map: Dict[int, Dict[int, Dict[str, object]]] = build_default_edge_map()
     nbr4_i32: NDArray[np.int32]
     nbr8_i32: NDArray[np.int32]
-    nbr4_i32, nbr8_i32 = build_nbr_tables(N, edge_map)
+    nbr4_i32, nbr8_i32 = build_nbr_tables(N)
     cell_area_f32: NDArray[np.float32] = build_cell_area(N, cfg.planet_radius_m)
 
     n_cells: int = 6 * N * N

@@ -184,11 +184,7 @@ def _build_nbr_tables(N: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
     return nbr4_i32, nbr8_i32
 
 
-def build_nbr_tables(
-    N: int,
-    edge_map: Dict[int, Dict[int, Dict[str, Any]]],
-) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
+def build_nbr_tables(N: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
     if N <= 0:
         raise ValueError("N must be > 0")
-    del edge_map
     return _build_nbr_tables(N)

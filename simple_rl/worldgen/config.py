@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Dict
 
 ELEV_Q_M: float = 0.1
@@ -89,9 +89,4 @@ def default_world_config() -> WorldConfig:
 
 
 def config_as_dict(cfg: WorldConfig) -> Dict[str, object]:
-    return {
-        "elevation": cfg.elevation.__dict__,
-        "climate": cfg.climate.__dict__,
-        "hydrology": cfg.hydrology.__dict__,
-        "planet_radius_m": cfg.planet_radius_m,
-    }
+    return asdict(cfg)
