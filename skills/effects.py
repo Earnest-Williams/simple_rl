@@ -134,9 +134,10 @@ def calculate_combat_bonuses(
         weapon_level,
     )
 
-    accuracy: int = calculate_fighting_accuracy(
-        fighting_level
-    ) + calculate_weapon_accuracy(weapon_level)
+    accuracy: int = (
+        calculate_fighting_accuracy(fighting_level)
+        + calculate_weapon_accuracy(weapon_level)
+    )
 
     armor_bonus: int = calculate_armour_bonus(armour_level, base_armor)
 
