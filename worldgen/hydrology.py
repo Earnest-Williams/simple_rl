@@ -18,12 +18,15 @@ from worldgen.validation import validate_array
 UNRESOLVED: int = -2
 SINK: int = -1
 _INF_I32: int = np.iinfo(np.int32).max
+_HEAP_JITTER_MASK: int = 0xFFFF
+_HEAP_JITTER_SCALE: float = 1e-6
 
 
 @njit(cache=True)
 def _heap_key(phi: int, seed: int, node: int) -> float:
-    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & 0xFFFF
-    jitter: float = float(jitter_raw) * 1e-6
+    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & _HEAP_JITTER_MASK
+    jitter: float = float(jitter_raw) * _HEAP_JITTER_SCALE
+    # jitter < 1.0 ensures phi's integer spacing is preserved with stable tie-breaks.
     return float(phi) + jitter
 
 
@@ -35,6 +38,7 @@ def _break_flow_cycles_numba(flow_to: NDArray[np.int32], seed: int) -> None:
     step_index: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
     path: NDArray[np.int32] = np.empty(n_cells, dtype=np.int32)
     run_id: int = 1
+    # run_id fits in int32 for practical grid sizes (n_cells << 2**31).
 
     start: int
     for start in range(n_cells):
@@ -180,6 +184,7 @@ def _build_flow_direction_numba(
         start: int = int(offsets[comp_id])
         end: int = int(offsets[comp_id + 1])
 
+        # outlets count is bounded by comp_size since outlets are component members.
         outlets: NDArray[np.int32] = np.empty(comp_size, dtype=np.int32)
         out_count: int = 0
         idx = start
@@ -309,6 +314,11 @@ def build_flow_direction(
     *,
     seed: int,
 ) -> NDArray[np.int32]:
+    """Build per-cell flow direction indices.
+
+    Returns an int32 array mapping each cell to its downstream neighbor index or
+    SINK when no lower neighbor exists. UNRESOLVED is not present in the output.
+    """
     n_cells: int = int(elev_q_i32.shape[0])
     validate_array(elev_q_i32, "elev_q_i32", np.dtype("int32"), (n_cells,))
     validate_array(nbr8_i32, "nbr8_i32", np.dtype("int32"), (n_cells, 8))
