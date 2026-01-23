@@ -8,6 +8,7 @@ Thread safety: All mutation methods acquire self._skills_lock when present.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from threading import Lock
 from typing import Final
 
@@ -99,10 +100,7 @@ class SkillSystemMixin:
         new_skills = pl.DataFrame(rows, schema=SKILL_TABLE_SCHEMA)
 
         lock: Lock | None = getattr(self, "_skills_lock", None)
-        if lock is not None:
-            with lock:
-                self._initialize_entity_skills_impl(entity_id, new_skills)
-        else:
+        with lock if lock is not None else nullcontext():
             self._initialize_entity_skills_impl(entity_id, new_skills)
 
     def _initialize_entity_skills_impl(
@@ -166,10 +164,7 @@ class SkillSystemMixin:
             skills: New skill values
         """
         lock: Lock | None = getattr(self, "_skills_lock", None)
-        if lock is not None:
-            with lock:
-                self._set_skills_impl(entity_id, skills)
-        else:
+        with lock if lock is not None else nullcontext():
             self._set_skills_impl(entity_id, skills)
 
     def _set_skills_impl(
