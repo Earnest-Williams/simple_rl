@@ -35,6 +35,7 @@ from auto.simulation import (
 from engine.render_lighting import apply_memory_fade
 from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
+from skills.utils import numba_warmup
 
 DEFAULT_SEED = int(time.time() * 1000)
 DEFAULT_MAX_NODES = 400
@@ -305,6 +306,10 @@ def run_pipeline(
 
 
 def main() -> None:
+    # Warmup Numba JIT functions to avoid first-call compilation spikes
+    log.info("Warming up Numba JIT functions...")
+    numba_warmup()
+
     parser = argparse.ArgumentParser(description="Run the simple_rl orchestrator.")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="RNG seed.")
     parser.add_argument("--max-nodes", type=int, default=DEFAULT_MAX_NODES)

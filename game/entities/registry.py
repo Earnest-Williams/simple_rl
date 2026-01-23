@@ -1,15 +1,18 @@
 # game/entities/registry.py
 from __future__ import annotations
 
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Dict, List, Self
 
 import polars as pl
 import structlog
 
 from game.entities.components import Position
+from skills.models import Skill, SkillProgress, SkillTrainingConfig, TrainingMode
+from skills.registry_integration import SKILL_TABLE_SCHEMA, SkillSystemMixin
 
 if TYPE_CHECKING:
-    from game.skills.models import Skill, SkillProgress, SkillTrainingConfig
+    pass
 
 try:
     from game.items.registry import BodySlotType, EquipSlot
@@ -97,6 +100,12 @@ class EntityRegistry:
             )
         self.entities_df: pl.DataFrame = pl.DataFrame(schema=ENTITY_SCHEMA)
         self._next_entity_id: int = 0
+
+        # Vectorized skill system
+        self.skills_df: pl.DataFrame = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
+        self.use_vectorized_skills: bool = True  # Enable by default
+        self._skills_lock: Lock = Lock()
+
         log.debug("EntityRegistry initialized", schema=list(ENTITY_SCHEMA.keys()))
 
     def _get_next_id(self: Self) -> int:
@@ -530,12 +539,24 @@ class EntityRegistry:
         return self.set_entity_component(entity_id, "equipped_item_ids", equipped_ids)
 
     # ===== Skill System Methods =====
+    # Mixin methods from SkillSystemMixin
 
-    def get_skills(self, entity_id: int) -> Dict[Skill, SkillProgress] | None:
+    initialize_entity_skills = SkillSystemMixin.initialize_entity_skills
+    _initialize_entity_skills_impl = SkillSystemMixin._initialize_entity_skills_impl
+    _sync_skills_to_legacy = SkillSystemMixin._sync_skills_to_legacy
+    _set_skills_impl = SkillSystemMixin._set_skills_impl
+
+    def get_skills(self, entity_id: int) -> Dict[Skill, SkillProgress]:
         """Get the skills dictionary for an entity."""
-        return self.get_entity_component(entity_id, "skills")
+        if self.use_vectorized_skills:
+            # Use vectorized path from mixin
+            return SkillSystemMixin.get_skills(self, entity_id)  # type: ignore[arg-type]
+        else:
+            # Legacy path
+            skills = self.get_entity_component(entity_id, "skills")
+            return skills if skills is not None else {}
 
-    def set_skills(self, entity_id: int, skills: Dict[Skill, SkillProgress]) -> bool:
+    def set_skills(self, entity_id: int, skills: Dict[Skill, SkillProgress]) -> None:
         """Set the skills dictionary for an entity."""
         if not isinstance(skills, dict):
             log.error(
@@ -543,13 +564,37 @@ class EntityRegistry:
                 entity_id=entity_id,
                 type=type(skills),
             )
-            return False
-        return self.set_entity_component(entity_id, "skills", skills)
+            return
+        if self.use_vectorized_skills:
+            # Use vectorized path from mixin
+            SkillSystemMixin.set_skills(self, entity_id, skills)  # type: ignore[arg-type]
+        else:
+            # Legacy path
+            self.set_entity_component(entity_id, "skills", skills)
 
     def get_skill_training(self, entity_id: int) -> SkillTrainingConfig | None:
         """Get the skill training configuration for an entity."""
-        return self.get_entity_component(entity_id, "skill_training")
+        if self.use_vectorized_skills:
+            # Use vectorized path from mixin
+            return SkillSystemMixin.get_skill_training(self, entity_id)  # type: ignore[arg-type]
+        else:
+            # Legacy path
+            return self.get_entity_component(entity_id, "skill_training")
 
-    def set_skill_training(self, entity_id: int, config: SkillTrainingConfig) -> bool:
+    def set_skill_training(self, entity_id: int, config: SkillTrainingConfig) -> None:
         """Set the skill training configuration for an entity."""
-        return self.set_entity_component(entity_id, "skill_training", config)
+        if self.use_vectorized_skills:
+            # Store mode in entity component
+            self.set_entity_component(entity_id, "training_mode", config.mode.value)
+        else:
+            # Legacy path
+            self.set_entity_component(entity_id, "skill_training", config)
+
+    def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
+        """Legacy implementation - delegates to existing storage."""
+        skills = self.get_entity_component(entity_id, "skills")
+        return skills if skills is not None else {}
+
+    def _get_skill_training_legacy(self, entity_id: int) -> SkillTrainingConfig | None:
+        """Legacy implementation - delegates to existing storage."""
+        return self.get_entity_component(entity_id, "skill_training")
