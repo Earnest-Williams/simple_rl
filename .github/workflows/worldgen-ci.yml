@@ -1,0 +1,32 @@
+name: Worldgen CI
+
+on:
+  push:
+    branches: [World-Gen, main]
+  pull_request:
+    branches: [World-Gen, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Precompile numba caches
+        env:
+          NUMBA_CACHE_DIR: .numba_cache
+        run: |
+          python -c "from worldgen import _precompile_kernels; _precompile_kernels(4)"
+      - name: Run tests
+        env:
+          NUMBA_CACHE_DIR: .numba_cache
+        run: |
+          pytest -q
