@@ -209,9 +209,9 @@ def handle_melee_attack(
 
     # Get defender skills for armor/dodging
     defender_skills = entity_reg.get_skills(defender_id)
-    defender_armour_level = defender_skills.get(Skill.ARMOUR).level if defender_skills.get(Skill.ARMOUR) else 0
-    defender_dodging_level = defender_skills.get(Skill.DODGING).level if defender_skills.get(Skill.DODGING) else 0
-    defender_shields_level = defender_skills.get(Skill.SHIELDS).level if defender_skills.get(Skill.SHIELDS) else 0
+    defender_armour_level = (defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)).level
+    defender_dodging_level = (defender_skills.get(Skill.DODGING) or SkillProgress(Skill.DODGING, 0, 0, 0)).level
+    defender_shields_level = (defender_skills.get(Skill.SHIELDS) or SkillProgress(Skill.SHIELDS, 0, 0, 0)).level
 
     # Calculate skill-based bonuses
     skill_bonuses = get_combat_bonuses_dict(
