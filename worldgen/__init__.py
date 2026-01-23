@@ -9,7 +9,6 @@ from numba import njit
 from numpy.typing import NDArray
 
 from worldgen.config import (
-    ELEV_Q_M,
     ClimateConfig,
     ElevationConfig,
     HydrologyConfig,
@@ -17,6 +16,47 @@ from worldgen.config import (
     compute_tunables_hash,
     config_as_dict,
     default_world_config,
+)
+from worldgen.constants import (
+    CLIMATE_CAP_HI,
+    CLIMATE_CAP_LO,
+    CLIMATE_CAP_MIN,
+    CLIMATE_CAP_SLOPE,
+    CLIMATE_LAND_INIT_MOISTURE,
+    CLIMATE_OCEAN_INIT_MOISTURE,
+    CLIMATE_OCEAN_SOURCE_MOISTURE,
+    ELEV_Q_M,
+    ELEVATION_BASE_NOISE_LACUNARITY,
+    ELEVATION_BASE_NOISE_OCTAVES,
+    ELEVATION_BASE_NOISE_PERSISTENCE,
+    ELEVATION_BASE_NOISE_SCALE,
+    ELEVATION_HYDRAULIC_K_DEFAULT,
+    ELEVATION_PLATE_AMPLITUDE_M,
+    ELEVATION_PLATE_EXPONENT,
+    ELEVATION_PLATE_NOISE_LACUNARITY,
+    ELEVATION_PLATE_NOISE_OCTAVES,
+    ELEVATION_PLATE_NOISE_PERSISTENCE,
+    ELEVATION_PLATE_NOISE_SCALE,
+    ELEVATION_ROUGHNESS_AMPLITUDE_M,
+    ELEVATION_ROUGHNESS_BASELINE,
+    ELEVATION_ROUGHNESS_EXPONENT,
+    ELEVATION_ROUGH_NOISE_LACUNARITY,
+    ELEVATION_ROUGH_NOISE_OCTAVES,
+    ELEVATION_ROUGH_NOISE_PERSISTENCE,
+    ELEVATION_ROUGH_NOISE_SCALE,
+    ELEVATION_TECTONIC_AMPLITUDE_M,
+    ELEVATION_TECTONIC_EXPONENT,
+    NORMALIZE_EPS,
+    NOISE_DOMAIN,
+    PLATE_SEED_DOMAIN,
+    REPORT_QUANTILES_FRAC,
+    REPORT_SEAM_EPS,
+    WIND_DOMAIN,
+    WIND_JITTER_MASK,
+    WIND_JITTER_SCALE,
+    WIND_POLE_REF_THRESHOLD,
+    WIND_SCORE_FLOOR,
+    WIND_SIGN_LAT_FREQ,
 )
 from worldgen.kernels.advection import advect_moisture_step
 from worldgen.kernels.erosion import hydraulic_erosion_step, thermal_erosion_step
@@ -35,12 +75,7 @@ from worldgen.topology_cube_sphere import (
     build_pos_xyz,
 )
 from worldgen.topology_cube_sphere import lin_index
-from worldgen.utils_coord import (
-    NOISE_DOMAIN,
-    PLATE_SEED_DOMAIN,
-    WIND_DOMAIN,
-    coord_hash_domain,
-)
+from worldgen.utils_coord import coord_hash_domain
 from worldgen.validation import validate_array, validate_no_nan
 
 __all__: List[str] = [
@@ -66,7 +101,7 @@ def _write_report(out_dir: Path, payload: Dict[str, object]) -> None:
 def _normalize01(values: NDArray[np.float32]) -> NDArray[np.float32]:
     min_v: float = float(np.min(values))
     max_v: float = float(np.max(values))
-    span: float = max(max_v - min_v, 1e-8)
+    span: float = max(max_v - min_v, NORMALIZE_EPS)
     return ((values - min_v) / span).astype(np.float32)
 
 
@@ -103,7 +138,7 @@ def _build_wind_to(
         if abs(z) >= lat_polar_cap:
             continue
 
-        if abs(z) > 0.99:
+        if abs(z) > WIND_POLE_REF_THRESHOLD:
             ref_x: float = 1.0
             ref_y: float = 0.0
             ref_z: float = 0.0
@@ -129,13 +164,13 @@ def _build_wind_to(
         east_z *= inv_norm
 
         lat: float = np.arcsin(max(-1.0, min(z, 1.0)))
-        wind_sign: float = 1.0 if np.sin(3.0 * lat) >= 0.0 else -1.0
+        wind_sign: float = 1.0 if np.sin(WIND_SIGN_LAT_FREQ * lat) >= 0.0 else -1.0
         wind_x: float = east_x * wind_sign
         wind_y: float = east_y * wind_sign
         wind_z: float = east_z * wind_sign
 
         best_v: int = -1
-        best_score: float = -1.0e20
+        best_score: float = WIND_SCORE_FLOOR
         k: int
         for k in range(4):
             v: int = int(nbr4[u, k])
@@ -145,8 +180,8 @@ def _build_wind_to(
             dy: float = float(pos_xyz[v, 1]) - py
             dz: float = float(pos_xyz[v, 2]) - pz
             score: float = dx * wind_x + dy * wind_y + dz * wind_z
-            jitter_raw: int = coord_hash_domain(seed, WIND_DOMAIN, v) & 0xFFFF
-            score += float(jitter_raw) * 1e-9
+            jitter_raw: int = coord_hash_domain(seed, WIND_DOMAIN, v) & WIND_JITTER_MASK
+            score += float(jitter_raw) * WIND_JITTER_SCALE
             if score > best_score:
                 best_score = score
                 best_v = v
@@ -266,26 +301,26 @@ def build_elevation(
     base_noise: NDArray[np.float32] = eval_noise_sphere(
         pos_xyz,
         noise_seed,
-        octaves=4,
-        lacunarity=2.0,
-        persistence=0.5,
-        scale=1.0,
+        octaves=ELEVATION_BASE_NOISE_OCTAVES,
+        lacunarity=ELEVATION_BASE_NOISE_LACUNARITY,
+        persistence=ELEVATION_BASE_NOISE_PERSISTENCE,
+        scale=ELEVATION_BASE_NOISE_SCALE,
     ).astype(np.float32)
     rough_noise: NDArray[np.float32] = eval_noise_sphere(
         pos_xyz,
         rough_seed,
-        octaves=2,
-        lacunarity=2.2,
-        persistence=0.6,
-        scale=3.0,
+        octaves=ELEVATION_ROUGH_NOISE_OCTAVES,
+        lacunarity=ELEVATION_ROUGH_NOISE_LACUNARITY,
+        persistence=ELEVATION_ROUGH_NOISE_PERSISTENCE,
+        scale=ELEVATION_ROUGH_NOISE_SCALE,
     ).astype(np.float32)
     plate_noise: NDArray[np.float32] = eval_noise_sphere(
         pos_xyz,
         plate_seed,
-        octaves=2,
-        lacunarity=2.0,
-        persistence=0.5,
-        scale=0.5,
+        octaves=ELEVATION_PLATE_NOISE_OCTAVES,
+        lacunarity=ELEVATION_PLATE_NOISE_LACUNARITY,
+        persistence=ELEVATION_PLATE_NOISE_PERSISTENCE,
+        scale=ELEVATION_PLATE_NOISE_SCALE,
     ).astype(np.float32)
 
     plate_influence: NDArray[np.float32]
@@ -308,21 +343,22 @@ def build_elevation(
 
     tectonic_mask: NDArray[np.float32] = _curve_pow(
         _normalize01(base_noise),
-        exponent=1.25,
+        exponent=ELEVATION_TECTONIC_EXPONENT,
     )
     plate_mask: NDArray[np.float32] = _curve_pow(
         _normalize01(plate_influence),
-        exponent=1.05,
+        exponent=ELEVATION_PLATE_EXPONENT,
     )
     rough_mask: NDArray[np.float32] = _curve_pow(
         _normalize01(rough_noise),
-        exponent=1.6,
+        exponent=ELEVATION_ROUGHNESS_EXPONENT,
     )
 
     elev_m: NDArray[np.float32] = (
-        (tectonic_mask * 2.0 - 1.0) * 3500.0
-        + (plate_mask * 2.0 - 1.0) * 1000.0
-        + (rough_mask - 0.5) * 700.0
+        (tectonic_mask * 2.0 - 1.0) * ELEVATION_TECTONIC_AMPLITUDE_M
+        + (plate_mask * 2.0 - 1.0) * ELEVATION_PLATE_AMPLITUDE_M
+        + (rough_mask - ELEVATION_ROUGHNESS_BASELINE)
+        * ELEVATION_ROUGHNESS_AMPLITUDE_M
     ).astype(np.float32)
     validate_no_nan(elev_m, "elev_m")
 
@@ -345,7 +381,7 @@ def build_elevation(
 
     base_elev_q = elev_q.copy()
     erosion_steps: int = max(0, cfg.erosion_iterations)
-    hydraulic_k: float = 0.01
+    hydraulic_k: float = ELEVATION_HYDRAULIC_K_DEFAULT
     talus_slope_m: float = float(
         np.tan(np.deg2rad(cfg.talus_angle_deg)),
     )
@@ -452,9 +488,11 @@ def build_climate(
     validate_array(wind_to_i32, "wind_to", np.dtype("int32"), (n_cells,))
 
     sea_mask: NDArray[np.uint8] = (elev_q_i32 <= 0).astype(np.uint8)
-    moist_f32: NDArray[np.float32] = np.where(sea_mask == 1, 0.7, 0.3).astype(
-        np.float32
-    )
+    moist_f32: NDArray[np.float32] = np.where(
+        sea_mask == 1,
+        CLIMATE_OCEAN_INIT_MOISTURE,
+        CLIMATE_LAND_INIT_MOISTURE,
+    ).astype(np.float32)
     precip_accum: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
 
     adv_steps: int = max(1, cfg.S_adv)
@@ -469,11 +507,11 @@ def build_climate(
             n_cells=n_cells,
             transport_frac=float(cfg.transport_frac),
             orog_scale_m=float(cfg.orog_scale_m),
-            ocean_source=0.6,
-            cap_min=0.05,
-            cap_slope=0.015,
-            cap_lo=0.1,
-            cap_hi=1.0,
+            ocean_source=CLIMATE_OCEAN_SOURCE_MOISTURE,
+            cap_min=CLIMATE_CAP_MIN,
+            cap_slope=CLIMATE_CAP_SLOPE,
+            cap_lo=CLIMATE_CAP_LO,
+            cap_hi=CLIMATE_CAP_HI,
         )
 
     validate_no_nan(precip_accum, "precip_accum")
@@ -803,11 +841,11 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
     def quantiles(values: NDArray[np.float32]) -> Dict[str, float]:
         arr: NDArray[np.float32] = values.astype(np.float32).ravel()
         return {
-            "p5": _quantile_value(arr, frac=0.05),
-            "p25": _quantile_value(arr, frac=0.25),
-            "p50": _quantile_value(arr, frac=0.50),
-            "p75": _quantile_value(arr, frac=0.75),
-            "p95": _quantile_value(arr, frac=0.95),
+            "p5": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[0]),
+            "p25": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[1]),
+            "p50": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[2]),
+            "p75": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[3]),
+            "p95": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[4]),
         }
 
     temp_quantiles: Dict[str, float] = quantiles(temp_f32)
@@ -849,8 +887,8 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
         if np.any(nonseam_cells):
             non_mean = float(np.mean(absdiff[nonseam_cells]))
         else:
-            non_mean = 1e-8
-        return seam_mean / max(non_mean, 1e-8)
+            non_mean = REPORT_SEAM_EPS
+        return seam_mean / max(non_mean, REPORT_SEAM_EPS)
 
     seam_continuity: Dict[str, float] = {
         "elev_seam_vs_nonseam_ratio": seam_ratio(elev_q_i32.astype(np.float32)),

@@ -12,20 +12,23 @@ from worldgen.kernels.heap import (
     heap_push,
 )
 from worldgen.kernels.union_find import uf_find, uf_init, uf_union
-from worldgen.utils_coord import FLOW_DOMAIN, coord_hash_domain
+from worldgen.constants import (
+    FLOW_DOMAIN,
+    FLOW_HEAP_JITTER_MASK,
+    FLOW_HEAP_JITTER_SCALE,
+    FLOW_SINK,
+    FLOW_UNRESOLVED,
+)
+from worldgen.utils_coord import coord_hash_domain
 from worldgen.validation import validate_array
 
-UNRESOLVED: int = -2
-SINK: int = -1
 _INF_I32: int = np.iinfo(np.int32).max
-_HEAP_JITTER_MASK: int = 0xFFFF
-_HEAP_JITTER_SCALE: float = 1e-6
 
 
 @njit(cache=True)
 def _heap_key(phi: int, seed: int, node: int) -> np.float64:
-    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & _HEAP_JITTER_MASK
-    jitter: float = float(jitter_raw) * _HEAP_JITTER_SCALE
+    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & FLOW_HEAP_JITTER_MASK
+    jitter: float = float(jitter_raw) * FLOW_HEAP_JITTER_SCALE
     # jitter < 1.0 ensures phi's integer spacing is preserved with stable tie-breaks.
     return np.float64(float(phi) + jitter)
 
@@ -47,7 +50,7 @@ def _break_flow_cycles_numba(flow_to: NDArray[np.int32], seed: int) -> None:
         length: int = 0
         node: int = start
         while True:
-            if node == SINK:
+            if node == FLOW_SINK:
                 i: int
                 for i in range(length):
                     state[path[i]] = 2
@@ -72,7 +75,7 @@ def _break_flow_cycles_numba(flow_to: NDArray[np.int32], seed: int) -> None:
                         min_hash = cand_hash
                         break_node = candidate
                     i += 1
-                flow_to[break_node] = SINK
+                flow_to[break_node] = FLOW_SINK
                 for i in range(length):
                     state[path[i]] = 2
                 break
@@ -93,7 +96,7 @@ def _build_flow_direction_numba(
     seed: int,
 ) -> NDArray[np.int32]:
     n_cells: int = int(elev_q_i32.shape[0])
-    flow_to: NDArray[np.int32] = np.full(n_cells, UNRESOLVED, dtype=np.int32)
+    flow_to: NDArray[np.int32] = np.full(n_cells, FLOW_UNRESOLVED, dtype=np.int32)
     flat_mask: NDArray[np.bool_] = np.zeros(n_cells, dtype=np.bool_)
 
     u: int
@@ -127,8 +130,8 @@ def _build_flow_direction_numba(
 
     u = 0
     for u in range(n_cells):
-        if flow_to[u] == UNRESOLVED and not flat_mask[u]:
-            flow_to[u] = SINK
+        if flow_to[u] == FLOW_UNRESOLVED and not flat_mask[u]:
+            flow_to[u] = FLOW_SINK
 
     parent, rank = uf_init(n_cells)
     for u in range(n_cells):
@@ -211,7 +214,7 @@ def _build_flow_direction_numba(
                     min_hash = cand_hash
                     sink = u
                 idx += 1
-            flow_to[sink] = SINK
+            flow_to[sink] = FLOW_SINK
             outlets[0] = sink
             out_count = 1
 
@@ -275,7 +278,7 @@ def _build_flow_direction_numba(
         idx = start
         while idx < end:
             u = int(comp_members[idx])
-            if flow_to[u] != UNRESOLVED:
+            if flow_to[u] != FLOW_UNRESOLVED:
                 idx += 1
                 continue
             best_v: int = -1
@@ -298,7 +301,7 @@ def _build_flow_direction_numba(
             if best_v != -1:
                 flow_to[u] = best_v
             else:
-                flow_to[u] = SINK
+                flow_to[u] = FLOW_SINK
             idx += 1
 
     _break_flow_cycles_numba(flow_to, seed)
@@ -315,7 +318,7 @@ def build_flow_direction(
     """Build per-cell flow direction indices.
 
     Returns an int32 array mapping each cell to its downstream neighbor index or
-    SINK when no lower neighbor exists. UNRESOLVED is not present in the output.
+    FLOW_SINK when no lower neighbor exists. FLOW_UNRESOLVED is not present.
     """
     n_cells: int = int(elev_q_i32.shape[0])
     validate_array(elev_q_i32, "elev_q_i32", np.dtype("int32"), (n_cells,))
@@ -340,7 +343,7 @@ def _build_flow_accumulation_numba(
     u: int
     for u in range(n_cells):
         v: int = int(flow_to_i32[u])
-        if v == SINK:
+        if v == FLOW_SINK:
             continue
         in_deg[v] += 1
 
@@ -367,7 +370,7 @@ def _build_flow_accumulation_numba(
         if u < 0:
             break
         v = int(flow_to_i32[u])
-        if v != SINK:
+        if v != FLOW_SINK:
             accum_f32[v] += accum_f32[u]
             in_deg[v] -= 1
             if in_deg[v] == 0:
@@ -396,7 +399,7 @@ def build_flow_accumulation(
     u: int
     for u in range(n_cells):
         v: int = int(flow_to_i32[u])
-        if v == SINK:
+        if v == FLOW_SINK:
             continue
         if v < 0 or v >= n_cells:
             msg: str = f"flow_to_i32[{u}] is out of range: {v}"
@@ -437,7 +440,7 @@ def _build_rivers_derived_fields_numba(
         if is_river_u8[u] == 0:
             continue
         v: int = int(flow_to_i32[u])
-        if v != SINK and is_river_u8[v] == 1:
+        if v != FLOW_SINK and is_river_u8[v] == 1:
             in_deg[v] += 1
 
     max_up: NDArray[np.uint8] = np.zeros(n_cells, dtype=np.uint8)
@@ -450,7 +453,11 @@ def _build_rivers_derived_fields_numba(
     size: int = 0
 
     for u in range(n_cells):
-        if is_river_u8[u] == 1 and in_deg[u] == 0 and flow_to_i32[u] != SINK:
+        if (
+            is_river_u8[u] == 1
+            and in_deg[u] == 0
+            and flow_to_i32[u] != FLOW_SINK
+        ):
             key: float = float(u)
             size = heap_push(
                 heap_nodes,
@@ -473,7 +480,7 @@ def _build_rivers_derived_fields_numba(
             order[u] = max_up[u]
 
         v = int(flow_to_i32[u])
-        if v != SINK and is_river_u8[v] == 1:
+        if v != FLOW_SINK and is_river_u8[v] == 1:
             if order[u] > max_up[v]:
                 max_up[v] = order[u]
                 cnt_max[v] = np.uint8(1)
@@ -515,7 +522,7 @@ def build_rivers_derived_fields(
     u: int
     for u in range(n_cells):
         v: int = int(flow_to_i32[u])
-        if v == SINK:
+        if v == FLOW_SINK:
             continue
         if v < 0 or v >= n_cells:
             msg: str = f"flow_to_i32[{u}] is out of range: {v}"

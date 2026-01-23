@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-ELEV_Q_M: float = 0.1
+from worldgen.constants import ELEV_Q_M
 
 
 @njit(cache=True)

@@ -6,29 +6,49 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-BIOME_JITTER_DOMAIN: int = 0x42494F4D
-NOISE_DOMAIN: int = 0x4E4F4953
-PLATE_SEED_DOMAIN: int = 0x504C4154
-WIND_DOMAIN: int = 0x57494E44
-FLOW_DOMAIN: int = 0x464C4F57
-FLAT_DOMAIN: int = 0x464C4154
+from worldgen.constants import (
+    BIOME_JITTER_DOMAIN,
+    FLOW_DOMAIN,
+    FLAT_DOMAIN,
+    HASH_MASK_64,
+    HASH_SPLITMIX_INCREMENT,
+    HASH_SPLITMIX_MUL1,
+    HASH_SPLITMIX_MUL2,
+    NOISE_DOMAIN,
+    PLATE_SEED_DOMAIN,
+    WIND_DOMAIN,
+)
 
-_HASH_MASK: int = 0xFFFFFFFFFFFFFFFF
+__all__: list[str] = [
+    "BIOME_JITTER_DOMAIN",
+    "FLOW_DOMAIN",
+    "FLAT_DOMAIN",
+    "NOISE_DOMAIN",
+    "PLATE_SEED_DOMAIN",
+    "WIND_DOMAIN",
+    "coord_hash",
+    "coord_hash_domain",
+    "hash01",
+    "hash01_domain",
+    "pos_xyz",
+    "pos_xyz_from_uv",
+    "cube_face_from_xyz",
+]
 
 
 @njit(cache=True)
 def _splitmix64(value: int) -> int:
-    x: int = value & _HASH_MASK
-    x = (x + 0x9E3779B97F4A7C15) & _HASH_MASK
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9 & _HASH_MASK
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EB & _HASH_MASK
+    x: int = value & HASH_MASK_64
+    x = (x + HASH_SPLITMIX_INCREMENT) & HASH_MASK_64
+    x = (x ^ (x >> 30)) * HASH_SPLITMIX_MUL1 & HASH_MASK_64
+    x = (x ^ (x >> 27)) * HASH_SPLITMIX_MUL2 & HASH_MASK_64
     x = x ^ (x >> 31)
-    return x & _HASH_MASK
+    return x & HASH_MASK_64
 
 
 @njit(cache=True)
 def coord_hash(world_seed: int, lin: int) -> int:
-    combined: int = (world_seed ^ lin) & _HASH_MASK
+    combined: int = (world_seed ^ lin) & HASH_MASK_64
     return _splitmix64(combined)
 
 

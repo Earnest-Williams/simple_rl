@@ -6,24 +6,29 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-NOISE_DOMAIN: int = 0x4E4F4953
-NOISE_OCTAVE_CONST: int = 0x9E3779B9
-MASK64: int = (1 << 64) - 1
-MASK32: int = (1 << 32) - 1
+from worldgen.constants import (
+    HASH_MASK_32,
+    HASH_MASK_64,
+    HASH_SPLITMIX_INCREMENT,
+    HASH_SPLITMIX_MUL1,
+    HASH_SPLITMIX_MUL2,
+    NOISE_DOMAIN,
+    NOISE_OCTAVE_CONST,
+)
 
 
 @njit(cache=True)
 def splitmix64(x: int) -> int:
-    x = (x + 0x9E3779B97F4A7C15) & MASK64
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9 & MASK64
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EB & MASK64
-    return (x ^ (x >> 31)) & MASK64
+    x = (x + HASH_SPLITMIX_INCREMENT) & HASH_MASK_64
+    x = (x ^ (x >> 30)) * HASH_SPLITMIX_MUL1 & HASH_MASK_64
+    x = (x ^ (x >> 27)) * HASH_SPLITMIX_MUL2 & HASH_MASK_64
+    return (x ^ (x >> 31)) & HASH_MASK_64
 
 
 @njit(cache=True)
 def hash_gradient(seed: int, ix: int, iy: int, iz: int) -> tuple[float, float, float]:
-    key: int = ((seed & MASK32) << 32) ^ (
-        ((ix * 73856093) ^ (iy * 19349663) ^ (iz * 83492791)) & MASK32
+    key: int = ((seed & HASH_MASK_32) << 32) ^ (
+        ((ix * 73856093) ^ (iy * 19349663) ^ (iz * 83492791)) & HASH_MASK_32
     )
     h: int = splitmix64(key)
 
