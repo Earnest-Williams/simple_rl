@@ -30,9 +30,7 @@ def hydraulic_erosion_step(
             continue
 
         capacity: float = float(accum_f32[u]) * (slope_q * ELEV_Q_M)
-        max_erosion_q: int = max(
-            0, int(elev_q_i32[u]) - int(base_elev_q_i32[u])
-        )
+        max_erosion_q: int = max(0, int(elev_q_i32[u]) - int(base_elev_q_i32[u]))
 
         erosion_f: float = capacity * hydraulic_k / ELEV_Q_M
         erosion_q: int = int(min(erosion_f, float(max_erosion_q)))

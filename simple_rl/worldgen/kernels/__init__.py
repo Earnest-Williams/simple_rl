@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List
-
 from simple_rl.worldgen.kernels.advection import advect_moisture_step
 from simple_rl.worldgen.kernels.erosion import (
     hydraulic_erosion_step,
@@ -37,7 +35,7 @@ from simple_rl.worldgen.kernels.union_find import (
     uf_union,
 )
 
-__all__: List[str] = [
+__all__: list[str] = [
     "advect_moisture_step",
     "hydraulic_erosion_step",
     "thermal_erosion_step",
