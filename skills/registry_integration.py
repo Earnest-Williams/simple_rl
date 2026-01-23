@@ -28,6 +28,39 @@ from skills.models import (
 # to represent "no target level set" in the target_level column.
 NULL_U8_SENTINEL: Final[int] = 255
 
+
+def normalize_target_level_to_python(value: int | None) -> int | None:
+    """Convert target_level from Polars representation to Python.
+
+    Args:
+        value: Target level from Polars row (may be None or NULL_U8_SENTINEL)
+
+    Returns:
+        Python int if valid target, None if no target set
+    """
+    if value is None:
+        return None
+    # Convert to int and check for sentinel
+    int_val: int = int(value)
+    if int_val == NULL_U8_SENTINEL:
+        return None
+    return int_val
+
+
+def normalize_target_level_to_polars(value: int | None) -> int | None:
+    """Convert target_level from Python to Polars representation.
+
+    Args:
+        value: Python int or None
+
+    Returns:
+        None (Polars will use NULL_U8_SENTINEL when schema enforces UInt8)
+    """
+    # When writing None to a UInt8 column with NULL_U8_SENTINEL as null representation,
+    # Polars handles the conversion automatically in the schema
+    return value
+
+
 # Skill table schema for EntityRegistry.skills_df
 SKILL_TABLE_SCHEMA: Final[dict[str, type[pl.DataType]]] = {
     "entity_id": pl.UInt32,
@@ -290,11 +323,17 @@ class SkillSystemMixin:
             config = SkillTrainingConfig(mode=mode)
 
             for row in rows.iter_rows(named=True):
-                skill = Skill(row["skill"])
-                config.weights[skill] = row["weight"]
+                skill = Skill(int(row["skill"]))
+                # Defensive cast for weight with fallback
+                weight_val = row.get("weight")
+                config.weights[skill] = (
+                    float(weight_val) if weight_val is not None else 1.0
+                )
 
-                if row["target_level"] is not None:
-                    config.targets[skill] = row["target_level"]
+                # Use normalization helper to handle NULL_U8_SENTINEL
+                target_val = normalize_target_level_to_python(row.get("target_level"))
+                if target_val is not None:
+                    config.targets[skill] = target_val
 
             return config
         else:
@@ -314,6 +353,10 @@ class SkillSystemMixin:
             entity_id: Entity being updated
             skills_update: DataFrame with skill updates
         """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         # Read current legacy dict (if any) via existing registry method
         legacy: dict[Skill, SkillProgress] = {}
         existing = self.get_entity_component(entity_id, "skills")
@@ -323,9 +366,14 @@ class SkillSystemMixin:
         # Build updates from skills_update rows
         for row in skills_update.iter_rows(named=True):
             skill = Skill(int(row["skill"]))
-            level: int = int(row.get("level", 0))
-            xp: int = int(row.get("xp", 0))
-            aptitude: int = int(row.get("aptitude", 0))
+            # Defensive casts with None checks
+            level_val = row.get("level")
+            xp_val = row.get("xp")
+            aptitude_val = row.get("aptitude")
+
+            level: int = int(level_val) if level_val is not None else 0
+            xp: int = int(xp_val) if xp_val is not None else 0
+            aptitude: int = int(aptitude_val) if aptitude_val is not None else 0
 
             prog = SkillProgress(
                 skill=skill,
@@ -333,6 +381,14 @@ class SkillSystemMixin:
                 xp=xp,
                 aptitude=aptitude,
             )
+
+            # Log changes for debugging parity issues
+            if skill in legacy and legacy[skill] != prog:
+                logger.debug(
+                    f"Entity {entity_id} skill {skill.name}: "
+                    f"{legacy[skill].level}/{legacy[skill].xp} -> {level}/{xp}"
+                )
+
             legacy[skill] = prog
 
         # Write back into entities_df via existing set_entity_component

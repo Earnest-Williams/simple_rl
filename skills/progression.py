@@ -21,6 +21,14 @@ from skills.models import (
 # Precomputed aptitude multipliers for O(1) lookup
 # Index: aptitude + 5 (offset for negative values)
 # Formula: 2^(-aptitude/4)
+#
+# IMPORTANT: This module-level NumPy array is referenced from @numba.njit functions.
+# Numba supports module-level numpy arrays, but this can be fragile depending on
+# the compile environment. To ensure correctness:
+# 1. The array is created at module import time (before JIT compilation)
+# 2. The dtype is explicitly set to np.float32 for consistency
+# 3. Tests should call numba_warmup() to verify JIT compilation works in CI
+# 4. If packaging issues arise, consider passing the table as a function parameter
 APTITUDE_MULTIPLIERS: Final[np.ndarray] = np.array(
     [2.0 ** (-apt / 4.0) for apt in range(MIN_APTITUDE, MAX_APTITUDE + 1)],
     dtype=np.float32,

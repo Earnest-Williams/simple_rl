@@ -31,6 +31,10 @@ def numba_warmup() -> None:
     Call this during game startup (dev/debug mode) or in CI.
     Production should pre-compile during build.
 
+    This function also validates that Numba can access module-level globals
+    (e.g., APTITUDE_MULTIPLIERS in progression.py) correctly across different
+    compile environments. If this function succeeds, global array access works.
+
     Compilation overhead: ~200-500ms total for all functions.
     Subsequent calls: <1μs each.
     """

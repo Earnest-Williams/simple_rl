@@ -196,7 +196,9 @@ def _award_xp_impl(
         final_aptitudes = skills["aptitude"].to_numpy()
         final_levels = batch_calculate_levels(final_xp, final_aptitudes)
 
-        updates = updates.with_columns([pl.Series(final_levels).alias("level_new")])
+        updates = updates.with_columns(
+            [pl.Series(final_levels, dtype=pl.UInt8).alias("level_new")]
+        )
 
     # 9) Update skills_df atomically
     registry.skills_df = (
