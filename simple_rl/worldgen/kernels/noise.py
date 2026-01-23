@@ -21,7 +21,7 @@ def splitmix64(x: int) -> int:
 
 
 @njit(cache=True)
-def hash_gradient(seed: int, ix: int, iy: int, iz: int) -> Tuple[float, float, float]:
+def hash_gradient(seed: int, ix: int, iy: int, iz: int) -> tuple[float, float, float]:
     key: int = ((seed & MASK32) << 32) ^ (
         ((ix * 73856093) ^ (iy * 19349663) ^ (iz * 83492791)) & MASK32
     )
