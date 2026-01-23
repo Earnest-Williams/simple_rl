@@ -106,6 +106,8 @@ def _award_xp_impl(
         new_xp,
         skills["aptitude"].to_numpy(),
     )
+    # Initialize final_levels (may be updated by cross-training)
+    final_levels = new_levels
 
     # 5) Check targets and disable if reached
     # Handle nullable target_level safely with explicit dtype
@@ -224,11 +226,12 @@ def _award_xp_impl(
     )
 
     # 10) Build level-up dict
+    # Use final_levels (includes both primary and cross-training level increases)
     level_ups: dict[Skill, tuple[int, int]] = {}
 
     for i in range(len(old_levels)):
         old_lvl: int = int(old_levels[i])
-        new_lvl: int = int(new_levels[i])
+        new_lvl: int = int(final_levels[i])
 
         if new_lvl > old_lvl:
             skill = Skill(int(skills["skill"][i]))
