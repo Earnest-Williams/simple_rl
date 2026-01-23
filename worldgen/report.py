@@ -8,7 +8,7 @@ import numpy as np
 import orjson
 from numpy.typing import NDArray
 
-from worldgen.config import ELEV_Q_M
+from worldgen.constants import ELEV_Q_M, REPORT_PERCENTILES_PCT, REPORT_SAMPLE_SIZE_DEFAULT
 
 
 class RiverStats(TypedDict):
@@ -127,7 +127,7 @@ def generate_report(
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
     sea_level_q: int,
     seam_pairs: List[Tuple[int, int]],
-    sample_size: int = 10000,
+    sample_size: int = REPORT_SAMPLE_SIZE_DEFAULT,
 ) -> WorldGenReport:
     if not out_dir.exists():
         raise FileNotFoundError("out_dir must exist before writing report.json")
@@ -137,9 +137,13 @@ def generate_report(
     land_mask: NDArray[np.bool_] = elev_q_i32 >= sea_level_q
     land_fraction: float = float(np.mean(land_mask))
 
-    temp_quantiles: Dict[str, float] = compute_quantiles(temp_f32, [5, 25, 50, 75, 95])
+    temp_quantiles: Dict[str, float] = compute_quantiles(
+        temp_f32,
+        list(REPORT_PERCENTILES_PCT),
+    )
     precip_quantiles: Dict[str, float] = compute_quantiles(
-        precip_f32, [5, 25, 50, 75, 95]
+        precip_f32,
+        list(REPORT_PERCENTILES_PCT),
     )
 
     total_river_cells: int = int(np.sum(is_river_u8))

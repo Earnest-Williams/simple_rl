@@ -6,6 +6,7 @@ import numpy as np
 from numba import njit, prange
 from numpy.typing import NDArray
 
+from worldgen.constants import EDGE_EAST, EDGE_NORTH, EDGE_SOUTH, EDGE_WEST
 from worldgen.kernels.geometry import compute_cell_area
 from worldgen.utils_coord import (
     _cube_xyz,
@@ -14,11 +15,6 @@ from worldgen.utils_coord import (
     pos_xyz,
     pos_xyz_from_uv,
 )
-
-EDGE_NORTH: int = 0
-EDGE_EAST: int = 1
-EDGE_SOUTH: int = 2
-EDGE_WEST: int = 3
 
 
 @njit(cache=True)

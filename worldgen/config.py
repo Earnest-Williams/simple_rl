@@ -6,17 +6,35 @@ from typing import Dict, Literal
 
 import orjson
 
-ELEV_Q_M: float = 0.1
+from worldgen.constants import (
+    CLIMATE_ADVECT_STEPS_DEFAULT,
+    CLIMATE_LAT_GAMMA_DEFAULT,
+    CLIMATE_LAT_POLAR_CAP_DEFAULT,
+    CLIMATE_LAPSE_C_PER_KM_DEFAULT,
+    CLIMATE_OROG_SCALE_M_DEFAULT,
+    CLIMATE_T_EQUATOR_DEFAULT,
+    CLIMATE_T_POLE_DEFAULT,
+    CLIMATE_TRANSPORT_FRAC_DEFAULT,
+    ELEVATION_EROSION_ITERATIONS_DEFAULT,
+    ELEVATION_SMOOTH_CAP_M_DEFAULT,
+    ELEVATION_SMOOTH_PASSES_DEFAULT,
+    ELEVATION_SMOOTH_STRENGTH_DEFAULT,
+    ELEVATION_TALUS_ANGLE_DEG_DEFAULT,
+    ELEVATION_TARGET_OCEAN_FRAC_DEFAULT,
+    HYDROLOGY_INTENSITY_LOG_BASE_DEFAULT,
+    HYDROLOGY_MIN_CATCHMENT_CELLS_DEFAULT,
+    PLANET_RADIUS_M_DEFAULT,
+)
 
 
 @dataclass(frozen=True)
 class ElevationConfig:
-    N_smooth: int = 4
-    target_ocean_frac: float = 0.68
-    smooth_strength: float = 0.35
-    smooth_cap_m: float = 90.0
-    erosion_iterations: int = 2
-    talus_angle_deg: float = 35.0
+    N_smooth: int = ELEVATION_SMOOTH_PASSES_DEFAULT
+    target_ocean_frac: float = ELEVATION_TARGET_OCEAN_FRAC_DEFAULT
+    smooth_strength: float = ELEVATION_SMOOTH_STRENGTH_DEFAULT
+    smooth_cap_m: float = ELEVATION_SMOOTH_CAP_M_DEFAULT
+    erosion_iterations: int = ELEVATION_EROSION_ITERATIONS_DEFAULT
+    talus_angle_deg: float = ELEVATION_TALUS_ANGLE_DEG_DEFAULT
 
     def __post_init__(self) -> None:
         if self.N_smooth < 0:
@@ -35,14 +53,14 @@ class ElevationConfig:
 
 @dataclass(frozen=True)
 class ClimateConfig:
-    T_equator: float = 30.0
-    T_pole: float = -20.0
-    lapse_C_per_km: float = 6.0
-    lat_gamma: float = 1.15
-    lat_polar_cap: float = 0.985
-    S_adv: int = 96
-    transport_frac: float = 0.85
-    orog_scale_m: float = 500.0
+    T_equator: float = CLIMATE_T_EQUATOR_DEFAULT
+    T_pole: float = CLIMATE_T_POLE_DEFAULT
+    lapse_C_per_km: float = CLIMATE_LAPSE_C_PER_KM_DEFAULT
+    lat_gamma: float = CLIMATE_LAT_GAMMA_DEFAULT
+    lat_polar_cap: float = CLIMATE_LAT_POLAR_CAP_DEFAULT
+    S_adv: int = CLIMATE_ADVECT_STEPS_DEFAULT
+    transport_frac: float = CLIMATE_TRANSPORT_FRAC_DEFAULT
+    orog_scale_m: float = CLIMATE_OROG_SCALE_M_DEFAULT
 
     def __post_init__(self) -> None:
         if self.S_adv <= 0:
@@ -57,8 +75,8 @@ class ClimateConfig:
 
 @dataclass(frozen=True)
 class HydrologyConfig:
-    min_catchment_cells: int = 256
-    intensity_log_base: float = 10.0
+    min_catchment_cells: int = HYDROLOGY_MIN_CATCHMENT_CELLS_DEFAULT
+    intensity_log_base: float = HYDROLOGY_INTENSITY_LOG_BASE_DEFAULT
 
     def __post_init__(self) -> None:
         if self.min_catchment_cells <= 0:
@@ -72,7 +90,7 @@ class WorldConfig:
     elevation: ElevationConfig
     climate: ClimateConfig
     hydrology: HydrologyConfig
-    planet_radius_m: float = 6_371_000.0
+    planet_radius_m: float = PLANET_RADIUS_M_DEFAULT
 
     def __post_init__(self) -> None:
         if self.planet_radius_m <= 0.0:
@@ -87,7 +105,7 @@ def default_world_config() -> WorldConfig:
         elevation=elevation,
         climate=climate,
         hydrology=hydrology,
-        planet_radius_m=6_371_000.0,
+        planet_radius_m=PLANET_RADIUS_M_DEFAULT,
     )
 
 
