@@ -275,7 +275,7 @@ class SkillSystemMixin:
         # Read current legacy dict (if any) via existing registry method
         legacy: dict[Skill, SkillProgress] = {}
         if hasattr(self, "get_entity_component"):
-            existing = self.get_entity_component(entity_id, "skills")
+            existing = self.get_entity_component(entity_id, "skills")  # type: ignore[attr-defined]
             if existing is not None:
                 legacy = dict(existing)
 
