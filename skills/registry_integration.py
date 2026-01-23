@@ -78,6 +78,7 @@ class SkillSystemMixin:
         entity_id: int,
         aptitudes: dict[Skill, int] | None = None,
         initial_levels: dict[Skill, int] | None = None,
+        use_species_aptitudes: bool = True,
     ) -> None:
         """Initialize all 29 skills for an entity.
 
@@ -85,13 +86,24 @@ class SkillSystemMixin:
 
         Args:
             entity_id: Entity to initialize
-            aptitudes: Skill aptitude modifiers (default: 0 for all)
+            aptitudes: Skill aptitude modifiers (overrides species aptitudes)
             initial_levels: Starting skill levels (default: 0 for all)
+            use_species_aptitudes: Auto-detect species and apply aptitudes
         """
         if aptitudes is None:
             aptitudes = {}
         if initial_levels is None:
             initial_levels = {}
+
+        # Auto-detect species aptitudes if enabled
+        if use_species_aptitudes and not aptitudes:
+            species = self.get_entity_component(entity_id, "species")  # type: ignore[attr-defined]
+            if species:
+                from skills.species_aptitudes import get_species_aptitudes
+
+                species_apts = get_species_aptitudes(species)
+                # Use species aptitudes as base, allow overrides
+                aptitudes = species_apts
 
         # Build initial skill rows
         rows: list[dict[str, int | float | None]] = []

@@ -179,6 +179,7 @@ class CrossTrainingPair:
 
 # Cross-training definitions (DCSS canonical values)
 CROSS_TRAINING_PAIRS: Final[tuple[CrossTrainingPair, ...]] = (
+    # Weapon Skills
     # Axes <-> Maces & Flails
     CrossTrainingPair(Skill.AXES, Skill.MACES_AND_FLAILS, 0.40),
     CrossTrainingPair(Skill.MACES_AND_FLAILS, Skill.AXES, 0.40),
@@ -194,6 +195,14 @@ CROSS_TRAINING_PAIRS: Final[tuple[CrossTrainingPair, ...]] = (
     # Long Blades <-> Short Blades
     CrossTrainingPair(Skill.LONG_BLADES, Skill.SHORT_BLADES, 0.40),
     CrossTrainingPair(Skill.SHORT_BLADES, Skill.LONG_BLADES, 0.40),
+    # Magic Schools
+    # Opposing elemental schools have minor cross-training (0.10)
+    # Fire <-> Ice (opposing elements, minor synergy from understanding both)
+    CrossTrainingPair(Skill.FIRE_MAGIC, Skill.ICE_MAGIC, 0.10),
+    CrossTrainingPair(Skill.ICE_MAGIC, Skill.FIRE_MAGIC, 0.10),
+    # Air <-> Earth (opposing elements, minor synergy)
+    CrossTrainingPair(Skill.AIR_MAGIC, Skill.EARTH_MAGIC, 0.10),
+    CrossTrainingPair(Skill.EARTH_MAGIC, Skill.AIR_MAGIC, 0.10),
 )
 
 

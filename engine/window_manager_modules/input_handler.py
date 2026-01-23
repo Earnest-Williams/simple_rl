@@ -245,6 +245,12 @@ class InputHandler:
                         if ui_action_name == "inventory":
                             self.window_manager_ref.ui_open_inventory_view()
                             key_handled = True
+                        elif ui_action_name == "skill_screen":
+                            self.window_manager_ref.ui_show_skill_screen()
+                            key_handled = True
+                        elif ui_action_name == "skill_training":
+                            self.window_manager_ref.ui_show_skill_training()
+                            key_handled = True
                         elif ui_action_name == "toggle_height_vis":
                             self.window_manager_ref.ui_toggle_height_visualization()
                             key_handled = True
