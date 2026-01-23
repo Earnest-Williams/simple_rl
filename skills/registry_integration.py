@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from threading import Lock
-from typing import Final
+from typing import Any, Final, Protocol
 
 import polars as pl
 
@@ -37,8 +37,31 @@ SKILL_TABLE_SCHEMA: Final[dict[str, type[pl.DataType]]] = {
 }
 
 
+class SkillRegistryHost(Protocol):
+    """Protocol defining the interface a registry must implement to host the skill system.
+
+    This makes the dependency between SkillSystemMixin and EntityRegistry explicit
+    and type-safe, avoiding the need for hasattr checks and type: ignore comments.
+    """
+
+    skills_df: pl.DataFrame
+    use_vectorized_skills: bool
+    _skills_lock: Lock
+
+    def get_entity_component(self, entity_id: int, component: str) -> Any:
+        """Retrieve a component value for an entity."""
+        ...
+
+    def set_entity_component(self, entity_id: int, component: str, value: Any) -> None:
+        """Set a component value for an entity."""
+        ...
+
+
 class SkillSystemMixin:
     """Mixin to add to EntityRegistry for skill system support.
+
+    Methods in this mixin expect self to implement SkillRegistryHost Protocol.
+    This ensures type-safe access to registry methods without hasattr checks.
 
     Add this to EntityRegistry.__init__:
         self.skills_df: pl.DataFrame = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
@@ -46,12 +69,8 @@ class SkillSystemMixin:
         self._skills_lock: Lock = Lock()  # Thread safety for skills_df mutations
     """
 
-    skills_df: pl.DataFrame
-    use_vectorized_skills: bool
-    _skills_lock: Lock
-
     def initialize_entity_skills(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         aptitudes: dict[Skill, int] | None = None,
         initial_levels: dict[Skill, int] | None = None,
@@ -96,26 +115,28 @@ class SkillSystemMixin:
                 }
             )
 
-        # Append to skills_df (with lock if present)
+        # Append to skills_df (with lock)
         new_skills = pl.DataFrame(rows, schema=SKILL_TABLE_SCHEMA)
 
-        lock: Lock | None = getattr(self, "_skills_lock", None)
-        with lock if lock is not None else nullcontext():
+        with self._skills_lock:
             self._initialize_entity_skills_impl(entity_id, new_skills)
 
     def _initialize_entity_skills_impl(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         new_skills: pl.DataFrame,
     ) -> None:
         """Internal implementation of skill initialization without locking."""
-        if self.use_vectorized_skills:
-            self.skills_df = pl.concat([self.skills_df, new_skills], how="vertical")
-        else:
-            # Backward compatibility: also populate entities_df.skills
+        # Always add to skills_df (dual-mode operation during migration)
+        self.skills_df = pl.concat([self.skills_df, new_skills], how="vertical")
+
+        # Also sync to legacy format if not in vectorized-only mode
+        if not self.use_vectorized_skills:
             self._sync_skills_to_legacy(entity_id, new_skills)
 
-    def get_skills(self, entity_id: int) -> dict[Skill, SkillProgress]:
+    def get_skills(
+        self: SkillRegistryHost, entity_id: int
+    ) -> dict[Skill, SkillProgress]:
         """Retrieve entity's skills as dict.
 
         Maintains backward compatibility with existing code.
@@ -149,82 +170,79 @@ class SkillSystemMixin:
             return self._get_skills_legacy(entity_id)
 
     def set_skills(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         skills: dict[Skill, SkillProgress],
     ) -> None:
         """Update entity's skills.
 
-        Thread-safe: Acquires self._skills_lock if present.
+        Thread-safe: Acquires self._skills_lock.
 
         Args:
             entity_id: Entity to update
             skills: New skill values
         """
-        lock: Lock | None = getattr(self, "_skills_lock", None)
-        with lock if lock is not None else nullcontext():
+        with self._skills_lock:
             self._set_skills_impl(entity_id, skills)
 
     def _set_skills_impl(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         skills: dict[Skill, SkillProgress],
     ) -> None:
         """Internal implementation of set_skills without locking."""
-        if self.use_vectorized_skills:
-            # Update skills_df rows
-            updates: list[dict[str, int]] = []
+        # Update skills_df rows
+        updates: list[dict[str, int]] = []
 
-            for skill, progress in skills.items():
-                updates.append(
-                    {
-                        "entity_id": entity_id,
-                        "skill": skill.value,
-                        "level": progress.level,
-                        "xp": progress.xp,
-                    }
-                )
-
-            update_df = pl.DataFrame(updates)
-
-            # Join and update
-            self.skills_df = (
-                self.skills_df.join(
-                    update_df,
-                    on=["entity_id", "skill"],
-                    how="left",
-                    suffix="_new",
-                )
-                .with_columns(
-                    [
-                        pl.when(pl.col("level_new").is_not_null())
-                        .then(pl.col("level_new"))
-                        .otherwise(pl.col("level"))
-                        .alias("level"),
-                        pl.when(pl.col("xp_new").is_not_null())
-                        .then(pl.col("xp_new"))
-                        .otherwise(pl.col("xp"))
-                        .alias("xp"),
-                    ]
-                )
-                .drop(["level_new", "xp_new"])
+        for skill, progress in skills.items():
+            updates.append(
+                {
+                    "entity_id": entity_id,
+                    "skill": skill.value,
+                    "level": progress.level,
+                    "xp": progress.xp,
+                }
             )
 
-            # Sync to legacy for compatibility
-            if not self.use_vectorized_skills:
-                self._sync_skills_to_legacy(entity_id, update_df)
-        else:
-            # Legacy path
-            self._set_skills_legacy(entity_id, skills)
+        update_df = pl.DataFrame(updates)
 
-    def get_skill_training(self, entity_id: int) -> SkillTrainingConfig:
+        # Join and update skills_df (always maintain vectorized format)
+        self.skills_df = (
+            self.skills_df.join(
+                update_df,
+                on=["entity_id", "skill"],
+                how="left",
+                suffix="_new",
+            )
+            .with_columns(
+                [
+                    pl.when(pl.col("level_new").is_not_null())
+                    .then(pl.col("level_new"))
+                    .otherwise(pl.col("level"))
+                    .alias("level"),
+                    pl.when(pl.col("xp_new").is_not_null())
+                    .then(pl.col("xp_new"))
+                    .otherwise(pl.col("xp"))
+                    .alias("xp"),
+                ]
+            )
+            .drop(["level_new", "xp_new"])
+        )
+
+        # Sync to legacy format for backward compatibility during migration
+        if not self.use_vectorized_skills:
+            self._sync_skills_to_legacy(entity_id, update_df)
+
+    def get_skill_training(
+        self: SkillRegistryHost, entity_id: int
+    ) -> SkillTrainingConfig | None:
         """Get entity's training configuration.
 
         Args:
             entity_id: Entity to query
 
         Returns:
-            Training configuration
+            Training configuration, or None if entity not found
         """
         if self.use_vectorized_skills:
             rows = (
@@ -234,16 +252,14 @@ class SkillSystemMixin:
                 .collect()
             )
 
-            # Determine mode from training_state values
-            states = rows["training_state"].to_list()
-            mode = (
-                TrainingMode.MANUAL
-                if all(
-                    s in (TrainingState.DISABLED.value, TrainingState.FOCUSED.value)
-                    for s in states
-                )
-                else TrainingMode.AUTOMATIC
-            )
+            if rows.height == 0:
+                return None
+
+            # Read training mode from entity component storage
+            mode: TrainingMode = TrainingMode.AUTOMATIC  # Default
+            stored_mode = self.get_entity_component(entity_id, "training_mode")
+            if stored_mode is not None:
+                mode = TrainingMode(stored_mode)
 
             config = SkillTrainingConfig(mode=mode)
 
@@ -259,7 +275,7 @@ class SkillSystemMixin:
             return self._get_skill_training_legacy(entity_id)
 
     def _sync_skills_to_legacy(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         skills_update: pl.DataFrame,
     ) -> None:
@@ -274,10 +290,9 @@ class SkillSystemMixin:
         """
         # Read current legacy dict (if any) via existing registry method
         legacy: dict[Skill, SkillProgress] = {}
-        if hasattr(self, "get_entity_component"):
-            existing = self.get_entity_component(entity_id, "skills")  # type: ignore[attr-defined]
-            if existing is not None:
-                legacy = dict(existing)
+        existing = self.get_entity_component(entity_id, "skills")
+        if existing is not None:
+            legacy = dict(existing)
 
         # Build updates from skills_update rows
         for row in skills_update.iter_rows(named=True):
@@ -295,25 +310,51 @@ class SkillSystemMixin:
             legacy[skill] = prog
 
         # Write back into entities_df via existing set_entity_component
-        if hasattr(self, "set_entity_component"):
-            self.set_entity_component(entity_id, "skills", legacy)  # type: ignore[attr-defined]
+        self.set_entity_component(entity_id, "skills", legacy)
 
-    def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
-        """Legacy implementation reading from entities_df.skills."""
-        # Placeholder - delegate to existing registry code
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+    def _get_skills_legacy(
+        self: SkillRegistryHost, entity_id: int
+    ) -> dict[Skill, SkillProgress]:
+        """Legacy implementation reading from entities_df.skills.
+
+        Override this method in EntityRegistry to delegate to existing
+        skill storage implementation if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy skill storage not implemented. "
+            "Set use_vectorized_skills=True or override _get_skills_legacy() "
+            "in EntityRegistry to delegate to existing skill storage."
+        )
 
     def _set_skills_legacy(
-        self,
+        self: SkillRegistryHost,
         entity_id: int,
         skills: dict[Skill, SkillProgress],
     ) -> None:
-        """Legacy implementation writing to entities_df.skills."""
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+        """Legacy implementation writing to entities_df.skills.
 
-    def _get_skill_training_legacy(self, entity_id: int) -> SkillTrainingConfig:
-        """Legacy implementation reading training config."""
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+        Override this method in EntityRegistry to delegate to existing
+        skill storage implementation if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy skill storage not implemented. "
+            "Set use_vectorized_skills=True or override _set_skills_legacy() "
+            "in EntityRegistry to delegate to existing skill storage."
+        )
+
+    def _get_skill_training_legacy(
+        self: SkillRegistryHost, entity_id: int
+    ) -> SkillTrainingConfig | None:
+        """Legacy implementation reading training config.
+
+        Override this method in EntityRegistry to delegate to existing
+        training config storage if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy training config storage not implemented. "
+            "Set use_vectorized_skills=True or override _get_skill_training_legacy() "
+            "in EntityRegistry to delegate to existing training config storage."
+        )
 
 
 def patch_entity_registry(registry_class: type) -> type:

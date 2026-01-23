@@ -22,37 +22,34 @@ from skills.cross_training import (
 )
 from skills.models import Skill, TrainingMode, TrainingState, UsageWindow
 from skills.progression import batch_calculate_levels
+from skills.registry_integration import SkillRegistryHost
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
 
 
 @contextmanager
-def _acquire_skills_lock(registry: EntityRegistry) -> Generator[None, None, None]:
-    """Context manager to safely acquire registry._skills_lock if present.
+def _acquire_skills_lock(registry: SkillRegistryHost) -> Generator[None, None, None]:
+    """Context manager to safely acquire registry._skills_lock.
 
     Args:
-        registry: Entity registry that may have _skills_lock attribute
+        registry: Entity registry implementing SkillRegistryHost protocol
 
     Yields:
         None - use as context manager with 'with' statement
     """
-    lock: Lock | None = getattr(registry, "_skills_lock", None)
-    if lock is not None:
-        with lock:
-            yield
-    else:
+    with registry._skills_lock:
         yield
 
 
 def award_xp(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     total_xp: int,
 ) -> dict[Skill, tuple[int, int]]:
     """Award XP to entity based on training configuration.
 
-    Thread-safe: Acquires registry._skills_lock if present.
+    Thread-safe: Acquires registry._skills_lock.
 
     Distributes XP according to manual weights or automatic usage tracking.
     Applies cross-training bonuses automatically.
@@ -71,7 +68,7 @@ def award_xp(
 
 
 def _award_xp_impl(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     total_xp: int,
 ) -> dict[Skill, tuple[int, int]]:
@@ -93,6 +90,7 @@ def _award_xp_impl(
     # 2) Get training configuration
     training_config = registry.get_skill_training(entity_id)
     if training_config is None:
+        # Entity has no skills initialized
         return {}
 
     # 3) Calculate XP shares based on mode
@@ -238,7 +236,7 @@ def _award_xp_impl(
 
 
 def batch_award_xp(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_xp_pairs: list[tuple[int, int]],
 ) -> dict[int, dict[Skill, tuple[int, int]]]:
     """Award XP to multiple entities in single batch operation.
@@ -267,14 +265,14 @@ def batch_award_xp(
 
 
 def record_skill_usage(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     skill: Skill,
     amount: int = 1,
 ) -> None:
     """Record skill usage for automatic training mode.
 
-    Thread-safe: Acquires registry._skills_lock if present.
+    Thread-safe: Acquires registry._skills_lock.
     Updates usage_count in skills_df.
 
     Args:
@@ -299,13 +297,13 @@ def record_skill_usage(
 
 
 def set_training_mode(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     mode: TrainingMode,
 ) -> None:
     """Set entity's training mode.
 
-    Thread-safe: Acquires registry._skills_lock if present.
+    Thread-safe: Acquires registry._skills_lock.
 
     When switching to MANUAL mode:
       - Keeps existing weights and states
@@ -317,14 +315,13 @@ def set_training_mode(
       - XP distribution will be based on usage_count
 
     Args:
-        registry: Entity registry
+        registry: Entity registry implementing SkillRegistryHost protocol
         entity_id: Entity to configure
         mode: Training mode (MANUAL or AUTOMATIC)
     """
     with _acquire_skills_lock(registry):
-        # Store mode in entity's skill_training component if registry supports it
-        if hasattr(registry, "set_entity_component"):
-            registry.set_entity_component(entity_id, "training_mode", mode.value)
+        # Store mode in entity's training component
+        registry.set_entity_component(entity_id, "training_mode", mode.value)
 
         # When switching to AUTOMATIC, reset weights and states to defaults
         if mode == TrainingMode.AUTOMATIC:
@@ -343,7 +340,7 @@ def set_training_mode(
 
 
 def set_skill_training(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     skill: Skill,
     state: TrainingState,
@@ -351,7 +348,7 @@ def set_skill_training(
 ) -> None:
     """Configure training for specific skill.
 
-    Thread-safe: Acquires registry._skills_lock if present.
+    Thread-safe: Acquires registry._skills_lock.
 
     Args:
         registry: Entity registry
@@ -490,7 +487,7 @@ def _distribute_xp_automatic(
 
 
 def get_entity_skill_level(
-    registry: EntityRegistry,
+    registry: SkillRegistryHost,
     entity_id: int,
     skill: Skill,
 ) -> int:
