@@ -93,6 +93,7 @@ def _award_xp_impl(
     # 2) Get training configuration
     training_config = registry.get_skill_training(entity_id)
     if training_config is None:
+        # Entity has no skills initialized
         return {}
 
     # 3) Calculate XP shares based on mode

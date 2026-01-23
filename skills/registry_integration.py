@@ -109,10 +109,11 @@ class SkillSystemMixin:
         new_skills: pl.DataFrame,
     ) -> None:
         """Internal implementation of skill initialization without locking."""
-        if self.use_vectorized_skills:
-            self.skills_df = pl.concat([self.skills_df, new_skills], how="vertical")
-        else:
-            # Backward compatibility: also populate entities_df.skills
+        # Always add to skills_df (dual-mode operation during migration)
+        self.skills_df = pl.concat([self.skills_df, new_skills], how="vertical")
+
+        # Also sync to legacy format if not in vectorized-only mode
+        if not self.use_vectorized_skills:
             self._sync_skills_to_legacy(entity_id, new_skills)
 
     def get_skills(self, entity_id: int) -> dict[Skill, SkillProgress]:
@@ -171,60 +172,56 @@ class SkillSystemMixin:
         skills: dict[Skill, SkillProgress],
     ) -> None:
         """Internal implementation of set_skills without locking."""
-        if self.use_vectorized_skills:
-            # Update skills_df rows
-            updates: list[dict[str, int]] = []
+        # Update skills_df rows
+        updates: list[dict[str, int]] = []
 
-            for skill, progress in skills.items():
-                updates.append(
-                    {
-                        "entity_id": entity_id,
-                        "skill": skill.value,
-                        "level": progress.level,
-                        "xp": progress.xp,
-                    }
-                )
-
-            update_df = pl.DataFrame(updates)
-
-            # Join and update
-            self.skills_df = (
-                self.skills_df.join(
-                    update_df,
-                    on=["entity_id", "skill"],
-                    how="left",
-                    suffix="_new",
-                )
-                .with_columns(
-                    [
-                        pl.when(pl.col("level_new").is_not_null())
-                        .then(pl.col("level_new"))
-                        .otherwise(pl.col("level"))
-                        .alias("level"),
-                        pl.when(pl.col("xp_new").is_not_null())
-                        .then(pl.col("xp_new"))
-                        .otherwise(pl.col("xp"))
-                        .alias("xp"),
-                    ]
-                )
-                .drop(["level_new", "xp_new"])
+        for skill, progress in skills.items():
+            updates.append(
+                {
+                    "entity_id": entity_id,
+                    "skill": skill.value,
+                    "level": progress.level,
+                    "xp": progress.xp,
+                }
             )
 
-            # Sync to legacy for compatibility
-            if not self.use_vectorized_skills:
-                self._sync_skills_to_legacy(entity_id, update_df)
-        else:
-            # Legacy path
-            self._set_skills_legacy(entity_id, skills)
+        update_df = pl.DataFrame(updates)
 
-    def get_skill_training(self, entity_id: int) -> SkillTrainingConfig:
+        # Join and update skills_df (always maintain vectorized format)
+        self.skills_df = (
+            self.skills_df.join(
+                update_df,
+                on=["entity_id", "skill"],
+                how="left",
+                suffix="_new",
+            )
+            .with_columns(
+                [
+                    pl.when(pl.col("level_new").is_not_null())
+                    .then(pl.col("level_new"))
+                    .otherwise(pl.col("level"))
+                    .alias("level"),
+                    pl.when(pl.col("xp_new").is_not_null())
+                    .then(pl.col("xp_new"))
+                    .otherwise(pl.col("xp"))
+                    .alias("xp"),
+                ]
+            )
+            .drop(["level_new", "xp_new"])
+        )
+
+        # Sync to legacy format for backward compatibility during migration
+        if not self.use_vectorized_skills:
+            self._sync_skills_to_legacy(entity_id, update_df)
+
+    def get_skill_training(self, entity_id: int) -> SkillTrainingConfig | None:
         """Get entity's training configuration.
 
         Args:
             entity_id: Entity to query
 
         Returns:
-            Training configuration
+            Training configuration, or None if entity not found
         """
         if self.use_vectorized_skills:
             rows = (
@@ -234,16 +231,15 @@ class SkillSystemMixin:
                 .collect()
             )
 
-            # Determine mode from training_state values
-            states = rows["training_state"].to_list()
-            mode = (
-                TrainingMode.MANUAL
-                if all(
-                    s in (TrainingState.DISABLED.value, TrainingState.FOCUSED.value)
-                    for s in states
-                )
-                else TrainingMode.AUTOMATIC
-            )
+            if rows.height == 0:
+                return None
+
+            # Read training mode from entity component if available
+            mode: TrainingMode = TrainingMode.AUTOMATIC  # Default
+            if hasattr(self, "get_entity_component"):
+                stored_mode = self.get_entity_component(entity_id, "training_mode")  # type: ignore[attr-defined]
+                if stored_mode is not None:
+                    mode = TrainingMode(stored_mode)
 
             config = SkillTrainingConfig(mode=mode)
 
@@ -299,21 +295,44 @@ class SkillSystemMixin:
             self.set_entity_component(entity_id, "skills", legacy)  # type: ignore[attr-defined]
 
     def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
-        """Legacy implementation reading from entities_df.skills."""
-        # Placeholder - delegate to existing registry code
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+        """Legacy implementation reading from entities_df.skills.
+
+        Override this method in EntityRegistry to delegate to existing
+        skill storage implementation if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy skill storage not implemented. "
+            "Set use_vectorized_skills=True or override _get_skills_legacy() "
+            "in EntityRegistry to delegate to existing skill storage."
+        )
 
     def _set_skills_legacy(
         self,
         entity_id: int,
         skills: dict[Skill, SkillProgress],
     ) -> None:
-        """Legacy implementation writing to entities_df.skills."""
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+        """Legacy implementation writing to entities_df.skills.
 
-    def _get_skill_training_legacy(self, entity_id: int) -> SkillTrainingConfig:
-        """Legacy implementation reading training config."""
-        raise NotImplementedError("Legacy path - delegate to EntityRegistry")
+        Override this method in EntityRegistry to delegate to existing
+        skill storage implementation if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy skill storage not implemented. "
+            "Set use_vectorized_skills=True or override _set_skills_legacy() "
+            "in EntityRegistry to delegate to existing skill storage."
+        )
+
+    def _get_skill_training_legacy(self, entity_id: int) -> SkillTrainingConfig | None:
+        """Legacy implementation reading training config.
+
+        Override this method in EntityRegistry to delegate to existing
+        training config storage if use_vectorized_skills=False.
+        """
+        raise NotImplementedError(
+            "Legacy training config storage not implemented. "
+            "Set use_vectorized_skills=True or override _get_skill_training_legacy() "
+            "in EntityRegistry to delegate to existing training config storage."
+        )
 
 
 def patch_entity_registry(registry_class: type) -> type:

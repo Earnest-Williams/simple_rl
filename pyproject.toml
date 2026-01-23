@@ -26,6 +26,7 @@ dependencies = [
   "pydub>=0.25.1",
   "simpleaudio>=1.0.4",
   "pyparsing>=3.0",
+  "msgpack>=1.0",
 # removed  "openal>=1.1.1", now provided via mamba
 ]
 
