@@ -12,7 +12,7 @@ from simple_rl.worldgen.kernels.heap import (
     heap_push,
 )
 from simple_rl.worldgen.kernels.union_find import uf_find, uf_init, uf_union
-from simple_rl.worldgen.utils_coord import coord_hash
+from simple_rl.worldgen.utils_coord import FLOW_DOMAIN, coord_hash_domain
 from simple_rl.worldgen.validation import validate_array
 
 UNRESOLVED: int = -2
@@ -22,7 +22,7 @@ _INF_I32: int = np.iinfo(np.int32).max
 
 @njit(cache=True)
 def _heap_key(phi: int, seed: int, node: int) -> float:
-    jitter_raw: int = coord_hash(seed, node) & 0xFFFF
+    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & 0xFFFF
     jitter: float = float(jitter_raw) * 1e-6
     return float(phi) + jitter
 
@@ -59,11 +59,11 @@ def _break_flow_cycles_numba(flow_to: NDArray[np.int32], seed: int) -> None:
             if state[node] == 1 and visit_id[node] == run_id:
                 cycle_start: int = step_index[node]
                 break_node: int = path[cycle_start]
-                min_hash: int = coord_hash(seed, break_node)
+                min_hash: int = coord_hash_domain(seed, FLOW_DOMAIN, break_node)
                 i = cycle_start + 1
                 while i < length:
                     candidate: int = path[i]
-                    cand_hash: int = coord_hash(seed, candidate)
+                    cand_hash: int = coord_hash_domain(seed, FLOW_DOMAIN, candidate)
                     if cand_hash < min_hash:
                         min_hash = cand_hash
                         break_node = candidate
@@ -113,7 +113,10 @@ def _build_flow_direction_numba(
                 if cell_area_f32[v] > cell_area_f32[best_v]:
                     best_v = v
                 elif cell_area_f32[v] == cell_area_f32[best_v]:
-                    if coord_hash(seed, v) < coord_hash(seed, best_v):
+                    if (
+                        coord_hash_domain(seed, FLOW_DOMAIN, v)
+                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    ):
                         best_v = v
         flat_mask[u] = has_equal
         if min_elev < elev_u:
@@ -195,11 +198,11 @@ def _build_flow_direction_numba(
 
         if out_count == 0:
             sink: int = int(comp_members[start])
-            min_hash: int = coord_hash(seed, sink)
+            min_hash: int = coord_hash_domain(seed, FLOW_DOMAIN, sink)
             idx = start + 1
             while idx < end:
                 u = int(comp_members[idx])
-                cand_hash: int = coord_hash(seed, u)
+                cand_hash: int = coord_hash_domain(seed, FLOW_DOMAIN, u)
                 if cand_hash < min_hash:
                     min_hash = cand_hash
                     sink = u
@@ -284,7 +287,10 @@ def _build_flow_direction_numba(
                     best_phi = int(phi[v])
                     best_v = v
                 elif phi[v] == best_phi and best_v != -1:
-                    if coord_hash(seed, v) < coord_hash(seed, best_v):
+                    if (
+                        coord_hash_domain(seed, FLOW_DOMAIN, v)
+                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    ):
                         best_v = v
             if best_v != -1:
                 flow_to[u] = best_v
