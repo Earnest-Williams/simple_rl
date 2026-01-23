@@ -308,19 +308,12 @@ class TestModels:
         assert abs(fighting_weight - 0.6667) < 0.01  # 10/15
         assert abs(axes_weight - 0.3333) < 0.01  # 5/15
 
-    def test_skill_training_config_set_weight_valid(self) -> None:
+    @pytest.mark.parametrize("weight", [0.0, 1.0, 2.0])
+    def test_skill_training_config_set_weight_valid(self, weight: float) -> None:
         """SkillTrainingConfig.set_weight accepts valid weights."""
         config = SkillTrainingConfig(mode=TrainingMode.MANUAL)
-
-        # All valid weights should work
-        config.set_weight(Skill.FIGHTING, 0.0)
-        assert config.weights[Skill.FIGHTING] == 0.0
-
-        config.set_weight(Skill.FIGHTING, 1.0)
-        assert config.weights[Skill.FIGHTING] == 1.0
-
-        config.set_weight(Skill.FIGHTING, 2.0)
-        assert config.weights[Skill.FIGHTING] == 2.0
+        config.set_weight(Skill.FIGHTING, weight)
+        assert config.weights[Skill.FIGHTING] == weight
 
     def test_skill_training_config_set_weight_invalid(self) -> None:
         """SkillTrainingConfig.set_weight rejects invalid weights."""
