@@ -92,6 +92,8 @@ def _award_xp_impl(
 
     # 2) Get training configuration
     training_config = registry.get_skill_training(entity_id)
+    if training_config is None:
+        return {}
 
     # 3) Calculate XP shares based on mode
     if training_config.mode == TrainingMode.MANUAL:
@@ -111,7 +113,9 @@ def _award_xp_impl(
     # Handle nullable target_level safely with explicit dtype
     has_target = skills["target_level"].is_not_null().to_numpy()
     # Use 255 as sentinel (max UInt8) for null values, ensuring proper dtype
-    target_levels = skills["target_level"].fill_null(pl.lit(255, dtype=pl.UInt8)).to_numpy()
+    target_levels = (
+        skills["target_level"].fill_null(pl.lit(255, dtype=pl.UInt8)).to_numpy()
+    )
     # Disable skills that have reached their target level
     target_mask = has_target & (new_levels >= target_levels)
     new_weights = np.where(target_mask, 0.0, skills["weight"].to_numpy())
@@ -320,7 +324,7 @@ def set_training_mode(
     with _acquire_skills_lock(registry):
         # Store mode in entity's skill_training component if registry supports it
         if hasattr(registry, "set_entity_component"):
-            registry.set_entity_component(entity_id, "training_mode", mode.value)  # type: ignore[attr-defined]
+            registry.set_entity_component(entity_id, "training_mode", mode.value)
 
         # When switching to AUTOMATIC, reset weights and states to defaults
         if mode == TrainingMode.AUTOMATIC:
@@ -502,9 +506,7 @@ def get_entity_skill_level(
     """
     result = (
         registry.skills_df.lazy()
-        .filter(
-            (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
-        )
+        .filter((pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value))
         .select("level")
         .collect()
     )

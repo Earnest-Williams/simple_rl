@@ -79,7 +79,8 @@ def serialize_skills(skills_df: pl.DataFrame) -> bytes:
         "usage_count": skills_df["usage_count"].to_numpy().astype(np.uint32),
     }
 
-    return msgpack.packb(data, use_bin_type=True)
+    packed: bytes = msgpack.packb(data, use_bin_type=True)  # type: ignore[no-any-return]
+    return packed
 
 
 def deserialize_skills(data: bytes) -> pl.DataFrame:
@@ -211,9 +212,7 @@ def extract_from_registry_save(
     if expected_cols != actual_cols:
         missing = expected_cols - actual_cols
         extra = actual_cols - expected_cols
-        raise ValueError(
-            f"Skills schema mismatch. Missing: {missing}, Extra: {extra}"
-        )
+        raise ValueError(f"Skills schema mismatch. Missing: {missing}, Extra: {extra}")
 
     return skills_df
 

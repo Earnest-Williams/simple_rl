@@ -129,9 +129,7 @@ class SkillSystemMixin:
         if self.use_vectorized_skills:
             # Read from skills_df
             skills_rows = (
-                self.skills_df.lazy()
-                .filter(pl.col("entity_id") == entity_id)
-                .collect()
+                self.skills_df.lazy().filter(pl.col("entity_id") == entity_id).collect()
             )
 
             result: dict[Skill, SkillProgress] = {}
@@ -240,7 +238,10 @@ class SkillSystemMixin:
             states = rows["training_state"].to_list()
             mode = (
                 TrainingMode.MANUAL
-                if all(s in (TrainingState.DISABLED.value, TrainingState.FOCUSED.value) for s in states)
+                if all(
+                    s in (TrainingState.DISABLED.value, TrainingState.FOCUSED.value)
+                    for s in states
+                )
                 else TrainingMode.AUTOMATIC
             )
 
@@ -274,7 +275,7 @@ class SkillSystemMixin:
         # Read current legacy dict (if any) via existing registry method
         legacy: dict[Skill, SkillProgress] = {}
         if hasattr(self, "get_entity_component"):
-            existing = self.get_entity_component(entity_id, "skills")  # type: ignore[attr-defined]
+            existing = self.get_entity_component(entity_id, "skills")
             if existing is not None:
                 legacy = dict(existing)
 
@@ -295,7 +296,7 @@ class SkillSystemMixin:
 
         # Write back into entities_df via existing set_entity_component
         if hasattr(self, "set_entity_component"):
-            self.set_entity_component(entity_id, "skills", legacy)  # type: ignore[attr-defined]
+            self.set_entity_component(entity_id, "skills", legacy)
 
     def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
         """Legacy implementation reading from entities_df.skills."""
@@ -328,16 +329,18 @@ def patch_entity_registry(registry_class: type) -> type:
         class EntityRegistry:
             ...
     """
-    # Add skills_df, flag, and lock to __init__
-    original_init = registry_class.__init__
+    from typing import Any
 
-    def new_init(self: EntityRegistry, *args, **kwargs) -> None:  # type: ignore[name-defined]
-        original_init(self, *args, **kwargs)
+    # Add skills_df, flag, and lock to __init__
+    original_init = registry_class.__init__  # type: ignore[misc]
+
+    def new_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        original_init(self, *args, **kwargs)  # type: ignore[misc]
         self.skills_df = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
         self.use_vectorized_skills = False
         self._skills_lock = Lock()
 
-    registry_class.__init__ = new_init  # type: ignore[method-assign]
+    registry_class.__init__ = new_init  # type: ignore[misc]
 
     # Mixin methods
     for attr_name in dir(SkillSystemMixin):

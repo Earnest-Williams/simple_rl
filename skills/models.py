@@ -91,19 +91,6 @@ MIN_APTITUDE: Final[int] = -5
 MAX_APTITUDE: Final[int] = 11
 XP_FORMULA_CONSTANT: Final[int] = 25
 
-# Polars schema for skill storage
-SKILL_SCHEMA: Final[dict[str, type[pl.DataType]]] = {
-    "entity_id": pl.UInt32,
-    "skill": pl.Categorical,
-    "level": pl.UInt8,
-    "xp": pl.UInt32,
-    "target_level": pl.UInt8,  # Nullable
-    "training_state": pl.Categorical,
-    "weight": pl.Float32,
-    "aptitude": pl.Int8,
-    "usage_count": pl.UInt32,
-}
-
 
 @dataclass(frozen=True, slots=True)
 class SkillProgress:

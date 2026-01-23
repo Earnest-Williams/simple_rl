@@ -13,7 +13,13 @@ import numpy as np
 import polars as pl
 import pytest
 
-from skills.models import Skill, SkillProgress, SkillTrainingConfig, TrainingMode, TrainingState
+from skills.models import (
+    Skill,
+    SkillProgress,
+    SkillTrainingConfig,
+    TrainingMode,
+    TrainingState,
+)
 from skills.progression import calculate_xp_for_level
 from skills.registry_integration import SKILL_TABLE_SCHEMA, SkillSystemMixin
 from skills.system import (
@@ -143,7 +149,9 @@ class TestParityValidation:
         # Verify total XP increased by exactly total_xp (excluding cross-training)
         # Note: Cross-training adds extra XP, so total should be >= total_xp
         xp_gained = xp_after - xp_before
-        assert xp_gained >= total_xp, f"Expected at least {total_xp} XP gain, got {xp_gained}"
+        assert (
+            xp_gained >= total_xp
+        ), f"Expected at least {total_xp} XP gain, got {xp_gained}"
 
         # Verify distribution is deterministic by running again
         registry2 = MockRegistry(use_vectorized=True)
@@ -198,9 +206,9 @@ class TestParityValidation:
 
         # Should receive 40% of the XP awarded to Axes
         expected_cross_xp = int(total_xp * 0.40)
-        assert maces_xp_gained == expected_cross_xp, (
-            f"Expected {expected_cross_xp} cross-training XP, got {maces_xp_gained}"
-        )
+        assert (
+            maces_xp_gained == expected_cross_xp
+        ), f"Expected {expected_cross_xp} cross-training XP, got {maces_xp_gained}"
 
     def test_automatic_mode_parity(self, vectorized_registry: MockRegistry) -> None:
         """Verify automatic training distributes XP based on usage."""
@@ -214,7 +222,9 @@ class TestParityValidation:
         record_skill_usage(vectorized_registry, entity_id, Skill.AXES, 1)
 
         # Get XP before
-        fighting_xp_before = vectorized_registry.get_skills(entity_id)[Skill.FIGHTING].xp
+        fighting_xp_before = vectorized_registry.get_skills(entity_id)[
+            Skill.FIGHTING
+        ].xp
         axes_xp_before = vectorized_registry.get_skills(entity_id)[Skill.AXES].xp
 
         # Award 100 XP
@@ -230,7 +240,9 @@ class TestParityValidation:
 
         # Fighting should get 75% (3/4), Axes should get 25% (1/4)
         # With deterministic rounding
-        assert fighting_gained == 75, f"Expected Fighting to gain 75 XP, got {fighting_gained}"
+        assert (
+            fighting_gained == 75
+        ), f"Expected Fighting to gain 75 XP, got {fighting_gained}"
         assert axes_gained == 25, f"Expected Axes to gain 25 XP, got {axes_gained}"
 
     def test_manual_mode_parity(self, vectorized_registry: MockRegistry) -> None:
@@ -254,7 +266,9 @@ class TestParityValidation:
                 )
 
         # Get XP before
-        fighting_xp_before = vectorized_registry.get_skills(entity_id)[Skill.FIGHTING].xp
+        fighting_xp_before = vectorized_registry.get_skills(entity_id)[
+            Skill.FIGHTING
+        ].xp
         axes_xp_before = vectorized_registry.get_skills(entity_id)[Skill.AXES].xp
 
         # Award 300 XP (should split 2:1)
@@ -270,7 +284,9 @@ class TestParityValidation:
 
         # Fighting has weight 2.0, Axes has weight 1.0, total = 3.0
         # Fighting gets 2/3 = 200, Axes gets 1/3 = 100
-        assert fighting_gained == 200, f"Expected Fighting to gain 200 XP, got {fighting_gained}"
+        assert (
+            fighting_gained == 200
+        ), f"Expected Fighting to gain 200 XP, got {fighting_gained}"
         assert axes_gained == 100, f"Expected Axes to gain 100 XP, got {axes_gained}"
 
     def test_target_level_parity(self, vectorized_registry: MockRegistry) -> None:
@@ -309,7 +325,8 @@ class TestParityValidation:
 
         # Verify skill is now disabled (weight = 0)
         skills_df = vectorized_registry.skills_df.filter(
-            (pl.col("entity_id") == entity_id) & (pl.col("skill") == Skill.FIGHTING.value)
+            (pl.col("entity_id") == entity_id)
+            & (pl.col("skill") == Skill.FIGHTING.value)
         )
         weight = skills_df["weight"][0]
         assert weight == 0.0, f"Expected weight 0.0 after reaching target, got {weight}"
@@ -566,7 +583,9 @@ class TestIntegrationWorkflows:
         long_blades_xp_after = vectorized_registry.get_skills(entity_id)[
             Skill.LONG_BLADES
         ].xp
-        assert long_blades_xp_after > long_blades_xp_before, "Long Blades should gain XP"
+        assert (
+            long_blades_xp_after > long_blades_xp_before
+        ), "Long Blades should gain XP"
 
     def test_multi_entity_concurrent_awards(
         self, vectorized_registry: MockRegistry
@@ -604,7 +623,9 @@ class TestIntegrationWorkflows:
         for entity_id in range(n_entities):
             new_xp = vectorized_registry.get_skills(entity_id)[Skill.FIGHTING].xp
             xp_gained = new_xp - initial_xp[entity_id]
-            assert xp_gained == 100, f"Entity {entity_id} should gain 100 XP, got {xp_gained}"
+            assert (
+                xp_gained == 100
+            ), f"Entity {entity_id} should gain 100 XP, got {xp_gained}"
 
         # 4. Verify no cross-contamination (each entity has independent state)
         # All entities should have identical Fighting XP
@@ -612,7 +633,9 @@ class TestIntegrationWorkflows:
             vectorized_registry.get_skills(entity_id)[Skill.FIGHTING].xp
             for entity_id in range(n_entities)
         ]
-        assert len(set(all_fighting_xp)) == 1, "All entities should have identical Fighting XP"
+        assert (
+            len(set(all_fighting_xp)) == 1
+        ), "All entities should have identical Fighting XP"
 
 
 # Helper functions for parity testing

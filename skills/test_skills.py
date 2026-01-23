@@ -127,9 +127,7 @@ class TestCombatEffects:
         fighting=st.integers(min_value=0, max_value=MAX_SKILL_LEVEL),
         weapon=st.integers(min_value=0, max_value=MAX_SKILL_LEVEL),
     )
-    def test_damage_multiplier_monotonic(
-        self, fighting: int, weapon: int
-    ) -> None:
+    def test_damage_multiplier_monotonic(self, fighting: int, weapon: int) -> None:
         """Damage multiplier increases with skill."""
         base_mult: float = calculate_total_damage_multiplier(fighting, weapon)
 
@@ -213,12 +211,8 @@ class TestCrossTraining:
 
     def test_long_short_blades_bidirectional(self) -> None:
         """Long and Short Blades cross-train bidirectionally."""
-        long_to_short: dict[Skill, float] = get_cross_trained_skills(
-            Skill.LONG_BLADES
-        )
-        short_to_long: dict[Skill, float] = get_cross_trained_skills(
-            Skill.SHORT_BLADES
-        )
+        long_to_short: dict[Skill, float] = get_cross_trained_skills(Skill.LONG_BLADES)
+        short_to_long: dict[Skill, float] = get_cross_trained_skills(Skill.SHORT_BLADES)
 
         assert Skill.SHORT_BLADES in long_to_short
         assert Skill.LONG_BLADES in short_to_long
@@ -230,9 +224,7 @@ class TestCrossTraining:
     )
     def test_cross_training_xp_calculation(self, xp_amount: int) -> None:
         """Cross-training XP is correct proportion."""
-        cross_xp: dict[Skill, int] = calculate_cross_training_xp(
-            Skill.AXES, xp_amount
-        )
+        cross_xp: dict[Skill, int] = calculate_cross_training_xp(Skill.AXES, xp_amount)
 
         if Skill.MACES_AND_FLAILS in cross_xp:
             expected: int = int(xp_amount * 0.40)
@@ -249,9 +241,7 @@ class TestModels:
     def test_skill_progress_validation(self) -> None:
         """SkillProgress validates ranges."""
         # Valid
-        progress = SkillProgress(
-            skill=Skill.FIGHTING, level=10, xp=2750, aptitude=0
-        )
+        progress = SkillProgress(skill=Skill.FIGHTING, level=10, xp=2750, aptitude=0)
         assert progress.level == 10
 
         # Invalid level
@@ -390,9 +380,7 @@ class TestIntegration:
         axes_xp: int = calculate_xp_for_level(10, 0)
 
         # Calculate cross-training bonus for Maces
-        cross_xp: dict[Skill, int] = calculate_cross_training_xp(
-            Skill.AXES, axes_xp
-        )
+        cross_xp: dict[Skill, int] = calculate_cross_training_xp(Skill.AXES, axes_xp)
 
         # Maces should receive 40% of Axes XP
         maces_bonus: int = cross_xp.get(Skill.MACES_AND_FLAILS, 0)
