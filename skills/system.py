@@ -2,11 +2,16 @@
 
 Concrete implementations matching EntityRegistry patterns.
 All functions fully typed with explicit signatures.
+
+Thread safety: All public mutation APIs acquire registry._skills_lock when present.
+See CONCURRENCY.md for lock usage patterns and batch operation recommendations.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import contextmanager
+from threading import Lock
+from typing import TYPE_CHECKING, Generator
 
 import numpy as np
 import polars as pl
@@ -22,12 +27,32 @@ if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
 
 
+@contextmanager
+def _acquire_skills_lock(registry: EntityRegistry) -> Generator[None, None, None]:
+    """Context manager to safely acquire registry._skills_lock if present.
+
+    Args:
+        registry: Entity registry that may have _skills_lock attribute
+
+    Yields:
+        None - use as context manager with 'with' statement
+    """
+    lock: Lock | None = getattr(registry, "_skills_lock", None)
+    if lock is not None:
+        with lock:
+            yield
+    else:
+        yield
+
+
 def award_xp(
     registry: EntityRegistry,
     entity_id: int,
     total_xp: int,
 ) -> dict[Skill, tuple[int, int]]:
     """Award XP to entity based on training configuration.
+
+    Thread-safe: Acquires registry._skills_lock if present.
 
     Distributes XP according to manual weights or automatic usage tracking.
     Applies cross-training bonuses automatically.
@@ -40,6 +65,20 @@ def award_xp(
 
     Returns:
         Dict mapping Skill -> (old_level, new_level) for skills that leveled up
+    """
+    with _acquire_skills_lock(registry):
+        return _award_xp_impl(registry, entity_id, total_xp)
+
+
+def _award_xp_impl(
+    registry: EntityRegistry,
+    entity_id: int,
+    total_xp: int,
+) -> dict[Skill, tuple[int, int]]:
+    """Internal implementation of award_xp without locking.
+
+    Use award_xp for thread-safe calls, or call this directly while holding
+    registry._skills_lock for batch operations.
     """
     if total_xp <= 0:
         return {}
@@ -69,10 +108,12 @@ def award_xp(
     )
 
     # 5) Check targets and disable if reached
-    target_mask = (
-        (new_levels >= skills["target_level"].fill_null(255).to_numpy())
-        & (skills["target_level"].is_not_null().to_numpy())
-    )
+    # Handle nullable target_level safely with explicit dtype
+    has_target = skills["target_level"].is_not_null().to_numpy()
+    # Use 255 as sentinel (max UInt8) for null values, ensuring proper dtype
+    target_levels = skills["target_level"].fill_null(pl.lit(255, dtype=pl.UInt8)).to_numpy()
+    # Disable skills that have reached their target level
+    target_mask = has_target & (new_levels >= target_levels)
     new_weights = np.where(target_mask, 0.0, skills["weight"].to_numpy())
 
     # 6) Build primary updates
@@ -198,7 +239,8 @@ def batch_award_xp(
 ) -> dict[int, dict[Skill, tuple[int, int]]]:
     """Award XP to multiple entities in single batch operation.
 
-    More efficient than calling award_xp in loop.
+    Thread-safe: Acquires registry._skills_lock once for entire batch.
+    More efficient than calling award_xp in loop (single lock acquisition).
 
     Args:
         registry: Entity registry
@@ -209,11 +251,13 @@ def batch_award_xp(
     """
     all_level_ups: dict[int, dict[Skill, tuple[int, int]]] = {}
 
-    # Group by entity for efficiency
-    for entity_id, xp_amount in entity_xp_pairs:
-        level_ups = award_xp(registry, entity_id, xp_amount)
-        if level_ups:
-            all_level_ups[entity_id] = level_ups
+    # Acquire lock once for entire batch
+    with _acquire_skills_lock(registry):
+        for entity_id, xp_amount in entity_xp_pairs:
+            # Use internal impl to avoid re-acquiring lock
+            level_ups = _award_xp_impl(registry, entity_id, xp_amount)
+            if level_ups:
+                all_level_ups[entity_id] = level_ups
 
     return all_level_ups
 
@@ -226,6 +270,7 @@ def record_skill_usage(
 ) -> None:
     """Record skill usage for automatic training mode.
 
+    Thread-safe: Acquires registry._skills_lock if present.
     Updates usage_count in skills_df.
 
     Args:
@@ -234,17 +279,19 @@ def record_skill_usage(
         skill: Skill that was used
         amount: Number of uses to record
     """
-    # Increment usage_count for this skill
-    registry.skills_df = registry.skills_df.with_columns(
-        [
-            pl.when(
-                (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
-            )
-            .then(pl.col("usage_count") + amount)
-            .otherwise(pl.col("usage_count"))
-            .alias("usage_count")
-        ]
-    )
+    with _acquire_skills_lock(registry):
+        # Increment usage_count for this skill
+        registry.skills_df = registry.skills_df.with_columns(
+            [
+                pl.when(
+                    (pl.col("entity_id") == entity_id)
+                    & (pl.col("skill") == skill.value)
+                )
+                .then(pl.col("usage_count") + amount)
+                .otherwise(pl.col("usage_count"))
+                .alias("usage_count")
+            ]
+        )
 
 
 def set_training_mode(
@@ -254,14 +301,41 @@ def set_training_mode(
 ) -> None:
     """Set entity's training mode.
 
+    Thread-safe: Acquires registry._skills_lock if present.
+
+    When switching to MANUAL mode:
+      - Keeps existing weights and states
+      - Allows explicit weight configuration via set_skill_training
+
+    When switching to AUTOMATIC mode:
+      - Resets all skill weights to 1.0 (normal)
+      - Resets all training states to NORMAL
+      - XP distribution will be based on usage_count
+
     Args:
         registry: Entity registry
         entity_id: Entity to configure
         mode: Training mode (MANUAL or AUTOMATIC)
     """
-    # Store in entity's skill_training component
-    # Implementation depends on EntityRegistry structure
-    pass
+    with _acquire_skills_lock(registry):
+        # Store mode in entity's skill_training component if registry supports it
+        if hasattr(registry, "set_entity_component"):
+            registry.set_entity_component(entity_id, "training_mode", mode.value)  # type: ignore[attr-defined]
+
+        # When switching to AUTOMATIC, reset weights and states to defaults
+        if mode == TrainingMode.AUTOMATIC:
+            registry.skills_df = registry.skills_df.with_columns(
+                [
+                    pl.when(pl.col("entity_id") == entity_id)
+                    .then(pl.lit(1.0, dtype=pl.Float32))
+                    .otherwise(pl.col("weight"))
+                    .alias("weight"),
+                    pl.when(pl.col("entity_id") == entity_id)
+                    .then(pl.lit(TrainingState.NORMAL.value, dtype=pl.UInt8))
+                    .otherwise(pl.col("training_state"))
+                    .alias("training_state"),
+                ]
+            )
 
 
 def set_skill_training(
@@ -273,6 +347,8 @@ def set_skill_training(
 ) -> None:
     """Configure training for specific skill.
 
+    Thread-safe: Acquires registry._skills_lock if present.
+
     Args:
         registry: Entity registry
         entity_id: Entity to configure
@@ -280,34 +356,38 @@ def set_skill_training(
         state: Training state (DISABLED, NORMAL, FOCUSED)
         target_level: Optional auto-disable target
     """
-    # Calculate weight from state
-    weight: float = 0.0 if state == TrainingState.DISABLED else 1.0
-    if state == TrainingState.FOCUSED:
-        weight = 2.0
+    with _acquire_skills_lock(registry):
+        # Calculate weight from state
+        weight: float = 0.0 if state == TrainingState.DISABLED else 1.0
+        if state == TrainingState.FOCUSED:
+            weight = 2.0
 
-    # Update skills_df
-    registry.skills_df = registry.skills_df.with_columns(
-        [
-            pl.when(
-                (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
-            )
-            .then(pl.lit(weight))
-            .otherwise(pl.col("weight"))
-            .alias("weight"),
-            pl.when(
-                (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
-            )
-            .then(pl.lit(state.value))
-            .otherwise(pl.col("training_state"))
-            .alias("training_state"),
-            pl.when(
-                (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
-            )
-            .then(pl.lit(target_level))
-            .otherwise(pl.col("target_level"))
-            .alias("target_level"),
-        ]
-    )
+        # Update skills_df
+        registry.skills_df = registry.skills_df.with_columns(
+            [
+                pl.when(
+                    (pl.col("entity_id") == entity_id)
+                    & (pl.col("skill") == skill.value)
+                )
+                .then(pl.lit(weight))
+                .otherwise(pl.col("weight"))
+                .alias("weight"),
+                pl.when(
+                    (pl.col("entity_id") == entity_id)
+                    & (pl.col("skill") == skill.value)
+                )
+                .then(pl.lit(state.value))
+                .otherwise(pl.col("training_state"))
+                .alias("training_state"),
+                pl.when(
+                    (pl.col("entity_id") == entity_id)
+                    & (pl.col("skill") == skill.value)
+                )
+                .then(pl.lit(target_level))
+                .otherwise(pl.col("target_level"))
+                .alias("target_level"),
+            ]
+        )
 
 
 # Internal distribution functions
@@ -317,55 +397,92 @@ def _distribute_xp_manual(
     skills: pl.DataFrame,
     total_xp: int,
 ) -> np.ndarray:
-    """Distribute XP based on manual weights.
+    """Distribute XP based on manual weights with deterministic rounding.
+
+    Uses largest-remainder method for deterministic leftover distribution:
+    1. Calculate floor shares for each skill
+    2. Distribute remaining XP to skills with highest fractional remainders
+    3. Ties broken by skill index (deterministic ordering)
 
     Args:
         skills: DataFrame of entity's skills
         total_xp: Total XP to distribute
 
     Returns:
-        Array of XP amounts per skill
+        Array of XP amounts per skill (guaranteed to sum to total_xp)
     """
-    weights = skills["weight"].to_numpy()
+    weights = skills["weight"].to_numpy().astype(np.float64)
+    n_skills: int = len(weights)
     active_mask = weights > 0.0
 
     if not np.any(active_mask):
-        return np.zeros(len(weights), dtype=np.uint32)
+        return np.zeros(n_skills, dtype=np.uint32)
 
     total_weight: float = float(weights[active_mask].sum())
 
     if total_weight <= 0.0:
-        return np.zeros(len(weights), dtype=np.uint32)
+        return np.zeros(n_skills, dtype=np.uint32)
 
-    xp_shares = (weights / total_weight * total_xp).astype(np.uint32)
+    # Calculate exact proportional shares
+    exact_shares = weights / total_weight * float(total_xp)
 
-    return xp_shares
+    # Floor shares and compute leftover
+    floor_shares = np.floor(exact_shares).astype(np.uint32)
+    leftover: int = total_xp - int(floor_shares.sum())
+
+    if leftover > 0:
+        # Distribute leftovers by highest fractional part deterministically
+        fracs = exact_shares - np.floor(exact_shares)
+        # Use negative fracs for descending sort; skill index breaks ties (stable sort)
+        order = np.argsort(-fracs, kind="stable")
+        for i in range(min(leftover, n_skills)):
+            floor_shares[order[i]] += 1
+
+    return floor_shares
 
 
 def _distribute_xp_automatic(
     skills: pl.DataFrame,
     total_xp: int,
 ) -> np.ndarray:
-    """Distribute XP based on recent usage.
+    """Distribute XP based on recent usage with deterministic rounding.
+
+    Uses largest-remainder method for deterministic leftover distribution:
+    1. Calculate floor shares proportional to usage_count
+    2. Distribute remaining XP to skills with highest fractional remainders
+    3. Ties broken by skill index (deterministic ordering)
 
     Args:
         skills: DataFrame of entity's skills
         total_xp: Total XP to distribute
 
     Returns:
-        Array of XP amounts per skill
+        Array of XP amounts per skill (guaranteed to sum to total_xp)
     """
-    usage_counts = skills["usage_count"].to_numpy()
+    usage_counts = skills["usage_count"].to_numpy().astype(np.float64)
+    n_skills: int = len(usage_counts)
 
-    total_usage: int = int(usage_counts.sum())
+    total_usage: float = float(usage_counts.sum())
 
     if total_usage == 0:
-        return np.zeros(len(usage_counts), dtype=np.uint32)
+        return np.zeros(n_skills, dtype=np.uint32)
 
-    # Proportional to usage
-    xp_shares = (usage_counts / total_usage * total_xp).astype(np.uint32)
+    # Calculate exact proportional shares
+    exact_shares = usage_counts / total_usage * float(total_xp)
 
-    return xp_shares
+    # Floor shares and compute leftover
+    floor_shares = np.floor(exact_shares).astype(np.uint32)
+    leftover: int = total_xp - int(floor_shares.sum())
+
+    if leftover > 0:
+        # Distribute leftovers by highest fractional part deterministically
+        fracs = exact_shares - np.floor(exact_shares)
+        # Use negative fracs for descending sort; skill index breaks ties (stable sort)
+        order = np.argsort(-fracs, kind="stable")
+        for i in range(min(leftover, n_skills)):
+            floor_shares[order[i]] += 1
+
+    return floor_shares
 
 
 def get_entity_skill_level(
