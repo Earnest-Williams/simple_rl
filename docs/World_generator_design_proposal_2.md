@@ -372,9 +372,10 @@ This section defines the stable interfaces for generating and consuming worlds: 
 
 ### Recommended Repository Layout
 
+```text
 simple_rl/
 └── worldgen/
-├── init.py
+├── __init__.py
 ├── cli.py # CLI entrypoints (thin wrapper over Python API)
 ├── config.py # frozen dataclasses for tunables & defaults
 ├── validation.py # fail-fast input/layer contract checks
@@ -385,24 +386,24 @@ simple_rl/
 ├── game_rng.py # GameRNG adapters/wrappers
 ├── elevation.py # elevation pipeline
 ├── kernels/ # Reference Numba kernels
-│ ├── init.py
+│ ├── __init__.py
 │ ├── heap.py # Indexed min-heap
 │ ├── union_find.py # Deterministic union-find
 │ ├── noise.py # OpenSimplex3 surrogate
 │ ├── geometry.py # Solid angle, smoothing
 │ └── erosion.py # Hydraulic + thermal erosion
 ├── climate/
-│ ├── init.py
+│ ├── __init__.py
 │ ├── temperature.py
 │ ├── wind.py
 │ └── moisture.py
 ├── hydrology/
-│ ├── init.py
+│ ├── __init__.py
 │ ├── flow_direction.py
 │ ├── accumulation.py
 │ └── rivers_derived.py
 ├── chunk/
-│ ├── init.py
+│ ├── __init__.py
 │ ├── river_morphology_bridge.py
 │ └── chunk_gen.py
 ├── biome.py
@@ -414,9 +415,7 @@ simple_rl/
 ├── test_flow_direction.py
 ├── test_kernels.py
 └── test_small_pipeline.py
-
-python
-Copy code
+```
 
 ### Config Conventions
 
@@ -431,6 +430,12 @@ Naming conventions for quantized elevation (intentional split):
 - **On-disk filename**: `elev_q.npy`
 
 This avoids readers assuming the filename is `elev_q_i32.npy`.
+
+General naming rule for all layers:
+- **In-memory array variable names** carry dtype suffixes (e.g., `flow_to_i32`,
+  `cell_area_f32`, `is_river_u8`).
+- **Meta/layer keys** and **on-disk filenames** omit dtype suffixes (e.g.,
+  `flow_to` → `flow_to.npy`).
 
 ```python
 from __future__ import annotations
@@ -474,7 +479,9 @@ class WorldConfig:
     climate: ClimateConfig
     hydrology: HydrologyConfig
     planet_radius_m: float = 6_371_000.0
-Determinism and Domain-Separated Randomness
+```
+
+### Determinism and Domain-Separated Randomness
 All generation must be deterministic for fixed (seed, N, cfg) within a pinned runtime environment.
 
 Rules:
@@ -485,7 +492,7 @@ Randomness must be domain-separated: each subsystem uses a distinct domain const
 
 Order-dependent kernels must use fixed traversal order and, when needed, a two-phase “delta” pattern to avoid traversal-order dependence.
 
-Quantized Elevation (Canonical Representation)
+### Quantized Elevation (Canonical Representation)
 Elevation is canonicalized as quantized integers:
 
 In memory: elev_q_i32: int32[n_cells]
@@ -502,11 +509,10 @@ elev_m = elev_q_i32.astype(float32) * ELEV_Q_M
 
 Stages should compare thresholds (sea level selection, biome rules, erosion caps) in integer space when feasible, converting to float only when required by formulas.
 
-Top-Level API Surface
+### Top-Level API Surface
 Public entrypoints are exported from simple_rl.worldgen (simple_rl/worldgen/__init__.py). Every entrypoint must validate prerequisites, dtypes, shapes, and sentinels before doing expensive work.
 
-python
-Copy code
+```python
 # simple_rl/worldgen/__init__.py
 
 from __future__ import annotations
@@ -542,7 +548,7 @@ def build_elevation(
     """Produce quantized elevation and optional tectonic layers and persist them.
 
     In-memory: elev_q_i32 (int32[n_cells])
-    On disk / meta layer key: elev_q (saved as elev_q.npy)
+    Meta/layer key: elev_q (recorded in meta.json)
     """
     ...
 
@@ -555,11 +561,11 @@ def build_climate(
 ) -> None:
     """Produce and persist climate layers.
 
-    Produces (minimum):
-      - temp_f32.npy: float32[n_cells]
-      - wind_to.npy:  int32[n_cells] (sentinel -1 allowed for polar cap)
-      - moist_f32.npy: float32[n_cells]
-      - precip_f32.npy: float32[n_cells]
+    Produces (minimum) layer keys recorded in meta.json:
+      - temp: float32[n_cells]
+      - wind_to: int32[n_cells] (sentinel -1 allowed for polar cap)
+      - moist: float32[n_cells]
+      - precip: float32[n_cells]
     """
     ...
 
@@ -572,15 +578,15 @@ def build_hydrology(
     """Compute flow/accumulation and river-derived layers and persist them.
 
     Requires:
-      - elev_q (from elev_q.npy; loaded into memory as elev_q_i32)
+      - elev_q (loaded into memory as elev_q_i32)
       - required climate layers per the hydrology model
 
-    Produces (minimum):
-      - flow_to.npy:  int32[n_cells] (sentinel -1 allowed for sinks)
-      - accum_f32.npy: float32[n_cells]
-      - is_river.npy: uint8[n_cells]
-      - river_intensity.npy: float32[n_cells]
-      - stream_order.npy: uint8[n_cells]
+    Produces (minimum) layer keys recorded in meta.json:
+      - flow_to: int32[n_cells] (sentinel -1 allowed for sinks)
+      - accum: float32[n_cells]
+      - is_river: uint8[n_cells]
+      - river_intensity: float32[n_cells]
+      - stream_order: uint8[n_cells]
     """
     ...
 
@@ -603,6 +609,7 @@ def get_chunk(
       - chunk_tunables_hash.
     """
     ...
+```
 Recommended get_chunk() return payload:
 
 request: echo of request parameters
@@ -642,8 +649,7 @@ Basic range sanity (e.g., precip_f32 >= 0).
 Validation utilities should be centralized in simple_rl/worldgen/validation.py so error messages are consistent across stages.
 
 Validation Helper
-python
-Copy code
+```python
 # simple_rl/worldgen/validation.py
 
 from __future__ import annotations
@@ -671,12 +677,12 @@ def validate_no_nan(arr: NDArray[np.floating[np.generic]], name: str) -> None:
     """Ensure no NaN or infinity values."""
     if np.any(~np.isfinite(arr)):
         raise ValueError(f"{name}: contains NaN or infinity values")
+```
 On-Disk Format: meta.json, Layer Schema, and Cache Identity
 Canonical World Directory Layout
 A world directory is a self-contained artifact. Tooling must rely on meta.json layer entries (paths), not hardcoded filenames.
 
-bash
-Copy code
+```text
 world_<seed>/
   meta.json                  # required
   report.json                # required (diagnostics)
@@ -703,6 +709,7 @@ world_<seed>/
     elev_q.meta.json
     ...
   chunk_cache/               # optional: serialized get_chunk outputs
+```
 meta.json Schema
 meta.json is authoritative and must include:
 
@@ -716,8 +723,7 @@ global_tunables_hash and chunk_tunables_hash
 
 provenance fields (git_commit, timestamps, runtime versions)
 
-json
-Copy code
+```json
 {
   "format_version": "2.0.0",
   "world_seed": 12345,
@@ -736,6 +742,7 @@ Copy code
   "created_utc": "2026-01-23T12:00:00Z",
   "platform": {"python": "3.11.0", "numba": "0.59.0"}
 }
+```
 Two-Tier Tunables Hashing and Cache Invalidation
 Cache invalidation uses two-tier hashing:
 
@@ -874,7 +881,7 @@ The `xform` code represents rotation/reflection needed to map coordinates along 
 
 ---
 
-## Module: elevation_sim
+## Module: elevation
 
 ### Design Intent
 
@@ -1049,16 +1056,16 @@ for iteration in range(N_smooth):
 **Hydraulic erosion:**
 ```python
 # Build provisional flow and accumulation
-flow_scratch = compute_flow_direction(elev_raw)
-accum_scratch = compute_accumulation(flow_scratch, cell_area)
+flow_to_scratch_i32 = compute_flow_direction(elev_raw)
+accum_scratch_f32 = compute_accumulation(flow_to_scratch_i32, cell_area_f32)
 
 # Erosion capacity
 for u in range(n_cells):
-    v = flow_scratch[u]
+    v = flow_to_scratch_i32[u]
     if v == -1:
         continue
     slope = max(0, elev_raw[u] - elev_raw[v])
-    capacity = accum_scratch[u] * slope
+    capacity = accum_scratch_f32[u] * slope
     erosion = min(capacity * hydraulic_k, elev_raw[u] - base[u])
     erosion_delta[u] -= erosion
     erosion_delta[v] += erosion * 0.5  # Partial deposition
@@ -1131,7 +1138,7 @@ elev_q_i32 = np.round(elev_raw / ELEV_Q_M).astype(np.int32)
 
 2. **Elevation lapse (land only):**
    ```python
-   h_km = max(elev_q[u] * ELEV_Q_M, 0) / 1000.0
+   h_km = max(elev_q_i32[u] * ELEV_Q_M, 0) / 1000.0
    t = t_lat - lapse_C_per_km * h_km
    ```
 
@@ -1287,21 +1294,21 @@ for u in range(n_cells):
     min_elev = INF
     best_v = -1
     for v in nbr8[u]:
-        if elev_q[v] < min_elev:
-            min_elev = elev_q[v]
+        if elev_q_i32[v] < min_elev:
+            min_elev = elev_q_i32[v]
             best_v = v
-        elif elev_q[v] == min_elev and best_v != -1:
+        elif elev_q_i32[v] == min_elev and best_v != -1:
             # Deterministic tie-breaking
-            if cell_area[v] > cell_area[best_v]:
+            if cell_area_f32[v] > cell_area_f32[best_v]:
                 best_v = v
-            elif cell_area[v] == cell_area[best_v]:
+            elif cell_area_f32[v] == cell_area_f32[best_v]:
                 if coord_hash(seed, v) < coord_hash(seed, best_v):
                     best_v = v
     
-    if min_elev < elev_q[u]:
-        flow_to[u] = best_v
+    if min_elev < elev_q_i32[u]:
+        flow_to_i32[u] = best_v
     else:
-        flow_to[u] = UNRESOLVED  # Mark for Stage B
+        flow_to_i32[u] = UNRESOLVED  # Mark for Stage B
 ```
 
 #### Stage B: Flat-Component Routing via Priority Propagation
@@ -1310,10 +1317,10 @@ for u in range(n_cells):
    ```python
    uf = UnionFind(n_cells)
    for u in range(n_cells):
-       if flow_to[u] != UNRESOLVED:
+       if flow_to_i32[u] != UNRESOLVED:
            continue
        for v in nbr8[u]:
-           if elev_q[v] == elev_q[u] and flow_to[v] == UNRESOLVED:
+           if elev_q_i32[v] == elev_q_i32[u] and flow_to_i32[v] == UNRESOLVED:
                uf.union(u, v)
    ```
 
@@ -1322,7 +1329,7 @@ for u in range(n_cells):
    outlets = []
    for u in component:
        for v in nbr8[u]:
-           if elev_q[v] < elev_q[u]:
+           if elev_q_i32[v] < elev_q_i32[u]:
                outlets.append(u)
                break
    ```
@@ -1348,11 +1355,11 @@ for u in range(n_cells):
            if u in outlets:
                continue  # Keep downhill edge
            best_v = argmin(phi[v] for v in nbr8[u] if v in component)
-           flow_to[u] = best_v
+           flow_to_i32[u] = best_v
    else:
        # No outlet: create sink at deterministic location
        sink = min(component, key=lambda u: coord_hash(seed, u))
-       flow_to[sink] = -1
+       flow_to_i32[sink] = -1
        # Route everything else toward sink
        ...
 ```
@@ -1368,7 +1375,7 @@ After assignment, verify no directed cycles exist. If found, break by setting th
 ### Responsibilities
 
 1. Compute area-weighted accumulation from `flow_to_i32`.
-2. Treat sinks (`flow_to == -1`) as terminals.
+2. Treat sinks (`flow_to_i32 == -1`) as terminals.
 
 ### Algorithm (Topological Sort)
 
@@ -1376,12 +1383,12 @@ After assignment, verify no directed cycles exist. If found, break by setting th
 # Build in-degree
 in_deg = np.zeros(n_cells, dtype=np.int32)
 for u in range(n_cells):
-    v = flow_to[u]
+    v = flow_to_i32[u]
     if v != -1:
         in_deg[v] += 1
 
 # Initialize accumulation with cell area
-accum = cell_area.copy()
+accum_f32 = cell_area_f32.copy()
 
 # Process in topological order (sources first)
 queue = [u for u in range(n_cells) if in_deg[u] == 0]
@@ -1389,9 +1396,9 @@ queue.sort()  # Deterministic order
 
 while queue:
     u = queue.pop(0)
-    v = flow_to[u]
+    v = flow_to_i32[u]
     if v != -1:
-        accum[v] += accum[u]
+        accum_f32[v] += accum_f32[u]
         in_deg[v] -= 1
         if in_deg[v] == 0:
             # Insert in sorted position for determinism
@@ -1434,7 +1441,7 @@ in_deg = np.zeros(n_cells, dtype=np.int32)
 for u in range(n_cells):
     if not is_river[u]:
         continue
-    v = flow_to[u]
+    v = flow_to_i32[u]
     if v != -1 and is_river[v]:
         in_deg[v] += 1
 
@@ -1446,7 +1453,7 @@ order = np.zeros(n_cells, dtype=np.uint8)
 # Find headwaters: river cells with no upstream rivers and valid outflow
 headwaters = []
 for u in range(n_cells):
-    if is_river[u] and in_deg[u] == 0 and flow_to[u] != -1:
+    if is_river[u] and in_deg[u] == 0 and flow_to_i32[u] != -1:
         headwaters.append(u)
 headwaters.sort()  # Deterministic order
 
@@ -1464,7 +1471,7 @@ while queue:
         order[u] = max_up[u]
     
     # Propagate to downstream
-    v = flow_to[u]
+    v = flow_to_i32[u]
     if v != -1 and is_river[v]:
         if order[u] > max_up[v]:
             max_up[v] = order[u]
@@ -1513,7 +1520,7 @@ class BiomeID:
 
 ### Precedence Rules
 
-1. **Ocean:** `elev_q < sea_level_q` → `OCEAN` (unless sea ice)
+1. **Ocean:** `elev_q_i32 < sea_level_q` → `OCEAN` (unless sea ice)
 2. **Sea ice:** ocean and `temp <= ice_temp_C` → `SEA_ICE`
 3. **Ice cap:** land and `temp <= ice_temp_C` → `ICE_CAP`
 4. **Alpine:** land and `elev_m >= alpine_m` → `ALPINE`
@@ -2122,7 +2129,7 @@ def compute_all_cell_areas(
 ) -> NDArray[np.float32]:
     """Compute cell areas for all cells."""
     n_cells: int = 6 * N * N
-    cell_area: NDArray[np.float32] = np.empty(n_cells, dtype=np.float32)
+    cell_area_f32: NDArray[np.float32] = np.empty(n_cells, dtype=np.float32)
     
     # Corner offsets (in normalized face coordinates)
     du: float = 1.0 / N
@@ -2168,9 +2175,9 @@ def compute_all_cell_areas(
                     corners[ci, 1] = y * inv_len
                     corners[ci, 2] = z * inv_len
                 
-                cell_area[lin] = compute_cell_area(corners, radius_m)
+                cell_area_f32[lin] = compute_cell_area(corners, radius_m)
     
-    return cell_area
+    return cell_area_f32
 ```
 
 ### A.5: Two-Phase Moisture Advection
@@ -2191,8 +2198,8 @@ ELEV_Q_M: float = 0.1
 def advect_moisture_step(
     moist_cur: NDArray[np.float32],
     precip_accum: NDArray[np.float32],
-    elev_q: NDArray[np.int32],
-    wind_to: NDArray[np.int32],
+    elev_q_i32: NDArray[np.int32],
+    wind_to_i32: NDArray[np.int32],
     sea_mask: NDArray[np.uint8],
     temp_f32: NDArray[np.float32],
     n_cells: int,
@@ -2213,15 +2220,15 @@ def advect_moisture_step(
     precip_delta: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
     
     for u in range(n_cells):
-        v: int = wind_to[u]
+        v: int = wind_to_i32[u]
         if v == -1:
             continue  # Polar cap / no transport
         
         m: float = moist_cur[u] * transport_frac
         
         # Convert quantized elevation to meters
-        elev_u: float = elev_q[u] * ELEV_Q_M
-        elev_v: float = elev_q[v] * ELEV_Q_M
+        elev_u: float = elev_q_i32[u] * ELEV_Q_M
+        elev_v: float = elev_q_i32[v] * ELEV_Q_M
         dh: float = elev_v - elev_u
         if dh < 0.0:
             dh = 0.0
@@ -2282,12 +2289,12 @@ ELEV_Q_M: float = 0.1
 
 @njit(cache=True)
 def hydraulic_erosion_step(
-    elev_q: NDArray[np.int32],
-    flow_to: NDArray[np.int32],
-    accum: NDArray[np.float32],
+    elev_q_i32: NDArray[np.int32],
+    flow_to_i32: NDArray[np.int32],
+    accum_f32: NDArray[np.float32],
     n_cells: int,
     hydraulic_k: float,
-    base_elev_q: NDArray[np.int32],
+    base_elev_q_i32: NDArray[np.int32],
 ) -> NDArray[np.int32]:
     """Single step of hydraulic erosion.
     
@@ -2297,20 +2304,20 @@ def hydraulic_erosion_step(
     delta_q: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
     
     for u in range(n_cells):
-        v: int = flow_to[u]
+        v: int = flow_to_i32[u]
         if v == -1:
             continue
         
         # Slope in quanta
-        slope_q: int = elev_q[u] - elev_q[v]
+        slope_q: int = elev_q_i32[u] - elev_q_i32[v]
         if slope_q <= 0:
             continue
         
         # Erosion capacity = accumulation * slope
-        capacity: float = accum[u] * (slope_q * ELEV_Q_M)
+        capacity: float = accum_f32[u] * (slope_q * ELEV_Q_M)
         
         # Maximum erosion: don't go below base
-        max_erosion_q: int = elev_q[u] - base_elev_q[u]
+        max_erosion_q: int = elev_q_i32[u] - base_elev_q_i32[u]
         if max_erosion_q < 0:
             max_erosion_q = 0
         
@@ -2324,12 +2331,12 @@ def hydraulic_erosion_step(
             delta_q[v] += erosion_q // 2
     
     # Phase B: Apply deltas
-    return elev_q + delta_q
+    return elev_q_i32 + delta_q
 
 
 @njit(cache=True)
 def thermal_erosion_step(
-    elev_q: NDArray[np.int32],
+    elev_q_i32: NDArray[np.int32],
     nbr8: NDArray[np.int32],
     n_cells: int,
     talus_slope_q: int,
@@ -2347,7 +2354,7 @@ def thermal_erosion_step(
             if v == -1:
                 continue
             
-            dh: int = elev_q[u] - elev_q[v]
+            dh: int = elev_q_i32[u] - elev_q_i32[v]
             if dh > talus_slope_q:
                 # Transfer half the excess
                 transfer_q: int = (dh - talus_slope_q) // 2
@@ -2356,7 +2363,7 @@ def thermal_erosion_step(
                     delta_q[v] += transfer_q
     
     # Phase B: Apply deltas
-    return elev_q + delta_q
+    return elev_q_i32 + delta_q
 ```
 
 ### A.7: Seam-Aware Smoothing
@@ -2516,11 +2523,11 @@ def compute_seam_continuity(
 
 def generate_report(
     out_dir: Path,
-    elev_q: NDArray[np.int32],
+    elev_q_i32: NDArray[np.int32],
     temp_f32: NDArray[np.float32],
     precip_f32: NDArray[np.float32],
-    is_river: NDArray[np.uint8],
-    stream_order: NDArray[np.uint8],
+    is_river_u8: NDArray[np.uint8],
+    stream_order_u8: NDArray[np.uint8],
     nbr4: NDArray[np.int32],
     sea_level_q: int,
 ) -> dict[str, Any]:
@@ -2528,7 +2535,7 @@ def generate_report(
     elev_q_m: float = 0.1
     
     # Land fraction
-    land_mask: NDArray[np.bool_] = elev_q >= sea_level_q
+    land_mask: NDArray[np.bool_] = elev_q_i32 >= sea_level_q
     land_fraction: float = float(np.mean(land_mask))
     
     # Temperature quantiles
@@ -2542,11 +2549,11 @@ def generate_report(
     )
     
     # River stats
-    total_river_cells: int = int(np.sum(is_river))
-    max_order: int = int(np.max(stream_order))
+    total_river_cells: int = int(np.sum(is_river_u8))
+    max_order: int = int(np.max(stream_order_u8))
     order_hist: list[int] = []
     for o in range(1, max_order + 1):
-        order_hist.append(int(np.sum(stream_order == o)))
+        order_hist.append(int(np.sum(stream_order_u8 == o)))
     
     report: dict[str, Any] = {
         "land_fraction": land_fraction,
