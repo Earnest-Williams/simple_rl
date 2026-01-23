@@ -22,7 +22,7 @@ from skills.cross_training import (
 )
 from skills.models import Skill, TrainingMode, TrainingState, UsageWindow
 from skills.progression import batch_calculate_levels
-from skills.registry_integration import SkillRegistryHost
+from skills.registry_integration import NULL_U8_SENTINEL, SkillRegistryHost
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
@@ -110,9 +110,11 @@ def _award_xp_impl(
     # 5) Check targets and disable if reached
     # Handle nullable target_level safely with explicit dtype
     has_target = skills["target_level"].is_not_null().to_numpy()
-    # Use 255 as sentinel (max UInt8) for null values, ensuring proper dtype
+    # Use NULL_U8_SENTINEL for null values, ensuring proper dtype
     target_levels = (
-        skills["target_level"].fill_null(pl.lit(255, dtype=pl.UInt8)).to_numpy()
+        skills["target_level"]
+        .fill_null(pl.lit(NULL_U8_SENTINEL, dtype=pl.UInt8))
+        .to_numpy()
     )
     # Disable skills that have reached their target level
     target_mask = has_target & (new_levels >= target_levels)

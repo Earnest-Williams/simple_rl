@@ -23,6 +23,11 @@ from skills.models import (
     TrainingState,
 )
 
+# Sentinel value for nullable UInt8 columns
+# Since Polars UInt8 cannot represent null natively, we use 255 as a sentinel
+# to represent "no target level set" in the target_level column.
+NULL_U8_SENTINEL: Final[int] = 255
+
 # Skill table schema for EntityRegistry.skills_df
 SKILL_TABLE_SCHEMA: Final[dict[str, type[pl.DataType]]] = {
     "entity_id": pl.UInt32,
@@ -32,7 +37,7 @@ SKILL_TABLE_SCHEMA: Final[dict[str, type[pl.DataType]]] = {
     "aptitude": pl.Int8,
     "weight": pl.Float32,
     "training_state": pl.UInt8,  # Store TrainingState.value
-    "target_level": pl.UInt8,  # Nullable
+    "target_level": pl.UInt8,  # Nullable (use NULL_U8_SENTINEL=255 for null)
     "usage_count": pl.UInt32,
 }
 
@@ -217,6 +222,7 @@ class SkillSystemMixin:
                     "skill": skill.value,
                     "level": progress.level,
                     "xp": progress.xp,
+                    "aptitude": progress.aptitude,
                 }
             )
 
@@ -240,9 +246,13 @@ class SkillSystemMixin:
                     .then(pl.col("xp_new"))
                     .otherwise(pl.col("xp"))
                     .alias("xp"),
+                    pl.when(pl.col("aptitude_new").is_not_null())
+                    .then(pl.col("aptitude_new"))
+                    .otherwise(pl.col("aptitude"))
+                    .alias("aptitude"),
                 ]
             )
-            .drop(["level_new", "xp_new"])
+            .drop(["level_new", "xp_new", "aptitude_new"])
         )
 
         # Sync to legacy format for backward compatibility during migration
