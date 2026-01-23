@@ -49,7 +49,7 @@ from worldgen.constants import (
     NORMALIZE_EPS,
     NOISE_DOMAIN,
     PLATE_SEED_DOMAIN,
-    REPORT_QUANTILES_FRAC,
+    REPORT_QUANTILES,
     REPORT_SEAM_EPS,
     WIND_DOMAIN,
     WIND_JITTER_MASK,
@@ -841,11 +841,8 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
     def quantiles(values: NDArray[np.float32]) -> Dict[str, float]:
         arr: NDArray[np.float32] = values.astype(np.float32).ravel()
         return {
-            "p5": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[0]),
-            "p25": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[1]),
-            "p50": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[2]),
-            "p75": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[3]),
-            "p95": _quantile_value(arr, frac=REPORT_QUANTILES_FRAC[4]),
+            name: _quantile_value(arr, frac=frac)
+            for name, frac in REPORT_QUANTILES.items()
         }
 
     temp_quantiles: Dict[str, float] = quantiles(temp_f32)

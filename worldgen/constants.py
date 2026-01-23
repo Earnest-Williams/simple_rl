@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Dict, Tuple
+
 # Elevation quantization in meters; smaller values increase precision but cost
 # more memory and CPU when quantized.
 ELEV_Q_M: float = 0.1
@@ -58,7 +60,7 @@ FLAT_DOMAIN: int = 0x464C4154
 # Mask for 64-bit hash arithmetic; change only if hash width changes.
 HASH_MASK_64: int = 0xFFFFFFFFFFFFFFFF
 # Mask for 32-bit hash arithmetic; change only if hash width changes.
-HASH_MASK_32: int = (1 << 32) - 1
+HASH_MASK_32: int = 0xFFFFFFFF
 # SplitMix64 increment constant; altering changes hash sequence.
 HASH_SPLITMIX_INCREMENT: int = 0x9E3779B97F4A7C15
 # SplitMix64 mix constant 1; altering changes hash distribution.
@@ -165,8 +167,14 @@ CLIMATE_CAP_HI: float = 1.0
 # Report sampling default; larger values reduce noise at higher cost.
 REPORT_SAMPLE_SIZE_DEFAULT: int = 10000
 # Report percentiles in whole percent; add/remove values to change output.
-REPORT_PERCENTILES_PCT: tuple[int, ...] = (5, 25, 50, 75, 95)
-# Report quantile fractions; add/remove values to change output.
-REPORT_QUANTILES_FRAC: tuple[float, ...] = (0.05, 0.25, 0.5, 0.75, 0.95)
+REPORT_PERCENTILES_PCT: Tuple[int, ...] = (5, 25, 50, 75, 95)
+# Report quantile fractions keyed by output name; change entries to adjust output.
+REPORT_QUANTILES: Dict[str, float] = {
+    "p5": 0.05,
+    "p25": 0.25,
+    "p50": 0.5,
+    "p75": 0.75,
+    "p95": 0.95,
+}
 # Seam ratio epsilon; higher values reduce division instability.
 REPORT_SEAM_EPS: float = 1e-8
