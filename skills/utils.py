@@ -79,7 +79,7 @@ def serialize_skills(skills_df: pl.DataFrame) -> bytes:
         "usage_count": skills_df["usage_count"].to_numpy().astype(np.uint32),
     }
 
-    packed: bytes = msgpack.packb(data, use_bin_type=True)  # type: ignore[no-any-return]
+    packed: bytes = msgpack.packb(data, use_bin_type=True)
     return packed
 
 
