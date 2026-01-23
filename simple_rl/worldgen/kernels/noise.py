@@ -100,7 +100,7 @@ def noise_3d_multi_octave(
     persistence: float,
 ) -> float:
     if octaves <= 0:
-        raise ValueError("octaves must be positive")
+        raise ValueError(f"octaves must be positive, got {octaves}")
 
     total: float = 0.0
     freq: float = 1.0
