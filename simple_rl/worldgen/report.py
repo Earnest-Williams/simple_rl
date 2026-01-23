@@ -24,7 +24,6 @@ def compute_quantiles(
     sorted_arr: NDArray[np.floating[np.generic]] = np.sort(arr)
     n: int = int(sorted_arr.shape[0])
     result: Dict[str, float] = {}
-    p = 0
     for p in percentiles:
         idx: int = int(p * n / 100)
         if idx >= n:
