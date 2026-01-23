@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import List
-
+from simple_rl.worldgen.kernels.advection import advect_moisture_step
+from simple_rl.worldgen.kernels.erosion import (
+    hydraulic_erosion_step,
+    thermal_erosion_step,
+)
 from simple_rl.worldgen.kernels.geometry import (
     compute_cell_area,
     cross_3d,
@@ -24,6 +27,7 @@ from simple_rl.worldgen.kernels.noise import (
     smoothstep,
     splitmix64,
 )
+from simple_rl.worldgen.kernels.smoothing import smooth_f32_nbr4, smooth_i32_nbr4
 from simple_rl.worldgen.kernels.union_find import (
     uf_build_components,
     uf_find,
@@ -31,7 +35,10 @@ from simple_rl.worldgen.kernels.union_find import (
     uf_union,
 )
 
-__all__: List[str] = [
+__all__: list[str] = [
+    "advect_moisture_step",
+    "hydraulic_erosion_step",
+    "thermal_erosion_step",
     "compute_cell_area",
     "cross_3d",
     "dot_3d",
@@ -52,4 +59,6 @@ __all__: List[str] = [
     "uf_find",
     "uf_init",
     "uf_union",
+    "smooth_f32_nbr4",
+    "smooth_i32_nbr4",
 ]
