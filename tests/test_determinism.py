@@ -33,6 +33,7 @@ def test_deterministic_across_runs(tmp_path: Path) -> None:
 
     assert (out1 / "meta.json").read_text() == (out2 / "meta.json").read_text()
     assert (out1 / "tunables.json").read_text() == (out2 / "tunables.json").read_text()
+    assert (out1 / "report.json").read_text() == (out2 / "report.json").read_text()
 
     elev_a: NDArray[np.int32] = np.load(out1 / "elev_q.npy")
     elev_b: NDArray[np.int32] = np.load(out2 / "elev_q.npy")
