@@ -18,13 +18,16 @@ from worldgen.validation import validate_array
 UNRESOLVED: int = -2
 SINK: int = -1
 _INF_I32: int = np.iinfo(np.int32).max
+_HEAP_JITTER_MASK: int = 0xFFFF
+_HEAP_JITTER_SCALE: float = 1e-6
 
 
 @njit(cache=True)
-def _heap_key(phi: int, seed: int, node: int) -> float:
-    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & 0xFFFF
-    jitter: float = float(jitter_raw) * 1e-6
-    return float(phi) + jitter
+def _heap_key(phi: int, seed: int, node: int) -> np.float64:
+    jitter_raw: int = coord_hash_domain(seed, FLOW_DOMAIN, node) & _HEAP_JITTER_MASK
+    jitter: float = float(jitter_raw) * _HEAP_JITTER_SCALE
+    # jitter < 1.0 ensures phi's integer spacing is preserved with stable tie-breaks.
+    return np.float64(float(phi) + jitter)
 
 
 @njit(cache=True)
@@ -35,6 +38,7 @@ def _break_flow_cycles_numba(flow_to: NDArray[np.int32], seed: int) -> None:
     step_index: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
     path: NDArray[np.int32] = np.empty(n_cells, dtype=np.int32)
     run_id: int = 1
+    # run_id fits in int32 for practical grid sizes (n_cells << 2**31).
 
     start: int
     for start in range(n_cells):
@@ -113,9 +117,8 @@ def _build_flow_direction_numba(
                 if cell_area_f32[v] > cell_area_f32[best_v]:
                     best_v = v
                 elif cell_area_f32[v] == cell_area_f32[best_v]:
-                    if (
-                        coord_hash_domain(seed, FLOW_DOMAIN, v)
-                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
+                        seed, FLOW_DOMAIN, best_v
                     ):
                         best_v = v
         flat_mask[u] = has_equal
@@ -169,7 +172,7 @@ def _build_flow_direction_numba(
             cursor[comp_id] += 1
 
     phi: NDArray[np.int32] = np.full(n_cells, _INF_I32, dtype=np.int32)
-    heap_keys: NDArray[np.float32] = np.empty(n_cells, dtype=np.float32)
+    heap_keys: NDArray[np.float64] = np.empty(n_cells, dtype=np.float64)
     heap_pos: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
 
     comp_id = 0
@@ -180,6 +183,7 @@ def _build_flow_direction_numba(
         start: int = int(offsets[comp_id])
         end: int = int(offsets[comp_id + 1])
 
+        # outlets count is bounded by comp_size since outlets are component members.
         outlets: NDArray[np.int32] = np.empty(comp_size, dtype=np.int32)
         out_count: int = 0
         idx = start
@@ -287,9 +291,8 @@ def _build_flow_direction_numba(
                     best_phi = int(phi[v])
                     best_v = v
                 elif phi[v] == best_phi and best_v != -1:
-                    if (
-                        coord_hash_domain(seed, FLOW_DOMAIN, v)
-                        < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
+                        seed, FLOW_DOMAIN, best_v
                     ):
                         best_v = v
             if best_v != -1:
@@ -309,6 +312,11 @@ def build_flow_direction(
     *,
     seed: int,
 ) -> NDArray[np.int32]:
+    """Build per-cell flow direction indices.
+
+    Returns an int32 array mapping each cell to its downstream neighbor index or
+    SINK when no lower neighbor exists. UNRESOLVED is not present in the output.
+    """
     n_cells: int = int(elev_q_i32.shape[0])
     validate_array(elev_q_i32, "elev_q_i32", np.dtype("int32"), (n_cells,))
     validate_array(nbr8_i32, "nbr8_i32", np.dtype("int32"), (n_cells, 8))
