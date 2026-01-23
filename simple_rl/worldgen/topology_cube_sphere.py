@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 from numba import njit, prange
@@ -21,6 +21,7 @@ EDGE_SOUTH: int = 2
 EDGE_WEST: int = 3
 
 
+@njit(cache=True)
 def lin_index(face: int, i: int, j: int, N: int) -> int:
     return ((face * N) + j) * N + i
 
@@ -60,7 +61,7 @@ def _neighbor_from_face(
 
 
 def build_default_edge_map() -> Dict[int, Dict[int, Dict[str, int]]]:
-    edge_map: Dict[int, Dict[int, Dict[str, Any]]] = {}
+    edge_map: Dict[int, Dict[int, Dict[str, int]]] = {}
     sample_i: int = 0
     sample_j: int = 0
     N: int = 4

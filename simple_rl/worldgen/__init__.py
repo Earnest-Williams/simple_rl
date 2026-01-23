@@ -55,7 +55,9 @@ def build_world(
     if out_dir.exists() and not overwrite:
         raise FileExistsError("out_dir already exists; set overwrite=True")
     if out_dir.exists() and overwrite:
-        raise FileExistsError("overwrite=True is not supported yet")
+        import shutil
+
+        shutil.rmtree(out_dir)
     ensure_dir(out_dir)
 
     meta: WorldMeta = build_world_meta(
