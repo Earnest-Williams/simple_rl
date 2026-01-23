@@ -296,7 +296,7 @@ class SkillSystemMixin:
 
         # Write back into entities_df via existing set_entity_component
         if hasattr(self, "set_entity_component"):
-            self.set_entity_component(entity_id, "skills", legacy)
+            self.set_entity_component(entity_id, "skills", legacy)  # type: ignore[attr-defined]
 
     def _get_skills_legacy(self, entity_id: int) -> dict[Skill, SkillProgress]:
         """Legacy implementation reading from entities_df.skills."""
