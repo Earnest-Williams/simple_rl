@@ -31,6 +31,8 @@ from skills.models import (
     ManualBonus,
     Skill,
     SkillProgress,
+    SkillTrainingConfig,
+    TrainingMode,
     UsageWindow,
 )
 from skills.progression import (
@@ -305,6 +307,34 @@ class TestModels:
 
         assert abs(fighting_weight - 0.6667) < 0.01  # 10/15
         assert abs(axes_weight - 0.3333) < 0.01  # 5/15
+
+    @pytest.mark.parametrize("weight", [0.0, 1.0, 2.0])
+    def test_skill_training_config_set_weight_valid(self, weight: float) -> None:
+        """SkillTrainingConfig.set_weight accepts valid weights."""
+        config = SkillTrainingConfig(mode=TrainingMode.MANUAL)
+        config.set_weight(Skill.FIGHTING, weight)
+        assert config.weights[Skill.FIGHTING] == weight
+
+    def test_skill_training_config_set_weight_invalid(self) -> None:
+        """SkillTrainingConfig.set_weight rejects invalid weights."""
+        config = SkillTrainingConfig(mode=TrainingMode.MANUAL)
+
+        # Negative weights should be rejected
+        with pytest.raises(ValueError, match="Invalid weight"):
+            config.set_weight(Skill.FIGHTING, -1.0)
+
+        # Arbitrary positive weights should be rejected
+        with pytest.raises(ValueError, match="Invalid weight"):
+            config.set_weight(Skill.FIGHTING, 0.5)
+
+        with pytest.raises(ValueError, match="Invalid weight"):
+            config.set_weight(Skill.FIGHTING, 1.5)
+
+        with pytest.raises(ValueError, match="Invalid weight"):
+            config.set_weight(Skill.FIGHTING, 3.0)
+
+        with pytest.raises(ValueError, match="Invalid weight"):
+            config.set_weight(Skill.FIGHTING, 100.0)
 
 
 class TestPerformance:

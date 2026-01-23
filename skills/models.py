@@ -148,8 +148,8 @@ class SkillTrainingConfig:
             skill: Skill to configure
             weight: 0.0 (disabled), 1.0 (normal), 2.0 (focused)
         """
-        if weight < 0.0:
-            raise ValueError(f"Invalid weight: {weight}")
+        if weight not in (0.0, 1.0, 2.0):
+            raise ValueError(f"Invalid weight: {weight}. Must be 0.0, 1.0, or 2.0")
         self.weights[skill] = weight
 
     def set_target(self, skill: Skill, target_level: int) -> None:
