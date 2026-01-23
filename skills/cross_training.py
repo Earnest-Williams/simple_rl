@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Final
 
 import numpy as np
-import scipy.sparse
+import scipy.sparse  # type: ignore[import-untyped]
 
 from skills.models import CROSS_TRAINING_PAIRS, CrossTrainingPair, Skill
 
