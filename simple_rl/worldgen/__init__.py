@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Dict, List
+
+import numpy as np
+from numpy.typing import NDArray
+
+from simple_rl.worldgen.config import (
+    ELEV_Q_M,
+    ClimateConfig,
+    ElevationConfig,
+    HydrologyConfig,
+    WorldConfig,
+    config_as_dict,
+    default_world_config,
+)
+from simple_rl.worldgen.io import ensure_dir, write_layer
+from simple_rl.worldgen.metadata import WorldMeta, build_world_meta
+from simple_rl.worldgen.topology_cube_sphere import (
+    build_cell_area,
+    build_default_edge_map,
+    build_nbr_tables,
+    build_pos_xyz,
+)
+from simple_rl.worldgen.validation import validate_array
+
+__all__: List[str] = [
+    "ClimateConfig",
+    "ElevationConfig",
+    "HydrologyConfig",
+    "WorldConfig",
+    "build_world",
+    "build_elevation",
+    "build_climate",
+    "build_hydrology",
+    "default_world_config",
+    "get_chunk",
+]
+
+
+def _write_report(out_dir: Path, payload: Dict[str, object]) -> None:
+    path: Path = out_dir / "report.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def build_world(
+    out_dir: Path,
+    *,
+    seed: int,
+    N: int,
+    cfg: WorldConfig,
+    overwrite: bool = False,
+) -> None:
+    if out_dir.exists() and not overwrite:
+        raise FileExistsError("out_dir already exists; set overwrite=True")
+    if out_dir.exists() and overwrite:
+        raise FileExistsError("overwrite=True is not supported yet")
+    ensure_dir(out_dir)
+
+    meta: WorldMeta = build_world_meta(
+        world_seed=seed,
+        N=N,
+        planet_radius_m=cfg.planet_radius_m,
+        elev_quantum_m=ELEV_Q_M,
+    )
+
+    pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
+    edge_map: Dict[int, Dict[int, Dict[str, object]]] = build_default_edge_map()
+    nbr4_i32: NDArray[np.int32]
+    nbr8_i32: NDArray[np.int32]
+    nbr4_i32, nbr8_i32 = build_nbr_tables(N, edge_map)
+    cell_area_f32: NDArray[np.float32] = build_cell_area(N, cfg.planet_radius_m)
+
+    n_cells: int = 6 * N * N
+    validate_array(pos_xyz, "pos_xyz", np.dtype("float32"), (n_cells, 3))
+    validate_array(nbr4_i32, "nbr4", np.dtype("int32"), (n_cells, 4))
+    validate_array(nbr8_i32, "nbr8", np.dtype("int32"), (n_cells, 8))
+    validate_array(cell_area_f32, "cell_area", np.dtype("float32"), (n_cells,))
+
+    write_layer(out_dir=out_dir, key="pos_xyz", arr=pos_xyz, meta=meta, units="unit")
+    write_layer(out_dir=out_dir, key="nbr4", arr=nbr4_i32, meta=meta)
+    write_layer(out_dir=out_dir, key="nbr8", arr=nbr8_i32, meta=meta)
+    write_layer(
+        out_dir=out_dir, key="cell_area", arr=cell_area_f32, meta=meta, units="m2"
+    )
+
+    meta.write(out_dir)
+    _write_report(
+        out_dir,
+        {
+            "world_seed": seed,
+            "N": N,
+            "n_cells": n_cells,
+            "status": "topology_complete",
+        },
+    )
+    (out_dir / "tunables.json").write_text(
+        json.dumps(config_as_dict(cfg), indent=2, sort_keys=True)
+    )
+
+
+def build_elevation(
+    out_dir: Path,
+    *,
+    seed: int,
+    N: int,
+    cfg: ElevationConfig,
+    plate_seed_xyz: NDArray[np.float32] | None = None,
+) -> None:
+    del out_dir
+    del seed
+    del N
+    del cfg
+    del plate_seed_xyz
+    raise NotImplementedError("Elevation pipeline is not implemented yet")
+
+
+def build_climate(
+    out_dir: Path,
+    *,
+    seed: int,
+    N: int,
+    cfg: ClimateConfig,
+) -> None:
+    del out_dir
+    del seed
+    del N
+    del cfg
+    raise NotImplementedError("Climate pipeline is not implemented yet")
+
+
+def build_hydrology(
+    out_dir: Path,
+    *,
+    N: int,
+    cfg: HydrologyConfig,
+) -> None:
+    del out_dir
+    del N
+    del cfg
+    raise NotImplementedError("Hydrology pipeline is not implemented yet")
+
+
+def get_chunk(
+    out_dir: Path,
+    *,
+    face: int,
+    i0: int,
+    j0: int,
+    width: int,
+    height: int,
+    margin_cells: int,
+    detail_cells_per_sim: int,
+) -> Dict[str, object]:
+    del out_dir
+    del face
+    del i0
+    del j0
+    del width
+    del height
+    del margin_cells
+    del detail_cells_per_sim
+    raise NotImplementedError("Chunk generation is not implemented yet")
