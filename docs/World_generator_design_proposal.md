@@ -523,6 +523,18 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def build_full_world(
+    out_dir: Path,
+    seed: int,
+    N: int,
+    cfg: WorldConfig,
+    overwrite: bool = False,
+    precompile_kernels: bool = False,
+) -> None:
+    """Run the full pipeline and emit the canonical report.json diagnostics."""
+    ...
+
+
 def build_world(
     out_dir: Path,
     seed: int,
@@ -530,10 +542,9 @@ def build_world(
     cfg: WorldConfig,
     overwrite: bool = False,
 ) -> None:
-    """Full pipeline: topology -> elevation -> climate -> hydrology -> rivers -> biome.
+    """Build topology + base layers only (pos_xyz, nbr tables, cell_area).
 
     Writes layers and meta.json into out_dir. Deterministic for fixed (seed, N, cfg).
-    Always produces report.json with required diagnostic metrics.
     """
     ...
 

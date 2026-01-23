@@ -48,6 +48,7 @@ __all__: List[str] = [
     "ElevationConfig",
     "HydrologyConfig",
     "WorldConfig",
+    "build_full_world",
     "build_world",
     "build_elevation",
     "build_climate",
@@ -751,3 +752,205 @@ def get_chunk(
         },
     }
     return payload
+
+
+def _compute_report(out_dir: Path) -> Dict[str, object]:
+    """Compute the canonical report.json payload (land_fraction, quantiles, rivers)."""
+    meta: WorldMeta = read_world_meta(out_dir)
+    n_cells: int = meta.n_cells
+    n_face_cells: int = meta.N * meta.N
+
+    required_layers: Tuple[str, ...] = (
+        "elev_q",
+        "temp",
+        "precip",
+        "is_river",
+        "stream_order",
+        "nbr4",
+    )
+    for key in required_layers:
+        if key not in meta.layers:
+            raise ValueError(f"{key} diagnostic layer required for report generation")
+
+    elev_q_i32: NDArray[np.int32] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["elev_q"]),
+        dtype=np.int32,
+    )
+    temp_f32: NDArray[np.float32] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["temp"]),
+        dtype=np.float32,
+    )
+    precip_f32: NDArray[np.float32] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["precip"]),
+        dtype=np.float32,
+    )
+    is_river_u8: NDArray[np.uint8] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["is_river"]),
+        dtype=np.uint8,
+    )
+    stream_order_u8: NDArray[np.uint8] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["stream_order"]),
+        dtype=np.uint8,
+    )
+    nbr4_i32: NDArray[np.int32] = np.ascontiguousarray(
+        read_layer(out_dir=out_dir, layer=meta.layers["nbr4"]),
+        dtype=np.int32,
+    )
+
+    land_mask_u8: NDArray[np.uint8] = (elev_q_i32 > 0).astype(np.uint8)
+    land_fraction: float = float(np.sum(land_mask_u8) / float(n_cells))
+
+    def quantiles(values: NDArray[np.float32]) -> Dict[str, float]:
+        arr: NDArray[np.float32] = values.astype(np.float32).ravel()
+        return {
+            "p5": _quantile_value(arr, frac=0.05),
+            "p25": _quantile_value(arr, frac=0.25),
+            "p50": _quantile_value(arr, frac=0.50),
+            "p75": _quantile_value(arr, frac=0.75),
+            "p95": _quantile_value(arr, frac=0.95),
+        }
+
+    temp_quantiles: Dict[str, float] = quantiles(temp_f32)
+    precip_quantiles: Dict[str, float] = quantiles(precip_f32)
+
+    total_river_cells: int = int(np.sum(is_river_u8 == 1))
+    max_order: int = int(np.max(stream_order_u8))
+    order_hist: List[int] = [
+        int(np.sum(stream_order_u8 == k)) for k in range(1, max_order + 1)
+    ]
+
+    lin_idx: NDArray[np.int64] = np.arange(n_cells, dtype=np.int64)
+    face_idx: NDArray[np.int32] = (lin_idx // n_face_cells).astype(np.int32)
+
+    nbr4_clamped: NDArray[np.int32] = np.clip(nbr4_i32, 0, n_cells - 1)
+    valid_nbr: NDArray[np.bool_] = (nbr4_i32 >= 0) & (nbr4_i32 < n_cells)
+    neighbor_faces: NDArray[np.int32] = face_idx[nbr4_clamped]
+    face_match: NDArray[np.bool_] = neighbor_faces != face_idx[:, None]
+    seam_mask: NDArray[np.bool_] = np.any(valid_nbr & face_match, axis=1)
+
+    def seam_ratio(values: NDArray[np.float32]) -> float:
+        values_f32: NDArray[np.float32] = values.astype(np.float32)
+        neighbors: NDArray[np.float32] = values_f32[nbr4_clamped]
+        valid_f32: NDArray[np.float32] = valid_nbr.astype(np.float32)
+        neighbor_sum: NDArray[np.float32] = np.sum(neighbors * valid_f32, axis=1)
+        neighbor_count: NDArray[np.float32] = np.sum(valid_f32, axis=1)
+        neighbor_count_safe: NDArray[np.float32] = np.maximum(neighbor_count, 1.0)
+        neighbor_mean: NDArray[np.float32] = neighbor_sum / neighbor_count_safe
+        absdiff: NDArray[np.float32] = np.abs(values_f32 - neighbor_mean)
+        valid_cells: NDArray[np.bool_] = neighbor_count > 0.0
+        seam_cells: NDArray[np.bool_] = valid_cells & seam_mask
+        nonseam_cells: NDArray[np.bool_] = valid_cells & (~seam_mask)
+        seam_mean: float
+        non_mean: float
+        if np.any(seam_cells):
+            seam_mean = float(np.mean(absdiff[seam_cells]))
+        else:
+            seam_mean = 0.0
+        if np.any(nonseam_cells):
+            non_mean = float(np.mean(absdiff[nonseam_cells]))
+        else:
+            non_mean = 1e-8
+        return seam_mean / max(non_mean, 1e-8)
+
+    seam_continuity: Dict[str, float] = {
+        "elev_seam_vs_nonseam_ratio": seam_ratio(elev_q_i32.astype(np.float32)),
+        "temp_seam_vs_nonseam_ratio": seam_ratio(temp_f32),
+        "precip_seam_vs_nonseam_ratio": seam_ratio(precip_f32),
+    }
+
+    report: Dict[str, object] = {
+        "land_fraction": land_fraction,
+        "temp_quantiles": temp_quantiles,
+        "precip_quantiles": precip_quantiles,
+        "river_stats": {
+            "total_river_cells": total_river_cells,
+            "order_histogram": order_hist,
+        },
+        "seam_continuity": seam_continuity,
+    }
+    return report
+
+
+def build_full_world(
+    out_dir: Path,
+    *,
+    seed: int,
+    N: int,
+    cfg: WorldConfig,
+    overwrite: bool = False,
+    precompile_kernels: bool = False,
+) -> None:
+    """
+    Convenience wrapper: build_world -> build_elevation -> build_climate ->
+    build_hydrology, then compute and write report.json.
+    """
+    if precompile_kernels:
+        _precompile_kernels(N)
+
+    build_world(out_dir, seed=seed, N=N, cfg=cfg, overwrite=overwrite)
+    build_elevation(out_dir, seed=seed, N=N, cfg=cfg.elevation)
+    build_climate(out_dir, seed=seed, N=N, cfg=cfg.climate)
+    build_hydrology(out_dir, N=N, cfg=cfg.hydrology)
+
+    report_payload: Dict[str, object] = _compute_report(out_dir)
+    _write_report(out_dir, report_payload)
+
+
+def _precompile_kernels(N: int) -> None:
+    """Trigger a small compile of inner kernels so numba caches get created."""
+    pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
+    nbr4_i32: NDArray[np.int32]
+    nbr8_i32: NDArray[np.int32]
+    nbr4_i32, nbr8_i32 = build_nbr_tables(N)
+    _ = build_cell_area(N, 6371000.0)
+
+    n_cells: int = int(6 * N * N)
+    seed: int = 1
+
+    _ = eval_noise_sphere(
+        pos_xyz.astype(np.float32),
+        seed,
+        octaves=1,
+        lacunarity=2.0,
+        persistence=0.5,
+        scale=1.0,
+    )
+
+    arr_q: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
+    _ = smooth_i32_nbr4(arr_q, nbr4_i32, n_cells=n_cells, strength=0.5, cap_q=10)
+
+    moist: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
+    precip_accum: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
+    elev_q: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
+    wind_to: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
+    sea_mask: NDArray[np.uint8] = np.zeros(n_cells, dtype=np.uint8)
+    temp_f32: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
+    _ = advect_moisture_step(
+        moist,
+        precip_accum,
+        elev_q,
+        wind_to,
+        sea_mask,
+        temp_f32,
+        n_cells=n_cells,
+        transport_frac=0.5,
+        orog_scale_m=100.0,
+        ocean_source=0.5,
+        cap_min=0.05,
+        cap_slope=0.01,
+        cap_lo=0.1,
+        cap_hi=1.0,
+    )
+
+    cell_area_f32: NDArray[np.float32] = np.ones(n_cells, dtype=np.float32)
+    flow_to: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
+    accum_f32: NDArray[np.float32] = np.ones(n_cells, dtype=np.float32)
+    _ = hydraulic_erosion_step(
+        arr_q,
+        flow_to,
+        accum_f32,
+        n_cells=n_cells,
+        hydraulic_k=0.01,
+        base_elev_q_i32=arr_q,
+    )
+    _ = thermal_erosion_step(arr_q, nbr8_i32, n_cells=n_cells, talus_slope_q=10)
