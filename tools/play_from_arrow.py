@@ -16,6 +16,7 @@ import argparse
 import inspect
 import tomllib
 import yaml
+from collections import deque
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
@@ -28,8 +29,12 @@ from polars.exceptions import ColumnNotFoundError, PolarsError
 from common.constants import Material
 from engine.main_loop import MainLoop
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES
 from utils.shaped_map import shaped_dataframe_to_game_map
+
+SPAWN_MIN_ROOM_SIZE = 20
+SPAWN_SEARCH_RADIUS = 100
+SPAWN_REQUIRE_DIAGONALS = True
 
 
 class WindowManagerProtocol(Protocol):
@@ -120,6 +125,180 @@ def pick_player_spawn_from_df(
     return 1, 1
 
 
+def _has_open_neighbors(
+    game_map: GameMap, x: int, y: int, *, require_diagonals: bool = True
+) -> bool:
+    """Return True if every adjacent tile is walkable and transparent."""
+    neighbors: list[tuple[int, int]] = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+    if require_diagonals:
+        neighbors += [(1, -1), (1, 1), (-1, 1), (-1, -1)]
+
+    for dx, dy in neighbors:
+        nx: int = x + dx
+        ny: int = y + dy
+        if not game_map.in_bounds(nx, ny):
+            return False
+        if not game_map.is_walkable(nx, ny):
+            return False
+        if not game_map.is_transparent(nx, ny):
+            return False
+    return True
+
+
+def _compute_component_sizes(game_map: GameMap) -> np.ndarray:
+    """Label walkable components and return size per tile."""
+    height: int = game_map.height
+    width: int = game_map.width
+    sizes: np.ndarray = np.zeros((height, width), dtype=np.int32)
+    visited: np.ndarray = np.zeros((height, width), dtype=bool)
+    walkable: np.ndarray = np.zeros((height, width), dtype=bool)
+    for tile_id, tile_type in TILE_TYPES.items():
+        if tile_type.walkable:
+            walkable[game_map.tiles == tile_id] = True
+
+    for y in range(height):
+        for x in range(width):
+            if visited[y, x]:
+                continue
+            if not walkable[y, x]:
+                continue
+            q: deque[tuple[int, int]] = deque()
+            q.append((x, y))
+            visited[y, x] = True
+            component: list[tuple[int, int]] = []
+            while q:
+                cx, cy = q.popleft()
+                component.append((cx, cy))
+                for dx, dy in (
+                    (0, -1),
+                    (1, 0),
+                    (0, 1),
+                    (-1, 0),
+                    (1, -1),
+                    (1, 1),
+                    (-1, 1),
+                    (-1, -1),
+                ):
+                    nx: int = cx + dx
+                    ny: int = cy + dy
+                    if not game_map.in_bounds(nx, ny):
+                        continue
+                    if visited[ny, nx]:
+                        continue
+                    if not walkable[ny, nx]:
+                        continue
+                    visited[ny, nx] = True
+                    q.append((nx, ny))
+            size: int = len(component)
+            for cx, cy in component:
+                sizes[cy, cx] = size
+    return sizes
+
+
+def _find_nearest_suitable_spawn(
+    game_map: GameMap,
+    component_sizes: np.ndarray,
+    start_x: int,
+    start_y: int,
+    *,
+    max_radius: int = SPAWN_SEARCH_RADIUS,
+    min_room_size: int = SPAWN_MIN_ROOM_SIZE,
+    require_diagonals: bool = SPAWN_REQUIRE_DIAGONALS,
+) -> tuple[int, int] | None:
+    """BFS for the nearest tile that is walkable, open, and in a large area."""
+    if game_map.in_bounds(start_x, start_y):
+        if game_map.is_walkable(start_x, start_y) and _has_open_neighbors(
+            game_map, start_x, start_y, require_diagonals=require_diagonals
+        ):
+            if component_sizes[start_y, start_x] >= min_room_size:
+                return start_x, start_y
+
+    height: int = game_map.height
+    width: int = game_map.width
+    visited: np.ndarray = np.zeros((height, width), dtype=bool)
+    q: deque[tuple[int, int, int]] = deque()
+    q.append((start_x, start_y, 0))
+    if game_map.in_bounds(start_x, start_y):
+        visited[start_y, start_x] = True
+
+    while q:
+        x, y, dist = q.popleft()
+        if dist > max_radius:
+            continue
+        for dx, dy in (
+            (0, -1),
+            (1, 0),
+            (0, 1),
+            (-1, 0),
+            (1, -1),
+            (1, 1),
+            (-1, 1),
+            (-1, -1),
+        ):
+            nx: int = x + dx
+            ny: int = y + dy
+            if not game_map.in_bounds(nx, ny):
+                continue
+            if visited[ny, nx]:
+                continue
+            visited[ny, nx] = True
+            if not game_map.is_walkable(nx, ny):
+                q.append((nx, ny, dist + 1))
+                continue
+            if not _has_open_neighbors(
+                game_map, nx, ny, require_diagonals=require_diagonals
+            ):
+                q.append((nx, ny, dist + 1))
+                continue
+            if component_sizes[ny, nx] >= min_room_size:
+                return nx, ny
+            q.append((nx, ny, dist + 1))
+    return None
+
+
+def _select_spawn_position(
+    game_map: GameMap,
+    component_sizes: np.ndarray,
+    spawn_x: int,
+    spawn_y: int,
+    *,
+    min_room_size: int = SPAWN_MIN_ROOM_SIZE,
+    search_radius: int = SPAWN_SEARCH_RADIUS,
+    require_diagonals: bool = SPAWN_REQUIRE_DIAGONALS,
+) -> tuple[int, int]:
+    """Return a suitable spawn position, using fallback searches as needed."""
+    alt: tuple[int, int] | None = _find_nearest_suitable_spawn(
+        game_map,
+        component_sizes,
+        spawn_x,
+        spawn_y,
+        max_radius=search_radius,
+        min_room_size=min_room_size,
+        require_diagonals=require_diagonals,
+    )
+    if alt is not None:
+        return alt
+
+    alt2: tuple[int, int] | None = _find_nearest_suitable_spawn(
+        game_map,
+        component_sizes,
+        spawn_x,
+        spawn_y,
+        max_radius=search_radius,
+        min_room_size=min_room_size,
+        require_diagonals=False,
+    )
+    if alt2 is not None:
+        return alt2
+
+    floor_rows: np.ndarray
+    floor_cols: np.ndarray
+    floor_rows, floor_cols = np.where(game_map.tiles == TILE_ID_FLOOR)
+    if floor_rows.size > 0:
+        return int(floor_cols[0]), int(floor_rows[0])
+    return 1, 1
+
+
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
     """Print an ASCII viewport centered on the player showing local tiles."""
     gm: GameMap = gs.game_map
@@ -169,9 +348,15 @@ def create_gamestate_from_arrow(
     game_map: GameMap
     origin: Tuple[int, int]
     game_map, origin = shaped_dataframe_to_game_map(df)
+
     spawn_x: int
     spawn_y: int
     spawn_x, spawn_y = pick_player_spawn_from_df(df, origin)
+
+    component_sizes: np.ndarray = _compute_component_sizes(game_map)
+    spawn_x, spawn_y = _select_spawn_position(
+        game_map, component_sizes, spawn_x, spawn_y
+    )
 
     gs = GameState(
         existing_map=game_map,
