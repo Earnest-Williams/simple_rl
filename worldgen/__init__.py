@@ -810,11 +810,12 @@ def _extract_seam_pairs(
     # For each cell, check its neighbors
     u: int
     for u in range(n_cells):
+        u_face: int = int(face_idx[u])
         k: int
         for k in range(4):
             v: int = int(nbr4[u, k])
             # Valid neighbor on a different face
-            if 0 <= v < n_cells and face_idx[u] != face_idx[v]:
+            if 0 <= v < n_cells and u_face != face_idx[v]:
                 # Only add each pair once (u < v to avoid duplicates)
                 if u < v:
                     seam_pairs.append((u, v))
