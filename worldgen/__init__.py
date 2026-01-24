@@ -91,6 +91,10 @@ __all__: List[str] = [
     "get_chunk",
 ]
 
+# Default sea level quantized elevation for report generation
+# Cells with elev_q > SEA_LEVEL_Q_DEFAULT are considered land
+_SEA_LEVEL_Q_DEFAULT: int = 0
+
 
 def _write_report(out_dir: Path, payload: Dict[str, object]) -> None:
     path: Path = out_dir / "report.json"
@@ -801,9 +805,7 @@ def _extract_seam_pairs(
     seam_pairs: List[Tuple[int, int]] = []
 
     # Determine which face each cell belongs to
-    face_idx: NDArray[np.int32] = (
-        np.arange(n_cells, dtype=np.int64) // n_face_cells
-    ).astype(np.int32)
+    face_idx: NDArray[np.int32] = np.arange(n_cells, dtype=np.int32) // n_face_cells
 
     # For each cell, check its neighbors
     u: int
@@ -869,7 +871,7 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
     seam_pairs: List[Tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
 
     # Delegate to generate_report from worldgen.report
-    # Use sea_level_q=0 to match the original hardcoded threshold (elev_q > 0)
+    # Use _SEA_LEVEL_Q_DEFAULT to match the original threshold (elev_q > 0 for land)
     report: WorldGenReport = generate_report(
         out_dir=out_dir,
         elev_q_i32=elev_q_i32,
@@ -878,7 +880,7 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
         is_river_u8=is_river_u8,
         stream_order_u8=stream_order_u8,
         nbr4=nbr4_i32,
-        sea_level_q=0,
+        sea_level_q=_SEA_LEVEL_Q_DEFAULT,
         seam_pairs=seam_pairs,
     )
 
