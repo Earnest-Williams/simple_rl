@@ -20,7 +20,9 @@ from typing import Literal, Protocol, Tuple
 
 import numpy as np
 import polars as pl
+from polars.exceptions import ColumnNotFoundError, PolarsError
 
+from common.constants import Material
 from engine.main_loop import MainLoop
 from game.game_state import GameState
 from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
@@ -50,9 +52,28 @@ def pick_player_spawn_from_df(
         take its centroid.
       - Otherwise pick the first walkable / cave floor tile.
     """
+    map_width: int
+    map_height: int
     min_x: int
     min_y: int
     min_x, min_y = origin
+    map_width = 1
+    map_height = 1
+    if df.height > 0 and "x" in df.columns and "y" in df.columns:
+        x_coords: pl.Series = df.get_column("x")
+        y_coords: pl.Series = df.get_column("y")
+        x_min: float = float(x_coords.min())
+        x_max: float = float(x_coords.max())
+        y_min: float = float(y_coords.min())
+        y_max: float = float(y_coords.max())
+        map_width = max(1, int(round(x_max - x_min + 1)))
+        map_height = max(1, int(round(y_max - y_min + 1)))
+
+    def _clamp(value: int, *, upper: int) -> int:
+        return max(0, min(value, upper))
+
+    max_x: int = max(0, map_width - 1)
+    max_y: int = max(0, map_height - 1)
     if "chamber_id" in df.columns:
         chamber_series: pl.Series
         chamber_ids: np.ndarray
@@ -61,11 +82,14 @@ def pick_player_spawn_from_df(
                 "chamber_id"
             )
             chamber_ids = chamber_series.to_numpy().astype(int)
-        except Exception:
+        except (ColumnNotFoundError, PolarsError, TypeError, ValueError):
+            chamber_ids = np.array([], dtype=int)
+
+        if chamber_ids.size == 0 and "chamber_id" in df.columns:
             try:
                 chamber_ids = np.asarray(df["chamber_id"].to_list(), dtype=int)
                 chamber_ids = chamber_ids[chamber_ids >= 0]
-            except Exception:
+            except (TypeError, ValueError):
                 chamber_ids = np.array([], dtype=int)
 
         if chamber_ids.size > 0:
@@ -74,21 +98,23 @@ def pick_player_spawn_from_df(
             uniq, counts = np.unique(chamber_ids, return_counts=True)
             top_id: int = int(uniq[np.argmax(counts)])
             chamber_rows: pl.DataFrame = df.filter(pl.col("chamber_id") == top_id)
-            mean_x: float = float(chamber_rows.select(pl.col("x").mean())[0, 0])
-            mean_y: float = float(chamber_rows.select(pl.col("y").mean())[0, 0])
+            mean_x: float = chamber_rows.select(pl.col("x").mean()).item()
+            mean_y: float = chamber_rows.select(pl.col("y").mean()).item()
             cx: int = int(round(mean_x - min_x))
             cy: int = int(round(mean_y - min_y))
-            cx = max(0, cx)
-            cy = max(0, cy)
+            cx = _clamp(cx, upper=max_x)
+            cy = _clamp(cy, upper=max_y)
             return cx, cy
 
     if "material_id" in df.columns:
-        floors: pl.DataFrame = df.filter(pl.col("material_id") == int(1))
+        floors: pl.DataFrame = df.filter(
+            pl.col("material_id") == int(Material.CAVE_FLOOR)
+        )
         if floors.height > 0:
             tx: int = int(round(floors[0, "x"] - min_x))
             ty: int = int(round(floors[0, "y"] - min_y))
-            tx = max(0, tx)
-            ty = max(0, ty)
+            tx = _clamp(tx, upper=max_x)
+            ty = _clamp(ty, upper=max_y)
             return tx, ty
 
     return 1, 1
@@ -250,7 +276,9 @@ def run_gui_mode(arrow_path: Path) -> None:
         tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None
     ) = _load_gui_dependencies()
     if deps is None:
-        print("GUI mode requires PySide6 and engine.window_manager. Falling back to CLI.")
+        print(
+            "GUI mode requires PySide6 and engine.window_manager. Falling back to CLI."
+        )
         run_cli_mode(arrow_path)
         return
 
