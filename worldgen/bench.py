@@ -44,7 +44,6 @@ def main() -> None:
     parser.add_argument("--precompile", action="store_true")
     args: argparse.Namespace = parser.parse_args()
     out_root: Path = args.out
-    out_root: Path = args.out
     Ns: List[int] = args.Ns
     seed_val: int = args.seed
     precompile_val: bool = args.precompile
