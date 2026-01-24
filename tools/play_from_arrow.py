@@ -13,6 +13,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import inspect
+import tomllib
+import yaml
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
@@ -30,16 +33,13 @@ from utils.shaped_map import shaped_dataframe_to_game_map
 
 
 class WindowManagerProtocol(Protocol):
-    def show(self) -> None:
-        ...
+    def show(self) -> None: ...
 
-    def set_main_loop(self, main_loop: MainLoop) -> None:
-        ...
+    def set_main_loop(self, main_loop: MainLoop) -> None: ...
 
 
 class ApplicationProtocol(Protocol):
-    def exec_(self) -> int:
-        ...
+    def exec_(self) -> int: ...
 
 
 def pick_player_spawn_from_df(
@@ -254,8 +254,9 @@ def run_cli_mode(arrow_path: Path) -> None:
             print("Unknown command. Use w/a/s/d to move, q to quit.")
 
 
-def _load_gui_dependencies(
-) -> tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None:
+def _load_gui_dependencies() -> (
+    tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None
+):
     if find_spec("engine.window_manager") is None:
         return None
     if find_spec("PySide6.QtWidgets") is None:
@@ -272,9 +273,9 @@ def _load_gui_dependencies(
 
 
 def run_gui_mode(arrow_path: Path) -> None:
-    deps: (
-        tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None
-    ) = _load_gui_dependencies()
+    deps: tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None = (
+        _load_gui_dependencies()
+    )
     if deps is None:
         print(
             "GUI mode requires PySide6 and engine.window_manager. Falling back to CLI."
@@ -292,7 +293,133 @@ def run_gui_mode(arrow_path: Path) -> None:
     gs, _df, _origin = create_gamestate_from_arrow(arrow_path)
 
     app: ApplicationProtocol = application_cls([])
-    wm: WindowManagerProtocol = window_manager_cls()
+
+    def _supports_no_arg_constructor(
+        cls: type[WindowManagerProtocol],
+    ) -> bool | None:
+        try:
+            signature = inspect.signature(cls)
+        except (TypeError, ValueError) as exc:
+            print(f"Unable to inspect WindowManager signature: {exc}")
+            return None
+        required_params = [
+            param
+            for param in signature.parameters.values()
+            if param.default is inspect._empty
+            and param.kind
+            not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        ]
+        return len(required_params) <= 1
+
+    def _load_app_config(cfg_path: Path) -> dict[str, object]:
+        if not cfg_path.exists():
+            return {}
+        try:
+            with cfg_path.open("r", encoding="utf-8") as fh:
+                raw_config = yaml.safe_load(fh)
+        except (OSError, yaml.YAMLError) as exc:
+            print(f"Failed to load config YAML: {exc}")
+            return {}
+        if isinstance(raw_config, dict):
+            return dict(raw_config)
+        return {}
+
+    def _load_keybindings_config(keybindings_path: Path) -> dict[str, object]:
+        if not keybindings_path.exists():
+            return {}
+        try:
+            with keybindings_path.open("rb") as fh:
+                raw_keybindings = tomllib.load(fh)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            print(f"Failed to load keybindings TOML: {exc}")
+            return {}
+        if isinstance(raw_keybindings, dict):
+            return dict(raw_keybindings)
+        return {}
+
+    def _safe_int(value: object, default: int, *, label: str) -> int:
+        if isinstance(value, bool):
+            print(f"Invalid {label} value (bool); using default {default}.")
+            return default
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            text_value = value.strip()
+            try:
+                return int(text_value)
+            except ValueError:
+                print(f"Invalid {label} value '{value}'; using default {default}.")
+                return default
+        if value is None:
+            return default
+        print(
+            f"Invalid {label} type '{type(value).__name__}'; using default {default}."
+        )
+        return default
+
+    supports_no_arg: bool | None = _supports_no_arg_constructor(window_manager_cls)
+    if supports_no_arg is True:
+        wm: WindowManagerProtocol = window_manager_cls()
+    else:
+        base: Path = Path(__file__).parent.parent
+        cfg_path: Path = base / "config" / "config.yaml"
+        keybindings_path: Path = base / "config" / "keybindings.toml"
+
+        app_config: dict[str, object] = _load_app_config(cfg_path)
+        keybindings_config: dict[str, object] = _load_keybindings_config(
+            keybindings_path
+        )
+
+        initial_tileset_path: str = str(
+            app_config.get(
+                "initial_tileset_folder", "fonts/classic_roguelike_sliced_svgs"
+            )
+        )
+        initial_tile_width: int = _safe_int(
+            app_config.get("initial_tile_width", 16),
+            16,
+            label="initial_tile_width",
+        )
+        initial_tile_height: int = _safe_int(
+            app_config.get("initial_tile_height", 16),
+            16,
+            label="initial_tile_height",
+        )
+
+        map_width: int = _safe_int(
+            app_config.get("map_width", 80),
+            80,
+            label="map_width",
+        )
+        map_height: int = _safe_int(
+            app_config.get("map_height", 50),
+            50,
+            label="map_height",
+        )
+        if gs.game_map is not None:
+            map_width = int(gs.game_map.width)
+            map_height = int(gs.game_map.height)
+
+        wm_args = (
+            app_config,
+            keybindings_config,
+            initial_tileset_path,
+            initial_tile_width,
+            initial_tile_height,
+            map_width,
+            map_height,
+        )
+        if supports_no_arg is None:
+            try:
+                wm = window_manager_cls()
+            except TypeError as exc:
+                print(
+                    "WindowManager constructor requires configuration; "
+                    f"falling back to config-based init: {exc}"
+                )
+                wm = window_manager_cls(*wm_args)
+        else:
+            wm = window_manager_cls(*wm_args)
     ml: MainLoop = MainLoop(
         game_state=gs,
         window=wm,
