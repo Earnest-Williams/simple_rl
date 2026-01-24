@@ -432,7 +432,8 @@ def format_missing_image(tile_id: int, png: str | None, svg: str | None) -> str:
         return f"tile {tile_id}: missing png"
     if svg is None:
         return f"tile {tile_id}: missing svg"
-    return f"tile {tile_id}: missing images"
+    # This line should not be reachable given the call site's logic.
+    assert False, "format_missing_image called with both png and svg present"
 
 
 def write_report(
