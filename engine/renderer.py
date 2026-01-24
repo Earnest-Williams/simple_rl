@@ -270,16 +270,18 @@ def render_viewport(
 
     # Prepare base layers
     try:
+        # Call prepare_base_layers with the correct parameter ordering.
+        # Use named arguments to avoid positional mistakes.
         result = prepare_base_layers(
-            gm,
-            viewport_x,
-            viewport_y,
-            vp_h,
-            vp_w,
-            tile_fg_colors,
-            tile_bg_colors,
-            tile_indices_render,
-            max_defined_tile_id,
+            game_map=gm,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            viewport_width=viewport_width,
+            viewport_height=viewport_height,
+            max_defined_tile_id=max_defined_tile_id,
+            tile_fg_colors=tile_fg_colors,
+            tile_bg_colors=tile_bg_colors,
+            tile_indices_render=tile_indices_render,
         )
 
         if result is None or len(result) != 10:
