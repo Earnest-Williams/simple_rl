@@ -1,0 +1,1559 @@
+glyphs:
+  - name: vegetation_reeds
+    tile_id: 1
+    png: classic_roguelike_01.png
+    svg: classic_roguelike_01.svg
+    alt_names:
+      - terrain_reeds
+    notes: tall reeds/grass clump
+    confirmed: false
+  - name: terrain_pebbles
+    tile_id: 2
+    png: classic_roguelike_02.png
+    svg: classic_roguelike_02.svg
+    alt_names:
+      - terrain_rocks_small
+    notes: small stones/pebbles
+    confirmed: false
+  - name: vegetation_bush_small
+    tile_id: 3
+    png: classic_roguelike_03.png
+    svg: classic_roguelike_03.svg
+    alt_names:
+      - plant_bush_small
+    notes: small bush/shrub
+    confirmed: false
+  - name: vegetation_flower_pink
+    tile_id: 4
+    png: classic_roguelike_04.png
+    svg: classic_roguelike_04.svg
+    alt_names:
+      - flower_pink
+    notes: pink flower
+    confirmed: false
+  - name: tree_evergreen
+    tile_id: 5
+    png: classic_roguelike_05.png
+    svg: classic_roguelike_05.svg
+    alt_names:
+      - conifer_tree
+    notes: evergreen tree
+    confirmed: false
+  - name: tree_dead
+    tile_id: 6
+    png: classic_roguelike_06.png
+    svg: classic_roguelike_06.svg
+    alt_names:
+      - dead_tree
+    notes: dead tree/snag
+    confirmed: false
+  - name: plant_cactus
+    tile_id: 7
+    png: classic_roguelike_07.png
+    svg: classic_roguelike_07.svg
+    alt_names:
+      - cactus
+    notes: cactus/thorny plant
+    confirmed: false
+  - name: terrain_mound
+    tile_id: 8
+    png: classic_roguelike_08.png
+    svg: classic_roguelike_08.svg
+    alt_names:
+      - dirt_mound
+    notes: dirt mound/hill
+    confirmed: false
+  - name: prop_cave_entrance
+    tile_id: 9
+    png: classic_roguelike_09.png
+    svg: classic_roguelike_09.svg
+    alt_names:
+      - cave_entrance
+    notes: cave entrance
+    confirmed: false
+  - name: prop_obelisk_purple
+    tile_id: 10
+    png: classic_roguelike_10.png
+    svg: classic_roguelike_10.svg
+    alt_names:
+      - standing_stone_purple
+    notes: magical standing stone/obelisk
+    confirmed: false
+  - name: prop_boulder_large
+    tile_id: 11
+    png: classic_roguelike_11.png
+    svg: classic_roguelike_11.svg
+    alt_names:
+      - boulder
+    notes: large boulder
+    confirmed: false
+  - name: prop_gravestones
+    tile_id: 12
+    png: classic_roguelike_12.png
+    svg: classic_roguelike_12.svg
+    alt_names:
+      - grave_markers
+    notes: grave markers/stone crosses
+    confirmed: false
+  - name: blank_tile_a
+    tile_id: 13
+    png: classic_roguelike_13.png
+    svg: classic_roguelike_13.svg
+    alt_names:
+      - blank_tile_small
+    notes: blank tile variant A
+    confirmed: true
+  - name: liquid_water_1
+    tile_id: 14
+    png: classic_roguelike_14.png
+    svg: classic_roguelike_14.svg
+    alt_names:
+      - water_1
+    notes: water tile variant
+    confirmed: false
+  - name: liquid_water_2
+    tile_id: 15
+    png: classic_roguelike_15.png
+    svg: classic_roguelike_15.svg
+    alt_names:
+      - water_2
+    notes: water tile variant
+    confirmed: false
+  - name: liquid_slime_1
+    tile_id: 16
+    png: classic_roguelike_16.png
+    svg: classic_roguelike_16.svg
+    alt_names:
+      - acid_1
+    notes: slime/acid tile variant
+    confirmed: false
+  - name: liquid_slime_2
+    tile_id: 17
+    png: classic_roguelike_17.png
+    svg: classic_roguelike_17.svg
+    alt_names:
+      - acid_2
+    notes: slime/acid tile variant
+    confirmed: false
+  - name: effect_fire_1
+    tile_id: 18
+    png: classic_roguelike_18.png
+    svg: classic_roguelike_18.svg
+    alt_names:
+      - fire_1
+    notes: fire tile variant
+    confirmed: false
+  - name: effect_fire_2
+    tile_id: 19
+    png: classic_roguelike_19.png
+    svg: classic_roguelike_19.svg
+    alt_names:
+      - fire_2
+    notes: fire tile variant
+    confirmed: false
+  - name: liquid_blood
+    tile_id: 20
+    png: classic_roguelike_20.png
+    svg: classic_roguelike_20.svg
+    alt_names:
+      - blood_puddle
+    notes: blood puddle
+    confirmed: false
+  - name: trap_pit
+    tile_id: 21
+    png: classic_roguelike_21.png
+    svg: classic_roguelike_21.svg
+    alt_names:
+      - pit
+    notes: pit/hole
+    confirmed: false
+  - name: marker_stone_cross
+    tile_id: 22
+    png: classic_roguelike_22.png
+    svg: classic_roguelike_22.svg
+    alt_names:
+      - marker_plus
+    notes: stone floor marker/cross
+    confirmed: false
+  - name: actor_yellow_1
+    tile_id: 23
+    png: classic_roguelike_23.png
+    svg: classic_roguelike_23.svg
+    alt_names:
+      - actor_yellow_frame_1
+    notes: yellow actor frame
+    confirmed: false
+  - name: actor_yellow_2
+    tile_id: 24
+    png: classic_roguelike_24.png
+    svg: classic_roguelike_24.svg
+    alt_names:
+      - actor_yellow_frame_2
+    notes: yellow actor frame
+    confirmed: false
+  - name: trap_shuriken_spikes
+    tile_id: 25
+    png: classic_roguelike_25.png
+    svg: classic_roguelike_25.svg
+    alt_names:
+      - trap_spikes
+    notes: spike/shuriken trap
+    confirmed: false
+  - name: trap_corner_markers
+    tile_id: 26
+    png: classic_roguelike_26.png
+    svg: classic_roguelike_26.svg
+    alt_names:
+      - trap_caltrops
+    notes: corner marker / caltrops-style trap
+    confirmed: false
+  - name: effect_dots_gray
+    tile_id: 27
+    png: classic_roguelike_27.png
+    svg: classic_roguelike_27.svg
+    alt_names:
+      - effect_sparks_gray
+    notes: small gray dots
+    confirmed: false
+  - name: effect_portal_red_1
+    tile_id: 28
+    png: classic_roguelike_28.png
+    svg: classic_roguelike_28.svg
+    alt_names:
+      - portal_red_1
+    notes: red portal/teleport effect
+    confirmed: false
+  - name: effect_portal_red_2
+    tile_id: 29
+    png: classic_roguelike_29.png
+    svg: classic_roguelike_29.svg
+    alt_names:
+      - portal_red_2
+    notes: red portal/teleport effect
+    confirmed: false
+  - name: effect_portal_purple_1
+    tile_id: 30
+    png: classic_roguelike_30.png
+    svg: classic_roguelike_30.svg
+    alt_names:
+      - portal_purple_1
+    notes: purple portal/magic effect
+    confirmed: false
+  - name: effect_portal_purple_2
+    tile_id: 31
+    png: classic_roguelike_31.png
+    svg: classic_roguelike_31.svg
+    alt_names:
+      - portal_purple_2
+    notes: purple portal/magic effect
+    confirmed: false
+  - name: symbol_plus_blue
+    tile_id: 32
+    png: classic_roguelike_32.png
+    svg: classic_roguelike_32.svg
+    alt_names:
+      - plus_blue
+    notes: small blue plus
+    confirmed: false
+  - name: symbol_minus_blue
+    tile_id: 33
+    png: classic_roguelike_33.png
+    svg: classic_roguelike_33.svg
+    alt_names:
+      - minus_blue
+    notes: small blue minus/hyphen
+    confirmed: false
+  - name: symbol_plus_purple
+    tile_id: 34
+    png: classic_roguelike_34.png
+    svg: classic_roguelike_34.svg
+    alt_names:
+      - plus_purple
+    notes: purple plus/cross
+    confirmed: false
+  - name: symbol_bar_purple
+    tile_id: 35
+    png: classic_roguelike_35.png
+    svg: classic_roguelike_35.svg
+    alt_names:
+      - bar_purple
+    notes: purple bar/segment
+    confirmed: false
+  - name: symbol_bar_purple_variant
+    tile_id: 36
+    png: classic_roguelike_36.png
+    svg: classic_roguelike_36.svg
+    alt_names:
+      - bar_purple_2
+    notes: purple bar/segment
+    confirmed: false
+  - name: blank_tile_b
+    tile_id: 37
+    png: classic_roguelike_37.png
+    svg: classic_roguelike_37.svg
+    alt_names:
+      - blank_tile_large
+    notes: blank tile variant B
+    confirmed: true
+  - name: wall_stone_bricks
+    tile_id: 38
+    png: classic_roguelike_38.png
+    svg: classic_roguelike_38.svg
+    alt_names:
+      - wall_stone_brick
+    notes: stone/brick wall tile
+    confirmed: true
+  - name: debris_rubble
+    tile_id: 39
+    png: classic_roguelike_39.png
+    svg: classic_roguelike_39.svg
+    alt_names:
+      - rubble
+    notes: rubble/loose stones
+    confirmed: false
+  - name: floor_purple
+    tile_id: 40
+    png: classic_roguelike_40.png
+    svg: classic_roguelike_40.svg
+    alt_names:
+      - floor_magic_purple
+    notes: purple floor
+    confirmed: false
+  - name: floor_purple_corrupt
+    tile_id: 41
+    png: classic_roguelike_41.png
+    svg: classic_roguelike_41.svg
+    alt_names:
+      - floor_corrupt_purple
+    notes: corrupted/checkered purple floor
+    confirmed: false
+  - name: gate_blue_closed
+    tile_id: 42
+    png: classic_roguelike_42.png
+    svg: classic_roguelike_42.svg
+    alt_names:
+      - door_gate_blue_closed
+    notes: blue gate/door closed
+    confirmed: false
+  - name: portal_blue
+    tile_id: 43
+    png: classic_roguelike_43.png
+    svg: classic_roguelike_43.svg
+    alt_names:
+      - portal_blue_ring
+    notes: blue portal/ring
+    confirmed: false
+  - name: border_dotted
+    tile_id: 44
+    png: classic_roguelike_44.png
+    svg: classic_roguelike_44.svg
+    alt_names:
+      - room_border_dotted
+    notes: dotted border/edge marker
+    confirmed: false
+  - name: wall_wood_planks
+    tile_id: 45
+    png: classic_roguelike_45.png
+    svg: classic_roguelike_45.svg
+    alt_names:
+      - wood_wall
+    notes: wood planks/wall
+    confirmed: false
+  - name: autotile_stone_solid
+    tile_id: 46
+    png: classic_roguelike_46.png
+    svg: classic_roguelike_46.svg
+    alt_names:
+      - stone_autotile_solid
+    notes: stone autotile solid
+    confirmed: false
+  - name: autotile_stone_missing_br
+    tile_id: 47
+    png: classic_roguelike_47.png
+    svg: classic_roguelike_47.svg
+    alt_names:
+      - stone_autotile_missing_br
+    notes: stone autotile missing quadrant
+    confirmed: false
+  - name: autotile_stone_missing_bl
+    tile_id: 48
+    png: classic_roguelike_48.png
+    svg: classic_roguelike_48.svg
+    alt_names:
+      - stone_autotile_missing_bl
+    notes: stone autotile missing quadrant
+    confirmed: false
+  - name: autotile_stone_missing_tr
+    tile_id: 49
+    png: classic_roguelike_49.png
+    svg: classic_roguelike_49.svg
+    alt_names:
+      - stone_autotile_missing_tr
+    notes: stone autotile missing quadrant
+    confirmed: false
+  - name: autotile_stone_missing_tl
+    tile_id: 50
+    png: classic_roguelike_50.png
+    svg: classic_roguelike_50.svg
+    alt_names:
+      - stone_autotile_missing_tl
+    notes: stone autotile missing quadrant
+    confirmed: false
+  - name: door_wood_closed
+    tile_id: 51
+    png: classic_roguelike_51.png
+    svg: classic_roguelike_51.svg
+    alt_names:
+      - wood_door_closed
+    notes: wood door closed
+    confirmed: false
+  - name: door_wood_open
+    tile_id: 52
+    png: classic_roguelike_52.png
+    svg: classic_roguelike_52.svg
+    alt_names:
+      - wood_door_open
+    notes: wood door open
+    confirmed: false
+  - name: door_stone_closed
+    tile_id: 53
+    png: classic_roguelike_53.png
+    svg: classic_roguelike_53.svg
+    alt_names:
+      - stone_door_closed
+    notes: stone/iron door closed
+    confirmed: false
+  - name: door_stone_open
+    tile_id: 54
+    png: classic_roguelike_54.png
+    svg: classic_roguelike_54.svg
+    alt_names:
+      - stone_door_open
+    notes: stone/iron door open
+    confirmed: false
+  - name: stairs_up
+    tile_id: 55
+    png: classic_roguelike_55.png
+    svg: classic_roguelike_55.svg
+    alt_names:
+      - stairs_up
+    notes: stairs up
+    confirmed: false
+  - name: stairs_down
+    tile_id: 56
+    png: classic_roguelike_56.png
+    svg: classic_roguelike_56.svg
+    alt_names:
+      - stairs_down
+    notes: stairs down
+    confirmed: false
+  - name: furniture_anvil
+    tile_id: 57
+    png: classic_roguelike_57.png
+    svg: classic_roguelike_57.svg
+    alt_names:
+      - anvil
+    notes: anvil/altar
+    confirmed: false
+  - name: container_pot
+    tile_id: 58
+    png: classic_roguelike_58.png
+    svg: classic_roguelike_58.svg
+    alt_names:
+      - pot
+    notes: pot/jar/urn
+    confirmed: false
+  - name: container_chest
+    tile_id: 59
+    png: classic_roguelike_59.png
+    svg: classic_roguelike_59.svg
+    alt_names:
+      - chest_closed
+    notes: chest/crate
+    confirmed: false
+  - name: prop_gravestone
+    tile_id: 60
+    png: classic_roguelike_60.png
+    svg: classic_roguelike_60.svg
+    alt_names:
+      - gravestone
+    notes: gravestone/marker
+    confirmed: false
+  - name: actor_humanoid_1
+    tile_id: 61
+    png: classic_roguelike_61.png
+    svg: classic_roguelike_61.svg
+    alt_names:
+      - humanoid_1
+    notes: humanoid
+    confirmed: false
+  - name: actor_humanoid_1_attack
+    tile_id: 62
+    png: classic_roguelike_62.png
+    svg: classic_roguelike_62.svg
+    alt_names:
+      - humanoid_1_attack
+    notes: humanoid attack/cast pose
+    confirmed: false
+  - name: actor_humanoid_2
+    tile_id: 63
+    png: classic_roguelike_63.png
+    svg: classic_roguelike_63.svg
+    alt_names:
+      - humanoid_2
+    notes: humanoid variant
+    confirmed: false
+  - name: actor_humanoid_2_attack
+    tile_id: 64
+    png: classic_roguelike_64.png
+    svg: classic_roguelike_64.svg
+    alt_names:
+      - humanoid_2_attack
+    notes: humanoid variant attack/cast pose
+    confirmed: false
+  - name: monster_orc
+    tile_id: 65
+    png: classic_roguelike_65.png
+    svg: classic_roguelike_65.svg
+    alt_names:
+      - orc
+    notes: orc/horned humanoid
+    confirmed: false
+  - name: monster_undead_small
+    tile_id: 66
+    png: classic_roguelike_66.png
+    svg: classic_roguelike_66.svg
+    alt_names:
+      - skeleton_or_ghoul
+    notes: small undead/creepy critter
+    confirmed: false
+  - name: monster_spider
+    tile_id: 67
+    png: classic_roguelike_67.png
+    svg: classic_roguelike_67.svg
+    alt_names:
+      - spider
+    notes: spider
+    confirmed: false
+  - name: monster_golem
+    tile_id: 68
+    png: classic_roguelike_68.png
+    svg: classic_roguelike_68.svg
+    alt_names:
+      - golem_or_spirit
+    notes: golem/spirit
+    confirmed: false
+  - name: monster_snake
+    tile_id: 69
+    png: classic_roguelike_69.png
+    svg: classic_roguelike_69.svg
+    alt_names:
+      - snake
+    notes: snake
+    confirmed: false
+  - name: monster_bat
+    tile_id: 70
+    png: classic_roguelike_70.png
+    svg: classic_roguelike_70.svg
+    alt_names:
+      - bat
+    notes: bat
+    confirmed: false
+  - name: monster_imp
+    tile_id: 71
+    png: classic_roguelike_71.png
+    svg: classic_roguelike_71.svg
+    alt_names:
+      - imp
+    notes: imp/demon
+    confirmed: false
+  - name: monster_goblin
+    tile_id: 72
+    png: classic_roguelike_72.png
+    svg: classic_roguelike_72.svg
+    alt_names:
+      - goblin
+    notes: goblin/dwarf-like enemy
+    confirmed: false
+  - name: monster_insect_green
+    tile_id: 73
+    png: classic_roguelike_73.png
+    svg: classic_roguelike_73.svg
+    alt_names:
+      - insect_green
+    notes: insect/crab-like enemy
+    confirmed: false
+  - name: monster_troll
+    tile_id: 74
+    png: classic_roguelike_74.png
+    svg: classic_roguelike_74.svg
+    alt_names:
+      - troll
+    notes: orc/troll-like humanoid
+    confirmed: false
+  - name: monster_beast_small_yellow
+    tile_id: 75
+    png: classic_roguelike_75.png
+    svg: classic_roguelike_75.svg
+    alt_names:
+      - beast_small_yellow
+    notes: small yellow beast/creature
+    confirmed: false
+  - name: monster_floating_eye
+    tile_id: 76
+    png: classic_roguelike_76.png
+    svg: classic_roguelike_76.svg
+    alt_names:
+      - floating_eye
+    notes: floating eye/orb
+    confirmed: false
+  - name: monster_slime
+    tile_id: 77
+    png: classic_roguelike_77.png
+    svg: classic_roguelike_77.svg
+    alt_names:
+      - slime
+    notes: slime
+    confirmed: false
+  - name: monster_insect_pink
+    tile_id: 78
+    png: classic_roguelike_78.png
+    svg: classic_roguelike_78.svg
+    alt_names:
+      - insect_pink
+    notes: pink insect
+    confirmed: false
+  - name: monster_bird_gray
+    tile_id: 79
+    png: classic_roguelike_79.png
+    svg: classic_roguelike_79.svg
+    alt_names:
+      - bird_gray
+    notes: bird/chicken-like creature
+    confirmed: false
+  - name: monster_lizard_green
+    tile_id: 80
+    png: classic_roguelike_80.png
+    svg: classic_roguelike_80.svg
+    alt_names:
+      - lizard_green
+    notes: lizard/croc-like creature
+    confirmed: false
+  - name: monster_worm_purple
+    tile_id: 81
+    png: classic_roguelike_81.png
+    svg: classic_roguelike_81.svg
+    alt_names:
+      - worm_purple
+    notes: worm/snake
+    confirmed: false
+  - name: monster_demon_red
+    tile_id: 82
+    png: classic_roguelike_82.png
+    svg: classic_roguelike_82.svg
+    alt_names:
+      - demon_red
+    notes: red demon/bat-like creature
+    confirmed: false
+  - name: monster_ghost
+    tile_id: 83
+    png: classic_roguelike_83.png
+    svg: classic_roguelike_83.svg
+    alt_names:
+      - ghost
+    notes: R4C23 is ghost
+    confirmed: true
+  - name: item_sack
+    tile_id: 84
+    png: classic_roguelike_84.png
+    svg: classic_roguelike_84.svg
+    alt_names:
+      - item_empty_vial
+    notes: R5C1 is sack/empty vial
+    confirmed: false
+  - name: item_potion_green
+    tile_id: 85
+    png: classic_roguelike_85.png
+    svg: classic_roguelike_85.svg
+    alt_names:
+      - potion_green
+    notes: green potion
+    confirmed: false
+  - name: weapon_sword
+    tile_id: 86
+    png: classic_roguelike_86.png
+    svg: classic_roguelike_86.svg
+    alt_names:
+      - sword
+    notes: sword
+    confirmed: false
+  - name: weapon_axe
+    tile_id: 87
+    png: classic_roguelike_87.png
+    svg: classic_roguelike_87.svg
+    alt_names:
+      - axe
+    notes: axe
+    confirmed: false
+  - name: armor_shield
+    tile_id: 88
+    png: classic_roguelike_88.png
+    svg: classic_roguelike_88.svg
+    alt_names:
+      - shield
+    notes: shield
+    confirmed: false
+  - name: item_key
+    tile_id: 89
+    png: classic_roguelike_89.png
+    svg: classic_roguelike_89.svg
+    alt_names:
+      - key
+    notes: key
+    confirmed: false
+  - name: weapon_bow
+    tile_id: 90
+    png: classic_roguelike_90.png
+    svg: classic_roguelike_90.svg
+    alt_names:
+      - bow
+    notes: bow
+    confirmed: false
+  - name: tool_pickaxe
+    tile_id: 91
+    png: classic_roguelike_91.png
+    svg: classic_roguelike_91.svg
+    alt_names:
+      - pickaxe
+    notes: pickaxe
+    confirmed: false
+  - name: weapon_wand
+    tile_id: 92
+    png: classic_roguelike_92.png
+    svg: classic_roguelike_92.svg
+    alt_names:
+      - wand
+    notes: wand/staff
+    confirmed: false
+  - name: effect_slash
+    tile_id: 93
+    png: classic_roguelike_93.png
+    svg: classic_roguelike_93.svg
+    alt_names:
+      - slash_effect
+    notes: slashes/projectile effect
+    confirmed: false
+  - name: armor_body
+    tile_id: 94
+    png: classic_roguelike_94.png
+    svg: classic_roguelike_94.svg
+    alt_names:
+      - body_armor
+    notes: body armor
+    confirmed: false
+  - name: armor_boot
+    tile_id: 95
+    png: classic_roguelike_95.png
+    svg: classic_roguelike_95.svg
+    alt_names:
+      - boot
+    notes: boot
+    confirmed: false
+  - name: pickup_health_plus
+    tile_id: 96
+    png: classic_roguelike_96.png
+    svg: classic_roguelike_96.svg
+    alt_names:
+      - health_plus
+    notes: health/bonus plus
+    confirmed: false
+  - name: container_chest_small
+    tile_id: 97
+    png: classic_roguelike_97.png
+    svg: classic_roguelike_97.svg
+    alt_names:
+      - chest
+    notes: chest
+    confirmed: false
+  - name: creature_dog
+    tile_id: 98
+    png: classic_roguelike_98.png
+    svg: classic_roguelike_98.svg
+    alt_names:
+      - dog
+    notes: dog/fox-like animal
+    confirmed: false
+  - name: weapon_flail
+    tile_id: 99
+    png: classic_roguelike_99.png
+    svg: classic_roguelike_99.svg
+    alt_names:
+      - flail
+    notes: flail/mace
+    confirmed: false
+  - name: item_gem_purple
+    tile_id: 100
+    png: classic_roguelike_100.png
+    svg: classic_roguelike_100.svg
+    alt_names:
+      - gem_purple
+    notes: purple gem/orb
+    confirmed: false
+  - name: item_potion_white
+    tile_id: 101
+    png: classic_roguelike_101.png
+    svg: classic_roguelike_101.svg
+    alt_names:
+      - potion_white
+    notes: white potion/bottle
+    confirmed: false
+  - name: item_rock
+    tile_id: 102
+    png: classic_roguelike_102.png
+    svg: classic_roguelike_102.svg
+    alt_names:
+      - rock
+    notes: rock
+    confirmed: false
+  - name: prop_pillar
+    tile_id: 103
+    png: classic_roguelike_103.png
+    svg: classic_roguelike_103.svg
+    alt_names:
+      - pillar
+    notes: pillar/column
+    confirmed: false
+  - name: armor_helmet_yellow
+    tile_id: 104
+    png: classic_roguelike_104.png
+    svg: classic_roguelike_104.svg
+    alt_names:
+      - helmet_yellow
+    notes: yellow helmet/armor
+    confirmed: false
+  - name: item_potion_blue
+    tile_id: 105
+    png: classic_roguelike_105.png
+    svg: classic_roguelike_105.svg
+    alt_names:
+      - potion_blue
+    notes: blue potion/gem
+    confirmed: false
+  - name: armor_helmet_pink
+    tile_id: 106
+    png: classic_roguelike_106.png
+    svg: classic_roguelike_106.svg
+    alt_names:
+      - helmet_pink
+    notes: pink helmet/hat
+    confirmed: false
+  - name: item_skull
+    tile_id: 107
+    png: classic_roguelike_107.png
+    svg: classic_roguelike_107.svg
+    alt_names:
+      - skull
+    notes: skull
+    confirmed: false
+  - name: item_bones
+    tile_id: 108
+    png: classic_roguelike_108.png
+    svg: classic_roguelike_108.svg
+    alt_names:
+      - bones
+    notes: bones/remains
+    confirmed: false
+  - name: weapon_club
+    tile_id: 109
+    png: classic_roguelike_109.png
+    svg: classic_roguelike_109.svg
+    alt_names:
+      - club
+    notes: club
+    confirmed: false
+  - name: armor_glove
+    tile_id: 110
+    png: classic_roguelike_110.png
+    svg: classic_roguelike_110.svg
+    alt_names:
+      - glove
+    notes: glove/gauntlet
+    confirmed: false
+  - name: item_book
+    tile_id: 111
+    png: classic_roguelike_111.png
+    svg: classic_roguelike_111.svg
+    alt_names:
+      - book
+    notes: book/scroll
+    confirmed: false
+  - name: glyph_exclamation_mark
+    tile_id: 112
+    png: classic_roguelike_112.png
+    svg: classic_roguelike_112.svg
+    alt_names:
+      - '!'
+    notes: 'CP437 punctuation: !'
+    confirmed: true
+  - name: glyph_at_sign
+    tile_id: 113
+    png: classic_roguelike_113.png
+    svg: classic_roguelike_113.svg
+    alt_names:
+      - '@'
+    notes: 'CP437 punctuation: @'
+    confirmed: true
+  - name: glyph_number_sign
+    tile_id: 114
+    png: classic_roguelike_114.png
+    svg: classic_roguelike_114.svg
+    alt_names:
+      - '#'
+    notes: 'CP437 punctuation: #'
+    confirmed: true
+  - name: glyph_dollar_sign
+    tile_id: 115
+    png: classic_roguelike_115.png
+    svg: classic_roguelike_115.svg
+    alt_names:
+      - $
+    notes: 'CP437 punctuation: $'
+    confirmed: true
+  - name: glyph_percent_sign
+    tile_id: 116
+    png: classic_roguelike_116.png
+    svg: classic_roguelike_116.svg
+    alt_names:
+      - '%'
+    notes: 'CP437 punctuation: %'
+    confirmed: true
+  - name: glyph_caret
+    tile_id: 117
+    png: classic_roguelike_117.png
+    svg: classic_roguelike_117.svg
+    alt_names:
+      - ^
+    notes: 'CP437 punctuation: ^'
+    confirmed: true
+  - name: glyph_ampersand
+    tile_id: 118
+    png: classic_roguelike_118.png
+    svg: classic_roguelike_118.svg
+    alt_names:
+      - '&'
+    notes: 'CP437 punctuation: &'
+    confirmed: true
+  - name: glyph_asterisk
+    tile_id: 119
+    png: classic_roguelike_119.png
+    svg: classic_roguelike_119.svg
+    alt_names:
+      - '*'
+    notes: 'CP437 punctuation: *'
+    confirmed: true
+  - name: glyph_left_paren
+    tile_id: 120
+    png: classic_roguelike_120.png
+    svg: classic_roguelike_120.svg
+    alt_names:
+      - (
+    notes: 'CP437 punctuation:'
+    confirmed: true
+  - name: glyph_right_paren
+    tile_id: 121
+    png: classic_roguelike_121.png
+    svg: classic_roguelike_121.svg
+    alt_names:
+      - )
+    notes: 'CP437 punctuation:'
+    confirmed: true
+  - name: glyph_hyphen_minus
+    tile_id: 122
+    png: classic_roguelike_122.png
+    svg: classic_roguelike_122.svg
+    alt_names:
+      - '-'
+    notes: 'CP437 punctuation: -'
+    confirmed: true
+  - name: glyph_equals_sign
+    tile_id: 123
+    png: classic_roguelike_123.png
+    svg: classic_roguelike_123.svg
+    alt_names:
+      - '='
+    notes: 'CP437 punctuation: ='
+    confirmed: true
+  - name: glyph_plus_sign
+    tile_id: 124
+    png: classic_roguelike_124.png
+    svg: classic_roguelike_124.svg
+    alt_names:
+      - +
+    notes: 'CP437 punctuation: +'
+    confirmed: true
+  - name: glyph_period
+    tile_id: 125
+    png: classic_roguelike_125.png
+    svg: classic_roguelike_125.svg
+    alt_names:
+      - .
+    notes: 'CP437 punctuation: .'
+    confirmed: true
+  - name: glyph_comma
+    tile_id: 126
+    png: classic_roguelike_126.png
+    svg: classic_roguelike_126.svg
+    alt_names: []
+    notes: 'CP437 punctuation: ,'
+    confirmed: true
+  - name: glyph_colon
+    tile_id: 127
+    png: classic_roguelike_127.png
+    svg: classic_roguelike_127.svg
+    alt_names:
+      - ':'
+    notes: 'CP437 punctuation: :'
+    confirmed: true
+  - name: glyph_semicolon
+    tile_id: 128
+    png: classic_roguelike_128.png
+    svg: classic_roguelike_128.svg
+    alt_names:
+      - ;
+    notes: 'CP437 punctuation: ;'
+    confirmed: true
+  - name: glyph_double_quote
+    tile_id: 129
+    png: classic_roguelike_129.png
+    svg: classic_roguelike_129.svg
+    alt_names:
+      - '"'
+    notes: 'CP437 punctuation: "'
+    confirmed: true
+  - name: glyph_less_than
+    tile_id: 130
+    png: classic_roguelike_130.png
+    svg: classic_roguelike_130.svg
+    alt_names:
+      - <
+    notes: 'CP437 punctuation: <'
+    confirmed: true
+  - name: glyph_greater_than
+    tile_id: 131
+    png: classic_roguelike_131.png
+    svg: classic_roguelike_131.svg
+    alt_names:
+      - '>'
+    notes: 'CP437 punctuation: >'
+    confirmed: true
+  - name: glyph_question_mark
+    tile_id: 132
+    png: classic_roguelike_132.png
+    svg: classic_roguelike_132.svg
+    alt_names:
+      - '?'
+    notes: 'CP437 punctuation: ?'
+    confirmed: true
+  - name: glyph_backslash
+    tile_id: 133
+    png: classic_roguelike_133.png
+    svg: classic_roguelike_133.svg
+    alt_names:
+      - \
+    notes: 'CP437 punctuation: \'
+    confirmed: true
+  - name: glyph_slash
+    tile_id: 134
+    png: classic_roguelike_134.png
+    svg: classic_roguelike_134.svg
+    alt_names:
+      - /
+    notes: 'CP437 punctuation: /'
+    confirmed: true
+  - name: glyph_vertical_bar
+    tile_id: 135
+    png: classic_roguelike_135.png
+    svg: classic_roguelike_135.svg
+    alt_names: []
+    notes: 'CP437 punctuation:'
+    confirmed: true
+  - name: glyph_horizontal_line
+    tile_id: 136
+    png: classic_roguelike_136.png
+    svg: classic_roguelike_136.svg
+    alt_names:
+      - ─
+    notes: extra glyph after punctuation row
+    confirmed: true
+  - name: glyph_two_dots
+    tile_id: 137
+    png: classic_roguelike_137.png
+    svg: classic_roguelike_137.svg
+    alt_names:
+      - ⋅⋅
+    notes: extra glyph after punctuation row
+    confirmed: false
+  - name: glyph_arrow_down_left
+    tile_id: 138
+    png: classic_roguelike_138.png
+    svg: classic_roguelike_138.svg
+    alt_names:
+      - ↙
+    notes: down-left arrow marker
+    confirmed: true
+  - name: glyph_arrow_down_right
+    tile_id: 139
+    png: classic_roguelike_139.png
+    svg: classic_roguelike_139.svg
+    alt_names:
+      - ↘
+    notes: down-right arrow marker
+    confirmed: true
+  - name: glyph_A
+    tile_id: 140
+    png: classic_roguelike_140.png
+    svg: classic_roguelike_140.svg
+    alt_names:
+      - A
+    notes: 'CP437 uppercase letter: A'
+    confirmed: true
+  - name: glyph_B
+    tile_id: 141
+    png: classic_roguelike_141.png
+    svg: classic_roguelike_141.svg
+    alt_names:
+      - B
+    notes: 'CP437 uppercase letter: B'
+    confirmed: true
+  - name: glyph_C
+    tile_id: 142
+    png: classic_roguelike_142.png
+    svg: classic_roguelike_142.svg
+    alt_names:
+      - C
+    notes: 'CP437 uppercase letter: C'
+    confirmed: true
+  - name: glyph_D
+    tile_id: 143
+    png: classic_roguelike_143.png
+    svg: classic_roguelike_143.svg
+    alt_names:
+      - D
+    notes: 'CP437 uppercase letter: D'
+    confirmed: true
+  - name: glyph_E
+    tile_id: 144
+    png: classic_roguelike_144.png
+    svg: classic_roguelike_144.svg
+    alt_names:
+      - E
+    notes: 'CP437 uppercase letter: E'
+    confirmed: true
+  - name: glyph_F
+    tile_id: 145
+    png: classic_roguelike_145.png
+    svg: classic_roguelike_145.svg
+    alt_names:
+      - F
+    notes: 'CP437 uppercase letter: F'
+    confirmed: true
+  - name: glyph_G
+    tile_id: 146
+    png: classic_roguelike_146.png
+    svg: classic_roguelike_146.svg
+    alt_names:
+      - G
+    notes: 'CP437 uppercase letter: G'
+    confirmed: true
+  - name: glyph_H
+    tile_id: 147
+    png: classic_roguelike_147.png
+    svg: classic_roguelike_147.svg
+    alt_names:
+      - H
+    notes: 'CP437 uppercase letter: H'
+    confirmed: true
+  - name: glyph_I
+    tile_id: 148
+    png: classic_roguelike_148.png
+    svg: classic_roguelike_148.svg
+    alt_names:
+      - I
+    notes: 'CP437 uppercase letter: I'
+    confirmed: true
+  - name: glyph_J
+    tile_id: 149
+    png: classic_roguelike_149.png
+    svg: classic_roguelike_149.svg
+    alt_names:
+      - J
+    notes: 'CP437 uppercase letter: J'
+    confirmed: true
+  - name: glyph_K
+    tile_id: 150
+    png: classic_roguelike_150.png
+    svg: classic_roguelike_150.svg
+    alt_names:
+      - K
+    notes: 'CP437 uppercase letter: K'
+    confirmed: true
+  - name: glyph_L
+    tile_id: 151
+    png: classic_roguelike_151.png
+    svg: classic_roguelike_151.svg
+    alt_names:
+      - L
+    notes: 'CP437 uppercase letter: L'
+    confirmed: true
+  - name: glyph_M
+    tile_id: 152
+    png: classic_roguelike_152.png
+    svg: classic_roguelike_152.svg
+    alt_names:
+      - M
+    notes: 'CP437 uppercase letter: M'
+    confirmed: true
+  - name: glyph_N
+    tile_id: 153
+    png: classic_roguelike_153.png
+    svg: classic_roguelike_153.svg
+    alt_names:
+      - N
+    notes: 'CP437 uppercase letter: N'
+    confirmed: true
+  - name: glyph_O
+    tile_id: 154
+    png: classic_roguelike_154.png
+    svg: classic_roguelike_154.svg
+    alt_names:
+      - O
+    notes: 'CP437 uppercase letter: O'
+    confirmed: true
+  - name: glyph_P
+    tile_id: 155
+    png: classic_roguelike_155.png
+    svg: classic_roguelike_155.svg
+    alt_names:
+      - P
+    notes: 'CP437 uppercase letter: P'
+    confirmed: true
+  - name: glyph_Q
+    tile_id: 156
+    png: classic_roguelike_156.png
+    svg: classic_roguelike_156.svg
+    alt_names:
+      - Q
+    notes: 'CP437 uppercase letter: Q'
+    confirmed: true
+  - name: glyph_R
+    tile_id: 157
+    png: classic_roguelike_157.png
+    svg: classic_roguelike_157.svg
+    alt_names:
+      - R
+    notes: 'CP437 uppercase letter: R'
+    confirmed: true
+  - name: glyph_S
+    tile_id: 158
+    png: classic_roguelike_158.png
+    svg: classic_roguelike_158.svg
+    alt_names:
+      - S
+    notes: 'CP437 uppercase letter: S'
+    confirmed: true
+  - name: glyph_T
+    tile_id: 159
+    png: classic_roguelike_159.png
+    svg: classic_roguelike_159.svg
+    alt_names:
+      - T
+    notes: 'CP437 uppercase letter: T'
+    confirmed: true
+  - name: glyph_U
+    tile_id: 160
+    png: classic_roguelike_160.png
+    svg: classic_roguelike_160.svg
+    alt_names:
+      - U
+    notes: 'CP437 uppercase letter: U'
+    confirmed: true
+  - name: glyph_V
+    tile_id: 161
+    png: classic_roguelike_161.png
+    svg: classic_roguelike_161.svg
+    alt_names:
+      - V
+    notes: 'CP437 uppercase letter: V'
+    confirmed: true
+  - name: glyph_W
+    tile_id: 162
+    png: classic_roguelike_162.png
+    svg: classic_roguelike_162.svg
+    alt_names:
+      - W
+    notes: 'CP437 uppercase letter: W'
+    confirmed: true
+  - name: glyph_X
+    tile_id: 163
+    png: classic_roguelike_163.png
+    svg: classic_roguelike_163.svg
+    alt_names:
+      - X
+    notes: 'CP437 uppercase letter: X'
+    confirmed: true
+  - name: glyph_Y
+    tile_id: 164
+    png: classic_roguelike_164.png
+    svg: classic_roguelike_164.svg
+    alt_names:
+      - Y
+    notes: 'CP437 uppercase letter: Y'
+    confirmed: true
+  - name: glyph_Z
+    tile_id: 165
+    png: classic_roguelike_165.png
+    svg: classic_roguelike_165.svg
+    alt_names:
+      - Z
+    notes: 'CP437 uppercase letter: Z'
+    confirmed: true
+  - name: glyph_arrow_up
+    tile_id: 166
+    png: classic_roguelike_166.png
+    svg: classic_roguelike_166.svg
+    alt_names:
+      - ↑
+    notes: index 166 is ↑ , not '+'
+    confirmed: true
+  - name: glyph_arrow_down
+    tile_id: 167
+    png: classic_roguelike_167.png
+    svg: classic_roguelike_167.svg
+    alt_names:
+      - ↓
+    notes: ': down arrow companion to ↑'
+    confirmed: false
+  - name: glyph_digit_1
+    tile_id: 168
+    png: classic_roguelike_168.png
+    svg: classic_roguelike_168.svg
+    alt_names:
+      - '1'
+    notes: 'CP437 digit: 1'
+    confirmed: true
+  - name: glyph_digit_2
+    tile_id: 169
+    png: classic_roguelike_169.png
+    svg: classic_roguelike_169.svg
+    alt_names:
+      - '2'
+    notes: 'CP437 digit: 2'
+    confirmed: true
+  - name: glyph_digit_3
+    tile_id: 170
+    png: classic_roguelike_170.png
+    svg: classic_roguelike_170.svg
+    alt_names:
+      - '3'
+    notes: 'CP437 digit: 3'
+    confirmed: true
+  - name: glyph_digit_4
+    tile_id: 171
+    png: classic_roguelike_171.png
+    svg: classic_roguelike_171.svg
+    alt_names:
+      - '4'
+    notes: 'CP437 digit: 4'
+    confirmed: true
+  - name: glyph_digit_5
+    tile_id: 172
+    png: classic_roguelike_172.png
+    svg: classic_roguelike_172.svg
+    alt_names:
+      - '5'
+    notes: 'CP437 digit: 5'
+    confirmed: true
+  - name: glyph_digit_6
+    tile_id: 173
+    png: classic_roguelike_173.png
+    svg: classic_roguelike_173.svg
+    alt_names:
+      - '6'
+    notes: 'CP437 digit: 6'
+    confirmed: true
+  - name: glyph_digit_7
+    tile_id: 174
+    png: classic_roguelike_174.png
+    svg: classic_roguelike_174.svg
+    alt_names:
+      - '7'
+    notes: 'CP437 digit: 7'
+    confirmed: true
+  - name: glyph_digit_8
+    tile_id: 175
+    png: classic_roguelike_175.png
+    svg: classic_roguelike_175.svg
+    alt_names:
+      - '8'
+    notes: 'CP437 digit: 8'
+    confirmed: true
+  - name: glyph_digit_9
+    tile_id: 176
+    png: classic_roguelike_176.png
+    svg: classic_roguelike_176.svg
+    alt_names:
+      - '9'
+    notes: 'CP437 digit: 9'
+    confirmed: true
+  - name: glyph_digit_0
+    tile_id: 177
+    png: classic_roguelike_177.png
+    svg: classic_roguelike_177.svg
+    alt_names:
+      - '0'
+    notes: 'CP437 digit: 0'
+    confirmed: true
+  - name: glyph_face_smile
+    tile_id: 178
+    png: classic_roguelike_178.png
+    svg: classic_roguelike_178.svg
+    alt_names:
+      - ☺
+    notes: smiley face
+    confirmed: true
+  - name: glyph_face_frown
+    tile_id: 179
+    png: classic_roguelike_179.png
+    svg: classic_roguelike_179.svg
+    alt_names:
+      - ☹
+    notes: frowny face
+    confirmed: false
+  - name: glyph_triangle_right
+    tile_id: 180
+    png: classic_roguelike_180.png
+    svg: classic_roguelike_180.svg
+    alt_names:
+      - ►
+    notes: index 180 is ►
+    confirmed: true
+  - name: glyph_triangle_down
+    tile_id: 181
+    png: classic_roguelike_181.png
+    svg: classic_roguelike_181.svg
+    alt_names:
+      - ▼
+    notes: index 181 is ▼
+    confirmed: true
+  - name: glyph_triangle_left
+    tile_id: 182
+    png: classic_roguelike_182.png
+    svg: classic_roguelike_182.svg
+    alt_names:
+      - ◄
+    notes: index 182 is ◄
+    confirmed: true
+  - name: glyph_triangle_up
+    tile_id: 183
+    png: classic_roguelike_183.png
+    svg: classic_roguelike_183.svg
+    alt_names:
+      - ▲
+    notes: index 183 is ▲
+    confirmed: true
+  - name: glyph_music_quarter_note
+    tile_id: 184
+    png: classic_roguelike_184.png
+    svg: classic_roguelike_184.svg
+    alt_names:
+      - ♪
+    notes: musical quarter note
+    confirmed: true
+  - name: glyph_block_full
+    tile_id: 185
+    png: classic_roguelike_185.png
+    svg: classic_roguelike_185.svg
+    alt_names:
+      - █
+    notes: full block
+    confirmed: true
+  - name: glyph_plus_heavy
+    tile_id: 186
+    png: classic_roguelike_186.png
+    svg: classic_roguelike_186.svg
+    alt_names:
+      - ✚
+    notes: heavy plus/cross
+    confirmed: false
+  - name: glyph_cursor_marks
+    tile_id: 187
+    png: classic_roguelike_187.png
+    svg: classic_roguelike_187.svg
+    alt_names:
+      - ⟦⟧
+    notes: cursor/selection corner marks
+    confirmed: false
+  - name: glyph_checkerboard_light
+    tile_id: 188
+    png: classic_roguelike_188.png
+    svg: classic_roguelike_188.svg
+    alt_names:
+      - ░
+    notes: light shade checker
+    confirmed: true
+  - name: glyph_checkerboard_dark
+    tile_id: 189
+    png: classic_roguelike_189.png
+    svg: classic_roguelike_189.svg
+    alt_names:
+      - ▓
+    notes: dark shade checker
+    confirmed: true
+  - name: glyph_small_plus
+    tile_id: 190
+    png: classic_roguelike_190.png
+    svg: classic_roguelike_190.svg
+    alt_names:
+      - ✛
+    notes: small plus/cross
+    confirmed: false
+  - name: glyph_small_dot
+    tile_id: 191
+    png: classic_roguelike_191.png
+    svg: classic_roguelike_191.svg
+    alt_names:
+      - ·
+    notes: small dot
+    confirmed: false
+  - name: glyph_square_hollow
+    tile_id: 192
+    png: classic_roguelike_192.png
+    svg: classic_roguelike_192.svg
+    alt_names:
+      - □
+    notes: hollow square
+    confirmed: false
+  - name: glyph_horizontal_bar
+    tile_id: 193
+    png: classic_roguelike_193.png
+    svg: classic_roguelike_193.svg
+    alt_names:
+      - ─
+    notes: horizontal bar/underscore-like glyph
+    confirmed: false
+  - name: glyph_arrow_left
+    tile_id: 194
+    png: classic_roguelike_194.png
+    svg: classic_roguelike_194.svg
+    alt_names:
+      - ←
+    notes: left arrow
+    confirmed: true
+  - name: glyph_arrow_right
+    tile_id: 195
+    png: classic_roguelike_195.png
+    svg: classic_roguelike_195.svg
+    alt_names:
+      - →
+    notes: right arrow
+    confirmed: true
