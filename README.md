@@ -53,10 +53,27 @@ This project is **under active development**. The core game systems are integrat
 
 ## Vestigial Components
 
-* **`simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components but maintained for testing purposes.
-* **`dungeon_generator.py`**: A simpler room-and-corridor generator used by `simple_rl.py`.
+* **`legacy/simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components but maintained for testing purposes.
+* **`legacy/dungeon_generator.py`**: A simpler room-and-corridor generator used by `legacy/simple_rl.py`.
 
 These files are currently maintained primarily for testing `scripting_engine.py` and may be deprecated in future releases.
+
+---
+
+### Archived / legacy files
+
+The following legacy/test files have been archived under the `legacy/` directory to
+keep the repository root clean. They are retained for historical reference and for
+manual testing, but are **not** part of the canonical entrypoint or production
+pipeline.
+
+- `legacy/simple_rl.py` — Legacy PySide6 GUI (archived).
+- `legacy/dungeon_generator.py` — Legacy room-and-corridor BSP generator (archived).
+- `legacy/lights_dev/dungeon_generator.py` — Legacy copy used by the lighting/FOV
+  testbed (archived).
+
+If you need to run these for debugging or legacy testing, you can run them from the
+`legacy/` path (for example, `python legacy/simple_rl.py`).
 
 ## Getting Started
 
@@ -96,7 +113,7 @@ Different components have dedicated test harnesses for development:
 * **GOAP AI Testing (GUI):** `cd auto && ./run.sh --mode gui`
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
 * **Perception Testbed:** `cd pathfinding && python test.py`
-* **Legacy GUI:** `python simple_rl.py` (maintained for scripting_engine.py testing)
+* **Legacy GUI:** `python legacy/simple_rl.py` (maintained for scripting_engine.py testing)
 
 ### Running Tests
 
