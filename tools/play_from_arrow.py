@@ -75,7 +75,7 @@ def pick_player_spawn_from_df(
             ty: int = int(round(float(floors[0, "y"]) - min_y))
             return tx, ty
 
-    return 1, 1
+    raise ValueError("Could not find a valid player spawn location in the map.")
 
 
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
