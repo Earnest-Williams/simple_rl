@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -204,8 +205,6 @@ def build_world(
     if out_dir.exists() and not overwrite:
         raise FileExistsError("out_dir already exists; set overwrite=True")
     if out_dir.exists() and overwrite:
-        import shutil
-
         shutil.rmtree(out_dir)
     ensure_dir(out_dir)
 
