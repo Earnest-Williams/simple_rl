@@ -309,7 +309,7 @@ def run_gui_mode(arrow_path: Path) -> None:
             and param.kind
             not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
         ]
-        return len(required_params) == 0
+        return len(required_params) <= 1
 
     def _load_app_config(cfg_path: Path) -> dict[str, object]:
         if not cfg_path.exists():
@@ -337,6 +337,26 @@ def run_gui_mode(arrow_path: Path) -> None:
             return dict(raw_keybindings)
         return {}
 
+    def _safe_int(value: object, default: int, *, label: str) -> int:
+        if isinstance(value, bool):
+            print(f"Invalid {label} value (bool); using default {default}.")
+            return default
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            text_value = value.strip()
+            try:
+                return int(text_value)
+            except ValueError:
+                print(f"Invalid {label} value '{value}'; using default {default}.")
+                return default
+        if value is None:
+            return default
+        print(
+            f"Invalid {label} type '{type(value).__name__}'; using default {default}."
+        )
+        return default
+
     supports_no_arg: bool | None = _supports_no_arg_constructor(window_manager_cls)
     if supports_no_arg is True:
         wm: WindowManagerProtocol = window_manager_cls()
@@ -355,15 +375,40 @@ def run_gui_mode(arrow_path: Path) -> None:
                 "initial_tileset_folder", "fonts/classic_roguelike_sliced_svgs"
             )
         )
-        initial_tile_width: int = int(app_config.get("initial_tile_width", 16))
-        initial_tile_height: int = int(app_config.get("initial_tile_height", 16))
+        initial_tile_width: int = _safe_int(
+            app_config.get("initial_tile_width", 16),
+            16,
+            label="initial_tile_width",
+        )
+        initial_tile_height: int = _safe_int(
+            app_config.get("initial_tile_height", 16),
+            16,
+            label="initial_tile_height",
+        )
 
-        map_width: int = int(app_config.get("map_width", 80))
-        map_height: int = int(app_config.get("map_height", 50))
+        map_width: int = _safe_int(
+            app_config.get("map_width", 80),
+            80,
+            label="map_width",
+        )
+        map_height: int = _safe_int(
+            app_config.get("map_height", 50),
+            50,
+            label="map_height",
+        )
         if gs.game_map is not None:
             map_width = int(gs.game_map.width)
             map_height = int(gs.game_map.height)
 
+        wm_args = (
+            app_config,
+            keybindings_config,
+            initial_tileset_path,
+            initial_tile_width,
+            initial_tile_height,
+            map_width,
+            map_height,
+        )
         if supports_no_arg is None:
             try:
                 wm = window_manager_cls()
@@ -372,25 +417,9 @@ def run_gui_mode(arrow_path: Path) -> None:
                     "WindowManager constructor requires configuration; "
                     f"falling back to config-based init: {exc}"
                 )
-                wm = window_manager_cls(
-                    app_config,
-                    keybindings_config,
-                    initial_tileset_path,
-                    initial_tile_width,
-                    initial_tile_height,
-                    map_width,
-                    map_height,
-                )
+                wm = window_manager_cls(*wm_args)
         else:
-            wm = window_manager_cls(
-                app_config,
-                keybindings_config,
-                initial_tileset_path,
-                initial_tile_width,
-                initial_tile_height,
-                map_width,
-                map_height,
-            )
+            wm = window_manager_cls(*wm_args)
     ml: MainLoop = MainLoop(
         game_state=gs,
         window=wm,
