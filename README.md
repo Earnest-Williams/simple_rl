@@ -93,6 +93,7 @@ If you need to run these for debugging or legacy testing, you can run them from 
    ```
    
    Python 3.11+ is required. Core dependencies include Polars, NumPy, Numba, SciPy, scikit-image, PySide6, and Pygame.
+   The glyph metadata generator (`scripts/generate_glyphs.py`) requires PyYAML.
 
 3. **Run the main game:**
    ```bash

@@ -7,7 +7,13 @@ from pathlib import Path
 import re
 from typing import Dict, Final, List, Sequence, Tuple
 
-import yaml
+try:
+    import yaml
+except Exception as exc:  # pragma: no cover - runtime guard
+    raise SystemExit(
+        "Missing dependency 'PyYAML'. Install with `pip install PyYAML` or add "
+        "it to your test/dev requirements."
+    ) from exc
 
 # Parsing tokens
 AMBIGUITY_TOKENS: Final[Tuple[str, ...]] = (
@@ -390,28 +396,32 @@ class IndentDumper(yaml.SafeDumper):
 def write_yaml(path: Path, entries: Sequence[GlyphEntry]) -> None:
     glyphs: List[Dict[str, object]] = []
     for entry in entries:
-        glyphs.append(
-            {
-                "name": entry.name,
-                "tile_id": entry.tile_id,
-                "png": entry.png,
-                "svg": entry.svg,
-                "alt_names": entry.alt_names,
-                "notes": entry.notes,
-                "confirmed": entry.confirmed,
-            }
-        )
+        glyph: Dict[str, object] = {
+            "name": entry.name,
+            "tile_id": entry.tile_id,
+            "png": entry.png,
+            "svg": entry.svg,
+            "alt_names": entry.alt_names or [],
+            "notes": entry.notes or "",
+            "confirmed": bool(entry.confirmed),
+        }
+        glyphs.append(glyph)
     data_to_dump: Dict[str, object] = {"glyphs": glyphs}
-    with path.open("w", encoding="utf-8") as handle:
-        yaml.dump(
-            data_to_dump,
-            handle,
-            Dumper=IndentDumper,
-            indent=2,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-        )
+    with path.open("w", encoding="utf-8") as fh:
+        original_dumper: type[yaml.SafeDumper] = yaml.SafeDumper
+        yaml.SafeDumper = IndentDumper
+        try:
+            yaml.safe_dump(
+                data_to_dump,
+                fh,
+                default_flow_style=False,
+                sort_keys=False,
+                indent=2,
+                allow_unicode=True,
+                width=120,
+            )
+        finally:
+            yaml.SafeDumper = original_dumper
 
 
 def format_missing_image(tile_id: int, png: str | None, svg: str | None) -> str:
