@@ -7,6 +7,35 @@ on:
     branches: [World-Gen, main]
 
 jobs:
+  lint:
+    name: Lint & Type Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dev dependencies
+        # Use the project dev extras so we get mypy/black/ruff as configured
+        run: |
+          python -m pip install -U pip
+          # prefer installing via pyproject extras so dev deps are consistent
+          pip install -e '.[dev]'
+
+      - name: Check formatting with black
+        run: black --check .
+
+      - name: Run ruff
+        run: ruff check .
+
+      - name: Run mypy
+        # mypy will pick up configuration from pyproject.toml
+        run: mypy --show-error-codes --config-file pyproject.toml .
+
   test:
     runs-on: ubuntu-latest
     steps:
