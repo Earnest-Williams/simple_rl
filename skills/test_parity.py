@@ -433,7 +433,7 @@ class TestLargeScaleBenchmark:
         def run_save() -> bytes:
             return serialize_skills(skills_df)
 
-        save_time: float = timeit.timeit(lambda: run_save(), number=10) / 10
+        save_time: float = timeit.timeit(run_save, number=10) / 10
         print(f"\nSave {n_entities} entities: {save_time*1000:.1f}ms")
 
         # Benchmark load
