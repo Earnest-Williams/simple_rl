@@ -18,7 +18,7 @@ import polars as pl
 from skills.cross_training import (
     CROSS_TRAINING_MATRIX,
 )
-from skills.models import Skill, TrainingMode, TrainingState, UsageWindow
+from skills.models import Skill, TrainingMode, TrainingState
 from skills.progression import batch_calculate_levels
 from skills.registry_integration import (
     NULL_U8_SENTINEL,
