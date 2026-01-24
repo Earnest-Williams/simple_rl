@@ -146,11 +146,13 @@ def main(
 
 
 def resolve_repo_root() -> Path:
-    script_path: Path = Path(__file__)
-    if script_path.exists():
-        script_path = script_path.resolve()
-        return script_path.parent.parent
-    return Path.cwd()
+    """Traverse upwards to find the repository root (marked by 'pyproject.toml')."""
+    current_path = Path(__file__).resolve().parent
+    while current_path != current_path.parent:
+        if (current_path / "pyproject.toml").exists():
+            return current_path
+        current_path = current_path.parent
+    raise FileNotFoundError("Repository root with 'pyproject.toml' not found.")
 
 
 def find_table_header(lines: Sequence[str]) -> int | None:
