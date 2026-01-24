@@ -29,7 +29,7 @@ from polars.exceptions import ColumnNotFoundError, PolarsError
 from common.constants import Material
 from engine.main_loop import MainLoop
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES
 from utils.shaped_map import shaped_dataframe_to_game_map
 
 SPAWN_MIN_ROOM_SIZE = 20
@@ -151,12 +151,16 @@ def _compute_component_sizes(game_map: GameMap) -> np.ndarray:
     width: int = game_map.width
     sizes: np.ndarray = np.zeros((height, width), dtype=np.int32)
     visited: np.ndarray = np.zeros((height, width), dtype=bool)
+    walkable: np.ndarray = np.zeros((height, width), dtype=bool)
+    for tile_id, tile_type in TILE_TYPES.items():
+        if tile_type.walkable:
+            walkable[game_map.tiles == tile_id] = True
 
     for y in range(height):
         for x in range(width):
             if visited[y, x]:
                 continue
-            if not game_map.is_walkable(x, y):
+            if not walkable[y, x]:
                 continue
             q: deque[tuple[int, int]] = deque()
             q.append((x, y))
@@ -181,7 +185,7 @@ def _compute_component_sizes(game_map: GameMap) -> np.ndarray:
                         continue
                     if visited[ny, nx]:
                         continue
-                    if not game_map.is_walkable(nx, ny):
+                    if not walkable[ny, nx]:
                         continue
                     visited[ny, nx] = True
                     q.append((nx, ny))
@@ -263,13 +267,6 @@ def _select_spawn_position(
     require_diagonals: bool = SPAWN_REQUIRE_DIAGONALS,
 ) -> tuple[int, int]:
     """Return a suitable spawn position, using fallback searches as needed."""
-    if game_map.in_bounds(spawn_x, spawn_y):
-        if game_map.is_walkable(spawn_x, spawn_y) and _has_open_neighbors(
-            game_map, spawn_x, spawn_y, require_diagonals=require_diagonals
-        ):
-            if component_sizes[spawn_y, spawn_x] >= min_room_size:
-                return spawn_x, spawn_y
-
     alt: tuple[int, int] | None = _find_nearest_suitable_spawn(
         game_map,
         component_sizes,
@@ -356,7 +353,6 @@ def create_gamestate_from_arrow(
     spawn_y: int
     spawn_x, spawn_y = pick_player_spawn_from_df(df, origin)
 
-    game_map.update_tile_transparency()
     component_sizes: np.ndarray = _compute_component_sizes(game_map)
     spawn_x, spawn_y = _select_spawn_position(
         game_map, component_sizes, spawn_x, spawn_y
