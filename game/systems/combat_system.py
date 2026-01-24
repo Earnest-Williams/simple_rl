@@ -13,6 +13,11 @@ from game.entities.components import CombatStats
 from game.effects.handlers import apply_status
 from game.systems.death_system import handle_entity_death
 
+# Skill system integration
+from skills.models import Skill, SkillProgress
+from skills.system import award_xp, record_skill_usage
+from skills.effects import get_combat_bonuses_dict
+
 if TYPE_CHECKING:
     from utils.game_rng import GameRNG  # Assuming this is importable for type hint
 
@@ -23,6 +28,69 @@ if TYPE_CHECKING:
 log = structlog.get_logger(__name__)
 
 DEFAULT_UNARMED_DAMAGE = "1d2"  # Damage if attacker has no weapon
+
+
+def _determine_weapon_skill(
+    item_reg: "ItemRegistry", weapon_id: int | None
+) -> Skill:
+    """Determine which weapon skill applies to a given weapon.
+
+    Args:
+        item_reg: Item registry
+        weapon_id: ID of the weapon, or None for unarmed
+
+    Returns:
+        The appropriate weapon skill
+    """
+    if weapon_id is None:
+        return Skill.UNARMED_COMBAT
+
+    # Check weapon type from item attributes or flags
+    weapon_type = item_reg.get_item_static_attribute(weapon_id, "weapon_type", default=None)
+
+    if weapon_type is None:
+        # Fallback: try to determine from name or flags
+        name = item_reg.get_item_component(weapon_id, "name") or ""
+        name_lower = name.lower()
+
+        if any(x in name_lower for x in ["axe", "hatchet"]):
+            return Skill.AXES
+        elif any(x in name_lower for x in ["mace", "flail", "hammer", "club"]):
+            return Skill.MACES_AND_FLAILS
+        elif any(x in name_lower for x in ["spear", "pike", "halberd", "trident"]):
+            return Skill.POLEARMS
+        elif any(x in name_lower for x in ["staff", "quarterstaff"]):
+            return Skill.STAVES
+        elif any(x in name_lower for x in ["sword", "blade", "katana", "greatsword"]):
+            return Skill.LONG_BLADES
+        elif any(x in name_lower for x in ["dagger", "knife", "short sword", "rapier"]):
+            return Skill.SHORT_BLADES
+        elif any(x in name_lower for x in ["bow", "crossbow", "sling"]):
+            return Skill.RANGED_WEAPONS
+        else:
+            # Default to unarmed if we can't determine
+            return Skill.UNARMED_COMBAT
+
+    # Map weapon_type string to skill
+    weapon_type_map: dict[str, Skill] = {
+        "axe": Skill.AXES,
+        "mace": Skill.MACES_AND_FLAILS,
+        "flail": Skill.MACES_AND_FLAILS,
+        "polearm": Skill.POLEARMS,
+        "spear": Skill.POLEARMS,
+        "staff": Skill.STAVES,
+        "long_blade": Skill.LONG_BLADES,
+        "sword": Skill.LONG_BLADES,
+        "short_blade": Skill.SHORT_BLADES,
+        "dagger": Skill.SHORT_BLADES,
+        "bow": Skill.RANGED_WEAPONS,
+        "crossbow": Skill.RANGED_WEAPONS,
+        "sling": Skill.RANGED_WEAPONS,
+        "thrown": Skill.THROWING,
+        "unarmed": Skill.UNARMED_COMBAT,
+    }
+
+    return weapon_type_map.get(weapon_type.lower(), Skill.UNARMED_COMBAT)
 
 
 def handle_melee_attack(
@@ -70,13 +138,16 @@ def handle_melee_attack(
     # --- Determine Attacker's Damage ---
     damage_dice = DEFAULT_UNARMED_DAMAGE
     weapon_name = "unarmed"
+    
+    # Initialize weapon variables before conditionals
+    main_hand_weapon_id: int | None = None
+    off_hand_weapon_id: int | None = None
+    off_hand_dice: str | None = None
+    two_handed = False
 
     # Find equipped weapon(s)
     equipped_ids = entity_reg.get_equipped_ids(attacker_id)
     if equipped_ids:
-        main_hand_weapon_id: int | None = None
-        off_hand_weapon_id: int | None = None
-        two_handed = False
 
         equipped_items = item_reg.get_entity_equipped(attacker_id).filter(
             pl.col("item_id").is_in(equipped_ids)
@@ -123,7 +194,6 @@ def handle_melee_attack(
                     item_id=main_hand_weapon_id,
                 )
 
-        off_hand_dice = None
         if off_hand_weapon_id is not None:
             off_hand_dice = item_reg.get_item_static_attribute(
                 off_hand_weapon_id, "damage_dice", default=None
@@ -131,18 +201,51 @@ def handle_melee_attack(
     else:
         log.debug("Attacker is unarmed")
 
+    # --- Get Attacker Skills and Apply Bonuses ---
+    attacker_skills = entity_reg.get_skills(attacker_id)
+    weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
+
+    fighting_level = (attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)).level
+    weapon_level = (attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)).level
+
+    # Get defender skills for armor/dodging
+    defender_skills = entity_reg.get_skills(defender_id)
+    defender_armour_level = (defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)).level
+    defender_dodging_level = (defender_skills.get(Skill.DODGING) or SkillProgress(Skill.DODGING, 0, 0, 0)).level
+    defender_shields_level = (defender_skills.get(Skill.SHIELDS) or SkillProgress(Skill.SHIELDS, 0, 0, 0)).level
+
+    # Calculate skill-based bonuses
+    skill_bonuses = get_combat_bonuses_dict(
+        fighting=fighting_level,
+        weapon=weapon_level,
+        armour=defender_armour_level,
+        dodging=defender_dodging_level,
+        shields=defender_shields_level,
+        base_armor=defn.get("armor") or 0,
+    )
+
     # --- Calculate Damage ---
     raw_damage = roll_dice(damage_dice, rng)
-    if "two_handed" in locals() and two_handed:
+    if two_handed:
         raw_damage = int(raw_damage * 1.5)
-    elif "off_hand_dice" in locals() and off_hand_dice:
+    elif off_hand_dice:
         off_raw = roll_dice(off_hand_dice, rng)
         raw_damage += max(0, off_raw // 2)
         raw_damage = max(0, raw_damage - 1)
+
+    # Apply skill bonuses to damage
+    raw_damage = int(raw_damage * skill_bonuses.damage_multiplier)
+
     attacker_strength = att.get("strength") or 0
     defender_defense = defn.get("defense") or 0
     defender_armor = defn.get("armor") or 0
-    modified_damage = raw_damage + attacker_strength - defender_defense - defender_armor
+
+    # Apply armor bonus from skill (already calculated in skill_bonuses)
+    effective_armor = defender_armor + skill_bonuses.armor_bonus
+
+    modified_damage = raw_damage + attacker_strength - defender_defense - effective_armor
+    # Apply evasion from dodging skill
+    modified_damage = max(0, modified_damage - skill_bonuses.evasion_bonus)
 
     resistances = defn.get("resistances") or {}
     vulnerabilities = defn.get("vulnerabilities") or {}
@@ -253,6 +356,39 @@ def handle_melee_attack(
                     )
 
     # Handle Death [Source [source 53]]
-    if new_hp <= 0:
+    defender_died = new_hp <= 0
+    if defender_died:
         log.info(f"{defender_name} died.", defender_id=defender_id)
         handle_entity_death(defender_id, gs, killer_id=attacker_id)
+
+    # --- Skill System Integration ---
+    # Record skill usage for automatic training mode
+    if damage_dealt > 0:  # Only award for successful hits
+        record_skill_usage(entity_reg, attacker_id, Skill.FIGHTING)
+        record_skill_usage(entity_reg, attacker_id, weapon_skill)
+
+        # Award XP: base amount for hit, bonus for kill
+        xp_amount = 50  # Base XP for successful hit
+        if defender_died:
+            # Award bonus XP for kill based on defender difficulty
+            defender_xp_reward = entity_reg.get_entity_component(defender_id, "xp_reward") or 0
+            xp_amount += max(100, defender_xp_reward)  # At least 100 bonus XP for kills
+
+        level_ups = award_xp(entity_reg, attacker_id, xp_amount)
+
+        # Announce level-ups
+        if level_ups and visible:
+            for skill, (old_lvl, new_lvl) in level_ups.items():
+                level_up_msg = f"Your {skill.name} skill increased to level {new_lvl}!"
+                if attacker_id == gs.player_id:
+                    gs.add_message(level_up_msg, (0, 255, 255))  # Cyan for level-ups
+                else:
+                    # Log for non-player entities
+                    log.info(
+                        "Entity skill level up",
+                        entity_id=attacker_id,
+                        entity_name=attacker_name,
+                        skill=skill.name,
+                        old_level=old_lvl,
+                        new_level=new_lvl,
+                    )

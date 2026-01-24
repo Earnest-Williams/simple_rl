@@ -1258,6 +1258,86 @@ class WindowManager(QMainWindow):
     def ui_show_help_dialog(self) -> None:
         self.show_help_dialog()
 
+    def ui_show_skill_screen(self) -> None:
+        """Display the skill screen for the player."""
+        if not self.main_loop or not self.main_loop.game_state:
+            log.warning("Cannot show skill screen: no game state")
+            return
+
+        game_state = self.main_loop.game_state
+        player_id = game_state.player_id
+
+        if player_id is None:
+            log.warning("Cannot show skill screen: no player ID")
+            return
+
+        try:
+            from game.ui.skill_screen import get_skill_screen_text
+
+            skill_text = get_skill_screen_text(game_state.entity_registry, player_id)
+
+            # Create dialog
+            from PySide6.QtWidgets import QDialog, QTextEdit, QVBoxLayout
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Skills")
+            dialog.resize(800, 600)
+
+            layout = QVBoxLayout()
+
+            # Text display with monospace font
+            text_display = QTextEdit()
+            text_display.setReadOnly(True)
+            text_display.setPlainText(skill_text)
+
+            # Set monospace font
+            from PySide6.QtGui import QFont
+
+            font = QFont("Courier")
+            font.setPointSize(10)
+            text_display.setFont(font)
+
+            layout.addWidget(text_display)
+            dialog.setLayout(layout)
+
+            dialog.exec()
+        except Exception as e:
+            log.error("Failed to show skill screen", error=str(e), exc_info=True)
+
+    def ui_show_skill_training(self) -> None:
+        """Display the interactive skill training dialog."""
+        if not self.main_loop or not self.main_loop.game_state:
+            log.warning("Cannot show skill training: no game state")
+            return
+
+        game_state = self.main_loop.game_state
+        player_id = game_state.player_id
+
+        if player_id is None:
+            log.warning("Cannot show skill training: no player ID")
+            return
+
+        try:
+            from game.ui.skill_training_dialog import show_skill_training_dialog
+
+            accepted = show_skill_training_dialog(
+                game_state.entity_registry, player_id, self
+            )
+
+            if accepted:
+                log.info("Skill training configuration updated")
+                # Optionally show a confirmation message
+                if hasattr(game_state, "add_message"):
+                    game_state.add_message(
+                        "Training configuration updated", (0, 255, 255)
+                    )
+        except Exception as e:
+            log.error("Failed to show skill training dialog", error=str(e), exc_info=True)
+
+    def ui_open_inventory_view(self) -> None:
+        """Open inventory view (stub for compatibility)."""
+        log.info("Inventory view requested (not yet implemented)")
+
     def ui_quit_game(self) -> None:
         """Handle quit game action."""
         log.info("Quit game requested")
