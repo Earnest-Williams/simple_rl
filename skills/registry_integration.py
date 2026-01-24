@@ -39,13 +39,10 @@ def normalize_target_level_to_python(value: int | None) -> int | None:
     Returns:
         Python int if valid target, None if no target set
     """
-    if value is None:
+    if value is None or value == NULL_U8_SENTINEL:
         return None
-    # Convert to int and check for sentinel
-    int_val: int = int(value)
-    if int_val == NULL_U8_SENTINEL:
-        return None
-    return int_val
+    # Defensive cast in case Polars returns a non-int numeric type
+    return int(value)
 
 
 def normalize_target_level_to_polars(value: int | None) -> int | None:
