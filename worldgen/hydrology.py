@@ -350,7 +350,7 @@ def _build_flow_accumulation_numba(
     accum_f32: NDArray[np.float32] = cell_area_f32.astype(np.float32).copy()
     heap_nodes: NDArray[np.int32] = np.empty(n_cells, dtype=np.int32)
     heap_pos: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
-    heap_keys: NDArray[np.float32] = np.empty(n_cells, dtype=np.float32)
+    heap_keys: NDArray[np.float64] = np.empty(n_cells, dtype=np.float64)
     size: int = 0
 
     for u in range(n_cells):
