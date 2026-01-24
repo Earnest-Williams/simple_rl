@@ -16,8 +16,9 @@ import argparse
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, Tuple
 
+import numpy as np
 import polars as pl
 
 from engine.main_loop import MainLoop
@@ -53,29 +54,44 @@ def pick_player_spawn_from_df(
     min_y: int
     min_x, min_y = origin
     if "chamber_id" in df.columns:
-        chambers: pl.DataFrame = (
-            df.filter(pl.col("chamber_id") >= 0)
-            .groupby("chamber_id")
-            .agg(pl.count().alias("count"))
-            .sort("count", reverse=True)
-        )
-        if chambers.height > 0:
-            top_id: int = int(chambers[0, "chamber_id"])
+        chamber_series: pl.Series
+        chamber_ids: np.ndarray
+        try:
+            chamber_series = df.filter(pl.col("chamber_id") >= 0).get_column(
+                "chamber_id"
+            )
+            chamber_ids = chamber_series.to_numpy().astype(int)
+        except Exception:
+            try:
+                chamber_ids = np.asarray(df["chamber_id"].to_list(), dtype=int)
+                chamber_ids = chamber_ids[chamber_ids >= 0]
+            except Exception:
+                chamber_ids = np.array([], dtype=int)
+
+        if chamber_ids.size > 0:
+            uniq: np.ndarray
+            counts: np.ndarray
+            uniq, counts = np.unique(chamber_ids, return_counts=True)
+            top_id: int = int(uniq[np.argmax(counts)])
             chamber_rows: pl.DataFrame = df.filter(pl.col("chamber_id") == top_id)
-            mean_x: float = chamber_rows.select(pl.mean("x")).item()
-            mean_y: float = chamber_rows.select(pl.mean("y")).item()
+            mean_x: float = float(chamber_rows.select(pl.col("x").mean())[0, 0])
+            mean_y: float = float(chamber_rows.select(pl.col("y").mean())[0, 0])
             cx: int = int(round(mean_x - min_x))
             cy: int = int(round(mean_y - min_y))
+            cx = max(0, cx)
+            cy = max(0, cy)
             return cx, cy
 
     if "material_id" in df.columns:
-        floors: pl.DataFrame = df.filter(pl.col("material_id") == 1)
+        floors: pl.DataFrame = df.filter(pl.col("material_id") == int(1))
         if floors.height > 0:
-            tx: int = int(round(float(floors[0, "x"]) - min_x))
-            ty: int = int(round(float(floors[0, "y"]) - min_y))
+            tx: int = int(round(floors[0, "x"] - min_x))
+            ty: int = int(round(floors[0, "y"] - min_y))
+            tx = max(0, tx)
+            ty = max(0, ty)
             return tx, ty
 
-    raise ValueError("Could not find a valid player spawn location in the map.")
+    return 1, 1
 
 
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
