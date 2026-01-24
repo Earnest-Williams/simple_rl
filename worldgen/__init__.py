@@ -49,8 +49,6 @@ from worldgen.constants import (
     NORMALIZE_EPS,
     NOISE_DOMAIN,
     PLATE_SEED_DOMAIN,
-    REPORT_QUANTILES,
-    REPORT_SEAM_EPS,
     WIND_DOMAIN,
     WIND_JITTER_MASK,
     WIND_JITTER_SCALE,
@@ -69,6 +67,7 @@ from worldgen.hydrology import (
 )
 from worldgen.io import ensure_dir, read_layer, write_layer
 from worldgen.metadata import WorldMeta, build_world_meta, read_world_meta
+from worldgen.report import WorldGenReport, generate_report
 from worldgen.topology_cube_sphere import (
     build_cell_area,
     build_nbr_tables,
@@ -335,9 +334,7 @@ def build_elevation(
         if np.any(plate_norm <= 0.0):
             raise ValueError("plate_seed_xyz rows must be non-zero vectors")
         plate_seed_arr = (plate_seed_arr / plate_norm[:, None]).astype(np.float32)
-        plate_influence = np.max(pos_xyz @ plate_seed_arr.T, axis=1).astype(
-            np.float32
-        )
+        plate_influence = np.max(pos_xyz @ plate_seed_arr.T, axis=1).astype(np.float32)
     else:
         plate_influence = plate_noise
 
@@ -357,8 +354,7 @@ def build_elevation(
     elev_m: NDArray[np.float32] = (
         (tectonic_mask * 2.0 - 1.0) * ELEVATION_TECTONIC_AMPLITUDE_M
         + (plate_mask * 2.0 - 1.0) * ELEVATION_PLATE_AMPLITUDE_M
-        + (rough_mask - ELEVATION_ROUGHNESS_BASELINE)
-        * ELEVATION_ROUGHNESS_AMPLITUDE_M
+        + (rough_mask - ELEVATION_ROUGHNESS_BASELINE) * ELEVATION_ROUGHNESS_AMPLITUDE_M
     ).astype(np.float32)
     validate_no_nan(elev_m, "elev_m")
 
@@ -472,9 +468,9 @@ def build_climate(
     ).astype(np.float32)
 
     elev_m: NDArray[np.float32] = elev_q_i32.astype(np.float32) * ELEV_Q_M
-    lapse: NDArray[np.float32] = (
-        (cfg.lapse_C_per_km / 1000.0) * elev_m
-    ).astype(np.float32)
+    lapse: NDArray[np.float32] = ((cfg.lapse_C_per_km / 1000.0) * elev_m).astype(
+        np.float32
+    )
     temp_f32: NDArray[np.float32] = (temp_base - lapse).astype(np.float32)
     validate_no_nan(temp_f32, "temp_f32")
 
@@ -792,11 +788,44 @@ def get_chunk(
     return payload
 
 
+def _extract_seam_pairs(
+    nbr4: NDArray[np.int32],  # int32[n_cells, 4]
+    N: int,
+) -> List[Tuple[int, int]]:
+    """
+    Extract pairs of cell indices that cross cube-sphere face boundaries.
+    Returns a list of (u, v) tuples where u and v are on different faces.
+    """
+    n_cells: int = int(nbr4.shape[0])
+    n_face_cells: int = N * N
+    seam_pairs: List[Tuple[int, int]] = []
+
+    # Determine which face each cell belongs to
+    face_idx: NDArray[np.int32] = (
+        np.arange(n_cells, dtype=np.int64) // n_face_cells
+    ).astype(np.int32)
+
+    # For each cell, check its neighbors
+    u: int
+    for u in range(n_cells):
+        k: int
+        for k in range(4):
+            v: int = int(nbr4[u, k])
+            # Valid neighbor on a different face
+            if 0 <= v < n_cells and face_idx[u] != face_idx[v]:
+                # Only add each pair once (u < v to avoid duplicates)
+                if u < v:
+                    seam_pairs.append((u, v))
+
+    return seam_pairs
+
+
 def _compute_report(out_dir: Path) -> Dict[str, object]:
-    """Compute the canonical report.json payload (land_fraction, quantiles, rivers)."""
+    """
+    Compute the canonical report.json payload (land_fraction, quantiles, rivers).
+    Delegates to worldgen.report.generate_report for consistency.
+    """
     meta: WorldMeta = read_world_meta(out_dir)
-    n_cells: int = meta.n_cells
-    n_face_cells: int = meta.N * meta.N
 
     required_layers: Tuple[str, ...] = (
         "elev_q",
@@ -810,6 +839,7 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
         if key not in meta.layers:
             raise ValueError(f"{key} diagnostic layer required for report generation")
 
+    # Load required layers
     elev_q_i32: NDArray[np.int32] = np.ascontiguousarray(
         read_layer(out_dir=out_dir, layer=meta.layers["elev_q"]),
         dtype=np.int32,
@@ -835,75 +865,25 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
         dtype=np.int32,
     )
 
-    land_mask_u8: NDArray[np.uint8] = (elev_q_i32 > 0).astype(np.uint8)
-    land_fraction: float = float(np.sum(land_mask_u8) / float(n_cells))
+    # Extract seam pairs from nbr4
+    seam_pairs: List[Tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
 
-    def quantiles(values: NDArray[np.float32]) -> Dict[str, float]:
-        arr: NDArray[np.float32] = values.astype(np.float32).ravel()
-        return {
-            name: _quantile_value(arr, frac=frac)
-            for name, frac in REPORT_QUANTILES.items()
-        }
+    # Delegate to generate_report from worldgen.report
+    # Use sea_level_q=0 to match the original hardcoded threshold (elev_q > 0)
+    report: WorldGenReport = generate_report(
+        out_dir=out_dir,
+        elev_q_i32=elev_q_i32,
+        temp_f32=temp_f32,
+        precip_f32=precip_f32,
+        is_river_u8=is_river_u8,
+        stream_order_u8=stream_order_u8,
+        nbr4=nbr4_i32,
+        sea_level_q=0,
+        seam_pairs=seam_pairs,
+    )
 
-    temp_quantiles: Dict[str, float] = quantiles(temp_f32)
-    precip_quantiles: Dict[str, float] = quantiles(precip_f32)
-
-    total_river_cells: int = int(np.sum(is_river_u8 == 1))
-    max_order: int = int(np.max(stream_order_u8))
-    order_hist: List[int] = [
-        int(np.sum(stream_order_u8 == k)) for k in range(1, max_order + 1)
-    ]
-
-    lin_idx: NDArray[np.int64] = np.arange(n_cells, dtype=np.int64)
-    face_idx: NDArray[np.int32] = (lin_idx // n_face_cells).astype(np.int32)
-
-    nbr4_clamped: NDArray[np.int32] = np.clip(nbr4_i32, 0, n_cells - 1)
-    valid_nbr: NDArray[np.bool_] = (nbr4_i32 >= 0) & (nbr4_i32 < n_cells)
-    neighbor_faces: NDArray[np.int32] = face_idx[nbr4_clamped]
-    face_match: NDArray[np.bool_] = neighbor_faces != face_idx[:, None]
-    seam_mask: NDArray[np.bool_] = np.any(valid_nbr & face_match, axis=1)
-
-    def seam_ratio(values: NDArray[np.float32]) -> float:
-        values_f32: NDArray[np.float32] = values.astype(np.float32)
-        neighbors: NDArray[np.float32] = values_f32[nbr4_clamped]
-        valid_f32: NDArray[np.float32] = valid_nbr.astype(np.float32)
-        neighbor_sum: NDArray[np.float32] = np.sum(neighbors * valid_f32, axis=1)
-        neighbor_count: NDArray[np.float32] = np.sum(valid_f32, axis=1)
-        neighbor_count_safe: NDArray[np.float32] = np.maximum(neighbor_count, 1.0)
-        neighbor_mean: NDArray[np.float32] = neighbor_sum / neighbor_count_safe
-        absdiff: NDArray[np.float32] = np.abs(values_f32 - neighbor_mean)
-        valid_cells: NDArray[np.bool_] = neighbor_count > 0.0
-        seam_cells: NDArray[np.bool_] = valid_cells & seam_mask
-        nonseam_cells: NDArray[np.bool_] = valid_cells & (~seam_mask)
-        seam_mean: float
-        non_mean: float
-        if np.any(seam_cells):
-            seam_mean = float(np.mean(absdiff[seam_cells]))
-        else:
-            seam_mean = 0.0
-        if np.any(nonseam_cells):
-            non_mean = float(np.mean(absdiff[nonseam_cells]))
-        else:
-            non_mean = REPORT_SEAM_EPS
-        return seam_mean / max(non_mean, REPORT_SEAM_EPS)
-
-    seam_continuity: Dict[str, float] = {
-        "elev_seam_vs_nonseam_ratio": seam_ratio(elev_q_i32.astype(np.float32)),
-        "temp_seam_vs_nonseam_ratio": seam_ratio(temp_f32),
-        "precip_seam_vs_nonseam_ratio": seam_ratio(precip_f32),
-    }
-
-    report: Dict[str, object] = {
-        "land_fraction": land_fraction,
-        "temp_quantiles": temp_quantiles,
-        "precip_quantiles": precip_quantiles,
-        "river_stats": {
-            "total_river_cells": total_river_cells,
-            "order_histogram": order_hist,
-        },
-        "seam_continuity": seam_continuity,
-    }
-    return report
+    # Return as Dict for backward compatibility with caller
+    return dict(report)
 
 
 def build_full_world(
@@ -927,8 +907,8 @@ def build_full_world(
     build_climate(out_dir, seed=seed, N=N, cfg=cfg.climate)
     build_hydrology(out_dir, N=N, cfg=cfg.hydrology)
 
-    report_payload: Dict[str, object] = _compute_report(out_dir)
-    _write_report(out_dir, report_payload)
+    # _compute_report delegates to generate_report which writes report.json
+    _ = _compute_report(out_dir)
 
 
 def _precompile_kernels(N: int) -> None:
