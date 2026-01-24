@@ -63,7 +63,7 @@ try:
     except ImportError:
         HAS_ELLIPSE_PERIMETER = False
         print("Info: skimage.draw.ellipse_perimeter not found (optional).")
-    from skimage.morphology import binary_dilation
+    from skimage.morphology import dilation as sk_morphology_dilation
     from skimage.morphology import disk as sk_morphology_disk
 
     HAS_SKIMAGE = True
@@ -181,7 +181,7 @@ def _rasterize_thick_line(  # Unchanged logic
             # Ensure dilation element fits within grid dimensions if small
             # (though disk() usually handles this)
             selem = sk_morphology_disk(radius)
-            thick_mask = binary_dilation(line_mask, footprint=selem)
+            thick_mask = sk_morphology_dilation(line_mask, selem=selem)
         except Exception as e:
             print(f" Error during dilation: {e}")
             # Fallback to just the thin line mask? Or return?
@@ -583,7 +583,7 @@ def _rasterize_segment(  # Added rng parameter
             parent_data, child_node_data
         )
         properties = _get_chunk_properties(chunk_base_type)
-        chunk_type_id = chunk_type_map.get(chunk_base_type, 0)  # 0 if type unknown
+        chunk_type_id: int = chunk_type_map.get(chunk_base_type) or chunk_type_map.get("smooth", 1)
 
         # Get parent and child coordinates, check for NaN
         p_x, p_y = parent_data.get("x", 0.0), parent_data.get("y", 0.0)
@@ -961,6 +961,7 @@ def create_map_dataframe(  # Added rng parameter
     # Build reverse map for getting chunk type names (used for height lookup)
     chunk_type_names = list(CHUNK_PROPERTIES.keys())
     reverse_type_map = {i + 1: name for i, name in enumerate(chunk_type_names)}
+    reverse_type_map[0] = "smooth"
 
     # Find indices of non-rock cells efficiently
     non_rock_y, non_rock_x = np.where(final_grid != Material.SOLID_ROCK)
