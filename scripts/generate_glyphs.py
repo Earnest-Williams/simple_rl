@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
-from typing import Dict, Final, List, Sequence, Tuple
+from typing import Final, Sequence
 
 try:
     import yaml
