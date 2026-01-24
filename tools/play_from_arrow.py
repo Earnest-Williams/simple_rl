@@ -62,8 +62,8 @@ def pick_player_spawn_from_df(
         if chambers.height > 0:
             top_id: int = int(chambers[0, "chamber_id"])
             chamber_rows: pl.DataFrame = df.filter(pl.col("chamber_id") == top_id)
-            mean_x: float = float(chamber_rows.select(pl.col("x").mean())[0, 0])
-            mean_y: float = float(chamber_rows.select(pl.col("y").mean())[0, 0])
+            mean_x: float = chamber_rows.select(pl.mean("x")).item()
+            mean_y: float = chamber_rows.select(pl.mean("y")).item()
             cx: int = int(round(mean_x - min_x))
             cy: int = int(round(mean_y - min_y))
             return cx, cy
