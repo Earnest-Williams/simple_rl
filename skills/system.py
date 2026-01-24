@@ -22,7 +22,11 @@ from skills.cross_training import (
 )
 from skills.models import Skill, TrainingMode, TrainingState, UsageWindow
 from skills.progression import batch_calculate_levels
-from skills.registry_integration import NULL_U8_SENTINEL, SkillRegistryHost
+from skills.registry_integration import (
+    NULL_U8_SENTINEL,
+    SkillRegistryHost,
+    normalize_target_level_to_polars,
+)
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
@@ -387,11 +391,12 @@ def set_skill_training(
                 .then(pl.lit(state.value))
                 .otherwise(pl.col("training_state"))
                 .alias("training_state"),
+                # Explicitly write normalized target_level (sentinel for None)
                 pl.when(
                     (pl.col("entity_id") == entity_id)
                     & (pl.col("skill") == skill.value)
                 )
-                .then(pl.lit(target_level))
+                .then(pl.lit(normalize_target_level_to_polars(target_level), dtype=pl.UInt8))
                 .otherwise(pl.col("target_level"))
                 .alias("target_level"),
             ]

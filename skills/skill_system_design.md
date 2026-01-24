@@ -214,30 +214,30 @@ def distribute_xp_manual(
 class UsageWindow:
     """Ring buffer for tracking recent skill usage."""
     window_size: int = 1000
-    counts: np.ndarray = field(default_factory=lambda: np.zeros(29, dtype=np.uint32))
+    counts: np.ndarray = field(default_factory=lambda: np.zeros(SKILL_COUNT, dtype=np.uint32))
     position: int = 0
-    
+
     def record_usage(self, skill_idx: int, amount: int = 1) -> UsageWindow:
         """Immutable update returning new window."""
         new_counts = self.counts.copy()
         new_counts[skill_idx] += amount
-        
+
         # Decay oldest usage if window full
         if self.position >= self.window_size:
             decay_factor: float = 0.99
             new_counts = (new_counts * decay_factor).astype(np.uint32)
-        
+
         return UsageWindow(
             window_size=self.window_size,
             counts=new_counts,
             position=min(self.position + 1, self.window_size),
         )
-    
+
     def get_weights(self) -> np.ndarray:
         """Normalize usage counts to weights [0.0, 1.0]."""
         if self.counts.sum() == 0:
-            return np.zeros(29, dtype=np.float32)
-        
+            return np.zeros(SKILL_COUNT, dtype=np.float32)
+
         return (self.counts / self.counts.sum()).astype(np.float32)
 
 def distribute_xp_automatic(
@@ -251,7 +251,7 @@ def distribute_xp_automatic(
     
     # Convert to Polars Series for joining
     weight_mapping = pl.DataFrame({
-        "skill": [Skill(i) for i in range(29)],
+        "skill": [Skill(i) for i in range(SKILL_COUNT)],
         "auto_weight": weights,
     })
     
@@ -302,7 +302,7 @@ def build_cross_training_matrix() -> scipy.sparse.csr_matrix:
     
     coo = scipy.sparse.coo_matrix(
         (data, (row_indices, col_indices)),
-        shape=(29, 29),
+        shape=(SKILL_COUNT, SKILL_COUNT),
         dtype=np.float32,
     )
     return coo.tocsr()

@@ -61,6 +61,10 @@ class Skill(IntEnum):
     SHAPESHIFTING = auto()
 
 
+# Number of skills derived from the Skill enum to avoid a hard-coded literal.
+SKILL_COUNT: Final[int] = len(Skill)
+
+
 class SkillCategory(IntEnum):
     """Skill category groupings."""
 
@@ -277,12 +281,12 @@ class UsageWindow:
     """
 
     window_size: int
-    counts: np.ndarray  # Shape: (29,) dtype: uint32
+    counts: np.ndarray  # Shape: (SKILL_COUNT,) dtype: uint32
     total_usage: int = 0
 
     def __post_init__(self) -> None:
         """Initialize counts array if not provided."""
-        if self.counts.shape != (29,):
+        if self.counts.shape != (SKILL_COUNT,):
             raise ValueError(f"Invalid counts shape: {self.counts.shape}")
         if self.counts.dtype != np.uint32:
             raise ValueError(f"Invalid counts dtype: {self.counts.dtype}")
@@ -290,7 +294,7 @@ class UsageWindow:
     @classmethod
     def create(cls, window_size: int = 1000) -> UsageWindow:
         """Factory method for new window."""
-        counts: np.ndarray = np.zeros(29, dtype=np.uint32)
+        counts: np.ndarray = np.zeros(SKILL_COUNT, dtype=np.uint32)
         return cls(window_size=window_size, counts=counts)
 
     def record(self, skill: Skill, amount: int = 1) -> None:
@@ -331,12 +335,12 @@ class UsageWindow:
         """Normalize counts to weight distribution.
 
         Returns:
-            Array of shape (29,) dtype: float32 summing to 1.0
+            Array of shape (SKILL_COUNT,) dtype: float32 summing to 1.0
         """
         total: int = int(self.counts.sum())
 
         if total == 0:
-            return np.zeros(29, dtype=np.float32)
+            return np.zeros(SKILL_COUNT, dtype=np.float32)
 
         return (self.counts / total).astype(np.float32)
 
