@@ -90,12 +90,12 @@ Example:
 
 ```python
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Mapping
 
 MAX_RETRIES: Final[int] = 3  # max retries for network calls
 DEFAULT_TIMEOUT_SECONDS: Final[float] = 5.0  # seconds; default network timeout
 AGENT_NAMES: Final[tuple[str, ...]] = ("claude", "gpt", "bard")
-AGENT_TIMEOUTS: Final[dict[str, float]] = MappingProxyType({"claude": 1.5})
+AGENT_TIMEOUTS: Final[Mapping[str, float]] = MappingProxyType({"claude": 1.5})
 ```
 
 ### 1.9 LLM operating rules
