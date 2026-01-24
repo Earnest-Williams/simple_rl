@@ -3,6 +3,8 @@
 Window manager for the roguelike game engine.
 Handles display, input, tilesets, and rendering coordination.
 """
+from __future__ import annotations
+
 # Standard library imports
 import json
 import math
