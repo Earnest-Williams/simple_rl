@@ -9,14 +9,12 @@ Thread safety: All mutation methods acquire self._skills_lock when present.
 from __future__ import annotations
 
 import logging
-from contextlib import nullcontext
 from threading import Lock
 from typing import Any, Final, Protocol
 
 import polars as pl
 
 from skills.models import (
-    MAX_SKILL_LEVEL,
     Skill,
     SkillProgress,
     SkillTrainingConfig,

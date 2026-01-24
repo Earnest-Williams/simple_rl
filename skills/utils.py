@@ -5,6 +5,7 @@ Handles JIT compilation warmup and msgpack-based save/load.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,8 @@ from skills.progression import (
     calculate_xp_for_level,
     calculate_xp_to_next_level,
 )
+
+log = logging.getLogger(__name__)
 
 
 def numba_warmup() -> None:
@@ -55,7 +58,7 @@ def numba_warmup() -> None:
     # Magic bonuses
     _ = calculate_magic_bonuses(15, 12, 5, 1.0, 2.0)
 
-    print("Numba JIT warmup complete (all functions compiled)")
+    log.debug("Numba JIT warmup complete (all functions compiled)")
 
 
 def serialize_skills(skills_df: pl.DataFrame) -> bytes:

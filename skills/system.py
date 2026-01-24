@@ -10,7 +10,6 @@ See CONCURRENCY.md for lock usage patterns and batch operation recommendations.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from threading import Lock
 from typing import TYPE_CHECKING, Generator
 
 import numpy as np
@@ -18,7 +17,6 @@ import polars as pl
 
 from skills.cross_training import (
     CROSS_TRAINING_MATRIX,
-    calculate_cross_training_xp,
 )
 from skills.models import Skill, TrainingMode, TrainingState, UsageWindow
 from skills.progression import batch_calculate_levels

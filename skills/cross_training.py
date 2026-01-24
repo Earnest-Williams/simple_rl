@@ -14,7 +14,6 @@ import scipy.sparse  # type: ignore[import-untyped]
 from skills.models import (
     CROSS_TRAINING_PAIRS,
     SKILL_COUNT,
-    CrossTrainingPair,
     Skill,
 )
 

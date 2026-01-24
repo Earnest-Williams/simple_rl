@@ -6,7 +6,7 @@ Certain skill combinations provide bonus effects beyond their individual contrib
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from skills.models import Skill
 
@@ -145,7 +145,7 @@ SYNERGIES: Final[list[Synergy]] = [
 
 
 def get_active_synergies(
-    registry: any,  # EntityRegistry
+    registry: Any,  # EntityRegistry
     entity_id: int,
 ) -> list[Synergy]:
     """Get all active synergies for an entity.
@@ -175,7 +175,7 @@ def get_active_synergies(
 
 
 def has_synergy(
-    registry: any,
+    registry: Any,
     entity_id: int,
     skill1: Skill,
     skill2: Skill,
@@ -203,7 +203,7 @@ def has_synergy(
 
 
 def get_synergy_bonuses(
-    registry: any,
+    registry: Any,
     entity_id: int,
     bonus_type: str,
 ) -> float:
@@ -228,7 +228,7 @@ def get_synergy_bonuses(
 
 
 def get_available_synergies(
-    registry: any,
+    registry: Any,
     entity_id: int,
 ) -> list[tuple[Synergy, int, int]]:
     """Get synergies that could be unlocked with more training.
@@ -280,7 +280,7 @@ def format_synergy(synergy: Synergy) -> str:
 
 
 def format_active_synergies(
-    registry: any,
+    registry: Any,
     entity_id: int,
 ) -> str:
     """Format all active synergies for an entity.
@@ -308,7 +308,7 @@ def format_active_synergies(
 
 
 def format_available_synergies(
-    registry: any,
+    registry: Any,
     entity_id: int,
 ) -> str:
     """Format available (not yet unlocked) synergies.
@@ -364,7 +364,6 @@ def format_all_synergies() -> str:
     combat = []
     magic = []
     hybrid = []
-    specialist = []
 
     for synergy in SYNERGIES:
         # Categorize based on skills involved

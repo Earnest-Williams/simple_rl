@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import ClassVar, Final
+from typing import Final
 
 import numpy as np
-import polars as pl
 
 
 class Skill(IntEnum):

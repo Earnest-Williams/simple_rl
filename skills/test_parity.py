@@ -20,7 +20,6 @@ from skills.models import (
     TrainingMode,
     TrainingState,
 )
-from skills.progression import calculate_xp_for_level
 from skills.registry_integration import SKILL_TABLE_SCHEMA, SkillSystemMixin
 from skills.system import (
     award_xp,
@@ -140,7 +139,7 @@ class TestParityValidation:
         xp_before = sum(p.xp for p in skills_before.values())
 
         # Award XP
-        level_ups = award_xp(vectorized_registry, entity_id, total_xp)
+        _level_ups = award_xp(vectorized_registry, entity_id, total_xp)
 
         # Get XP after
         skills_after = vectorized_registry.get_skills(entity_id)
@@ -163,7 +162,7 @@ class TestParityValidation:
             if skill not in (Skill.FIGHTING, Skill.AXES):
                 set_skill_training(registry2, entity_id, skill, TrainingState.DISABLED)
 
-        level_ups2 = award_xp(registry2, entity_id, total_xp)
+        _level_ups2 = award_xp(registry2, entity_id, total_xp)
         skills_after2 = registry2.get_skills(entity_id)
 
         # Results should be identical
@@ -187,7 +186,7 @@ class TestParityValidation:
                 )
 
         # Get initial XP for Maces (cross-trained from Axes at 40%)
-        maces_before = get_entity_skill_level(
+        _maces_before = get_entity_skill_level(
             vectorized_registry, entity_id, Skill.MACES_AND_FLAILS
         )
         maces_xp_before = vectorized_registry.get_skills(entity_id)[
@@ -617,7 +616,7 @@ class TestIntegrationWorkflows:
 
         # 2. Award XP to all in single batch
         entity_xp_pairs = [(entity_id, 100) for entity_id in range(n_entities)]
-        level_ups = batch_award_xp(vectorized_registry, entity_xp_pairs)
+        _level_ups = batch_award_xp(vectorized_registry, entity_xp_pairs)
 
         # 3. Verify all receive correct amounts
         for entity_id in range(n_entities):
