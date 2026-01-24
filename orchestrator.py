@@ -215,7 +215,11 @@ def run_pipeline(
         node_map_path = Path(f"{output_file}.node_map.json")
         try:
             with node_map_path.open("wb") as nmf:
-                nmf.write(orjson.dumps(node_map_rows, option=orjson.OPT_INDENT_2))
+                opt: int = orjson.OPT_INDENT_2 | getattr(
+                    orjson, "OPT_SERIALIZE_NUMPY", 0
+                )
+                payload: bytes = orjson.dumps(node_map_rows, option=opt)
+                nmf.write(payload)
         except OSError as exc:
             log.exception("Failed to write node map JSON: %s", exc)
     else:
