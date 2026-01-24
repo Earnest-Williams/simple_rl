@@ -245,7 +245,7 @@ class EntityRegistry:
             "skill_training": [None],  # Will be initialized when needed
             "active_manuals": [{}],  # No active manuals
             "shapeshifted_form": [None],  # Normal form
-            "training_mode": [0],  # TrainingMode.MANUAL = 0
+            "training_mode": [TrainingMode.MANUAL.value],  # Default to manual training mode
         }
         try:
             new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
