@@ -201,7 +201,7 @@ def handle_melee_attack(
 
     # --- Get Attacker Skills and Apply Bonuses ---
     attacker_skills = entity_reg.get_skills(attacker_id)
-    weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id if "main_hand_weapon_id" in locals() else None)
+    weapon_skill = _determine_weapon_skill(item_reg, locals().get("main_hand_weapon_id"))
 
     fighting_level = (attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)).level
     weapon_level = (attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)).level
