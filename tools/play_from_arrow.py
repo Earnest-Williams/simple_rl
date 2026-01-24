@@ -123,7 +123,7 @@ def create_gamestate_from_arrow(
     Create GameMap and GameState from an arrow/ipc file.
     Returns (GameState, dataframe, origin)
     """
-    df: pl.DataFrame = pl.read_ipc(str(arrow_path))
+    df: pl.DataFrame = pl.read_ipc(arrow_path)
     game_map: GameMap
     origin: Tuple[int, int]
     game_map, origin = shaped_dataframe_to_game_map(df)
