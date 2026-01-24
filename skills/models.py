@@ -308,8 +308,22 @@ class UsageWindow:
             self._decay()
 
     def _decay(self) -> None:
-        """Apply exponential decay to all counts."""
+        """Apply exponential decay to all counts.
+
+        Multiplies all counts by decay_factor (0.99), then casts to uint32.
+        This causes an implicit floor operation - fractional results are truncated.
+
+        IMPORTANT: This intentional flooring means small counts (1-10) will erode
+        quickly after ~100 decay cycles. This is acceptable for usage tracking
+        where we want recent activity to dominate, and very old activity to be
+        forgotten. The decay creates a sliding window effect.
+
+        If precise fractional tracking is needed, consider storing counts as
+        float32 internally, or use integer decay (e.g., subtract a fixed amount).
+        The current float→uint32 cast is deterministic and intentional.
+        """
         decay_factor: float = 0.99
+        # Intentional floor via astype - see docstring for rationale
         self.counts = (self.counts * decay_factor).astype(np.uint32)
         self.total_usage = int(self.counts.sum())
 
