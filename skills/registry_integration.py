@@ -8,6 +8,7 @@ Thread safety: All mutation methods acquire self._skills_lock when present.
 
 from __future__ import annotations
 
+import logging
 from contextlib import nullcontext
 from threading import Lock
 from typing import Any, Final, Protocol
@@ -353,8 +354,6 @@ class SkillSystemMixin:
             entity_id: Entity being updated
             skills_update: DataFrame with skill updates
         """
-        import logging
-
         logger = logging.getLogger(__name__)
 
         # Read current legacy dict (if any) via existing registry method
