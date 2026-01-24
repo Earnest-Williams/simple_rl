@@ -583,9 +583,7 @@ def _rasterize_segment(  # Added rng parameter
             parent_data, child_node_data
         )
         properties = _get_chunk_properties(chunk_base_type)
-        chunk_type_id = chunk_type_map.get(chunk_base_type)
-        if chunk_type_id is None:
-            chunk_type_id = chunk_type_map.get("smooth", 1)
+        chunk_type_id: int = chunk_type_map.get(chunk_base_type) or chunk_type_map.get("smooth", 1)
 
         # Get parent and child coordinates, check for NaN
         p_x, p_y = parent_data.get("x", 0.0), parent_data.get("y", 0.0)
