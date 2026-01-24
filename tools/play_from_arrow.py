@@ -16,7 +16,7 @@ import argparse
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Literal, Protocol, Tuple
+from typing import Literal, Protocol
 
 import polars as pl
 
