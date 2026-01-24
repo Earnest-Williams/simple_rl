@@ -80,11 +80,11 @@ def get_spell_power_multiplier(
         spellcasting=spellcasting_level,
         school=school_level,
         invocations=0,  # Not used for spell power
-        base_mp=0,  # Not used for spell power
-        base_spell_power=1.0,
+        xl_multiplier=1.0,  # Default XL multiplier
+        school_weight=1.0,  # Full weight for primary school
     )
 
-    return bonuses.spell_power_multiplier
+    return bonuses.spell_power
 
 
 def get_caster_max_mp(
@@ -117,8 +117,8 @@ def get_caster_max_mp(
         spellcasting=spellcasting_level,
         school=0,  # Not used for MP
         invocations=invocations_level,
-        base_mp=base_mp,
-        base_spell_power=1.0,  # Not used for MP
+        xl_multiplier=1.0,  # Default XL multiplier
+        school_weight=0.0,  # Not used for MP calculation
     )
 
     return bonuses.mp_bonus + base_mp

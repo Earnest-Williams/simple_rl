@@ -8,7 +8,6 @@ All tests fully type-annotated.
 from __future__ import annotations
 
 import timeit
-from typing import Final
 
 import numpy as np
 import pytest

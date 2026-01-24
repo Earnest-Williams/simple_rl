@@ -14,7 +14,7 @@ from game.effects.handlers import apply_status
 from game.systems.death_system import handle_entity_death
 
 # Skill system integration
-from skills.models import Skill
+from skills.models import Skill, SkillProgress
 from skills.system import award_xp, record_skill_usage
 from skills.effects import get_combat_bonuses_dict
 
@@ -138,13 +138,16 @@ def handle_melee_attack(
     # --- Determine Attacker's Damage ---
     damage_dice = DEFAULT_UNARMED_DAMAGE
     weapon_name = "unarmed"
+    
+    # Initialize weapon variables before conditionals
+    main_hand_weapon_id: int | None = None
+    off_hand_weapon_id: int | None = None
+    off_hand_dice: str | None = None
+    two_handed = False
 
     # Find equipped weapon(s)
     equipped_ids = entity_reg.get_equipped_ids(attacker_id)
     if equipped_ids:
-        main_hand_weapon_id: int | None = None
-        off_hand_weapon_id: int | None = None
-        two_handed = False
 
         equipped_items = item_reg.get_entity_equipped(attacker_id).filter(
             pl.col("item_id").is_in(equipped_ids)
@@ -191,7 +194,6 @@ def handle_melee_attack(
                     item_id=main_hand_weapon_id,
                 )
 
-        off_hand_dice = None
         if off_hand_weapon_id is not None:
             off_hand_dice = item_reg.get_item_static_attribute(
                 off_hand_weapon_id, "damage_dice", default=None
@@ -201,7 +203,7 @@ def handle_melee_attack(
 
     # --- Get Attacker Skills and Apply Bonuses ---
     attacker_skills = entity_reg.get_skills(attacker_id)
-    weapon_skill = _determine_weapon_skill(item_reg, locals().get("main_hand_weapon_id"))
+    weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
 
     fighting_level = (attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)).level
     weapon_level = (attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)).level
@@ -224,9 +226,9 @@ def handle_melee_attack(
 
     # --- Calculate Damage ---
     raw_damage = roll_dice(damage_dice, rng)
-    if "two_handed" in locals() and two_handed:
+    if two_handed:
         raw_damage = int(raw_damage * 1.5)
-    elif "off_hand_dice" in locals() and off_hand_dice:
+    elif off_hand_dice:
         off_raw = roll_dice(off_hand_dice, rng)
         raw_damage += max(0, off_raw // 2)
         raw_damage = max(0, raw_damage - 1)
@@ -238,8 +240,8 @@ def handle_melee_attack(
     defender_defense = defn.get("defense") or 0
     defender_armor = defn.get("armor") or 0
 
-    # Apply armor effectiveness from skill
-    effective_armor = int(defender_armor * skill_bonuses.armor_effectiveness)
+    # Apply armor bonus from skill (already calculated in skill_bonuses)
+    effective_armor = defender_armor + skill_bonuses.armor_bonus
 
     modified_damage = raw_damage + attacker_strength - defender_defense - effective_armor
     # Apply evasion from dodging skill

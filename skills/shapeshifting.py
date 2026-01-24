@@ -6,7 +6,7 @@ Different beast forms provide temporary skill bonuses/penalties while transforme
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from skills.models import Skill
 
@@ -169,7 +169,7 @@ def apply_form_bonuses(
 
 
 def get_effective_skill_level(
-    registry: any,  # EntityRegistry, but avoiding circular import
+    registry: Any,  # EntityRegistry, but avoiding circular import
     entity_id: int,
     skill: Skill,
 ) -> int:
@@ -208,7 +208,7 @@ def get_effective_skill_level(
 
 
 def get_all_effective_levels(
-    registry: any,
+    registry: Any,
     entity_id: int,
 ) -> dict[Skill, int]:
     """Get all skill levels with form bonuses applied.
@@ -236,7 +236,7 @@ def get_all_effective_levels(
 
 
 def shift_form(
-    registry: any,
+    registry: Any,
     entity_id: int,
     form_name: str | None,
 ) -> bool:
@@ -266,7 +266,7 @@ def shift_form(
 
 
 def get_current_form(
-    registry: any,
+    registry: Any,
     entity_id: int,
 ) -> FormModifiers | None:
     """Get entity's current form.

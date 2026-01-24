@@ -42,7 +42,7 @@ def consume_manual(
     # Check if manual already active for this skill
     if skill in manuals:
         # Extend duration by adding XP
-        existing_xp = manuals[skill].xp_remaining
+        existing_xp = manuals[skill].remaining_xp
         new_xp = existing_xp + xp_amount
         _update_manual_xp(registry, entity_id, skill, new_xp)
     else:
@@ -62,11 +62,11 @@ def _add_manual(
     """Add a new manual bonus to entity."""
     # Store in entity component
     manuals = get_active_manuals(registry, entity_id)
-    manuals[skill] = ManualBonus(skill=skill, xp_remaining=xp_amount, aptitude_bonus=4)
+    manuals[skill] = ManualBonus(skill=skill, remaining_xp=xp_amount, bonus_aptitude=4)
 
     # Convert to serializable format
     manual_dict = {
-        s.value: {"xp": b.xp_remaining, "bonus": b.aptitude_bonus}
+        s.value: {"xp": b.remaining_xp, "bonus": b.bonus_aptitude}
         for s, b in manuals.items()
     }
 
@@ -86,13 +86,13 @@ def _update_manual_xp(
         old_bonus = manuals[skill]
         manuals[skill] = ManualBonus(
             skill=skill,
-            xp_remaining=new_xp,
-            aptitude_bonus=old_bonus.aptitude_bonus,
+            remaining_xp=new_xp,
+            bonus_aptitude=old_bonus.bonus_aptitude,
         )
 
         # Save back to entity
         manual_dict = {
-            s.value: {"xp": b.xp_remaining, "bonus": b.aptitude_bonus}
+            s.value: {"xp": b.remaining_xp, "bonus": b.bonus_aptitude}
             for s, b in manuals.items()
         }
         registry.set_entity_component(entity_id, "active_manuals", manual_dict)
@@ -143,7 +143,7 @@ def consume_manual_xp(
         return False
 
     manual = manuals[skill]
-    remaining = manual.xp_remaining - xp_gained
+    remaining = manual.remaining_xp - xp_gained
 
     if remaining <= 0:
         # Manual expired
@@ -172,7 +172,7 @@ def _remove_manual(
 
         # Save back
         manual_dict = {
-            s.value: {"xp": b.xp_remaining, "bonus": b.aptitude_bonus}
+            s.value: {"xp": b.remaining_xp, "bonus": b.bonus_aptitude}
             for s, b in manuals.items()
         }
         registry.set_entity_component(entity_id, "active_manuals", manual_dict)
@@ -203,8 +203,8 @@ def get_active_manuals(
         skill = Skill(int(skill_value))
         manuals[skill] = ManualBonus(
             skill=skill,
-            xp_remaining=data["xp"],
-            aptitude_bonus=data.get("bonus", 4),
+            remaining_xp=data["xp"],
+            bonus_aptitude=data.get("bonus", 4),
         )
 
     return manuals
@@ -252,7 +252,7 @@ def get_manual_info(
     manual = manuals[skill]
     skill_name = skill.name.replace("_", " ").title()
 
-    return f"{skill_name}: +{manual.aptitude_bonus} apt ({manual.xp_remaining} XP left)"
+    return f"{skill_name}: +{manual.bonus_aptitude} apt ({manual.remaining_xp} XP left)"
 
 
 def list_active_manuals(
