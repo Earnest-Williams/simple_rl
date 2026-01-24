@@ -9,7 +9,7 @@ from typing import Callable, Final, IO, Sequence
 
 try:
     import yaml
-except Exception as exc:  # pragma: no cover - runtime guard
+except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover - runtime guard
     raise SystemExit(
         "Missing dependency 'PyYAML'. Install with `pip install PyYAML` or add "
         "it to your test/dev requirements."
