@@ -1221,14 +1221,8 @@ class WindowManager(QMainWindow):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         try:
-            main_loop_ref = getattr(self, "main_loop", None) or getattr(
-                self, "mainloop", None
-            )
-            game_state = None
-            if main_loop_ref is not None and hasattr(main_loop_ref, "game_state"):
-                game_state = main_loop_ref.game_state
-            else:
-                game_state = getattr(self, "game_state", None)
+            main_loop_ref = getattr(self, "main_loop", None)
+            game_state = getattr(main_loop_ref, "game_state", None)
 
             active_sets = getattr(self, "active_keybinding_sets", ["common"])
 
