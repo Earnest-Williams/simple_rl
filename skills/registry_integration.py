@@ -363,13 +363,9 @@ class SkillSystemMixin:
         for row in skills_update.iter_rows(named=True):
             skill = Skill(int(row["skill"]))
             # Defensive casts with None checks
-            level_val = row.get("level")
-            xp_val = row.get("xp")
-            aptitude_val = row.get("aptitude")
-
-            level: int = int(level_val) if level_val is not None else 0
-            xp: int = int(xp_val) if xp_val is not None else 0
-            aptitude: int = int(aptitude_val) if aptitude_val is not None else 0
+            level: int = int(row.get("level") or 0)
+            xp: int = int(row.get("xp") or 0)
+            aptitude: int = int(row.get("aptitude") or 0)
 
             prog = SkillProgress(
                 skill=skill,
