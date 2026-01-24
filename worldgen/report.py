@@ -96,7 +96,7 @@ def compute_seam_continuity(
 
     seam_total: float = 0.0
     seam_count: int = 0
-    if len(seam_pairs) > 0 and sample_size > 0:
+    if len(seam_pairs) > 0:
         stride = max(1, len(seam_pairs) // sample_size)
         for i in range(0, len(seam_pairs), stride):
             if seam_count >= sample_size:
