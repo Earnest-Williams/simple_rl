@@ -1220,15 +1220,35 @@ class WindowManager(QMainWindow):
             log.warning(f"Slow frame: {frame_duration:.1f}ms")
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if self.main_loop:
-            action = self.input_handler.process_key_event(
-                event, self.active_keybinding_sets
+        try:
+            main_loop_ref = getattr(self, "main_loop", None)
+            game_state = getattr(main_loop_ref, "game_state", None)
+
+            active_sets = getattr(self, "active_keybinding_sets", ["common"])
+
+            if main_loop_ref is None or game_state is None:
+                log.warning(
+                    "Key press ignored; missing main_loop or game_state.",
+                    has_main_loop=main_loop_ref is not None,
+                    has_game_state=game_state is not None,
+                )
+                super().keyPressEvent(event)
+                return
+
+            handled = self.input_handler.process_key_event(
+                event,
+                game_state,
+                main_loop_ref,
+                active_sets,
             )
-            if action:
-                log.debug(f"Action triggered: {action}")
-                self.main_loop.handle_action(action)
-                self._frame_dirty = True
-        super().keyPressEvent(event)
+
+            if handled:
+                return
+
+            super().keyPressEvent(event)
+        except Exception:
+            log.exception("Unhandled exception while processing key event")
+            super().keyPressEvent(event)
 
     def show_help_dialog(self) -> None:
         help_text = "Roguelike Controls:\n\n"
