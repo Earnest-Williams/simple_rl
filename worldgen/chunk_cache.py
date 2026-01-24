@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 from typing import Dict
+
+import orjson
 
 from worldgen.metadata import WorldMeta
 
@@ -31,9 +32,7 @@ def compute_chunk_cache_key(
         "height": int(height),
         "detail_cells_per_sim": int(detail_cells_per_sim),
     }
-    blob: bytes = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    blob: bytes = orjson.dumps(payload, option=orjson.OPT_SORT_KEYS)
     digest: str = hashlib.sha256(blob).hexdigest()
     return f"sha256:{digest}"
 
