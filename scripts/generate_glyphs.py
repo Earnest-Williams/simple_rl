@@ -326,16 +326,13 @@ def merge_tile_rows(tile_id: int, rows: Sequence[GlyphRow]) -> GlyphEntry:
     if confirmed_names:
         name = confirmed_names[0]
 
-    alt_names: List[str] = []
+    alt_names_set: set[str] = set()
     for row in rows:
-        for alt in row.alt_names:
-            if alt not in alt_names:
-                alt_names.append(alt)
+        alt_names_set.update(row.alt_names)
+    alt_names: list[str] = sorted(list(alt_names_set))
 
-    notes_list: List[str] = []
-    for row in rows:
-        if row.notes and row.notes not in notes_list:
-            notes_list.append(row.notes)
+    notes_set: set[str] = {row.notes for row in rows if row.notes}
+    notes_list: list[str] = sorted(list(notes_set))
 
     notes: str = "; ".join(notes_list)
     confirmed: bool = any(row.confirmed for row in rows)
