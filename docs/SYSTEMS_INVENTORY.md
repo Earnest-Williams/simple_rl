@@ -337,12 +337,12 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 1. ✅ **KEEP:** `Dungeon/core.py` + `Dungeon/processor.py` + `Dungeon/shaper.py`
    - **Reason:** Most sophisticated, 3D properties, complete pipeline
 
-2. ❌ **REMOVE:** `dungeon_generator.py`
-   - **Type:** Simple BSP with room placement
+2. ✅ **MOVED (archived):** `legacy/dungeon_generator.py`
+   - **Type:** Simple BSP with room placement (archived; moved to legacy/)
    - **Reason:** Less sophisticated than 3D variant
 
-3. ❌ **REMOVE:** `lights_dev/dungeon_generator.py`
-   - **Type:** Copy of BSP variant
+3. ✅ **MOVED (archived):** `legacy/lights_dev/dungeon_generator.py`
+   - **Type:** Copy of BSP variant (archived; moved to legacy/)
    - **Reason:** Duplicate of #2
 
 4. ❌ **REMOVE:** `prototypes/lights_dev/dungeon_generator.py`
@@ -748,6 +748,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ├── magic/                   # Magic system (INTEGRATED)
 ├── simulation/              # Zone manager (INTEGRATED)
 │   └── zone_manager.py
+├── legacy/                  # Archived legacy files
 ├── utils/                   # Utilities
 │   ├── game_rng.py          # Thin wrapper for GameRNG
 │   └── helpers.py
@@ -771,7 +772,6 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 │   └── README.md
 ├── lights_dev/              # Lighting R&D testbed (NOT INTEGRATED)
 │   ├── main_game.py         # Standalone test environment
-│   ├── dungeon_generator.py # Simple test map generator
 │   ├── dungeon_data.py      # Numba jitclass
 │   └── README.md
 ```
@@ -788,9 +788,9 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ### Cleanup Status
 
-**Removed (2026-01-16):**
-- ✅ `dungeon_generator.py` (root) - Duplicate, less sophisticated
-- ✅ `lights_dev/dungeon_generator.py` - Duplicate
+**Moved (archived) (2026-01-16):**
+- ✅ `legacy/dungeon_generator.py` (root) - Duplicate, less sophisticated
+- ✅ `legacy/lights_dev/dungeon_generator.py` - Duplicate
 - ✅ `prototypes/` - Entire directory (old prototypes, superseded implementations)
   - Contained: lights_dev/, Dungeon/, AI/, pathfinding/, auto/ variants
 
