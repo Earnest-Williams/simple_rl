@@ -21,9 +21,6 @@ USER_CLARIFIED_TOKENS: Final[Tuple[str, ...]] = (
 PLACEHOLDER_TOKENS: Final[frozenset[str]] = frozenset(
     {"", "-", "—", "n/a", "na"}
 )  # filename placeholders
-TABLE_HEADER: Final[str] = (
-    "png filename | svg filename | proposed_name | alternate_proposed_name | notes"
-)  # markdown table header
 PAREN_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"\([^)]*\)"
 )  # parenthetical content remover
@@ -56,13 +53,38 @@ class GlyphEntry:
     raw_notes: List[str]
 
 
-def main() -> int:
+def main(
+    *,
+    chart_path: Path | None = None,
+    png_dir: Path | None = None,
+    svg_dir: Path | None = None,
+    output_yaml: Path | None = None,
+    output_report: Path | None = None,
+) -> int:
     repo_root: Path = resolve_repo_root()
-    chart_path: Path = repo_root / "fonts" / "glyph_name_chart.md"
-    png_dir: Path = repo_root / "fonts" / "classic_roguelike_sliced"
-    svg_dir: Path = repo_root / "fonts" / "classic_roguelike_sliced_svgs"
-    output_yaml: Path = repo_root / "fonts" / "glyphs.yaml"
-    output_report: Path = repo_root / "fonts" / "glyphs_report.txt"
+    chart_path = (
+        Path(chart_path)
+        if chart_path
+        else repo_root / "fonts" / "glyph_name_chart.md"
+    )
+    png_dir = (
+        Path(png_dir)
+        if png_dir
+        else repo_root / "fonts" / "classic_roguelike_sliced"
+    )
+    svg_dir = (
+        Path(svg_dir)
+        if svg_dir
+        else repo_root / "fonts" / "classic_roguelike_sliced_svgs"
+    )
+    output_yaml = (
+        Path(output_yaml) if output_yaml else repo_root / "fonts" / "glyphs.yaml"
+    )
+    output_report = (
+        Path(output_report)
+        if output_report
+        else repo_root / "fonts" / "glyphs_report.txt"
+    )
 
     if not chart_path.exists():
         raise FileNotFoundError(f"Glyph chart not found: {chart_path}")
@@ -105,8 +127,21 @@ def resolve_repo_root() -> Path:
 
 
 def find_table_header(lines: Sequence[str]) -> int | None:
+    """Find the markdown table header line by token set (robust to spacing/case)."""
+    expected = [
+        "png filename",
+        "svg filename",
+        "proposed_name",
+        "alternate_proposed_name",
+        "notes",
+    ]
+    expected_set = set(expected)
     for index, line in enumerate(lines):
-        if line.strip().startswith(TABLE_HEADER):
+        if "|" not in line:
+            continue
+        tokens = [token.strip().lower() for token in line.split("|") if token.strip()]
+        tokens_set = set(tokens)
+        if expected_set.issubset(tokens_set):
             return index
     return None
 
@@ -197,14 +232,16 @@ def parse_row(
 
 
 def normalize_filename(value: str, suffix: str) -> str | None:
+    """Normalize a filename cell. Return string or None for placeholders/invalid suffix."""
     if not value:
         return None
-    lowered: str = value.strip().lower()
+    val: str = value.strip()
+    lowered: str = val.lower()
     if lowered in PLACEHOLDER_TOKENS:
         return None
-    if not value.endswith(suffix):
+    if not lowered.endswith(suffix.lower()):
         return None
-    return value.strip()
+    return val
 
 
 def extract_tile_id(filename: str | None) -> int | None:
@@ -306,14 +343,39 @@ def merge_tile_rows(tile_id: int, rows: Sequence[GlyphRow]) -> GlyphEntry:
 
 
 def select_filename(rows: Sequence[GlyphRow], field: str) -> str | None:
+    """Pick filename for `field` ('png'/'svg') with deterministic preference:
+    1) confirmed row with both png and svg
+    2) any confirmed row with the requested field
+    3) unconfirmed row with both png and svg
+    4) first row with requested field
+    """
+
+    def get_field(row: GlyphRow) -> str | None:
+        return row.png if field == "png" else row.svg
+
     for row in rows:
-        value: str | None
-        if field == "png":
-            value = row.png
-        else:
-            value = row.svg
-        if value is not None:
+        if row.confirmed and row.png and row.svg:
+            value = get_field(row)
+            if value:
+                return value
+
+    for row in rows:
+        if row.confirmed:
+            value = get_field(row)
+            if value:
+                return value
+
+    for row in rows:
+        if row.png and row.svg:
+            value = get_field(row)
+            if value:
+                return value
+
+    for row in rows:
+        value = get_field(row)
+        if value:
             return value
+
     return None
 
 
@@ -396,4 +458,31 @@ def write_report(
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate fonts/glyphs.yaml and fonts/glyphs_report.txt from "
+            "glyph_name_chart.md"
+        )
+    )
+    parser.add_argument(
+        "--chart",
+        help="Path to glyph_name_chart.md (defaults to repo fonts)",
+        default=None,
+    )
+    parser.add_argument("--png-dir", help="PNG directory", default=None)
+    parser.add_argument("--svg-dir", help="SVG directory", default=None)
+    parser.add_argument("--output-yaml", help="YAML output path", default=None)
+    parser.add_argument("--output-report", help="Report output path", default=None)
+    args = parser.parse_args()
+
+    raise SystemExit(
+        main(
+            chart_path=Path(args.chart) if args.chart else None,
+            png_dir=Path(args.png_dir) if args.png_dir else None,
+            svg_dir=Path(args.svg_dir) if args.svg_dir else None,
+            output_yaml=Path(args.output_yaml) if args.output_yaml else None,
+            output_report=Path(args.output_report) if args.output_report else None,
+        )
+    )
