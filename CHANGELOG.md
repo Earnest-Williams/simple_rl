@@ -14,4 +14,4 @@
   - `numpy`, `scipy`, `scikit-image`
   - `pydantic` (for metadata validation)
   - `orjson` (for fast report serialization)
-- Ensure you install the project with its runtime dependencies (for example, `pip install -r requirements.txt` or `pip install -e '.[dev]'` for CI/dev) and have a compatible `llvmlite`/`numba` wheel for your platform.
+- Ensure you install the project with its runtime dependencies (for example, `pip install .` or `pip install -e '.[dev]'` for CI/dev) and have a compatible `llvmlite`/`numba` wheel for your platform.

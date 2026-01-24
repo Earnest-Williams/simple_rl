@@ -82,7 +82,3 @@ wslink @ file:///home/conda/feedstock_root/build_artifacts/wslink_1742768409749/
 yarl @ file:///home/conda/feedstock_root/build_artifacts/yarl_1737575777699/work
 zipp @ file:///home/conda/feedstock_root/build_artifacts/zipp_1732827521216/work
 zstandard==0.23.0
-
-# runtime deps used by worldgen modules
-pydantic>=2.0
-orjson>=3.8.0
