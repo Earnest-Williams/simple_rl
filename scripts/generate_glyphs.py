@@ -128,11 +128,15 @@ def main(
 
 
 def resolve_repo_root() -> Path:
-    script_path: Path = Path(__file__)
-    if script_path.exists():
-        script_path = script_path.resolve()
-        return script_path.parent.parent
-    return Path.cwd()
+    try:
+        # Path to the 'scripts' directory
+        script_dir = Path(__file__).resolve().parent
+        # Path to the repo root
+        return script_dir.parent
+    except NameError:
+        # __file__ is not defined, fall back to CWD.
+        # This can happen in a REPL or when running from a string.
+        return Path.cwd()
 
 
 def find_table_header(lines: Sequence[str]) -> int | None:
