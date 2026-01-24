@@ -45,18 +45,17 @@ def normalize_target_level_to_python(value: int | None) -> int | None:
     return int(value)
 
 
-def normalize_target_level_to_polars(value: int | None) -> int | None:
+def normalize_target_level_to_polars(value: int | None) -> int:
     """Convert target_level from Python to Polars representation.
 
-    Args:
-        value: Python int or None
+    For writing into a UInt8 `target_level` column we *always* return an integer:
+      - If Python `value` is None, return the sentinel `NULL_U8_SENTINEL`.
+      - Otherwise return int(value).
 
-    Returns:
-        None (Polars will use NULL_U8_SENTINEL when schema enforces UInt8)
+    This makes the write path explicit and robust across Polars versions,
+    avoiding implicit None→sentinel heuristics.
     """
-    # When writing None to a UInt8 column with NULL_U8_SENTINEL as null representation,
-    # Polars handles the conversion automatically in the schema
-    return value
+    return NULL_U8_SENTINEL if value is None else int(value)
 
 
 # Skill table schema for EntityRegistry.skills_df
@@ -162,7 +161,8 @@ class SkillSystemMixin:
                     "aptitude": aptitude,
                     "weight": 1.0,  # Normal weight by default
                     "training_state": TrainingState.NORMAL.value,
-                    "target_level": None,
+                    # Explicitly store sentinel for "no target"
+                    "target_level": normalize_target_level_to_polars(None),
                     "usage_count": 0,
                 }
             )

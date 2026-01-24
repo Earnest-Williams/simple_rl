@@ -11,11 +11,16 @@ from typing import Final
 import numpy as np
 import scipy.sparse  # type: ignore[import-untyped]
 
-from skills.models import CROSS_TRAINING_PAIRS, CrossTrainingPair, Skill
+from skills.models import (
+    CROSS_TRAINING_PAIRS,
+    SKILL_COUNT,
+    CrossTrainingPair,
+    Skill,
+)
 
 
 def build_cross_training_matrix() -> scipy.sparse.csr_matrix:
-    """Build 29x29 cross-training adjacency matrix.
+    """Build cross-training adjacency matrix.
 
     Uses COO format for construction, then converts to CSR for fast row slicing.
     CSR enables O(nnz_row) lookup of all skills that receive XP from a primary skill.
@@ -34,7 +39,7 @@ def build_cross_training_matrix() -> scipy.sparse.csr_matrix:
 
     coo: scipy.sparse.coo_matrix = scipy.sparse.coo_matrix(
         (data, (row_indices, col_indices)),
-        shape=(29, 29),
+        shape=(SKILL_COUNT, SKILL_COUNT),
         dtype=np.float32,
     )
 

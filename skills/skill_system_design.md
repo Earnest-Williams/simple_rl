@@ -210,55 +210,75 @@ def distribute_xp_manual(
 ### Automatic Mode (Usage-Based)
 
 ```python
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=False, slots=True)
 class UsageWindow:
     """Ring buffer for tracking recent skill usage."""
-    window_size: int = 1000
-    counts: np.ndarray = field(default_factory=lambda: np.zeros(29, dtype=np.uint32))
-    position: int = 0
-    
-    def record_usage(self, skill_idx: int, amount: int = 1) -> UsageWindow:
-        """Immutable update returning new window."""
-        new_counts = self.counts.copy()
-        new_counts[skill_idx] += amount
-        
-        # Decay oldest usage if window full
-        if self.position >= self.window_size:
-            decay_factor: float = 0.99
-            new_counts = (new_counts * decay_factor).astype(np.uint32)
-        
-        return UsageWindow(
-            window_size=self.window_size,
-            counts=new_counts,
-            position=min(self.position + 1, self.window_size),
-        )
-    
+    window_size: int
+    counts: np.ndarray  # Shape: (SKILL_COUNT,) dtype: uint32
+    total_usage: int = 0
+
+    @classmethod
+    def create(cls, window_size: int = 1000) -> UsageWindow:
+        """Factory method for new window."""
+        counts: np.ndarray = np.zeros(SKILL_COUNT, dtype=np.uint32)
+        return cls(window_size=window_size, counts=counts)
+
+    def record(self, skill: Skill, amount: int = 1) -> None:
+        """Record skill usage (mutates in-place).
+
+        Args:
+            skill: Skill that was used
+            amount: Number of uses to record
+        """
+        self.counts[skill.value] += amount
+        self.total_usage += amount
+
+        # Decay if window exceeded
+        if self.total_usage > self.window_size:
+            self._decay()
+
+    def _decay(self) -> None:
+        """Apply exponential decay to all counts."""
+        decay_factor: float = 0.99
+        self.counts = (self.counts * decay_factor).astype(np.uint32)
+        self.total_usage = int(self.counts.sum())
+
     def get_weights(self) -> np.ndarray:
-        """Normalize usage counts to weights [0.0, 1.0]."""
-        if self.counts.sum() == 0:
-            return np.zeros(29, dtype=np.float32)
-        
-        return (self.counts / self.counts.sum()).astype(np.float32)
+        """Normalize counts to weight distribution.
+
+        Returns:
+            Array of shape (SKILL_COUNT,) dtype: float32 summing to 1.0
+        """
+        total: int = int(self.counts.sum())
+
+        if total == 0:
+            return np.zeros(SKILL_COUNT, dtype=np.float32)
+
+        return (self.counts / total).astype(np.float32)
 
 def distribute_xp_automatic(
     skill_df: pl.DataFrame,
     entity_id: int,
     total_xp: int,
     usage_window: UsageWindow,
-) -> tuple[pl.DataFrame, UsageWindow]:
-    """Distribute XP proportionally to recent skill usage."""
+) -> pl.DataFrame:
+    """Distribute XP proportionally to recent skill usage.
+
+    Note: usage_window is mutated in-place during skill usage recording,
+    not during XP distribution. This function only reads from it.
+    """
     weights = usage_window.get_weights()
-    
+
     # Convert to Polars Series for joining
     weight_mapping = pl.DataFrame({
-        "skill": [Skill(i) for i in range(29)],
+        "skill": [Skill(i) for i in range(SKILL_COUNT)],
         "auto_weight": weights,
     })
-    
+
     # Similar distribution logic as manual mode, but using auto_weight
     # ... (implementation omitted for brevity)
-    
-    return updated_df, usage_window
+
+    return updated_df
 ```
 
 ---
@@ -302,7 +322,7 @@ def build_cross_training_matrix() -> scipy.sparse.csr_matrix:
     
     coo = scipy.sparse.coo_matrix(
         (data, (row_indices, col_indices)),
-        shape=(29, 29),
+        shape=(SKILL_COUNT, SKILL_COUNT),
         dtype=np.float32,
     )
     return coo.tocsr()
