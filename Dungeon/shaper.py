@@ -181,7 +181,7 @@ def _rasterize_thick_line(  # Unchanged logic
             # Ensure dilation element fits within grid dimensions if small
             # (though disk() usually handles this)
             selem = sk_morphology_disk(radius)
-            thick_mask = sk_morphology_dilation(line_mask, selem=selem)
+            thick_mask = sk_morphology_dilation(line_mask, footprint=selem)
         except Exception as e:
             print(f" Error during dilation: {e}")
             # Fallback to just the thin line mask? Or return?
