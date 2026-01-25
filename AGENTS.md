@@ -107,7 +107,7 @@ Canonical layout:
 ├─ pyproject.toml
 ├─ game/
 ├─ Dungeon/
-├─ AI/
+├─ ai/
 ├─ utils/
 ├─ tests/
 └─ scripts/

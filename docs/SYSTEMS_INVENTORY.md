@@ -594,7 +594,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ### 1. Community NPC AI System ❌ NOT INTEGRATED
 
-**Location:** `AI/v9.py` + `AI/README.md`
+**Location:** `ai/v9.py` + `ai/README.md`
 
 **Purpose:** AI for non-adventurer NPCs in persistent communities (distinct from combat AI)
 
@@ -614,7 +614,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - 🔄 **Planned:** Allow NPCs to switch between this AI and GOAP AI
 
 **Integration Steps Needed:**
-1. Normalize trait systems between AI/ and game/ implementations
+1. Normalize trait systems between ai/ and game/ implementations
 2. Create community environment system for NPCs to inhabit
 3. Integrate with game/game_state.py orchestrator
 4. Add NPC spawning/management to entity registry
@@ -762,7 +762,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ### Development/R&D Systems (NOT Integrated)
 
 ```
-├── AI/                      # Community NPC AI (NOT INTEGRATED)
+├── ai/                      # Community NPC AI (NOT INTEGRATED)
 │   ├── v9.py                # Advanced trait-based NPC AI
 │   └── README.md
 ├── auto/                    # GOAP testing environment (NOT INTEGRATED)
@@ -792,13 +792,13 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - ✅ `legacy/dungeon_generator.py` (root) - Duplicate, less sophisticated
 - ✅ `legacy/lights_dev/dungeon_generator.py` - Duplicate
 - ✅ `prototypes/` - Entire directory (old prototypes, superseded implementations)
-  - Contained: lights_dev/, Dungeon/, AI/, pathfinding/, auto/ variants
+  - Contained: lights_dev/, Dungeon/, ai/, pathfinding/, auto/ variants
 
 **Kept:**
 - ✅ `Dungeon/` (root) - Most sophisticated 3D generator
 - ✅ `lights_dev/` - Active R&D, planned for integration
 - ✅ `auto/` - AI testing environment, core already integrated
-- ✅ `AI/` - Community NPC AI under development
+- ✅ `ai/` - Community NPC AI under development
 
 ---
 
@@ -826,7 +826,7 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - Deterministic RNG throughout
 
 **R&D Systems (Not Yet Integrated):** 2 systems with clear integration paths
-- Community NPC AI (AI/v9.py) - Advanced trait-based behaviors
+- Community NPC AI (ai/v9.py) - Advanced trait-based behaviors
 - Lighting/FOV/Memory testbed (lights_dev/) - Experimental rendering features
 
 **Test/Tuning Environments:** 1 environment

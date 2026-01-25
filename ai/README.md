@@ -1,4 +1,4 @@
-# simple_rl/AI - Community NPC AI System
+# simple_rl/ai - Community NPC AI System
 
 ## Purpose
 

@@ -11,7 +11,7 @@ The project emphasizes robust simulation, leveraging performant libraries and pa
 This project is structured into several key component directories, each with its own detailed `README.md`:
 
 * **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph → Processing → Shaping). Outputs Polars DataFrames with preserved 3D depth information. ([See README](./Dungeon/README.md))
-* **`AI/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./AI/README.md))
+* **`ai/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./ai/README.md))
 * **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
 * **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Contains experimental features for future integration with the main rendering pipeline. ([See README](./lights_dev/README.md))
 * **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. ([See README](./pathfinding/README.md))
@@ -41,7 +41,7 @@ This project is **under active development**. The core game systems are integrat
 * **Effects System**: Comprehensive effect handlers and status management
 
 ### R&D Systems (Not Yet Integrated)
-* **Community NPC AI** (`AI/`): Advanced trait-based AI for non-combat NPCs with habit learning
+* **Community NPC AI** (`ai/`): Advanced trait-based AI for non-combat NPCs with habit learning
 * **Lighting Testbed** (`lights_dev/`): Experimental octant FOV and colored lighting research
 * **GOAP Test Environment** (`auto/`): Simulation harness for AI training and tuning (core GOAP is already integrated)
 
