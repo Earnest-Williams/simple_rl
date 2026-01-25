@@ -33,11 +33,16 @@ if SCRIPT_PATH.exists():
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-from common.constants import Material
-from engine.main_loop import MainLoop
-from game.game_state import GameState
-from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES, GameMap
-from utils.shaped_map import shaped_dataframe_to_game_map
+from common.constants import Material  # noqa: E402
+from engine.main_loop import MainLoop  # noqa: E402
+from game.game_state import GameState  # noqa: E402
+from game.world.game_map import (  # noqa: E402
+    TILE_ID_FLOOR,
+    TILE_ID_WALL,
+    TILE_TYPES,
+    GameMap,
+)
+from utils.shaped_map import shaped_dataframe_to_game_map  # noqa: E402
 
 SPAWN_MIN_ROOM_SIZE = 20
 SPAWN_SEARCH_RADIUS = 100
