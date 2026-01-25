@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import sys
 import tomllib
 from collections import deque
 from importlib import import_module
@@ -25,6 +26,12 @@ import numpy as np
 import polars as pl
 import yaml
 from polars.exceptions import ColumnNotFoundError, PolarsError
+
+_SCRIPT_PATH = Path(__file__)
+if _SCRIPT_PATH.exists():
+    _REPO_ROOT = _SCRIPT_PATH.resolve().parents[1]
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
 
 from common.constants import Material
 from engine.main_loop import MainLoop

@@ -8,6 +8,8 @@ Optimized with NumPy and deterministic RNG.
 Version: 9.0 (Merged Traits & Habits) - Requires review for duplicates
 """
 
+from __future__ import annotations
+
 from collections import defaultdict, deque
 from collections.abc import Callable
 from typing import (
