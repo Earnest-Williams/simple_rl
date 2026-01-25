@@ -409,7 +409,7 @@ class EntityRegistry:
             target_dtype = ENTITY_SCHEMA[component_name]
             try:
                 if target_dtype == pl.Object and not isinstance(
-                    value, (dict, list, type(None))
+                    value, dict | list | type(None)
                 ):
                     log.warning(
                         f"Potentially incompatible type for Object column '{component_name}'",

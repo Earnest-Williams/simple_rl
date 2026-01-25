@@ -66,6 +66,7 @@ except ImportError as e:
 
     # Dummy dungeon generator
     class dungeon_generator:  # type: ignore # noqa
+        @staticmethod
         def dungeon_generate_map_u_shape(dungeon, rng):
             pass
 
@@ -1146,7 +1147,6 @@ def run_simulation():
 
     try:
         while time.time() - start_time < target_duration:
-            loop_start_perf = time.perf_counter()
             current_frame_time = time.time()
             dt = min(current_frame_time - last_frame_time, 0.1)
             last_frame_time = current_frame_time
@@ -1249,14 +1249,12 @@ def run_simulation():
             update_start_time = time.perf_counter()
             game_state.update(dt)
             update_time = time.perf_counter() - update_start_time
-            vis_updated_this_frame = False
             if is_profiling or player_moved:
                 vis_start_time = time.perf_counter()
                 game_state.update_visibility()
                 vis_end_time = time.perf_counter()
                 frame_vis_time = vis_end_time - vis_start_time
                 total_update_vis_time += frame_vis_time
-                vis_updated_this_frame = True
             else:
                 frame_vis_time = 0
             render_start_time = time.perf_counter()
@@ -1267,7 +1265,6 @@ def run_simulation():
             print(rendered_map)
 
             # Status Info (No RNG here)
-            elapsed_time = current_frame_time - start_time
             update_count = frame_count + 1
             avg_vis_time_ms = (
                 (total_update_vis_time / update_count) * 1000 if update_count > 0 else 0

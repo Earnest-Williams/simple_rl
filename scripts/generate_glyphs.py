@@ -289,15 +289,7 @@ def clean_notes(raw_notes: str) -> tuple[str, bool]:
     if cleaned:
         cleaned = " ".join(cleaned.split())
 
-    confirmed: bool
-    if has_ambiguity:
-        confirmed = False
-    elif has_user_clarified and cleaned:
-        confirmed = True
-    elif cleaned:
-        confirmed = True
-    else:
-        confirmed = False
+    confirmed = not has_ambiguity and bool(cleaned)
 
     return cleaned, confirmed
 

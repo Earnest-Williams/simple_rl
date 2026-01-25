@@ -17,11 +17,6 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from scipy.spatial import KDTree
 
-REPO_ROOT = Path(__file__).resolve().parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-os.environ.setdefault("PYTHONPATH", str(REPO_ROOT))
-
 from Dungeon import core, processor, shaper
 from auto.simulation import (
     PASSIVE_HUNGER_PER_TURN,
@@ -36,6 +31,11 @@ from engine.render_lighting import apply_memory_fade
 from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
 from skills.utils import numba_warmup
+
+REPO_ROOT = Path(__file__).resolve().parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+os.environ.setdefault("PYTHONPATH", str(REPO_ROOT))
 
 DEFAULT_SEED = int(time.time() * 1000)
 DEFAULT_MAX_NODES = 400
@@ -231,8 +231,8 @@ def run_pipeline(
     if (
         isinstance(origin_obj, tuple)
         and len(origin_obj) == 2
-        and isinstance(origin_obj[0], (int, float))
-        and isinstance(origin_obj[1], (int, float))
+        and isinstance(origin_obj[0], int | float)
+        and isinstance(origin_obj[1], int | float)
     ):
         min_x = int(origin_obj[0])
         min_y = int(origin_obj[1])

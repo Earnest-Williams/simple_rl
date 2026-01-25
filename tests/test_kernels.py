@@ -11,8 +11,8 @@ from worldgen.topology_cube_sphere import build_nbr_tables, build_pos_xyz
 
 
 def test_noise_deterministic() -> None:
-    N: int = 4
-    pos: NDArray[np.float32] = build_pos_xyz(N)
+    n: int = 4
+    pos: NDArray[np.float32] = build_pos_xyz(n)
     out1: NDArray[np.float32] = eval_noise_sphere(
         pos, 42, octaves=2, lacunarity=2.0, persistence=0.5, scale=1.0
     )
@@ -23,11 +23,11 @@ def test_noise_deterministic() -> None:
 
 
 def test_smoothing_and_erosion_basic() -> None:
-    N: int = 4
-    n_cells: int = 6 * N * N
+    n: int = 4
+    n_cells: int = 6 * n * n
     nbr4: NDArray[np.int32]
     nbr8: NDArray[np.int32]
-    nbr4, nbr8 = build_nbr_tables(N)
+    nbr4, nbr8 = build_nbr_tables(n)
 
     arr_q: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
     arr_q[0] = 100
@@ -58,8 +58,8 @@ def test_smoothing_and_erosion_basic() -> None:
 
 
 def test_advection_stability() -> None:
-    N: int = 4
-    n_cells: int = 6 * N * N
+    n: int = 4
+    n_cells: int = 6 * n * n
     moist: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
     precip_accum: NDArray[np.float32] = np.zeros(n_cells, dtype=np.float32)
     elev_q: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)

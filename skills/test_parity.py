@@ -652,9 +652,9 @@ def assert_skills_equal(
         skills_b: Second skill dict
         tolerance: Allowed XP difference (for floating-point)
     """
-    assert set(skills_a.keys()) == set(skills_b.keys()), "Different skills present"
+    assert set(skills_a) == set(skills_b), "Different skills present"
 
-    for skill in skills_a.keys():
+    for skill in skills_a:
         prog_a = skills_a[skill]
         prog_b = skills_b[skill]
 

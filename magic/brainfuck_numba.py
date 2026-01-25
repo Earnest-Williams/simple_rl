@@ -332,7 +332,7 @@ def _run_numba_core(
         )
     except Exception as exc:
         # Compilation / runtime error: propagate to caller for fallback
-        raise RuntimeError(f"Numba execution failed: {exc}")
+        raise RuntimeError(f"Numba execution failed: {exc}") from exc
 
     # reconstruct output string from output buffer
     if out_len > 0:

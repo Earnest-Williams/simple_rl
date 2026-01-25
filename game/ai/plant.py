@@ -27,13 +27,14 @@ def take_turn(
     player_pos = game_state.player_position
 
     acted = False
-    if player_pos is not None:
-        if abs(player_pos.x - x) <= 1 and abs(player_pos.y - y) <= 1:
-            from game.systems import combat_system
+    if (
+        player_pos is not None
+        and abs(player_pos.x - x) <= 1
+        and abs(player_pos.y - y) <= 1
+    ):
+        from game.systems import combat_system
 
-            combat_system.handle_melee_attack(
-                entity_id, game_state.player_id, game_state
-            )
-            acted = True
+        combat_system.handle_melee_attack(entity_id, game_state.player_id, game_state)
+        acted = True
 
     log.debug("Plant AI entity processed", entity_id=entity_id, acted=acted)

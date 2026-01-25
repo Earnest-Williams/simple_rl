@@ -173,9 +173,8 @@ def get_locked_skills(
     locked: list[Skill] = []
 
     for skill in Skill:
-        if has_prerequisites(skill):
-            if not can_train_skill(registry, entity_id, skill):
-                locked.append(skill)
+        if has_prerequisites(skill) and not can_train_skill(registry, entity_id, skill):
+            locked.append(skill)
 
     return locked
 

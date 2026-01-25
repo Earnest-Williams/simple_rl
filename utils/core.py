@@ -322,7 +322,7 @@ class VariationEngine:
         ]
 
         if self.tone == ToneProfile.TERSE:
-            return ["{adj} {noun}. {feature}.", "{adj} {noun}.", f"{noun}. {feature}."]
+            return ["{adj} {noun}. {feature}.", "{adj} {noun}.", "{noun}. {feature}."]
         elif self.tone == ToneProfile.ORNATE:
             return [
                 "You {verb} {adverb} into a {adj} {noun}, its vastness marked by {feature} that speak of ages past.",
@@ -655,7 +655,7 @@ class NameGenerator:
             raise ValueError("Must train generator before generating names")
 
         # Try up to 10 times to generate a valid name
-        for attempt in range(10):
+        for _ in range(10):
             # Pick a random start
             name = self.rng.choice(self.start_tokens)
 
@@ -780,8 +780,8 @@ def make_jinja_env(rng: GameRNG) -> "Environment":
     """
     try:
         from jinja2 import Environment
-    except ImportError:
-        raise ImportError("jinja2 is required for template support")
+    except ImportError as err:
+        raise ImportError("jinja2 is required for template support") from err
 
     env = Environment(autoescape=False)
 

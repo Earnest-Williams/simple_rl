@@ -34,9 +34,9 @@ def _make_json_serializable(obj: Any) -> Any:
     Raises:
         SaveGameSerializationError: If object cannot be serialized
     """
-    if isinstance(obj, (str, int, float, bool)) or obj is None:
+    if isinstance(obj, str | int | float | bool) or obj is None:
         return obj
-    if isinstance(obj, (np.integer, np.floating, np.bool_)):
+    if isinstance(obj, np.integer | np.floating | np.bool_):
         return obj.item()
     if isinstance(obj, bytes):
         return {"__bytes_b64__": base64.b64encode(obj).decode("ascii")}

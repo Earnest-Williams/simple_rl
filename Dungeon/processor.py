@@ -64,7 +64,7 @@ def process_backbone_graph(
         return isinstance(value, int) and not isinstance(value, bool)
 
     def is_valid_number(value: object) -> bool:
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return isinstance(value, int | float) and not isinstance(value, bool)
 
     def reset_geometry_fields(node: Dict[str, Any]) -> None:
         node["segment_length_xy"] = 0.0

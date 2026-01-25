@@ -444,8 +444,6 @@ class TestFullRoundTrip:
 
     def test_atomic_write_cleanup_on_error(self, tmp_path: Path) -> None:
         """If write fails, temp file should be cleaned up."""
-        save_path = tmp_path / "test.sav"
-
         # Create a read-only directory to force write failure
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()

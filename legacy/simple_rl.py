@@ -4,11 +4,6 @@ import os
 import warnings
 from typing import Any
 
-# Suppress numpy overflow warnings that are expected with uint64 operations
-warnings.filterwarnings(
-    "ignore", category=RuntimeWarning, message="overflow encountered"
-)
-
 from PySide6 import QtCore, QtGui, QtWidgets
 
 # Import the new dungeon_generator module
@@ -17,6 +12,10 @@ from utils.game_rng import GameRNG  # Import GameRNG from game_rng.py
 from utils.game_rng import MetricsCollector
 from scripting_engine import MacroManager  # Import MacroManager from our new module
 
+# Suppress numpy overflow warnings that are expected with uint64 operations
+warnings.filterwarnings(
+    "ignore", category=RuntimeWarning, message="overflow encountered"
+)
 # --- Configuration Constants ---
 ROOM_MIN_SIZE = 3
 ROOM_MAX_SIZE = 5
@@ -364,7 +363,7 @@ class GameState:
         try:
             game_rng.set_state(data["rng_state"])
         except Exception as e:
-            raise ValueError(f"Failed to set RNG state: {e}")
+            raise ValueError(f"Failed to set RNG state: {e}") from e
 
         state = cls.__new__(cls)  # Create instance without calling __init__
 
@@ -677,7 +676,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         )
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event):  # noqa: N802
         # Handle game keys if no input widget has focus, regardless of current tab
         if (
             not self.game_input.hasFocus()
@@ -1133,10 +1132,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 msg = "RNG metrics collection enabled."
             else:
                 # Stop metrics if they exist and are running
-                if hasattr(game_rng, "metrics") and game_rng.metrics is not None:
-                    # Ensure stop method exists
-                    if hasattr(game_rng.metrics, "stop"):
-                        game_rng.metrics.stop()
+                if (
+                    hasattr(game_rng, "metrics")
+                    and game_rng.metrics is not None
+                    and hasattr(game_rng.metrics, "stop")
+                ):
+                    game_rng.metrics.stop()
                 msg = "RNG metrics collection disabled."
         except Exception as e:
             msg = f"Error toggling metrics: {e}"

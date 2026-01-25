@@ -108,7 +108,7 @@ class TestSkillTraining:
         config.set_training_state(Skill.FIGHTING, TrainingState.ENABLED)
 
         # Award 750 XP, all should go to Fighting
-        level_changes = distribute_xp(750.0, skills, config)
+        distribute_xp(750.0, skills, config)
 
         assert Skill.FIGHTING in skills
         assert skills[Skill.FIGHTING].level == 5
@@ -122,7 +122,7 @@ class TestSkillTraining:
         config.set_training_state(Skill.DODGING, TrainingState.ENABLED)
 
         # Award 1500 XP, should split 750 each
-        level_changes = distribute_xp(1500.0, skills, config)
+        distribute_xp(1500.0, skills, config)
 
         assert Skill.FIGHTING in skills
         assert Skill.DODGING in skills

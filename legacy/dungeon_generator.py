@@ -9,6 +9,7 @@ and will attempt to use CaveGenerator if present.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import importlib.util
 import os
@@ -164,16 +165,16 @@ def create_dungeon(
 
         # 2) CaveGenerator (the real Dungeon/core.py exports this class)
         try:
-            CaveGenerator = getattr(real, "CaveGenerator", None)
+            cave_generator_cls = getattr(real, "CaveGenerator", None)
             # If we imported the package instead of the core module, check submodule
-            if CaveGenerator is None and hasattr(real, "core"):
-                CaveGenerator = getattr(real.core, "CaveGenerator", None)
-            if CaveGenerator:
+            if cave_generator_cls is None and hasattr(real, "core"):
+                cave_generator_cls = getattr(real.core, "CaveGenerator", None)
+            if cave_generator_cls:
                 # pick conservative parameters
                 max_nodes = max(200, num_rooms * 12)
                 max_depth = max(8, int(max(8, num_rooms / 2)))
                 # instantiate with rng (core.CaveGenerator expects rng as 3rd arg)
-                cg = CaveGenerator(max_nodes, max_depth, rng)
+                cg = cave_generator_cls(max_nodes, max_depth, rng)
                 # Try common runner names; call the first available
                 runner_names = [
                     "run",
@@ -189,10 +190,8 @@ def create_dungeon(
                             getattr(cg, rn)()
                         except TypeError:
                             # try with parameters if needed
-                            try:
-                                getattr(cg, rn)(max_nodes, max_depth)
-                            except Exception:
-                                pass
+                        with contextlib.suppress(Exception):
+                            getattr(cg, rn)(max_nodes, max_depth)
                         break
                 # At this point we expect cg.nodes or cg.node_map to be populated
                 raw_nodes = getattr(cg, "nodes", None)
@@ -209,6 +208,7 @@ def create_dungeon(
                         num_rooms,
                         min_room_size,
                         max_room_size,
+                        room_gap,
                         rng,
                     )
         except Exception as exc:
@@ -229,7 +229,7 @@ def create_dungeon(
 
 
 def _rasterize_from_nodes(
-    raw_nodes, width, height, num_rooms, min_room_size, max_room_size, rng
+    raw_nodes, width, height, num_rooms, min_room_size, max_room_size, room_gap, rng
 ):
     """
     Build a simple '#' / '.' grid from backbone nodes.
@@ -399,8 +399,11 @@ def find_empty_position(
     if real and hasattr(real, "find_empty_position"):
         try:
             return real.find_empty_position(dungeon, room, rng)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            if hasattr(real, "get_dungeon_string"):
+                return real.get_dungeon_string(dungeon, entities)
+            if hasattr(real, "render"):
+                return real.render(dungeon, entities)
 
     if not dungeon or not dungeon[0]:
         return None
@@ -486,13 +489,11 @@ def line_of_sight(dungeon: list[list[str]], x1: int, y1: int, x2: int, y2: int) 
 def get_dungeon_string(dungeon: list[list[str]], entities: dict[str, Any]) -> str:
     real = _get_real_module()
     if real:
-        try:
+        with contextlib.suppress(Exception):
             if hasattr(real, "get_dungeon_string"):
                 return real.get_dungeon_string(dungeon, entities)
             if hasattr(real, "render"):
                 return real.render(dungeon, entities)
-        except Exception:
-            pass
 
     height = len(dungeon)
     width = len(dungeon[0]) if height else 0
@@ -503,9 +504,12 @@ def get_dungeon_string(dungeon: list[list[str]], entities: dict[str, Any]) -> st
 
     enemies = entities.get("enemies", [])
     for enemy in enemies or []:
-        if 0 <= enemy.x < width and 0 <= enemy.y < height:
-            if grid[enemy.y][enemy.x] != "@":
-                grid[enemy.y][enemy.x] = "s"
+        if (
+            0 <= enemy.x < width
+            and 0 <= enemy.y < height
+            and grid[enemy.y][enemy.x] != "@"
+        ):
+            grid[enemy.y][enemy.x] = "s"
     return "\n".join("".join(row) for row in grid)
 
 

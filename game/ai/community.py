@@ -76,20 +76,26 @@ def take_turn(
     best_noise = current_noise
     for ndx, ndy in directions:
         nx, ny = x + ndx, y + ndy
-        if 0 <= nx < noise_map.shape[1] and 0 <= ny < noise_map.shape[0]:
-            if noise_map[ny, nx] > best_noise:
-                best_noise = noise_map[ny, nx]
-                move = (ndx, ndy)
+        if (
+            0 <= nx < noise_map.shape[1]
+            and 0 <= ny < noise_map.shape[0]
+            and noise_map[ny, nx] > best_noise
+        ):
+            best_noise = noise_map[ny, nx]
+            move = (ndx, ndy)
 
     if move is None:
         current_scent = scent_map[y, x]
         best_scent = current_scent
         for ndx, ndy in directions:
             nx, ny = x + ndx, y + ndy
-            if 0 <= nx < scent_map.shape[1] and 0 <= ny < scent_map.shape[0]:
-                if scent_map[ny, nx] > best_scent:
-                    best_scent = scent_map[ny, nx]
-                    move = (ndx, ndy)
+            if (
+                0 <= nx < scent_map.shape[1]
+                and 0 <= ny < scent_map.shape[0]
+                and scent_map[ny, nx] > best_scent
+            ):
+                best_scent = scent_map[ny, nx]
+                move = (ndx, ndy)
 
     if move is None:
         if not hasattr(rng, "get_int"):

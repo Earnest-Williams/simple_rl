@@ -15,7 +15,7 @@ def _draw_sequence(rng: GameRNG, count: int) -> List[int]:
 def _contains_large_int(obj: Any, max_uint64: int) -> bool:
     if isinstance(obj, dict):
         return any(_contains_large_int(v, max_uint64) for v in obj.values())
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         return any(_contains_large_int(v, max_uint64) for v in obj)
     if isinstance(obj, np.ndarray):
         if obj.dtype.kind == "O":

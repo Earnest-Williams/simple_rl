@@ -58,9 +58,9 @@ def slope_greater(slope1_yx: Slope, y: int, x: int) -> bool:
     if slope_x == 0 and x == 0:
         return slope_y > y
     if slope_x == 0:
-        return True if x > 0 else False
+        return x > 0
     if x == 0:
-        return False if slope_x > 0 else True
+        return slope_x <= 0
     return slope_y * x > slope_x * y
 
 
@@ -71,9 +71,9 @@ def slope_greater_or_equal(slope1_yx: Slope, y: int, x: int) -> bool:
     if slope_x == 0 and x == 0:
         return slope_y >= y
     if slope_x == 0:
-        return True if x >= 0 else False
+        return x >= 0
     if x == 0:
-        return False if slope_x >= 0 else True
+        return slope_x < 0
     return slope_y * x >= slope_x * y
 
 
@@ -84,9 +84,9 @@ def slope_less(slope1_yx: Slope, y: int, x: int) -> bool:
     if slope_x == 0 and x == 0:
         return slope_y < y
     if slope_x == 0:
-        return False if x > 0 else True
+        return x <= 0
     if x == 0:
-        return True if slope_x > 0 else False
+        return slope_x > 0
     return slope_y * x < slope_x * y
 
 
@@ -97,9 +97,9 @@ def slope_less_or_equal(slope1_yx: Slope, y: int, x: int) -> bool:
     if slope_x == 0 and x == 0:
         return slope_y <= y
     if slope_x == 0:
-        return False if x > 0 else True
+        return x <= 0
     if x == 0:
-        return True if slope_x > 0 else False
+        return slope_x > 0
     return slope_y * x <= slope_x * y
 
 

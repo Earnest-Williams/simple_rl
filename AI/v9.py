@@ -41,7 +41,7 @@ class Behavior:
         self,
         name: str,
         fn: Callable | None,
-        impact: Dict = {},
+        impact: Dict | None = None,
         est_energy_cost: float = 0,
         est_time_cost: float = 0,
         task_id: str = "",
@@ -49,7 +49,7 @@ class Behavior:
     ):
         self.name = name
         self.fn = fn
-        self.impact = impact
+        self.impact = impact if impact is not None else {}
         self.est_energy_cost = est_energy_cost
         self.est_time_cost = est_time_cost
         self.task_id = task_id
@@ -829,7 +829,7 @@ class AgentF:
 
     def _calculate_habit_utility(self, predicted_impact: Dict[str, float]) -> float:
         utility = 0.0
-        W = {
+        weights = {
             "thirst": 5.0,
             "energy": 2.5 * (1 + 0.5 * (2 - self.traits.endurance)),
             "health": 4.0,
@@ -843,20 +843,24 @@ class AgentF:
         }
 
         utility += (
-            max(0, -predicted_impact.get("delta_thirst", 0)) * self.thirst * W["thirst"]
+            max(0, -predicted_impact.get("delta_thirst", 0))
+            * self.thirst
+            * weights["thirst"]
         )
         utility += (
             max(0, predicted_impact.get("delta_energy", 0))
             * (1 - self.energy / 16.0)
-            * W["energy"]
+            * weights["energy"]
         )
         utility += (
             max(0, predicted_impact.get("delta_health", 0))
             * (1 - self.health / 100.0)
-            * W["health"]
+            * weights["health"]
         )
         utility += (
-            max(0, -predicted_impact.get("delta_hunger", 0)) * self.hunger * W["hunger"]
+            max(0, -predicted_impact.get("delta_hunger", 0))
+            * self.hunger
+            * weights["hunger"]
         )
         food_gain = sum(
             v
@@ -865,20 +869,20 @@ class AgentF:
             and CROPS.get(k.split(":")[1], {}).get("edible")
             and v > 0
         )
-        utility += food_gain * W["food"] * (1 + self.hunger * 2)
+        utility += food_gain * weights["food"] * (1 + self.hunger * 2)
         water_gain = predicted_impact.get("delta_home:water_storage", 0)
-        utility += max(0, water_gain) * W["water"] * (1 + self.thirst * 2)
-        utility += predicted_impact.get("delta_time", 0) * W["time"]
+        utility += max(0, water_gain) * weights["water"] * (1 + self.thirst * 2)
+        utility += predicted_impact.get("delta_time", 0) * weights["time"]
         utility += (
             max(0, -predicted_impact.get("delta_energy", 0))
-            * W["e_cost"]
+            * weights["e_cost"]
             * (1 + (1 - self.energy / 16.0))
         )
         delta_fatigue = predicted_impact.get("delta_fatigue", 0)
         if delta_fatigue > 0:
-            utility += delta_fatigue * W["fatigue"]
+            utility += delta_fatigue * weights["fatigue"]
         elif delta_fatigue < 0:
-            utility += abs(delta_fatigue) * W["fatigue_recovery"]
+            utility += abs(delta_fatigue) * weights["fatigue_recovery"]
 
         if (
             self.illness.has_condition("poisoned")
@@ -942,9 +946,9 @@ class AgentF:
     def decide_day_plan(self):
         self.executed_habits_today.clear()
         planned_behaviors = set()
-        MAX_PLANNING_ITERATIONS = int(10 + 5 * self.traits.perception)
+        max_planning_iterations = int(10 + 5 * self.traits.perception)
 
-        for iteration in range(MAX_PLANNING_ITERATIONS):
+        for _ in range(max_planning_iterations):
             if self.hours >= self.day_length or self.energy <= 0.5:
                 break
             potential_choices = []
@@ -1034,16 +1038,14 @@ class AgentF:
                 dissonance = 0.0
                 habit_b_names_d = flatten_behavior_names(best_habit)
                 if habit_b_names_d:
-                    # Avoid division by zero if len is 0 (shouldn't happen if habit_b_names is checked)
-                    if len(habit_b_names_d) > 0:
-                        for b_name in habit_b_names_d:
-                            dissonance += self.self_concept.calculate_dissonance(b_name)
-                        dissonance /= len(habit_b_names_d)
-                        if dissonance > 0:
-                            will_factor = 0.7 + 0.3 * self.traits.will
-                            dissonance *= max(0, 2.0 - will_factor)
-                        if dissonance > 0.5:
-                            self.energy -= dissonance * 0.5
+                    for b_name in habit_b_names_d:
+                        dissonance += self.self_concept.calculate_dissonance(b_name)
+                    dissonance /= len(habit_b_names_d)
+                    if dissonance > 0:
+                        will_factor = 0.7 + 0.3 * self.traits.will
+                        dissonance *= max(0, 2.0 - will_factor)
+                    if dissonance > 0.5:
+                        self.energy -= dissonance * 0.5
 
                 completed = best_habit.execute(self)  # Executes sequence
                 state_after = self._get_current_state_dict()
@@ -1072,15 +1074,12 @@ class AgentF:
 
         if self.hours < self.day_length - 6 and self.energy > 7:
             current_features = self._capture_state_snapshot()
-            behaviors_done_in_habits = planned_behaviors
-            action_taken = False
-            if "forage_mushrooms" not in behaviors_done_in_habits and self.energy > 10:
+            if "forage_mushrooms" not in planned_behaviors and self.energy > 10:
                 self.daily_behavior_log.append((current_features, "forage_mushrooms"))
                 self.base_logger.debug(
                     "executing_fallback_action", action="forage_mushrooms"
                 )
                 self.forage_crop("mushrooms")
-                action_taken = True
 
     def end_of_day_update(self):
         self.reflect_on_day()
@@ -1206,14 +1205,13 @@ class AgentF:
             # Promote if score (based on frequency?) is high enough
             # Base promotion score on frequency today
             freq_score = count * length  # Simple score metric
-            if freq_score > 3:  # Threshold for promotion
-                if self._promote_composite_sequence(
-                    seq, common_triggers, freq_score, day, habit_name
-                ):
-                    promoted_count += 1
-                    existing_habit_names.add(
-                        habit_name
-                    )  # Add to set to avoid duplicates within loop
+            if freq_score > 3 and self._promote_composite_sequence(
+                seq, common_triggers, freq_score, day, habit_name
+            ):
+                promoted_count += 1
+                existing_habit_names.add(
+                    habit_name
+                )  # Add to set to avoid duplicates within loop
 
         if promoted_count > 0:
             self.base_logger.info("new_habits_learned", count=promoted_count)
@@ -1292,7 +1290,7 @@ class AgentF:
         b = self.behaviors.get(b_name, self.behaviors.get("forage_item"))
         if not b:
             b = Behavior(b_name, None, task_id="forage_item", primary_skill="forage")
-        start_e, start_t = self.energy, self.hours
+        start_t = self.hours
         success = False
         gathered = 0
         energy_cost = 0
@@ -1329,7 +1327,7 @@ class AgentF:
         b = self.behaviors.get(b_name)
         if not b:
             b = Behavior(b_name, None, task_id="prep_fiber", primary_skill=skill)
-        start_e, start_t = self.energy, self.hours
+        start_t = self.hours
         success = False
         used = 0
         energy_cost = 0
@@ -1429,7 +1427,7 @@ class AgentF:
 
     def fetch_water(self) -> bool:
         b = self.behaviors["fetch_water"]
-        start_e, start_t = self.energy, self.hours
+        start_t = self.hours
         success = False
         amount = 0
         energy_cost = 0

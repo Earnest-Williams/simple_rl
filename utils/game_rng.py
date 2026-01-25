@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Integrated GameRNG module.
 
 Platform Requirements & Quirks:
@@ -20,6 +18,9 @@ Final refinements applied:
 - Strictly avoided semicolons and multi-line f-strings.
 """
 
+from __future__ import annotations
+
+import contextlib
 import json
 import math
 import random
@@ -361,7 +362,7 @@ class GameRNG:
         else:
             if kwargs:
                 msg = f"Unused args for {key}: {list(kwargs.keys())}"
-                warnings.warn(msg, RuntimeWarning)
+                warnings.warn(msg, RuntimeWarning, stacklevel=2)
             result = dist_func()
         return float(result)
 
@@ -427,10 +428,8 @@ class GameRNG:
                         cache_hit = True
                     else:
                         # If lengths/total differ, remove the stale entry
-                        try:
+                        with contextlib.suppress(KeyError):
                             del self.weighted_choice_cache[cache_key]
-                        except KeyError:
-                            pass
 
             if cdf is None:
                 cdf = np.cumsum(w_arr)
@@ -716,13 +715,13 @@ class GameRNG:
             if v.dtype.kind == "O":
                 raise ValueError("Cannot serialize object arrays without pickle.")
             return v
-        if isinstance(v, (int, float, bool, np.generic)):
+        if isinstance(v, int | float | bool | np.generic):
             return np.array(v)
         if isinstance(v, str):
             return np.array(v.encode("utf-8"), dtype="S")
-        if isinstance(v, (bytes, bytearray)):
+        if isinstance(v, bytes | bytearray):
             return np.array(bytes(v), dtype="S")
-        if isinstance(v, (list, tuple)):
+        if isinstance(v, list | tuple):
             arr = np.asarray(v)
             if arr.dtype.kind == "O":
                 if all(isinstance(x, str) for x in v):
@@ -766,7 +765,7 @@ class GameRNG:
         if isinstance(obj, dict):
             return {k: self._to_jsonable(v) for k, v in obj.items()}
 
-        if isinstance(obj, (np.integer, np.floating, np.bool_, np.generic)):
+        if isinstance(obj, np.integer | np.floating | np.bool_ | np.generic):
             return obj.item()
 
         if isinstance(obj, np.ndarray):
@@ -776,10 +775,10 @@ class GameRNG:
                 return [x.decode("utf-8") for x in obj.tolist()]
             return obj.tolist()
 
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, list | tuple):
             return [self._to_jsonable(v) for v in obj]
 
-        if isinstance(obj, (str, int, float, bool)) or obj is None:
+        if isinstance(obj, str | int | float | bool) or obj is None:
             return obj
 
         return str(obj)

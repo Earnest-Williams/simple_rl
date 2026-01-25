@@ -9,11 +9,11 @@ from worldgen.topology_cube_sphere import build_nbr_tables, build_pos_xyz
 
 
 def test_polar_wind_degeneracy() -> None:
-    N: int = 8
-    pos: NDArray[np.float32] = build_pos_xyz(N)
+    n: int = 8
+    pos: NDArray[np.float32] = build_pos_xyz(n)
     nbr4: NDArray[np.int32]
-    nbr4, _ = build_nbr_tables(N)
-    n_cells: int = 6 * N * N
+    nbr4, _ = build_nbr_tables(n)
+    n_cells: int = 6 * n * n
     wind_to: NDArray[np.int32] = _build_wind_to(
         pos,
         nbr4,

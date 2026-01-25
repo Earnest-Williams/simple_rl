@@ -43,14 +43,8 @@ except ImportError:
 # Local Application Imports
 try:
     from game.game_state import GameState
-    from game.world.game_map import GameMap
 except ImportError as exc:
-    raise RuntimeError("Failed to import GameState or GameMap in renderer") from exc
-
-try:
-    from utils.game_rng import GameRNG
-except ImportError as exc:
-    raise RuntimeError("Failed to import GameRNG in renderer") from exc
+    raise RuntimeError("Failed to import GameState in renderer") from exc
 
 if TYPE_CHECKING:
     pass
@@ -123,7 +117,7 @@ def create_error_image(width: int, height: int, message: str = "Error") -> Image
     try:
         draw = ImageDraw.Draw(img)
         draw.text((10, 10), message, fill=(255, 255, 255, 255))
-    except:
+    except Exception:
         pass  # If text fails, just return purple image
     return img
 
@@ -221,16 +215,15 @@ def render_viewport(
         return create_error_image(output_pixel_w, output_pixel_h, "No tiles loaded")
 
     # FIXED: Ensure we have valid NumbaDict when Numba is available
-    if _NUMBA_AVAILABLE:
-        if not isinstance(tile_arrays, NumbaDict):
-            log.warning("Converting tile_arrays to NumbaDict for rendering")
-            try:
-                tile_arrays = convert_to_numba_dict(tile_arrays)
-            except Exception as e:
-                log.error(f"Failed to convert tile_arrays: {e}")
-                return create_error_image(
-                    output_pixel_w, output_pixel_h, "Tile conversion failed"
-                )
+    if _NUMBA_AVAILABLE and not isinstance(tile_arrays, NumbaDict):
+        log.warning("Converting tile_arrays to NumbaDict for rendering")
+        try:
+            tile_arrays = convert_to_numba_dict(tile_arrays)
+        except Exception as e:
+            log.error(f"Failed to convert tile_arrays: {e}")
+            return create_error_image(
+                output_pixel_w, output_pixel_h, "Tile conversion failed"
+            )
 
     # Input Validation
     if not isinstance(game_state, GameState):

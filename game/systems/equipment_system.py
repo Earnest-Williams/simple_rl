@@ -5,6 +5,7 @@ Handles the logic for equipping, unequipping, attaching, and detaching items,
 considering entity body plans and item mount points.
 """
 # Ensure Union is imported from typing
+import contextlib
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union, cast
 
 import polars as pl
@@ -42,10 +43,8 @@ if TYPE_CHECKING:
     from game.game_state import GameState
 
 # Setup logger properly if structlog is available
-try:
+with contextlib.suppress(NameError):
     log = structlog.get_logger(__name__)
-except NameError:  # Handles case where log_fallback was used above
-    pass
 
 
 # --- Helper Functions ---
@@ -621,13 +620,11 @@ def can_unequip(entity_id: int, item_id: int, gs: "GameState") -> Tuple[bool, st
             if mp.get("accepted_item_id") is not None:
                 # Fetch name safely
                 attached_item_name = "something"
-                try:
+                with contextlib.suppress(Exception):
                     attached_item_name = (
                         item_reg.get_item_component(mp["accepted_item_id"], "name")
                         or "something"
                     )
-                except:
-                    pass  # Ignore if attached item doesn't exist
                 return False, f"'{attached_item_name}' attached"
 
     inv_capacity = entity_reg.get_entity_component(entity_id, "inventory_capacity")

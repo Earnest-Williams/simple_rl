@@ -288,9 +288,7 @@ class TilesetManager:
 
         try:
             # Get valid integer tile IDs
-            valid_tile_ids = [
-                k for k in TILE_TYPES.keys() if isinstance(k, int) and k >= 0
-            ]
+            valid_tile_ids = [k for k in TILE_TYPES if isinstance(k, int) and k >= 0]
             if not valid_tile_ids:
                 log.warning("No valid integer tile IDs found")
                 self.max_defined_tile_id = -1
@@ -320,14 +318,14 @@ class TilesetManager:
                 tile_index = getattr(tile_data, "tile_index", 0)
 
                 # Validate and set colors
-                if isinstance(fg_color, (tuple, list)) and len(fg_color) >= 3:
+                if isinstance(fg_color, tuple | list) and len(fg_color) >= 3:
                     self._tile_fg_colors[tile_id] = [
                         max(0, min(255, int(fg_color[0]))),
                         max(0, min(255, int(fg_color[1]))),
                         max(0, min(255, int(fg_color[2]))),
                     ]
 
-                if isinstance(bg_color, (tuple, list)) and len(bg_color) >= 3:
+                if isinstance(bg_color, tuple | list) and len(bg_color) >= 3:
                     self._tile_bg_colors[tile_id] = [
                         max(0, min(255, int(bg_color[0]))),
                         max(0, min(255, int(bg_color[1]))),

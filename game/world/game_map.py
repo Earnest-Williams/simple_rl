@@ -61,10 +61,7 @@ def _normalize_tile_modifier_overrides(
     normalized: Dict[int, float] = {}
     for key, value in overrides.items():
         tile_id: int | None
-        if isinstance(key, int):
-            tile_id = key
-        else:
-            tile_id = TILE_NAME_TO_ID.get(str(key).lower())
+        tile_id = key if isinstance(key, int) else TILE_NAME_TO_ID.get(str(key).lower())
         if tile_id is None:
             continue
         normalized[tile_id] = float(value)
