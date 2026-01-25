@@ -1,41 +1,52 @@
 name: Modernize typing (manual)
 on:
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   modernize:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-python@v5
+          # persist-credentials is true by default; keeps GITHUB_TOKEN available for pushes
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev
+          python-version: '3.11'
+
       - name: Install dev dependencies
         run: |
-          python -m pip install -U pip
+          python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - run: pyupgrade --py311-plus -r .
-      - run: python scripts/cleanup_typing_imports.py
-      - run: ruff --fix .
-      - run: black .
-      - run: mypy .
-      - name: Commit & push
+
+      - name: Run modernization script
+        run: |
+          chmod +x ./scripts/modernize_all.sh
+          # run script with a unique branch name to avoid collisions
+          BRANCH="modernize/pep585-action-$(date +%s)"
+          ./scripts/modernize_all.sh "$BRANCH"
+          # expose branch name to subsequent steps
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
+      - name: Push modernization branch
         env:
+          BRANCH: ${{ env.BRANCH }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet; then
-            git add -A
-            git commit -m "chore: modernize typing to PEP-585 (automated)"
-            git push
-          else
-            echo "No changes to commit"
-          fi
+          # ensure branch exists
+          git rev-parse --verify "$BRANCH"
+          # push branch
+          git push origin "$BRANCH"
+          echo "Pushed branch $BRANCH"
+
+      - name: Optionally open PR (requires gh CLI or GitHub API)
+        run: |
+          echo "Manual: open a PR from branch $BRANCH to main or do it in the web UI."
