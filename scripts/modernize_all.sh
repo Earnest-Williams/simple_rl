@@ -63,14 +63,11 @@ if [ "${#PY_FILES[@]}" -gt 0 ]; then
   else
     echo "ruff bulk run failed. Running per-file to locate errors." >&2
     failed=0
-    temp_dir="$(mktemp -d)"
-    trap 'rm -rf "$temp_dir"' EXIT
     for f in "${PY_FILES[@]}"; do
-      err_file="$temp_dir/ruff.$(basename "$f").err"
-      if ! ruff --fix "$f" 2> "$err_file"; then
+      if ! ruff --fix "$f" 2> "/tmp/ruff.$(basename "$f").err"; then
         echo "ruff FAILED on: $f" >&2
-        echo "stderr (tail):" >&2
-        tail -n 200 "$err_file" >&2 || true
+        echo "stderr (tail):"
+        tail -n 200 "/tmp/ruff.$(basename "$f").err" >&2 || true
         failed=1
       fi
     done
