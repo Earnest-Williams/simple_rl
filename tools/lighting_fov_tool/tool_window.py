@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from game.world.fov import compute_light_color_array
 from tools.lighting_fov_tool.exporter import (
     export_configuration,
     get_default_export_path,
@@ -602,8 +603,8 @@ class LightingFovToolWindow(QMainWindow):
             scene.player_pos[0], scene.player_pos[1], radius=12
         )
 
-        # Compute lighting
-        lighting = self._compute_lighting(visible)
+        # Compute lighting (base intensity and colored light)
+        base_intensity, colored_light = self._compute_lighting(visible)
 
         # Render each tile
         for y in range(scene.height):
@@ -619,14 +620,17 @@ class LightingFovToolWindow(QMainWindow):
 
                 # Apply lighting only where player can see (within FOV)
                 if visible[y, x]:
-                    # Show full lighting effect for visible tiles
-                    light_factor = lighting[y, x]
+                    # Apply base intensity and add colored light for visible tiles
+                    intensity = base_intensity[y, x]
+                    light_rgb = colored_light[y, x]
                 else:
                     # Tiles outside FOV are dark
-                    light_factor = LIGHT_FACTOR_OUTSIDE_FOV
+                    intensity = LIGHT_FACTOR_OUTSIDE_FOV
+                    light_rgb = np.zeros(3, dtype=np.float32)
 
-                fg_lit = (fg_color * light_factor).clip(0, 255).astype(np.uint8)
-                bg_lit = (bg_color * light_factor).clip(0, 255).astype(np.uint8)
+                # Apply lighting: (base_color * intensity) + colored_light
+                fg_lit = (fg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
+                bg_lit = (bg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
 
                 # Get tile image
                 tile_img = self._tiles.get(tile_id)
@@ -710,43 +714,59 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(self, visible: np.ndarray) -> np.ndarray:
-        """Compute lighting intensity for each tile.
+    def _compute_lighting(
+        self, visible: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute base intensity and RGB colored lighting for each tile.
 
         Light sources illuminate all tiles they can reach, independent of player FOV.
         The visible parameter is not used in lighting computation but kept for API compatibility.
+
+        Returns:
+            Tuple of (base_intensity, colored_light_rgb):
+            - base_intensity: 2D float32 array of ambient lighting (height, width)
+            - colored_light_rgb: 3D float32 array of colored light (height, width, 3)
         """
         scene = self._scene
         config = self._config_state
-        lighting = np.full(
-            (scene.height, scene.width), 0.15, dtype=np.float32
-        )  # Ambient
 
-        # Add contribution from each light source
+        # Base ambient lighting intensity
+        base_intensity = np.full(
+            (scene.height, scene.width), 0.15, dtype=np.float32
+        )
+
+        # RGB colored light contributions (additive)
+        colored_light = np.zeros(
+            (scene.height, scene.width, 3), dtype=np.float32
+        )
+
+        # Create opaque grid for FOV computation (walls and pillars block light)
+        opaque_grid = np.zeros((scene.height, scene.width), dtype=bool)
+        for y in range(scene.height):
+            for x in range(scene.width):
+                tile = scene.tiles[y, x]
+                if tile in (ElementType.WALL, ElementType.PILLAR):
+                    opaque_grid[y, x] = True
+
+        # Add contribution from each light source using compute_light_color_array
         for ls in scene.light_sources:
             light_cfg = config.lights.get(ls.name)
             if light_cfg is None:
                 continue
 
-            radius = light_cfg.radius
-            intensity = light_cfg.intensity
+            # Use compute_light_color_array from fov module for colored lighting
+            compute_light_color_array(
+                origin_xy=(ls.x, ls.y),
+                range_limit=light_cfg.radius,
+                opaque_grid=opaque_grid,
+                height_map=scene.height_map,
+                ceiling_map=scene.ceiling_map,
+                origin_height=0,
+                target_rgb_array=colored_light,
+                base_color_rgb=light_cfg.color,
+            )
 
-            for y in range(scene.height):
-                for x in range(scene.width):
-                    # Light sources illuminate all reachable tiles, not just visible ones
-                    dx = x - ls.x
-                    dy = y - ls.y
-                    dist_sq = dx * dx + dy * dy
-                    if dist_sq <= radius * radius:
-                        # Check if light has LOS to this tile
-                        if self._has_los(ls.x, ls.y, x, y):
-                            # Inverse square falloff
-                            dist = np.sqrt(dist_sq)
-                            falloff = max(0, 1 - dist / radius)
-                            contribution = falloff * intensity
-                            lighting[y, x] = min(1.0, lighting[y, x] + contribution)
-
-        return lighting
+        return base_intensity, colored_light
 
     def _composite_tile(
         self,
