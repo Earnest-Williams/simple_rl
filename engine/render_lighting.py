@@ -329,7 +329,7 @@ def apply_memory_fade(
         return
 
     # Per-tile fade value (shape = N,)
-    fade_vals = map_memory_vp[memory_mask].astype(np.float32)
+    fade_vals = 1.0 - map_memory_vp[memory_mask].astype(np.float32)
 
     # For color blending we'll broadcast fade_vals -> (N,1)
     fade_vals_b = fade_vals[:, None]  # shape (N, 1)
