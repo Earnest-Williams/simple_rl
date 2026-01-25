@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import hashlib
-from typing import Dict, Literal
+from dataclasses import asdict, dataclass
+from typing import Literal
 
 import orjson
 
 from worldgen.constants import (
     CLIMATE_ADVECT_STEPS_DEFAULT,
+    CLIMATE_LAPSE_C_PER_KM_DEFAULT,
     CLIMATE_LAT_GAMMA_DEFAULT,
     CLIMATE_LAT_POLAR_CAP_DEFAULT,
-    CLIMATE_LAPSE_C_PER_KM_DEFAULT,
     CLIMATE_OROG_SCALE_M_DEFAULT,
     CLIMATE_T_EQUATOR_DEFAULT,
     CLIMATE_T_POLE_DEFAULT,
@@ -55,7 +55,7 @@ class ElevationConfig:
 class ClimateConfig:
     T_equator: float = CLIMATE_T_EQUATOR_DEFAULT
     T_pole: float = CLIMATE_T_POLE_DEFAULT
-    lapse_C_per_km: float = CLIMATE_LAPSE_C_PER_KM_DEFAULT
+    lapse_c_per_km: float = CLIMATE_LAPSE_C_PER_KM_DEFAULT
     lat_gamma: float = CLIMATE_LAT_GAMMA_DEFAULT
     lat_polar_cap: float = CLIMATE_LAT_POLAR_CAP_DEFAULT
     S_adv: int = CLIMATE_ADVECT_STEPS_DEFAULT
@@ -109,11 +109,11 @@ def default_world_config() -> WorldConfig:
     )
 
 
-def config_as_dict(cfg: WorldConfig) -> Dict[str, object]:
+def config_as_dict(cfg: WorldConfig) -> dict[str, object]:
     return asdict(cfg)
 
 
-def extract_global_fields(cfg: WorldConfig) -> Dict[str, object]:
+def extract_global_fields(cfg: WorldConfig) -> dict[str, object]:
     """Extract fields affecting global simulation layers (elevation, climate, hydrology).
 
     All current WorldConfig fields affect the global simulation:
@@ -125,7 +125,7 @@ def extract_global_fields(cfg: WorldConfig) -> Dict[str, object]:
     return config_as_dict(cfg)
 
 
-def extract_chunk_fields(cfg: WorldConfig) -> Dict[str, object]:
+def extract_chunk_fields(cfg: WorldConfig) -> dict[str, object]:
     """Extract fields affecting only chunk-level detail generation.
 
     Currently returns empty dict because there are no chunk-specific tunables
@@ -143,7 +143,7 @@ def compute_tunables_hash(
     cfg: WorldConfig, *, scope: Literal["global", "chunk"]
 ) -> str:
     if scope == "global":
-        fields: Dict[str, object] = extract_global_fields(cfg)
+        fields: dict[str, object] = extract_global_fields(cfg)
     else:
         fields = extract_chunk_fields(cfg)
     blob: bytes = orjson.dumps(fields, option=orjson.OPT_SORT_KEYS)

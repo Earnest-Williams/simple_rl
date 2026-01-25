@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
 from worldgen.constants import (
     BIOME_JITTER_DOMAIN,
-    FLOW_DOMAIN,
     FLAT_DOMAIN,
+    FLOW_DOMAIN,
     HASH_MASK_64,
     HASH_SPLITMIX_INCREMENT,
     HASH_SPLITMIX_MUL1,
@@ -72,18 +70,18 @@ def hash01_domain(world_seed: int, domain: int, lin: int) -> float:
 
 
 @njit(cache=True)
-def _face_uv(face: int, i: int, j: int, N: int) -> Tuple[float, float]:
-    if N <= 0:
+def _face_uv(face: int, i: int, j: int, n: int) -> tuple[float, float]:
+    if n <= 0:
         raise ValueError("N must be > 0")
-    if i < 0 or i >= N or j < 0 or j >= N:
+    if i < 0 or i >= n or j < 0 or j >= n:
         raise ValueError("i and j must be within [0, N)")
-    u: float = (2.0 * (i + 0.5) / N) - 1.0
-    v: float = (2.0 * (j + 0.5) / N) - 1.0
+    u: float = (2.0 * (i + 0.5) / n) - 1.0
+    v: float = (2.0 * (j + 0.5) / n) - 1.0
     return u, v
 
 
 @njit(cache=True)
-def _cube_xyz(face: int, u: float, v: float) -> Tuple[float, float, float]:
+def _cube_xyz(face: int, u: float, v: float) -> tuple[float, float, float]:
     if face == 0:
         return 1.0, v, -u
     if face == 1:
@@ -114,15 +112,15 @@ def pos_xyz_from_uv(face: int, u: float, v: float) -> NDArray[np.float32]:
 
 
 @njit(cache=True)
-def pos_xyz(face: int, i: int, j: int, N: int) -> NDArray[np.float32]:
+def pos_xyz(face: int, i: int, j: int, n: int) -> NDArray[np.float32]:
     u: float
     v: float
-    u, v = _face_uv(face, i, j, N)
+    u, v = _face_uv(face, i, j, n)
     return pos_xyz_from_uv(face, u, v)
 
 
 @njit(cache=True)
-def cube_face_from_xyz(x: float, y: float, z: float) -> Tuple[int, float, float]:
+def cube_face_from_xyz(x: float, y: float, z: float) -> tuple[int, float, float]:
     ax: float = abs(x)
     ay: float = abs(y)
     az: float = abs(z)

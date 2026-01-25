@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 import numpy as np
 from numba import njit, prange
 from numpy.typing import NDArray
@@ -30,7 +28,7 @@ def _neighbor_from_face(
     di: int,
     dj: int,
     n: int,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     step: float = 2.0 / n
     u: float
     v: float
@@ -56,8 +54,8 @@ def _neighbor_from_face(
     return face2, i2, j2
 
 
-def build_default_edge_map() -> Dict[int, Dict[int, Dict[str, int]]]:
-    edge_map: Dict[int, Dict[int, Dict[str, int]]] = {}
+def build_default_edge_map() -> dict[int, dict[int, dict[str, int]]]:
+    edge_map: dict[int, dict[int, dict[str, int]]] = {}
     sample_i: int = 0
     sample_j: int = 0
     n: int = 4
@@ -140,7 +138,7 @@ def build_cell_area(n: int, planet_radius_m: float) -> NDArray[np.float32]:
 
 
 @njit(cache=True, parallel=True)
-def _build_nbr_tables(n: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
+def _build_nbr_tables(n: int) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
     n_cells: int = 6 * n * n
     nbr4_i32: NDArray[np.int32] = np.empty((n_cells, 4), dtype=np.int32)
     nbr8_i32: NDArray[np.int32] = np.empty((n_cells, 8), dtype=np.int32)
@@ -162,7 +160,7 @@ def _build_nbr_tables(n: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
         n_face, n_i, n_j = _neighbor_from_face(face, i, j, -1, 0, n)
         nbr4_i32[lin, 3] = lin_index(n_face, n_i, n_j, n)
 
-        neighbors8: Tuple[Tuple[int, int], ...] = (
+        neighbors8: tuple[tuple[int, int], ...] = (
             (0, -1),
             (1, -1),
             (1, 0),
@@ -181,7 +179,7 @@ def _build_nbr_tables(n: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
     return nbr4_i32, nbr8_i32
 
 
-def build_nbr_tables(n: int) -> Tuple[NDArray[np.int32], NDArray[np.int32]]:
+def build_nbr_tables(n: int) -> tuple[NDArray[np.int32], NDArray[np.int32]]:
     if n <= 0:
         raise ValueError("N must be > 0")
     return _build_nbr_tables(n)

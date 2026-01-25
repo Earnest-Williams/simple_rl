@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 from numba import njit
@@ -38,17 +37,17 @@ from worldgen.constants import (
     ELEVATION_PLATE_NOISE_OCTAVES,
     ELEVATION_PLATE_NOISE_PERSISTENCE,
     ELEVATION_PLATE_NOISE_SCALE,
-    ELEVATION_ROUGHNESS_AMPLITUDE_M,
-    ELEVATION_ROUGHNESS_BASELINE,
-    ELEVATION_ROUGHNESS_EXPONENT,
     ELEVATION_ROUGH_NOISE_LACUNARITY,
     ELEVATION_ROUGH_NOISE_OCTAVES,
     ELEVATION_ROUGH_NOISE_PERSISTENCE,
     ELEVATION_ROUGH_NOISE_SCALE,
+    ELEVATION_ROUGHNESS_AMPLITUDE_M,
+    ELEVATION_ROUGHNESS_BASELINE,
+    ELEVATION_ROUGHNESS_EXPONENT,
     ELEVATION_TECTONIC_AMPLITUDE_M,
     ELEVATION_TECTONIC_EXPONENT,
-    NORMALIZE_EPS,
     NOISE_DOMAIN,
+    NORMALIZE_EPS,
     PLATE_SEED_DOMAIN,
     WIND_DOMAIN,
     WIND_JITTER_MASK,
@@ -57,28 +56,28 @@ from worldgen.constants import (
     WIND_SCORE_FLOOR,
     WIND_SIGN_LAT_FREQ,
 )
-from worldgen.kernels.advection import advect_moisture_step
-from worldgen.kernels.erosion import hydraulic_erosion_step, thermal_erosion_step
-from worldgen.kernels.noise import eval_noise_sphere
-from worldgen.kernels.smoothing import smooth_i32_nbr4
 from worldgen.hydrology import (
     build_flow_accumulation,
     build_flow_direction,
     build_rivers_derived_fields,
 )
 from worldgen.io import ensure_dir, read_layer, write_layer
+from worldgen.kernels.advection import advect_moisture_step
+from worldgen.kernels.erosion import hydraulic_erosion_step, thermal_erosion_step
+from worldgen.kernels.noise import eval_noise_sphere
+from worldgen.kernels.smoothing import smooth_i32_nbr4
 from worldgen.metadata import WorldMeta, build_world_meta, read_world_meta
 from worldgen.report import WorldGenReport, generate_report
 from worldgen.topology_cube_sphere import (
     build_cell_area,
     build_nbr_tables,
     build_pos_xyz,
+    lin_index,
 )
-from worldgen.topology_cube_sphere import lin_index
 from worldgen.utils_coord import coord_hash_domain
 from worldgen.validation import validate_array, validate_no_nan
 
-__all__: List[str] = [
+__all__: list[str] = [
     "ClimateConfig",
     "ElevationConfig",
     "HydrologyConfig",
@@ -97,7 +96,7 @@ __all__: List[str] = [
 _SEA_LEVEL_Q_DEFAULT: int = 0
 
 
-def _write_report(out_dir: Path, payload: Dict[str, object]) -> None:
+def _write_report(out_dir: Path, payload: dict[str, object]) -> None:
     path: Path = out_dir / "report.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True))
 
@@ -198,7 +197,7 @@ def build_world(
     out_dir: Path,
     *,
     seed: int,
-    N: int,
+    n: int,
     cfg: WorldConfig,
     overwrite: bool = False,
 ) -> None:
@@ -213,20 +212,20 @@ def build_world(
 
     meta: WorldMeta = build_world_meta(
         world_seed=seed,
-        N=N,
+        N=n,
         planet_radius_m=cfg.planet_radius_m,
         elev_quantum_m=ELEV_Q_M,
         global_tunables_hash=global_hash,
         chunk_tunables_hash=chunk_hash,
     )
 
-    pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
+    pos_xyz: NDArray[np.float32] = build_pos_xyz(n)
     nbr4_i32: NDArray[np.int32]
     nbr8_i32: NDArray[np.int32]
-    nbr4_i32, nbr8_i32 = build_nbr_tables(N)
-    cell_area_f32: NDArray[np.float32] = build_cell_area(N, cfg.planet_radius_m)
+    nbr4_i32, nbr8_i32 = build_nbr_tables(n)
+    cell_area_f32: NDArray[np.float32] = build_cell_area(n, cfg.planet_radius_m)
 
-    n_cells: int = 6 * N * N
+    n_cells: int = 6 * n * n
     validate_array(pos_xyz, "pos_xyz", np.dtype("float32"), (n_cells, 3))
     validate_array(nbr4_i32, "nbr4", np.dtype("int32"), (n_cells, 4))
     validate_array(nbr8_i32, "nbr8", np.dtype("int32"), (n_cells, 8))
@@ -244,7 +243,7 @@ def build_world(
         out_dir,
         {
             "world_seed": seed,
-            "N": N,
+            "N": n,
             "n_cells": n_cells,
             "status": "topology_complete",
         },
@@ -258,17 +257,17 @@ def build_elevation(
     out_dir: Path,
     *,
     seed: int,
-    N: int,
+    n: int,
     cfg: ElevationConfig,
     plate_seed_xyz: NDArray[np.float32] | None = None,
 ) -> None:
     meta: WorldMeta = read_world_meta(out_dir)
-    if meta.N != N:
+    if n != meta.N:
         raise ValueError("N must match meta.json")
     if meta.world_seed != seed:
         raise ValueError("seed must match meta.json")
 
-    required_layers: Tuple[str, ...] = ("pos_xyz", "nbr4", "nbr8", "cell_area")
+    required_layers: tuple[str, ...] = ("pos_xyz", "nbr4", "nbr8", "cell_area")
     for key in required_layers:
         if key not in meta.layers:
             raise ValueError(f"{key} layer is required for elevation")
@@ -423,16 +422,16 @@ def build_climate(
     out_dir: Path,
     *,
     seed: int,
-    N: int,
+    n: int,
     cfg: ClimateConfig,
 ) -> None:
     meta: WorldMeta = read_world_meta(out_dir)
-    if meta.N != N:
+    if n != meta.N:
         raise ValueError("N must match meta.json")
     if meta.world_seed != seed:
         raise ValueError("seed must match meta.json")
 
-    required_layers: Tuple[str, ...] = ("pos_xyz", "nbr4", "cell_area", "elev_q")
+    required_layers: tuple[str, ...] = ("pos_xyz", "nbr4", "cell_area", "elev_q")
     for key in required_layers:
         if key not in meta.layers:
             raise ValueError(f"{key} layer is required for climate")
@@ -471,7 +470,7 @@ def build_climate(
     ).astype(np.float32)
 
     elev_m: NDArray[np.float32] = elev_q_i32.astype(np.float32) * ELEV_Q_M
-    lapse: NDArray[np.float32] = ((cfg.lapse_C_per_km / 1000.0) * elev_m).astype(
+    lapse: NDArray[np.float32] = ((cfg.lapse_c_per_km / 1000.0) * elev_m).astype(
         np.float32
     )
     temp_f32: NDArray[np.float32] = (temp_base - lapse).astype(np.float32)
@@ -541,11 +540,11 @@ def build_climate(
 def build_hydrology(
     out_dir: Path,
     *,
-    N: int,
+    n: int,
     cfg: HydrologyConfig,
 ) -> None:
     meta: WorldMeta = read_world_meta(out_dir)
-    if meta.N != N:
+    if n != meta.N:
         raise ValueError("N must match meta.json")
     if "elev_q" not in meta.layers:
         raise ValueError("elev_q layer is required for hydrology")
@@ -567,7 +566,7 @@ def build_hydrology(
         layer=meta.layers["cell_area"],
     ).astype(np.float32)
 
-    n_cells: int = 6 * N * N
+    n_cells: int = 6 * n * n
     validate_array(elev_q_i32, "elev_q_i32", np.dtype("int32"), (n_cells,))
     validate_array(nbr8_i32, "nbr8_i32", np.dtype("int32"), (n_cells, 8))
     validate_array(cell_area_f32, "cell_area_f32", np.dtype("float32"), (n_cells,))
@@ -647,7 +646,7 @@ def get_chunk(
     height: int,
     margin_cells: int,
     detail_cells_per_sim: int,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     meta: WorldMeta = read_world_meta(out_dir)
     if face < 0 or face >= 6:
         raise ValueError("face must be in [0, 5]")
@@ -662,7 +661,7 @@ def get_chunk(
     if i0 + width > meta.N or j0 + height > meta.N:
         raise ValueError("chunk bounds exceed face dimensions")
 
-    required_layers: Tuple[str, ...] = (
+    required_layers: tuple[str, ...] = (
         "pos_xyz",
         "elev_q",
         "temp",
@@ -753,7 +752,7 @@ def get_chunk(
     center_lin: int = lin_index(face, center_i, center_j, meta.N)
     center_xyz: NDArray[np.float32] = pos_xyz[center_lin].astype(np.float32)
 
-    payload: Dict[str, object] = {
+    payload: dict[str, object] = {
         "request": {
             "face": face,
             "i0": i0,
@@ -793,15 +792,15 @@ def get_chunk(
 
 def _extract_seam_pairs(
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
-    N: int,
-) -> List[Tuple[int, int]]:
+    n: int,
+) -> list[tuple[int, int]]:
     """
     Extract pairs of cell indices that cross cube-sphere face boundaries.
     Returns a list of (u, v) tuples where u and v are on different faces.
     """
     n_cells: int = int(nbr4.shape[0])
-    n_face_cells: int = N * N
-    seam_pairs: List[Tuple[int, int]] = []
+    n_face_cells: int = n * n
+    seam_pairs: list[tuple[int, int]] = []
 
     # Determine which face each cell belongs to
     face_idx: NDArray[np.int32] = np.arange(n_cells, dtype=np.int32) // n_face_cells
@@ -813,23 +812,21 @@ def _extract_seam_pairs(
         k: int
         for k in range(4):
             v: int = int(nbr4[u, k])
-            # Valid neighbor on a different face
-            if 0 <= v < n_cells and u_face != face_idx[v]:
-                # Only add each pair once (u < v to avoid duplicates)
-                if u < v:
-                    seam_pairs.append((u, v))
+            # Valid neighbor on a different face and only add each pair once (u < v to avoid duplicates)
+            if 0 <= v < n_cells and u_face != face_idx[v] and u < v:
+                seam_pairs.append((u, v))
 
     return seam_pairs
 
 
-def _compute_report(out_dir: Path) -> Dict[str, object]:
+def _compute_report(out_dir: Path) -> dict[str, object]:
     """
     Compute the canonical report.json payload (land_fraction, quantiles, rivers).
     Delegates to worldgen.report.generate_report for consistency.
     """
     meta: WorldMeta = read_world_meta(out_dir)
 
-    required_layers: Tuple[str, ...] = (
+    required_layers: tuple[str, ...] = (
         "elev_q",
         "temp",
         "precip",
@@ -868,7 +865,7 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
     )
 
     # Extract seam pairs from nbr4
-    seam_pairs: List[Tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
+    seam_pairs: list[tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
 
     # Delegate to generate_report from worldgen.report
     # Use _SEA_LEVEL_Q_DEFAULT to match the original threshold (elev_q > 0 for land)
@@ -892,7 +889,7 @@ def build_full_world(
     out_dir: Path,
     *,
     seed: int,
-    N: int,
+    n: int,
     cfg: WorldConfig,
     overwrite: bool = False,
     precompile_kernels: bool = False,
@@ -902,26 +899,26 @@ def build_full_world(
     build_hydrology, then compute and write report.json.
     """
     if precompile_kernels:
-        _precompile_kernels(N)
+        _precompile_kernels(n)
 
-    build_world(out_dir, seed=seed, N=N, cfg=cfg, overwrite=overwrite)
-    build_elevation(out_dir, seed=seed, N=N, cfg=cfg.elevation)
-    build_climate(out_dir, seed=seed, N=N, cfg=cfg.climate)
-    build_hydrology(out_dir, N=N, cfg=cfg.hydrology)
+    build_world(out_dir, seed=seed, n=n, cfg=cfg, overwrite=overwrite)
+    build_elevation(out_dir, seed=seed, n=n, cfg=cfg.elevation)
+    build_climate(out_dir, seed=seed, n=n, cfg=cfg.climate)
+    build_hydrology(out_dir, n=n, cfg=cfg.hydrology)
 
     # _compute_report delegates to generate_report which writes report.json
     _ = _compute_report(out_dir)
 
 
-def _precompile_kernels(N: int) -> None:
+def _precompile_kernels(n: int) -> None:
     """Trigger a small compile of inner kernels so numba caches get created."""
-    pos_xyz: NDArray[np.float32] = build_pos_xyz(N)
+    pos_xyz: NDArray[np.float32] = build_pos_xyz(n)
     nbr4_i32: NDArray[np.int32]
     nbr8_i32: NDArray[np.int32]
-    nbr4_i32, nbr8_i32 = build_nbr_tables(N)
-    _ = build_cell_area(N, 6371000.0)
+    nbr4_i32, nbr8_i32 = build_nbr_tables(n)
+    _ = build_cell_area(n, 6371000.0)
 
-    n_cells: int = int(6 * N * N)
+    n_cells: int = int(6 * n * n)
     seed: int = 1
 
     _ = eval_noise_sphere(
@@ -959,7 +956,6 @@ def _precompile_kernels(N: int) -> None:
         cap_hi=1.0,
     )
 
-    cell_area_f32: NDArray[np.float32] = np.ones(n_cells, dtype=np.float32)
     flow_to: NDArray[np.int32] = np.full(n_cells, -1, dtype=np.int32)
     accum_f32: NDArray[np.float32] = np.ones(n_cells, dtype=np.float32)
     _ = hydraulic_erosion_step(

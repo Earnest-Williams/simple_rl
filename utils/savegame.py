@@ -7,7 +7,7 @@ import io
 import itertools
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import orjson
@@ -114,9 +114,9 @@ def save_game_state(
     path: Path | str,
     *,
     mobs_df: pl.DataFrame,
-    world_map_data: Dict[str, Any],
-    global_state: Dict[str, Any],
-    rng_state: Dict[str, Any],
+    world_map_data: dict[str, Any],
+    global_state: dict[str, Any],
+    rng_state: dict[str, Any],
     schema_version: SchemaVersion = "1.0.0",
     compress_ipc: bool = False,
 ) -> None:
@@ -157,8 +157,8 @@ def save_game_state(
     json_global = _make_json_serializable(global_state)
     json_rng = _make_json_serializable(rng_state)
 
-    created_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    payload: Dict[str, Any] = {
+    created_iso = datetime.datetime.now(datetime.UTC).isoformat()
+    payload: dict[str, Any] = {
         "schema_version": schema_version,
         "created_iso": created_iso,
         "polars_version": pl.__version__,
@@ -185,7 +185,7 @@ def save_game_state(
 def load_game_state(
     path: Path | str,
     expected_schema_version: SchemaVersion = "1.0.0",
-) -> Tuple[pl.DataFrame, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> tuple[pl.DataFrame, dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Load a save written by `save_game_state`.
 
     Performs a major-version check to avoid silently loading incompatible saves.

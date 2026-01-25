@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -13,12 +12,12 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class LayerMeta:
     path: str
     dtype: str
-    shape: Tuple[int, ...]
+    shape: tuple[int, ...]
     units: str | None = None
     sentinel: int | float | None = None
 
-    def to_dict(self) -> Dict[str, object]:
-        payload: Dict[str, object] = {
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
             "path": self.path,
             "dtype": self.dtype,
             "shape": list(self.shape),
@@ -38,15 +37,15 @@ class WorldMeta:
     n_cells: int
     planet_radius_m: float
     elev_quantum_m: float
-    layers: Dict[str, LayerMeta] = field(default_factory=dict)
+    layers: dict[str, LayerMeta] = field(default_factory=dict)
     global_tunables_hash: str | None = None
     chunk_tunables_hash: str | None = None
 
-    def to_dict(self) -> Dict[str, object]:
-        layers_payload: Dict[str, object] = {
+    def to_dict(self) -> dict[str, object]:
+        layers_payload: dict[str, object] = {
             key: value.to_dict() for key, value in sorted(self.layers.items())
         }
-        payload: Dict[str, object] = {
+        payload: dict[str, object] = {
             "format_version": self.format_version,
             "world_seed": self.world_seed,
             "N": self.N,
@@ -64,7 +63,7 @@ class WorldMeta:
     def write(self, out_dir: Path) -> Path:
         if not out_dir.exists():
             raise FileNotFoundError("out_dir must exist before writing meta.json")
-        payload: Dict[str, object] = self.to_dict()
+        payload: dict[str, object] = self.to_dict()
         path: Path = out_dir / "meta.json"
         path.write_text(json.dumps(payload, indent=2, sort_keys=True))
         return path
@@ -75,13 +74,13 @@ class LayerMetaModel(BaseModel):
 
     path: str
     dtype: str
-    shape: List[int]
+    shape: list[int]
     units: str | None = None
     sentinel: int | float | None = None
 
     @field_validator("shape")
     @classmethod
-    def _shape_ints(cls, value: List[int]) -> List[int]:
+    def _shape_ints(cls, value: list[int]) -> list[int]:
         for item in value:
             if isinstance(item, bool) or not isinstance(item, int):
                 raise ValueError("shape entries must be integers")
@@ -106,7 +105,7 @@ class WorldMetaModel(BaseModel):
     n_cells: int
     planet_radius_m: float
     elev_quantum_m: float
-    layers: Dict[str, LayerMetaModel]
+    layers: dict[str, LayerMetaModel]
     global_tunables_hash: str | None = None
     chunk_tunables_hash: str | None = None
 
@@ -128,24 +127,24 @@ class WorldMetaModel(BaseModel):
 def build_world_meta(
     *,
     world_seed: int,
-    N: int,
+    n: int,
     planet_radius_m: float,
     elev_quantum_m: float,
     global_tunables_hash: str | None = None,
     chunk_tunables_hash: str | None = None,
     format_version: str = "2.0.0",
 ) -> WorldMeta:
-    if N <= 0:
+    if n <= 0:
         raise ValueError("N must be > 0")
     if planet_radius_m <= 0.0:
         raise ValueError("planet_radius_m must be > 0")
     if elev_quantum_m <= 0.0:
         raise ValueError("elev_quantum_m must be > 0")
-    n_cells: int = 6 * N * N
+    n_cells: int = 6 * n * n
     return WorldMeta(
         format_version=format_version,
         world_seed=world_seed,
-        N=N,
+        N=n,
         n_cells=n_cells,
         planet_radius_m=planet_radius_m,
         elev_quantum_m=elev_quantum_m,
@@ -166,7 +165,7 @@ def read_world_meta(out_dir: Path) -> WorldMeta:
     if not path.exists():
         raise FileNotFoundError("meta.json is missing in out_dir")
     model: WorldMetaModel = WorldMetaModel.model_validate_json(path.read_text())
-    layers: Dict[str, LayerMeta] = {}
+    layers: dict[str, LayerMeta] = {}
     for key, layer in model.layers.items():
         layers[key] = LayerMeta(
             path=layer.path,

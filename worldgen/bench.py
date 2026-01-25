@@ -4,7 +4,6 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import Dict, List
 
 from worldgen import build_full_world, default_world_config
 from worldgen.config import WorldConfig
@@ -13,26 +12,26 @@ from worldgen.config import WorldConfig
 def run_profile(
     out_root: Path,
     *,
-    Ns: List[int],
+    ns: list[int],
     seed: int,
     precompile: bool,
-) -> Dict[str, Dict[str, float]]:
-    results: Dict[str, Dict[str, float]] = {}
+) -> dict[str, dict[str, float]]:
+    results: dict[str, dict[str, float]] = {}
     cfg: WorldConfig = default_world_config()
-    for N in Ns:
-        out_dir: Path = out_root / f"world_N{N}"
+    for n in ns:
+        out_dir: Path = out_root / f"world_N{n}"
         out_dir.mkdir(parents=True, exist_ok=True)
         t0: float = time.perf_counter()
         build_full_world(
             out_dir,
             seed=seed,
-            N=N,
+            n=n,
             cfg=cfg,
             overwrite=True,
             precompile_kernels=precompile,
         )
         t1: float = time.perf_counter()
-        results[f"N_{N}"] = {"duration_s": float(t1 - t0)}
+        results[f"N_{n}"] = {"duration_s": float(t1 - t0)}
     return results
 
 
@@ -44,13 +43,13 @@ def main() -> None:
     parser.add_argument("--precompile", action="store_true")
     args: argparse.Namespace = parser.parse_args()
     out_root: Path = args.out
-    Ns: List[int] = args.Ns
+    ns: list[int] = args.Ns
     seed_val: int = args.seed
     precompile_val: bool = args.precompile
 
-    stats: Dict[str, Dict[str, float]] = run_profile(
+    stats: dict[str, dict[str, float]] = run_profile(
         out_root,
-        Ns=Ns,
+        ns=ns,
         seed=seed_val,
         precompile=precompile_val,
     )
