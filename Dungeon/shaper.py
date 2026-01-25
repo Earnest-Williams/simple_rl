@@ -859,10 +859,12 @@ def _run_ca_step_numpy(grid: np.ndarray) -> np.ndarray:
                         continue
                     nr, nc = r + dr, c + dc
                     # Check bounds before accessing grid
-                    if 0 <= nr < height and 0 <= nc < width:
-                        # Use central constant
-                        if grid[nr, nc] != Material.SOLID_ROCK:
-                            non_solid_neighbors += 1
+                    if (
+                        0 <= nr < height
+                        and 0 <= nc < width
+                        and grid[nr, nc] != Material.SOLID_ROCK
+                    ):
+                        non_solid_neighbors += 1
 
             # Apply CA rules
             # Use central constant
@@ -1214,7 +1216,7 @@ if __name__ == "__main__":
         )
 
     except FileNotFoundError:
-        print(f"Test input file '{INPUT_JSON_FILE}' not found.")
+        print(f"Test input file '{input_json_file}' not found.")
         print("Please generate it by running core.py and processor.py first.")
         print("Skipping isolated shaper test.")
     except Exception as e:

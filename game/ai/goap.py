@@ -139,10 +139,13 @@ def _action_seek_cover(
         return False
     for dx, dy in directions:
         nx, ny = x + dx, y + dy
-        if 0 <= nx < los_map.shape[1] and 0 <= ny < los_map.shape[0]:
-            if not los_map[ny, nx]:
-                movement_system.try_move(entity_id, dx, dy, game_state)
-                return True
+        if (
+            0 <= nx < los_map.shape[1]
+            and 0 <= ny < los_map.shape[0]
+            and not los_map[ny, nx]
+        ):
+            movement_system.try_move(entity_id, dx, dy, game_state)
+            return True
     return False
 
 

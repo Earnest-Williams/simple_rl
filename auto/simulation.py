@@ -2,6 +2,7 @@
 # Updated to use GameRNG instance
 
 import heapq
+import sys
 
 # Removed 'random' import
 import typing  # Use typing instead of from typing import ...
@@ -350,13 +351,15 @@ class World:
         elif entity.kind == "item" and existing_entity.kind != "item":
             # Cannot place item on top of agent/enemy
             print(
-                f"Warning: Cannot place item {entity.id} on occupied tile {pos} ({existing_entity.kind})."
+                "Warning: Cannot place item "
+                f"{entity.id} on occupied tile {pos} ({existing_entity.kind})."
             )
             can_place = False
         elif entity.kind == "item" and existing_entity.kind == "item":
             # Allow stacking items? For now, disallow.
             print(
-                f"Warning: Cannot stack item {entity.id} on existing item {existing_entity.id} at {pos}."
+                "Warning: Cannot stack item "
+                f"{entity.id} on existing item {existing_entity.id} at {pos}."
             )
             can_place = False
         else:  # Agent/Enemy trying to occupy same space
@@ -516,7 +519,9 @@ class World:
         # If target cell had an item, remove it (entity moves onto it)
         if target_entity is not None and target_entity.kind == "item":
             print(
-                f"Warning: Entity {entity.kind} moving onto item {target_entity.id} at ({new_x},{new_y}). Item removed."
+                "Warning: Entity "
+                f"{entity.kind} moving onto item {target_entity.id} at "
+                f"({new_x},{new_y}). Item removed."
             )
             self.remove_entity(target_entity)
 

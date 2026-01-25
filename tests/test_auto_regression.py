@@ -1,8 +1,8 @@
 import pytest
 
-pytest.importorskip("numpy")
-
 from scripts.run_auto_regression import run_regression
+
+pytest.importorskip("numpy")
 
 
 def test_auto_regression_headless_run_completes():

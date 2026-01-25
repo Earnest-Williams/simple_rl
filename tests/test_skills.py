@@ -108,7 +108,7 @@ class TestSkillTraining:
         config.set_training_state(Skill.FIGHTING, TrainingState.ENABLED)
 
         # Award 750 XP, all should go to Fighting
-        distribute_xp(750.0, skills, config)
+        level_changes = distribute_xp(750.0, skills, config)
 
         assert Skill.FIGHTING in skills
         assert skills[Skill.FIGHTING].level == 5
@@ -138,7 +138,7 @@ class TestSkillTraining:
 
         # Total weight = 3 (1 + 2), so Fighting gets 1/3, Dodging gets 2/3
         # Award 1500 XP: Fighting gets 500, Dodging gets 1000
-        level_changes = distribute_xp(1500.0, skills, config)
+        _ = distribute_xp(1500.0, skills, config)
 
         # 500 XP gets to level 4
         assert skills[Skill.FIGHTING].level == 4

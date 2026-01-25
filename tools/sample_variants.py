@@ -10,6 +10,7 @@ This tool allows writers and testers to:
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 

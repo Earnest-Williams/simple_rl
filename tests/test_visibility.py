@@ -22,7 +22,7 @@ def test_compute_with_wall_blocks_visibility():
     visible = np.zeros_like(opaque, dtype=bool)
     explored = np.zeros_like(opaque, dtype=bool)
     origin = (1, 2)
-    MyVisibility.compute(
+    visibility.compute(
         origin_xy=origin,
         range_limit=4,
         opaque_grid=opaque,
@@ -43,7 +43,7 @@ def test_compute_negative_range_only_origin_visible():
     visible = np.zeros_like(opaque, dtype=bool)
     explored = np.zeros_like(opaque, dtype=bool)
     origin = (2, 2)
-    MyVisibility.compute(
+    visibility.compute(
         origin_xy=origin,
         range_limit=-5,
         opaque_grid=opaque,
@@ -62,7 +62,7 @@ def test_compute_out_of_bounds_raises():
     visible = np.zeros_like(opaque, dtype=bool)
     explored = np.zeros_like(opaque, dtype=bool)
     with pytest.raises(ValueError):
-        MyVisibility.compute(
+        visibility.compute(
             origin_xy=(-1, -1),
             range_limit=4,
             opaque_grid=opaque,
