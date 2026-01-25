@@ -1,26 +1,34 @@
 #!/usr/bin/env python
-# Numba-based integer-slope shadowcasting FOV
+# Numba-based integer-slope shadowcasting FOV with per-tile side-bits.
 # - integer slope comparisons (cross-multiplication)
 # - half-cell slope representation for top-inclusive / bottom-exclusive tie-break
 # - early exit when top <= bottom
-# - simple transparency threshold model (t < 1 => treated as blocker for slope logic)
+# - simple transparency threshold model (t < 1 => treated as blocker for slope updates)
+# - side bits per tile (N/E/S/W) accumulated across octants
 from __future__ import annotations
-import numpy as np
+
 import numba
-from numba import int64, int32, uint8, float32, boolean
+import numpy as np
+from numba import boolean, float32, int32, int64, uint8
+
+# Side bit definitions
+SIDE_N: int = 1  # North
+SIDE_E: int = 2  # East
+SIDE_S: int = 4  # South
+SIDE_W: int = 8  # West
 
 INT = numba.int64
 
 
 @numba.njit(inline="always")
 def _slope_ge(a_n: INT, a_d: INT, b_n: INT, b_d: INT) -> boolean:
-    # true iff a_n/a_d >= b_n/b_d
+    # true iff a_n/a_d >= b_n/b_d without dividing (cross-multiply)
     return a_n * b_d >= b_n * a_d
 
 
 @numba.njit(inline="always")
 def _slope_le(a_n: INT, a_d: INT, b_n: INT, b_d: INT) -> boolean:
-    # true iff a_n/a_d <= b_n/b_d
+    # true iff a_n/a_d <= b_n/b_d without dividing
     return a_n * b_d <= b_n * a_d
 
 
@@ -44,7 +52,50 @@ def _octant_map_coords(
     elif octant == 6:
         return cx + y, cy + x
     else:
+        # octant == 7
         return cx + x, cy + y
+
+
+@numba.njit(inline="always")
+def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
+    """
+    Compute a 4-bit mask for which side(s) of the target cell face the source.
+    Bits: N=1, E=2, S=4, W=8.
+    Rule:
+      - if |dx| > |dy| => horizontal side (E if dx>0 else W)
+      - if |dy| > |dx| => vertical side (S if dy>0 else N)
+      - if |dx| == |dy| => set both corresponding horizontal and vertical sides
+    """
+    absdx = dx if dx >= 0 else -dx
+    absdy = dy if dy >= 0 else -dy
+    mask = uint8(0)
+    if absdx > absdy:
+        # horizontal
+        if dx > 0:
+            mask |= SIDE_E
+        elif dx < 0:
+            mask |= SIDE_W
+    elif absdy > absdx:
+        # vertical
+        if dy > 0:
+            mask |= SIDE_S
+        elif dy < 0:
+            mask |= SIDE_N
+    else:
+        # diagonal: set both corresponding sides if nonzero; if both zero (origin) set all sides
+        if dx == 0 and dy == 0:
+            # source tile: set all sides
+            mask = uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
+        else:
+            if dx > 0:
+                mask |= SIDE_E
+            elif dx < 0:
+                mask |= SIDE_W
+            if dy > 0:
+                mask |= SIDE_S
+            elif dy < 0:
+                mask |= SIDE_N
+    return mask
 
 
 @numba.njit(nogil=True, cache=True)
@@ -61,17 +112,19 @@ def _compute_octant_core(
     opacity_threshold: float32,
 ) -> None:
     """
-    Core integer-slope octant scan.
-    - opaque: 2D uint8 array (1 = opaque), used only for bounds/fast checks (optional)
-    - transparency: 2D float32 0..1 (1 = fully transparent). Tiles with transparency < 1
-      are treated as blocking for slope updates (deterministic simple model).
+    Core integer-slope octant scan with side-bit accumulation.
+
+    Parameters:
+    - opaque: 2D uint8 array (not strictly required; kept for shape)
+    - transparency: 2D float32 0..1 (1 = fully transparent). Tiles with transparency <= opacity_threshold
+      are treated as blocking for slope updates.
     - visible: output uint8 mask written in-place (1 = visible)
     - dist: output int32 squared distance in tiles, -1 if not visible
-    - side_bits: placeholder bitmask (currently not computed fully here)
+    - side_bits: output uint8 per-tile ORed mask of N/E/S/W bits
     - cx, cy: origin coordinates
     - radius: integer radius (Euclidean)
     - octant: 0..7 octant index
-    - opacity_threshold: float threshold; transparency <= threshold treated as blocker
+    - opacity_threshold: float threshold
     """
     h, w = opaque.shape
     radius_sq = radius * radius
@@ -82,10 +135,11 @@ def _compute_octant_core(
     bottom_n = INT(0)
     bottom_d = INT(1)
 
-    # source visible
+    # mark origin visible and side bits (origin: all sides)
     if 0 <= cx < w and 0 <= cy < h:
         visible[cy, cx] = 1
         dist[cy, cx] = 0
+        side_bits[cy, cx] |= uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
 
     # scan columns x = 1..radius
     for x in range(1, radius + 1):
@@ -104,9 +158,16 @@ def _compute_octant_core(
 
             d = x * x + y * y
             if d <= radius_sq:
+                # mark visible and distance
                 visible[my, mx] = 1
                 if dist[my, mx] == -1 or d < dist[my, mx]:
                     dist[my, mx] = d
+
+                # compute and accumulate side mask
+                dx = mx - cx
+                dy = my - cy
+                mask = _compute_side_mask_from_vector(dx, dy)
+                side_bits[my, mx] |= mask
 
             # treat tile as blocking for slope updates if transparency <= threshold
             if transparency[my, mx] <= opacity_threshold:
@@ -142,15 +203,17 @@ def compute_fov_all_octants(
 ) -> None:
     """
     Top-level API: compute FOV for all 8 octants.
-    - Precondition: visible_out, dist_out, side_bits_out are preallocated and C-contiguous.
-    - dist_out is initialized to -1 before call if desired (function leaves previously set negative).
+
+    Precondition: visible_out, dist_out, side_bits_out are preallocated and C-contiguous.
+    dist_out should be initialized to -1 by the caller if desired; this routine will only
+    overwrite distances for discovered tiles.
     """
-    # initialize outputs for this source (writing only positions we discover)
     h, w = opaque.shape
-    # mark the origin
+    # mark the origin (again, in case caller didn't do it)
     if 0 <= cx < w and 0 <= cy < h:
         visible_out[cy, cx] = 1
         dist_out[cy, cx] = 0
+        side_bits_out[cy, cx] |= uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
 
     for octant in range(8):
         _compute_octant_core(
