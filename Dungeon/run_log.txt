@@ -1,0 +1,17 @@
+Starting Pipeline Run...
+Sun Jan 25 01:04:11 UTC 2026
+Cleaning previous output files...
+--- Running Core Generator (python core.py) ---
+Running core.py in isolation for testing...
+Using Test RNG Seed: 1
+Test Params: Max Nodes=50, Max Depth=10
+Generation finished. Total nodes: 28
+Test generation complete: 28 nodes.
+Test cave data saved to core_test_output.json
+Test Features generated: Cliffs=0, Shafts=0, Restarts=0, BigRooms=3
+Test Cavern type counts: {'ellipse': 0, 'rectangle': 0, 'multi_circle': 2, 'noisy_ellipse': 1, 'noise_blob': 1}
+Total core.py isolation test time: 0.00 seconds
+--- Core Generator Completed ---
+
+--- core.py Summary Snippets ---
+ERROR: generated_cave_contextual.json not found after running core.py.
