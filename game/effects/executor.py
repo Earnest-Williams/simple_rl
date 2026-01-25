@@ -1,4 +1,6 @@
 # game/effects/executor.py
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -29,7 +31,7 @@ def _check_and_deduct_costs(effect_definition: dict, context: dict[str, Any]) ->
     Checks if costs (item charges, mana, fullness, etc.) can be met
     and deducts them if possible.
     """
-    gs: "GameState" | None = context.get("game_state")  # Type hint with | None
+    gs: GameState | None = context.get("game_state")  # Type hint with | None
     source_id = context.get("source_entity_id")
     # Still needed for item_charge cost
     item_id = context.get("item_instance_id")
@@ -43,7 +45,7 @@ def _check_and_deduct_costs(effect_definition: dict, context: dict[str, Any]) ->
         return False
 
     # Ensure entity_registry is available
-    entity_registry: "EntityRegistry" = gs.entity_registry
+    entity_registry: EntityRegistry = gs.entity_registry
     if entity_registry is None:
         log.error("Cost check failed: entity_registry missing from game_state")
         return False
@@ -212,7 +214,7 @@ def _is_consumable_effect(effect_id: str, context: dict[str, Any]) -> bool:
     item_id = context.get("item_instance_id")
     if not item_id:
         return False
-    gs: "GameState" | None = context.get("game_state")
+    gs: GameState | None = context.get("game_state")
     if gs is None or gs.item_registry is None:
         return False
     template_id = gs.item_registry.get_item_template_id(item_id)
@@ -221,14 +223,12 @@ def _is_consumable_effect(effect_id: str, context: dict[str, Any]) -> bool:
     template = gs.item_registry.get_template(template_id)
     if not template:
         return False
-    if effect_id in template.get("effects", {}).get("active_consumable", []):
-        return True
-    return False
+    return effect_id in template.get("effects", {}).get("active_consumable", [])
 
 
 def _consume_item(item_id: int, context: dict[str, Any]):
     # ... (item consumption logic remains the same) ...
-    gs: "GameState" | None = context.get("game_state")
+    gs: GameState | None = context.get("game_state")
     if gs is None or gs.item_registry is None:
         return
     quantity = gs.item_registry.get_item_component(item_id, "quantity")
@@ -255,7 +255,7 @@ def execute_effect(effect_id: str, context: dict[str, Any]) -> bool:
         "Executing effect", effect_id=effect_id, context_keys=list(context.keys())
     )
 
-    gs: "GameState" | None = context.get("game_state")  # Use | None
+    gs: GameState | None = context.get("game_state")  # Use | None
     if gs is None:
         log.error(
             "execute_effect failed: 'game_state' missing from context",

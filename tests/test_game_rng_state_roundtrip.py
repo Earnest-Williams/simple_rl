@@ -19,11 +19,9 @@ def _contains_large_int(obj: Any, max_uint64: int) -> bool:
     if isinstance(obj, list | tuple):
         return any(_contains_large_int(v, max_uint64) for v in obj)
     if isinstance(obj, np.ndarray):
-        if obj.dtype.kind == "O":
-            return True
-        if obj.dtype.kind in {"i", "u"} and obj.itemsize > 8:
-            return True
-        return False
+        return obj.dtype.kind == "O" or (
+            obj.dtype.kind in {"i", "u"} and obj.itemsize > 8
+        )
     if isinstance(obj, np.integer):
         obj = int(obj)
     if isinstance(obj, int):

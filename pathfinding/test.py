@@ -188,9 +188,7 @@ def line_of_sight(y1: int, x1: int, y2: int, x2: int, terrain_map: np.ndarray) -
         y1, x1, terrain_map.shape[0], terrain_map.shape[1]
     ) or not in_bounds(y2, x2, terrain_map.shape[0], terrain_map.shape[1]):
         return False
-    if terrain_map[y2, x2] == FeatureType.WALL:
-        return False
-    return True
+    return terrain_map[y2, x2] != FeatureType.WALL
 
 
 # --- Noise System ---

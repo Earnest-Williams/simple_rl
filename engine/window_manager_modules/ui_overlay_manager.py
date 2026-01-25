@@ -20,6 +20,8 @@ type = "debug"        # Built-in overlay types: debug, height_key, inventory, im
 Mods can add or replace overlay definitions in this file and supply their own
 tile graphics by referencing image paths.
 """
+from __future__ import annotations
+
 # Standard Imports
 import contextlib
 import tomllib
@@ -49,9 +51,9 @@ class UIOverlayManager:
     """Handles rendering and state for UI overlays."""
 
     def __init__(
-        self, window_manager_ref: "WindowManager", overlay_config_path: Path
+        self, window_manager_ref: WindowManager, overlay_config_path: Path
     ) -> None:
-        self.window_manager_ref: "WindowManager" = window_manager_ref
+        self.window_manager_ref: WindowManager = window_manager_ref
         self.overlay_config_path = overlay_config_path
         self._overlay_base_path = self.overlay_config_path.parent
         self.overlay_defs: list[dict[str, Any]] = self._load_overlay_definitions()
@@ -94,7 +96,7 @@ class UIOverlayManager:
         log.debug("Inventory UI state reset.")
 
     def render_overlays(
-        self, base_image: Image.Image, gs: "GameState", main_loop_ref: "MainLoop"
+        self, base_image: Image.Image, gs: GameState, main_loop_ref: MainLoop
     ) -> Image.Image:
         """Adds all relevant overlays to the base rendered image."""
         if not base_image:
@@ -154,8 +156,8 @@ class UIOverlayManager:
         self,
         draw: ImageDraw.ImageDraw,
         font: ImageFont.FreeTypeFont,
-        gs: "GameState",
-        ml: "MainLoop",
+        gs: GameState,
+        ml: MainLoop,
     ) -> tuple[int, int, int, int]:
         """Renders the debug text overlay. Returns bounding box of background."""
         try:
@@ -236,7 +238,7 @@ class UIOverlayManager:
         draw: ImageDraw.ImageDraw,
         font: ImageFont.FreeTypeFont,
         debug_bg_rect: tuple[int, int, int, int],
-        ml: "MainLoop",
+        ml: MainLoop,
     ) -> None:
         """Renders the height visualization key."""
         # This method remains the same as before, using ml (MainLoop ref) for config values
@@ -324,7 +326,7 @@ class UIOverlayManager:
         base_image: Image.Image,
         draw: ImageDraw.ImageDraw,
         font: ImageFont.FreeTypeFont,
-        gs: "GameState",
+        gs: GameState,
     ) -> Image.Image:
         """Renders the inventory overlay. Reuses the passed draw object."""
         # (Implementation unchanged from previous step)
@@ -554,7 +556,7 @@ class UIOverlayManager:
         return base_image
 
     def _get_combined_inventory_list(
-        self, gs: "GameState"
+        self, gs: GameState
     ) -> list[tuple[str | None, int | None, bool]]:
         """Generates the list of items for display, using GameState."""
         # (Implementation unchanged from previous step)

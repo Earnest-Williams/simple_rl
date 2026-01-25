@@ -2,6 +2,8 @@
 """
 Handles combat calculations and actions between entities.
 """
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -30,7 +32,7 @@ log = structlog.get_logger(__name__)
 DEFAULT_UNARMED_DAMAGE = "1d2"  # Damage if attacker has no weapon
 
 
-def _determine_weapon_skill(item_reg: "ItemRegistry", weapon_id: int | None) -> Skill:
+def _determine_weapon_skill(item_reg: ItemRegistry, weapon_id: int | None) -> Skill:
     """Determine which weapon skill applies to a given weapon.
 
     Args:
@@ -96,7 +98,7 @@ def _determine_weapon_skill(item_reg: "ItemRegistry", weapon_id: int | None) -> 
 def handle_melee_attack(
     attacker_id: int,
     defender_id: int,
-    gs: "GameState",
+    gs: GameState,
     damage_type: str = "physical",
 ):
     """
@@ -104,9 +106,9 @@ def handle_melee_attack(
     Calculates damage, applies it, handles messages, and checks for death.
     Currently assumes the action is valid and consumes a turn.
     """
-    entity_reg: "EntityRegistry" = gs.entity_registry
-    item_reg: "ItemRegistry" = gs.item_registry
-    rng: "GameRNG" = gs.rng_instance  # Get RNG from GameState
+    entity_reg: EntityRegistry = gs.entity_registry
+    item_reg: ItemRegistry = gs.item_registry
+    rng: GameRNG = gs.rng_instance  # Get RNG from GameState
     game_map = gs.game_map
 
     att = entity_reg.get_entity_components(attacker_id, ["name", "strength", "x", "y"])

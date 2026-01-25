@@ -69,10 +69,10 @@ class MusicGenerator:
             freq = root if beat_phase < 0.5 else third
             sample = intensity * math.sin(2 * math.pi * freq * t)
             waveform.extend(struct.pack("<h", int(sample * 32767)))
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        with wave.open(tmp, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(bytes(waveform))
-        return Path(tmp.name)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            with wave.open(tmp, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(SAMPLE_RATE)
+                wf.writeframes(bytes(waveform))
+            return Path(tmp.name)

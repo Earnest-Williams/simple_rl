@@ -1,19 +1,54 @@
 # game/world/game_map.py
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, NamedTuple
 
 import numpy as np
 import structlog
+import yaml
 
 # Ensure correct import for the memory helper and visibility class
+from engine.glyphs import tile_id_for
 from game.world.fov import update_memory_fade
 from game.world.visibility import MyVisibility
 
 log = structlog.get_logger()
 
-TILE_ID_FLOOR: Final[int] = 0
-TILE_ID_WALL: Final[int] = 1
+ROLE_GLYPH_DEFAULTS: Final[dict[str, str]] = {
+    "floor": "blank_tile_a",
+    "wall": "wall_stone_bricks",
+}
+
+
+def _load_role_glyph_defaults() -> dict[str, str]:
+    role_defaults = dict(ROLE_GLYPH_DEFAULTS)
+    cfg_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
+    if not cfg_path.exists():
+        return role_defaults
+    try:
+        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        log.warning("Invalid config yaml; using tile defaults", error=str(exc))
+        return role_defaults
+    if not isinstance(cfg, dict):
+        return role_defaults
+    tiles_cfg = cfg.get("tiles")
+    if not isinstance(tiles_cfg, dict):
+        return role_defaults
+    for role, glyph_name in tiles_cfg.items():
+        if isinstance(role, str) and isinstance(glyph_name, str):
+            role_defaults[role.lower()] = glyph_name
+    return role_defaults
+
+
+_ROLE_GLYPHS = _load_role_glyph_defaults()
+
+_FLOOR_GLYPH = _ROLE_GLYPHS.get("floor", ROLE_GLYPH_DEFAULTS["floor"])
+_WALL_GLYPH = _ROLE_GLYPHS.get("wall", ROLE_GLYPH_DEFAULTS["wall"])
+
+TILE_ID_FLOOR: Final[int] = int(tile_id_for(_FLOOR_GLYPH, 0) or 0)
+TILE_ID_WALL: Final[int] = int(tile_id_for(_WALL_GLYPH, 1) or 1)
 # Maximum number of times a tile can strengthen its memory
 MAX_MEMORY_STRENGTH: Final[float] = 5.0
 
@@ -31,7 +66,7 @@ TILE_TYPES: Final[dict[int, TileType]] = {
     TILE_ID_FLOOR: TileType(
         walkable=True,
         transparent=True,
-        tile_index=2,  # Example index for floor tile in tileset
+        tile_index=TILE_ID_FLOOR,
         color_fg=(200, 200, 200),
         color_bg=(10, 10, 30),
         memory_modifier=1.0,
@@ -39,7 +74,7 @@ TILE_TYPES: Final[dict[int, TileType]] = {
     TILE_ID_WALL: TileType(
         walkable=False,
         transparent=False,
-        tile_index=38,  # Example index for wall tile in tileset
+        tile_index=TILE_ID_WALL,
         color_fg=(180, 180, 180),
         color_bg=(30, 30, 50),
         memory_modifier=2.0,
