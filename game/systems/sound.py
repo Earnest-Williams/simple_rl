@@ -51,7 +51,7 @@ SDL_MIXER_CHANNELS: Final[int] = 2  # Stereo
 SDL_MIXER_CHUNK_SIZE: Final[int] = 512  # Buffer size in samples
 
 # Audio backend detection - SDL_mixer only
-AUDIO_BACKEND = None
+AUDIO_BACKEND: str | None = None
 sdl2_module: Any | None = None
 sdl_mixer: Any | None = None
 
