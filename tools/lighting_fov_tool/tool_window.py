@@ -614,10 +614,8 @@ class LightingFovToolWindow(QMainWindow):
                 fg_color = np.array(elem_config.fg_color, dtype=np.float32)
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
-                # Apply lighting
+                # Apply lighting (show full lighting effect, not limited by FOV)
                 light_factor = lighting[y, x]
-                if not visible[y, x]:
-                    light_factor = 0.15  # Ambient for non-visible
 
                 fg_lit = (fg_color * light_factor).clip(0, 255).astype(np.uint8)
                 bg_lit = (bg_color * light_factor).clip(0, 255).astype(np.uint8)
@@ -705,7 +703,11 @@ class LightingFovToolWindow(QMainWindow):
                 y += sy
 
     def _compute_lighting(self, visible: np.ndarray) -> np.ndarray:
-        """Compute lighting intensity for each tile."""
+        """Compute lighting intensity for each tile.
+
+        Light sources illuminate all tiles they can reach, independent of player FOV.
+        The visible parameter is not used in lighting computation but kept for API compatibility.
+        """
         scene = self._scene
         config = self._config_state
         lighting = np.full(
@@ -723,8 +725,7 @@ class LightingFovToolWindow(QMainWindow):
 
             for y in range(scene.height):
                 for x in range(scene.width):
-                    if not visible[y, x]:
-                        continue
+                    # Light sources illuminate all reachable tiles, not just visible ones
                     dx = x - ls.x
                     dy = y - ls.y
                     dist_sq = dx * dx + dy * dy
