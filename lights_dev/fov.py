@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numba
 import numpy as np
-from numba import boolean, float32, int32, int64, uint8
+from numba import boolean, float32, uint8
 
 # Side bit definitions
 SIDE_N: int = 1  # North

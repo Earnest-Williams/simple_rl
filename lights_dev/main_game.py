@@ -951,7 +951,7 @@ class GameState:
             for y in range(d.height):
                 row = [
                     (
-                        f"{d.memory_intensity[y,x]:.1f}"
+                        f"{d.memory_intensity[y, x]:.1f}"
                         if d.memory_intensity[y, x] > 0.01
                         else " . "
                     )
@@ -1282,10 +1282,10 @@ def run_simulation():
                 else ""
             )
             print(
-                f"\nMode: {mode_str}{debug_str} | Sim Time: {game_state.dungeon.current_time:.1f}s / {target_duration:.0f}s | Frame: {frame_count+1}"
+                f"\nMode: {mode_str}{debug_str} | Sim Time: {game_state.dungeon.current_time:.1f}s / {target_duration:.0f}s | Frame: {frame_count + 1}"
             )
             print(
-                f"Frame Times (ms): Render={render_time*1000:.1f}, VisUpdate={frame_vis_time*1000:.2f}, StateUpdate={update_time*1000:.2f} | Avg Vis: {avg_vis_time_ms:.3f}ms | DeltaT: {dt*1000:.1f}ms"
+                f"Frame Times (ms): Render={render_time * 1000:.1f}, VisUpdate={frame_vis_time * 1000:.2f}, StateUpdate={update_time * 1000:.2f} | Avg Vis: {avg_vis_time_ms:.3f}ms | DeltaT: {dt * 1000:.1f}ms"
             )
             if game_state.player:
                 p_mem = 0.0

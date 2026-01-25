@@ -1,5 +1,7 @@
 import time
+
 import numpy as np
+
 from lights_dev import fov
 
 
@@ -33,7 +35,9 @@ def bench(h=200, w=200, radius=20, trials=50):
             opaque, transparency, visible, dist, side, cx, cy, radius
         )
     t1 = time.perf_counter()
-    print(f"Ran {trials} trials in {t1 - t0:.3f}s, avg {((t1-t0)/trials):.6f}s per FOV")
+    print(
+        f"Ran {trials} trials in {t1 - t0:.3f}s, avg {((t1 - t0) / trials):.6f}s per FOV"
+    )
 
 
 if __name__ == "__main__":
