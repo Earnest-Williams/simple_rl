@@ -1,5 +1,7 @@
 # engine/main_loop.py
 # Added typing imports
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
@@ -67,7 +69,7 @@ class MainLoop:
         """
         # Store core components
         self.game_state: GameState = game_state
-        self.window: "WindowManager" = window
+        self.window: WindowManager = window
         self.show_height_visualization: bool = vis_enabled_default
 
         # Store config values needed by components managed here

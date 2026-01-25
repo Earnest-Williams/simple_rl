@@ -33,13 +33,13 @@ def _write_wave(data: np.ndarray, sample_rate: int = SAMPLE_RATE) -> Path:
     max_val = np.max(np.abs(data)) or 1.0
     audio = (data / max_val * 32767).astype(np.int16)
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-    with wave.open(tmp, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)  # 16-bit
-        wf.setframerate(sample_rate)
-        wf.writeframes(audio.tobytes())
-    return Path(tmp.name)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        with wave.open(tmp, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio.tobytes())
+        return Path(tmp.name)
 
 
 def generate_footstep(

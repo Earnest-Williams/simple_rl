@@ -1,5 +1,6 @@
 # game/effects/handlers.py
 # Contains the actual Python functions that implement effect logic.
+from __future__ import annotations
 
 import contextlib
 from typing import TYPE_CHECKING, Any
@@ -98,7 +99,7 @@ def _get_entities_in_aoe(
 
 def heal_target(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Heals the target entity."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
     if gs is None or target_id is None or rng is None:
@@ -161,7 +162,7 @@ def heal_target(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 def modify_resource(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Modifies a generic entity resource (e.g., fullness, mana). Requires component exists."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
     resource_name = params.get("resource")
     change_dice = params.get("dice")  # Allow dice roll for change
@@ -240,7 +241,7 @@ def modify_resource(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 def recall_ammo(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Returns a projectile item to its owner's inventory."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     projectile_item_id = context.get("projectile_item_id")
     source_entity_id = context.get("source_entity_id")
     if gs is None or projectile_item_id is None or source_entity_id is None:
@@ -298,7 +299,7 @@ def recall_ammo(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 def apply_status(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Applies a status effect to the target entity."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
     status_id = params.get("status")
     duration_dice = params.get("duration_dice")
@@ -408,7 +409,7 @@ def apply_status(context: dict[str, Any], params: dict[str, Any]) -> None:
 # --- Implemented AOE ---
 def apply_status_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Applies a status effect to all valid targets within an AOE."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     center_pos = context.get("target_pos")
     radius = params.get("radius", 1)
     if gs is None or center_pos is None or radius <= 0:
@@ -432,7 +433,7 @@ def apply_status_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None
 # --- Implemented Damage ---
 def deal_damage(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Deals damage to a target entity."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
     source_id = context.get("source_entity_id")  # Optional: for messages/XP
     target_id = context.get("target_entity_id")
@@ -555,7 +556,7 @@ def deal_damage(context: dict[str, Any], params: dict[str, Any]) -> None:
 # --- Implemented AOE Damage ---
 def deal_damage_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Deals damage to all valid targets within an AOE."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     center_pos = context.get("target_pos")
     radius = params.get("radius", 1)
     # Pass source for damage messages
@@ -585,7 +586,7 @@ def deal_damage_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 # --- Implemented Dig Tunnel (minor refinement) ---
 def dig_tunnel(context: dict[str, Any], params: dict[str, Any]) -> None:
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     source_entity_id = context.get("source_entity_id")
     direction = context.get("target_direction")
     if gs is None or source_entity_id is None or direction is None:
@@ -637,7 +638,7 @@ def dig_tunnel(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 def create_portal(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Creates a portal entity at the target location."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     target_pos = context.get("target_pos")
     portal_template_id = params.get("portal_template", "default_portal")
     linked_positions_param = params.get("linked_positions")
@@ -701,7 +702,7 @@ def create_portal(context: dict[str, Any], params: dict[str, Any]) -> None:
 
 def attempt_spawn_entity(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Attempts to spawn a specified entity at the target location based on chance."""
-    gs: "GameState" = context.get("game_state")
+    gs: GameState = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
     target_pos = context.get("target_pos")
     chance = params.get("chance", 100)

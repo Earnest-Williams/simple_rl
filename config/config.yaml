@@ -8,6 +8,11 @@ initial_tile_height: 16
 minimum_tile_size: 4 # Smallest allowed tile size during runtime changes
 scroll_scale_debounce_ms: 200 # Delay for applying zoom changes
 
+# Optional per-role glyph mapping. Keys are logical roles used by GameMap.
+tiles:
+  floor: "blank_tile_a"
+  wall: "wall_stone_bricks"
+
 # -- Map Dimensions --
 map_width: 80
 map_height: 50

@@ -3,6 +3,7 @@
 Handles processing of raw keyboard inputs, mapping them to game actions
 or UI commands based on keybindings and game state.
 """
+from __future__ import annotations
 # Standard Imports
 from typing import TYPE_CHECKING, Any
 
@@ -38,7 +39,7 @@ class InputHandler:
         window_manager_ref: "WindowManager",  # WindowManager stays in engine/
     ):
         self.keybindings_config: dict[str, Any] = keybindings_config
-        self.window_manager_ref: "WindowManager" = window_manager_ref
+        self.window_manager_ref: WindowManager = window_manager_ref
         log.debug("InputHandler initialized.")
 
     # --- Key Parsing Methods ---

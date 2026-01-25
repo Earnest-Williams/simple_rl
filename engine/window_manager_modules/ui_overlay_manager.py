@@ -20,6 +20,7 @@ type = "debug"        # Built-in overlay types: debug, height_key, inventory, im
 Mods can add or replace overlay definitions in this file and supply their own
 tile graphics by referencing image paths.
 """
+from __future__ import annotations
 # Standard Imports
 import contextlib
 import tomllib
@@ -51,7 +52,7 @@ class UIOverlayManager:
     def __init__(
         self, window_manager_ref: "WindowManager", overlay_config_path: Path
     ) -> None:
-        self.window_manager_ref: "WindowManager" = window_manager_ref
+        self.window_manager_ref: WindowManager = window_manager_ref
         self.overlay_config_path = overlay_config_path
         self._overlay_base_path = self.overlay_config_path.parent
         self.overlay_defs: list[dict[str, Any]] = self._load_overlay_definitions()

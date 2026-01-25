@@ -1,4 +1,6 @@
 # game/game_state.py
+from __future__ import annotations
+
 import contextlib
 import heapq
 from collections.abc import Callable
@@ -154,7 +156,7 @@ class GameState:
 
         # Track simulation zones for coarse updates when entities are far away
         self.zone_manager: ZoneManager = ZoneManager(self._map_width, self._map_height)
-        self.timed_events: list[tuple[int, int, Callable[["GameState"], None]]] = []
+        self.timed_events: list[tuple[int, int, Callable[[GameState], None]]] = []
         self._next_timed_event_id: int = 0
 
         # --- NEW: UI State ---

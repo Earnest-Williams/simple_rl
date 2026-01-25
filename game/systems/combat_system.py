@@ -2,6 +2,8 @@
 """
 Handles combat calculations and actions between entities.
 """
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -104,9 +106,9 @@ def handle_melee_attack(
     Calculates damage, applies it, handles messages, and checks for death.
     Currently assumes the action is valid and consumes a turn.
     """
-    entity_reg: "EntityRegistry" = gs.entity_registry
-    item_reg: "ItemRegistry" = gs.item_registry
-    rng: "GameRNG" = gs.rng_instance  # Get RNG from GameState
+    entity_reg: EntityRegistry = gs.entity_registry
+    item_reg: ItemRegistry = gs.item_registry
+    rng: GameRNG = gs.rng_instance  # Get RNG from GameState
     game_map = gs.game_map
 
     att = entity_reg.get_entity_components(attacker_id, ["name", "strength", "x", "y"])
