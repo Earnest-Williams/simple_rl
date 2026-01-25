@@ -55,7 +55,7 @@ class ElevationConfig:
 class ClimateConfig:
     T_equator: float = CLIMATE_T_EQUATOR_DEFAULT
     T_pole: float = CLIMATE_T_POLE_DEFAULT
-    lapse_C_per_km: float = CLIMATE_LAPSE_C_PER_KM_DEFAULT
+    lapse_c_per_km: float = CLIMATE_LAPSE_C_PER_KM_DEFAULT
     lat_gamma: float = CLIMATE_LAT_GAMMA_DEFAULT
     lat_polar_cap: float = CLIMATE_LAT_POLAR_CAP_DEFAULT
     S_adv: int = CLIMATE_ADVECT_STEPS_DEFAULT

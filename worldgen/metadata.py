@@ -127,24 +127,24 @@ class WorldMetaModel(BaseModel):
 def build_world_meta(
     *,
     world_seed: int,
-    N: int,
+    n: int,
     planet_radius_m: float,
     elev_quantum_m: float,
     global_tunables_hash: str | None = None,
     chunk_tunables_hash: str | None = None,
     format_version: str = "2.0.0",
 ) -> WorldMeta:
-    if N <= 0:
+    if n <= 0:
         raise ValueError("N must be > 0")
     if planet_radius_m <= 0.0:
         raise ValueError("planet_radius_m must be > 0")
     if elev_quantum_m <= 0.0:
         raise ValueError("elev_quantum_m must be > 0")
-    n_cells: int = 6 * N * N
+    n_cells: int = 6 * n * n
     return WorldMeta(
         format_version=format_version,
         world_seed=world_seed,
-        N=N,
+        N=n,
         n_cells=n_cells,
         planet_radius_m=planet_radius_m,
         elev_quantum_m=elev_quantum_m,

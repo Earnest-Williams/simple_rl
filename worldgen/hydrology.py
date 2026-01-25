@@ -117,11 +117,12 @@ def _build_flow_direction_numba(
             elif elev_v == min_elev and best_v != -1:
                 if cell_area_f32[v] > cell_area_f32[best_v]:
                     best_v = v
-                elif cell_area_f32[v] == cell_area_f32[best_v]:
-                    if coord_hash_domain(seed, FLOW_DOMAIN, v) < coord_hash_domain(
-                        seed, FLOW_DOMAIN, best_v
-                    ):
-                        best_v = v
+                elif (
+                    cell_area_f32[v] == cell_area_f32[best_v]
+                    and coord_hash_domain(seed, FLOW_DOMAIN, v)
+                    < coord_hash_domain(seed, FLOW_DOMAIN, best_v)
+                ):
+                    best_v = v
         flat_mask[u] = has_equal
         if min_elev < elev_u:
             flow_to[u] = best_v
