@@ -113,7 +113,6 @@ Different components have dedicated development harnesses:
 * **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
 * **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
-* **Perception Testbed:** `cd pathfinding && python test.py`
 * **Legacy GUI:** `python legacy/simple_rl.py` (maintained for scripting_engine.py development)
 
 Refer to individual component READMEs for specific requirements and usage details.
