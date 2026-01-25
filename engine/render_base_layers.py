@@ -6,13 +6,10 @@ import structlog
 try:
     from game.world.game_map import GameMap
 except ImportError:
-    try:
-        from basicrl.game.world.game_map import GameMap
-    except ImportError:
-        GameMap = object  # type: ignore
-        structlog.get_logger().error(
-            "CRITICAL: Failed to import GameMap in render_base_layers."
-        )
+    GameMap = object  # type: ignore
+    structlog.get_logger().error(
+        "CRITICAL: Failed to import GameMap in render_base_layers."
+    )
 
 log = structlog.get_logger()
 

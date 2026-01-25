@@ -14,47 +14,20 @@ from collections import Counter
 from multiprocessing import Pool, cpu_count
 
 # --- Use relative imports ---
-# Use try-except for robustness
-try:
-    from utils.game_rng import GameRNG  # Import GameRNG
+from utils.game_rng import GameRNG  # Import GameRNG
 
-    from .simulation import (
-        GRID_SIZE,  # Relative import for use with -m
-        MAX_TURNS,
-        PASSIVE_HUNGER_PER_TURN,  # Keep relevant constants
-        REST_HEALTH_REGEN,
-        START_HEALTH,
-        STARVATION_HEALTH_DAMAGE,
-        ActionResult,
-        AgentAI,
-        World,
-        enemy_act,
-    )
-except ImportError:
-    print(
-        "Error: Cannot perform relative imports. Run as module: python -m auto.main [...]",
-        file=sys.stderr,
-    )
-    # Fallback for direct execution (less ideal)
-    try:
-        from utils.game_rng import GameRNG  # Adjust path if needed
-
-        from simulation import (
-            GRID_SIZE,
-            MAX_TURNS,
-            PASSIVE_HUNGER_PER_TURN,
-            START_HEALTH,
-            STARVATION_HEALTH_DAMAGE,
-            ActionResult,
-            AgentAI,
-            World,
-            enemy_act,
-        )
-    except ImportError as e:
-        print(
-            f"Failed to import simulation components or GameRNG: {e}", file=sys.stderr
-        )
-        sys.exit(1)
+from .simulation import (
+    GRID_SIZE,  # Relative import for use with -m
+    MAX_TURNS,
+    PASSIVE_HUNGER_PER_TURN,  # Keep relevant constants
+    REST_HEALTH_REGEN,
+    START_HEALTH,
+    STARVATION_HEALTH_DAMAGE,
+    ActionResult,
+    AgentAI,
+    World,
+    enemy_act,
+)
 
 
 # --- Configuration ---

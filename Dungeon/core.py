@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree  # type: ignore[import-untyped]
 
 # Import GameRNG using relative path (assuming main.py is in parent dir)
 try:
