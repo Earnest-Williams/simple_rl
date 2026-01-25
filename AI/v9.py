@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Agent-based simulation core featuring farming, resource management,
@@ -10,8 +9,10 @@ Version: 9.0 (Merged Traits & Habits) - Requires review for duplicates
 """
 
 from collections import defaultdict, deque
-from typing import Callable  # Removed Optional per PEP 604 preference
-from typing import Any, Dict, List, Set, Tuple, Union
+from collections.abc import Callable
+from typing import (
+    Any,  # Removed Optional per PEP 604 preference
+    )
 
 import numpy as np
 
@@ -29,11 +30,11 @@ from utils.game_rng import GameRNG
 
 class Home:
     water_storage: float = 0.0
-    raw_inventory: Dict[str, float] = defaultdict(float)
-    cooked_food: Dict[str, float] = defaultdict(float)
-    fiber: Dict[str, float] = defaultdict(float)
-    containers: Dict[str, Any] = {}
-    fields: List[Any] = []  # Placeholder for Field objects
+    raw_inventory: dict[str, float] = defaultdict(float)
+    cooked_food: dict[str, float] = defaultdict(float)
+    fiber: dict[str, float] = defaultdict(float)
+    containers: dict[str, Any] = {}
+    fields: list[Any] = []  # Placeholder for Field objects
 
 
 class Behavior:
@@ -41,7 +42,7 @@ class Behavior:
         self,
         name: str,
         fn: Callable | None,
-        impact: Dict | None = None,
+        impact: dict | None = None,
         est_energy_cost: float = 0,
         est_time_cost: float = 0,
         task_id: str = "",
@@ -60,8 +61,8 @@ class Habit:
     def __init__(
         self,
         name: str,
-        sequence: List[Union[Behavior, "Habit"]],
-        trigger: Union[Dict, Callable],
+        sequence: list[Behavior | "Habit"],
+        trigger: dict | Callable,
         score: float,
         created_day: int,
     ):
@@ -72,7 +73,7 @@ class Habit:
         self.created_day = created_day
         self.last_used_day = created_day  # Initialize last used day
 
-    def estimate_impact(self, agent: "AgentF") -> Dict[str, float]:
+    def estimate_impact(self, agent: "AgentF") -> dict[str, float]:
         # Basic estimation - sum impacts of direct behaviors
         # Needs refinement with agent task_stats for adaptive costs
         total_impact = defaultdict(float)
@@ -210,7 +211,7 @@ class FatigueSystem:
 
 class IllnessSystem:
     # Use proper types
-    active_conditions: Dict[str, Dict[str, Any]]
+    active_conditions: dict[str, dict[str, Any]]
     _endurance: float
     _will: float
     _rng: GameRNG
@@ -232,7 +233,7 @@ class IllnessSystem:
     def get_total_severity(self) -> float:
         return sum(cond.get("severity", 0) for cond in self.active_conditions.values())
 
-    def get_performance_modifiers(self) -> Dict[str, float]:
+    def get_performance_modifiers(self) -> dict[str, float]:
         # Example modifiers based on severity
         total_severity = self.get_total_severity()
         severity_factor = total_severity / 10.0  # Scale severity effect
@@ -241,7 +242,7 @@ class IllnessSystem:
             "energy": max(0.5, 1.0 - severity_factor * 0.3),  # Affects energy recovery
         }
 
-    def daily_update(self) -> List[str]:
+    def daily_update(self) -> list[str]:
         resolved = []
         # Willpower slightly increases chance to reduce duration
         will_factor = 0.1 * (self._will - 1.0)
@@ -266,8 +267,8 @@ class IllnessSystem:
 
 class ExperienceMemory:
     # Define structure for memory entries
-    memories: Dict[
-        str, List[Tuple[Dict, Dict, float]]
+    memories: dict[
+        str, list[tuple[dict, dict, float]]
     ]  # behavior -> list of (state_before, state_after, value)
     _ingenuity: float
 
@@ -278,8 +279,8 @@ class ExperienceMemory:
     def add_memory(
         self,
         behavior_name: str,
-        state_before: Dict,
-        state_after: Dict,
+        state_before: dict,
+        state_after: dict,
         day: int,
         value: float,
     ):
@@ -290,7 +291,7 @@ class ExperienceMemory:
         if len(self.memories[behavior_name]) > 50:  # Example limit
             self.memories[behavior_name].pop(0)
 
-    def predict_outcome(self, behavior_name: str, current_state: Dict) -> Dict | None:
+    def predict_outcome(self, behavior_name: str, current_state: dict) -> dict | None:
         # Simple prediction: find most similar past state_before, return its state_after diff
         # Needs a similarity metric (e.g., Euclidean distance on key features)
         # Ingenuity could influence how many neighbors are considered or the similarity threshold
@@ -300,8 +301,8 @@ class ExperienceMemory:
 
 class SelfConcept:
     # Define structure
-    identity_aspects: Dict[str, float]  # e.g., {'farmer': 0.8, 'fighter': 0.2}
-    behavior_identity_map: Dict[str, Dict[str, float]]  # behavior -> {'aspect': weight}
+    identity_aspects: dict[str, float]  # e.g., {'farmer': 0.8, 'fighter': 0.2}
+    behavior_identity_map: dict[str, dict[str, float]]  # behavior -> {'aspect': weight}
     _resonance: float
 
     def __init__(self, resonance: float = 1.0):
@@ -311,7 +312,7 @@ class SelfConcept:
             resonance  # Resonance affects how strongly actions shape identity
         )
 
-    def _initialize_behavior_map(self) -> Dict[str, Dict[str, float]]:
+    def _initialize_behavior_map(self) -> dict[str, dict[str, float]]:
         # Map behaviors to identity aspects they reinforce/contradict
         # Example:
         return {
@@ -376,7 +377,7 @@ class Weather:
 
 
 class Field:
-    plots: Dict[str, np.ndarray]  # Define structure e.g., {'status': [], 'health': []}
+    plots: dict[str, np.ndarray]  # Define structure e.g., {'status': [], 'health': []}
 
     def __init__(self, size=10):
         # Example initialization
@@ -394,7 +395,7 @@ class Field:
 
     def harvest_ready_plots(
         self, weather: Weather, calendar: Calendar
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         # Find ready plots
         ready_indices = np.where(self.plots["status"] == PLOT_STATUS_MAP["ready"])[0]
         harvest_summary = defaultdict(int)
@@ -425,7 +426,7 @@ WATER_CONTAINERS = {"pot": {"size": 2.0}}
 
 
 # --- Helper ---
-def flatten_behavior_names(item: Union[Habit, Behavior]) -> Set[str]:
+def flatten_behavior_names(item: Habit | Behavior) -> set[str]:
     names = set()
     if isinstance(item, Behavior):
         names.add(item.name)
@@ -462,9 +463,9 @@ class AgentF:
         )
         self.nutrients = defaultdict(float)
         self.critical_nutrients = {"C": 3.0, "P": 3.0}
-        self.carried_containers: List[str] = []
-        self.context: Dict[str, Any] = {"day": 0}
-        self.conditions: Set[str] = set()
+        self.carried_containers: list[str] = []
+        self.context: dict[str, Any] = {"day": 0}
+        self.conditions: set[str] = set()
         self.base_logger = base_logger if base_logger else self._get_dummy_logger()
         self.task_stats = defaultdict(
             lambda: {
@@ -500,16 +501,16 @@ class AgentF:
         self.memory = ExperienceMemory(ingenuity=self.traits.ingenuity)
         self.self_concept = SelfConcept(resonance=self.traits.resonance)
 
-        self.behaviors: Dict[str, "Behavior"] = self._initialize_behaviors()
-        self.habits: List["Habit"] = []
-        self.daily_behavior_log: List[Tuple[Dict[str, Any] | None, str]] = []
-        self.behavior_memory: deque[Tuple[Dict[str, Any] | None, str]] = deque(
+        self.behaviors: dict[str, "Behavior"] = self._initialize_behaviors()
+        self.habits: list["Habit"] = []
+        self.daily_behavior_log: list[tuple[dict[str, Any] | None, str]] = []
+        self.behavior_memory: deque[tuple[dict[str, Any] | None, str]] = deque(
             maxlen=250
         )
-        self._behavior_dispatch_map: Dict[str, Callable[..., Any]] = (
+        self._behavior_dispatch_map: dict[str, Callable[..., Any]] = (
             self._build_dispatch_map()
         )
-        self.executed_habits_today: Dict[str, Tuple[bool, OutcomeResult | None]] = {}
+        self.executed_habits_today: dict[str, tuple[bool, OutcomeResult | None]] = {}
 
         self.habit_reflect_min_count = max(2, int(5 - 2 * self.traits.ingenuity))
         self.habit_reflect_max_len = int(3 + self.traits.ingenuity)
@@ -534,7 +535,7 @@ class AgentF:
 
         return DummyLogger()
 
-    def _initialize_behaviors(self) -> Dict[str, "Behavior"]:
+    def _initialize_behaviors(self) -> dict[str, "Behavior"]:
         # Using simplified impacts from above for consistency
         return {
             "fetch_water": Behavior(
@@ -647,7 +648,7 @@ class AgentF:
             ),
         }
 
-    def _build_dispatch_map(self) -> Dict[str, Callable[..., Any]]:
+    def _build_dispatch_map(self) -> dict[str, Callable[..., Any]]:
         return {n: b.fn for n, b in self.behaviors.items() if b.fn is not None}
 
     def _seed_initial_habits(self):
@@ -744,7 +745,7 @@ class AgentF:
     def prepare_flax(self) -> bool:
         return self._prepare_fiber_crop("flax", skill="prep_fiber")
 
-    def _capture_state_snapshot(self) -> Dict[str, Any]:
+    def _capture_state_snapshot(self) -> dict[str, Any]:
         time_seg = self.context.get(
             "time_of_day", int(self.hours // (self.day_length / 3)) % 3
         )
@@ -779,7 +780,7 @@ class AgentF:
             features[f"has_condition_{c_name}"] = True
         return features
 
-    def _estimate_habit_impact(self, habit: "Habit") -> Dict[str, float]:
+    def _estimate_habit_impact(self, habit: "Habit") -> dict[str, float]:
         base_impact = habit.estimate_impact(self)
         behavior_names = flatten_behavior_names(habit)
         if behavior_names and self.traits.ingenuity > 1.0:
@@ -827,7 +828,7 @@ class AgentF:
             base_impact["delta_energy"] *= fatigue_factor
         return base_impact
 
-    def _calculate_habit_utility(self, predicted_impact: Dict[str, float]) -> float:
+    def _calculate_habit_utility(self, predicted_impact: dict[str, float]) -> float:
         utility = 0.0
         weights = {
             "thirst": 5.0,
@@ -907,8 +908,8 @@ class AgentF:
 
     def _promote_composite_sequence(
         self,
-        seq: Tuple[str, ...],
-        trigger_features: Dict[str, Any],
+        seq: tuple[str, ...],
+        trigger_features: dict[str, Any],
         freq_score: float,
         current_day: int,
         name: str,
@@ -1219,7 +1220,7 @@ class AgentF:
         # Clear log for next day
         self.daily_behavior_log.clear()
 
-    def _get_current_state_dict(self) -> Dict[str, Any]:
+    def _get_current_state_dict(self) -> dict[str, Any]:
         # Return comprehensive state including inventory etc. for evaluation
         state = {
             "energy": self.energy,
@@ -1241,7 +1242,7 @@ class AgentF:
         return state
 
     def _evaluate_outcome(
-        self, state_before: Dict, state_after: Dict
+        self, state_before: dict, state_after: dict
     ) -> OutcomeResult | None:
         if not state_before or not state_after:
             return None
@@ -1558,7 +1559,7 @@ class AgentF:
 
     def _behavior_use_cannabis(self) -> bool:
         b = self.behaviors["use_cannabis"]
-        start_t = self.hours
+        start_e, start_t = self.energy, self.hours
         success = False
         amount = 0
         if self.home.raw_inventory.get("cannabis_bud", 0) <= 0:
@@ -1786,7 +1787,7 @@ class AgentF:
         self._log_task(
             b.task_id,
             b.primary_skill,
-            energy_cost if success else 0,
+            -(self.energy - start_e),
             self.hours - start_t,
             float(tended_count),
         )
