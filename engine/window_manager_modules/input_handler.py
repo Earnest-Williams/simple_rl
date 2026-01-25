@@ -4,6 +4,7 @@ Handles processing of raw keyboard inputs, mapping them to game actions
 or UI commands based on keybindings and game state.
 """
 from __future__ import annotations
+
 # Standard Imports
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +37,7 @@ class InputHandler:
     def __init__(
         self,
         keybindings_config: dict[str, Any],
-        window_manager_ref: "WindowManager",  # WindowManager stays in engine/
+        window_manager_ref: WindowManager,  # WindowManager stays in engine/
     ):
         self.keybindings_config: dict[str, Any] = keybindings_config
         self.window_manager_ref: WindowManager = window_manager_ref
@@ -162,8 +163,8 @@ class InputHandler:
     def process_key_event(
         self,
         event: QKeyEvent,
-        game_state: "GameState",
-        main_loop_ref: "MainLoop",
+        game_state: GameState,
+        main_loop_ref: MainLoop,
         active_keybinding_sets: list[str],
     ) -> bool:
         """

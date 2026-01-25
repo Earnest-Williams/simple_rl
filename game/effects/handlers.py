@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-def is_visible_to_player(entity_id: int | None, gs: "GameState") -> bool:
+def is_visible_to_player(entity_id: int | None, gs: GameState) -> bool:
     """Return True if ``entity_id`` is within the player's current FOV."""
     if entity_id is None:
         return False
@@ -50,7 +50,7 @@ def is_visible_to_player(entity_id: int | None, gs: "GameState") -> bool:
 
 # --- AOE Helper ---
 def _get_entities_in_aoe(
-    center_pos: tuple[int, int], radius: int, gs: "GameState"
+    center_pos: tuple[int, int], radius: int, gs: GameState
 ) -> list[int]:
     """Finds active entity IDs within a specified radius of a center point."""
     target_entities: list[int] = []
