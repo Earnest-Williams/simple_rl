@@ -25,6 +25,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import structlog
 
+from game.world import line_of_sight
+from pathfinding.perception_systems import BASE_FLOW_CENTER, NOISE_STRENGTH
+from utils.game_rng import GameRNG
+
 if TYPE_CHECKING:
     import yaml as yaml_module
 else:
@@ -34,10 +38,6 @@ _yaml_spec = importlib.util.find_spec("yaml")
 if _yaml_spec is not None:
     yaml_module = importlib.import_module("yaml")
 
-from game.world import line_of_sight
-from pathfinding.perception_systems import BASE_FLOW_CENTER, NOISE_STRENGTH
-from utils.game_rng import GameRNG
-
 if TYPE_CHECKING:
     from pydub import AudioSegment
 
@@ -45,19 +45,25 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger(__name__)
 
+# Pygame mixer configuration
+PYGAME_MIXER_FREQUENCY: int = 22050  # Hz
+PYGAME_MIXER_SAMPLE_SIZE: int = -16  # 16-bit signed
+PYGAME_MIXER_CHANNELS: int = 2  # Stereo
+PYGAME_MIXER_BUFFER_SIZE: int = 512  # Buffer size in samples
+
 # Audio backend detection - try multiple backends for compatibility
 AUDIO_BACKEND = None
 AL_PLAYING: Any = None
 Listener: Any = None
-oalOpen: Any = None
+oal_open: Any = None
 audio_backend: Any = None
 
 if importlib.util.find_spec("openal") is not None:
     openal_module = importlib.import_module("openal")
     AL_PLAYING = getattr(openal_module, "AL_PLAYING", None)
     Listener = getattr(openal_module, "Listener", None)
-    oalOpen = getattr(openal_module, "oalOpen", None)
-    if AL_PLAYING is not None and Listener is not None and oalOpen is not None:
+    oal_open = getattr(openal_module, "oalOpen", None)
+    if AL_PLAYING is not None and Listener is not None and oal_open is not None:
         AUDIO_BACKEND = "pyopenal"
         log.info("Using pyopenal audio backend")
     else:
@@ -556,9 +562,9 @@ class SoundManager:
         if eq_cfg:
             segment = self._apply_eq(segment, eq_cfg)
 
-        tmp = NamedTemporaryFile(delete=False, suffix=".wav")
-        segment.export(tmp.name, format="wav")
-        return Path(tmp.name)
+        with NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            segment.export(tmp.name, format="wav")
+            return Path(tmp.name)
 
     def _add_reverb(self, segment: AudioSegment, amount: float) -> AudioSegment:
         """Simple reverb using delayed overlays."""
@@ -647,7 +653,7 @@ class SoundManager:
         fname = str(filename)
         if AUDIO_BACKEND == "pyopenal":
             try:
-                sound = oalOpen(fname)
+                sound = oal_open(fname)
                 src = sound.play()
                 if pitch_variance:
                     pitch = 1.0 + self.rng.get_float(-pitch_variance, pitch_variance)
@@ -710,7 +716,7 @@ class SoundManager:
         fname = str(filename)
         if AUDIO_BACKEND == "pyopenal":
             try:
-                sound = oalOpen(fname)
+                sound = oal_open(fname)
                 src = sound.play()
                 src.set_gain(volume)
                 src.looping = loop
