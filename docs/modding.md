@@ -44,7 +44,7 @@ AI behaviors live in different locations depending on their purpose:
   - `strategy.py` - State machine behaviors (HOME, CHARGE, FLEE, SMART_KOBOLD)
   - Specialized behaviors: `bird.py`, `mammal.py`, `insect.py`, `plant.py`, `reptile.py`
 
-* **Community NPC AI (In Development)**: `AI/` folder contains advanced trait-based AI for non-combat NPCs. Not yet integrated with main game.
+* **Community NPC AI (In Development)**: `ai/` folder contains advanced trait-based AI for non-combat NPCs. Not yet integrated with main game.
 
 * **AI Testing Environment**: `auto/` provides a standalone simulation for testing and tuning GOAP behaviors before deploying to production.
 

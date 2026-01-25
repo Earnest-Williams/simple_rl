@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from AI.v9 import (
+from ai.v9 import (
     AgentF,
     Behavior,
     ExperienceMemory,

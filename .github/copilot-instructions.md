@@ -42,7 +42,7 @@ Simple RL is a simulation-heavy roguelike/RPG research project focused on comple
 ### Component Directories
 
 - **`Dungeon/`**: Procedural cave generation using multi-stage pipeline (Core Graph → Processing → Shaping). Outputs Polars DataFrames
-- **`AI/`**: Community-based NPC AI with social behaviors, needs, traits, and habit learning
+- **`ai/`**: Community-based NPC AI with social behaviors, needs, traits, and habit learning
 - **`auto/`**: Combat/survival AI using Goal-Oriented Action Planning (GOAP) for adventurers and monsters
   - Contains reusable planner in `auto/goap_engine.py`
   - Main game integration via `game/ai/goap_adapter.py`
@@ -83,7 +83,7 @@ These are maintained primarily for testing `scripting_engine.py`.
 
 ## AI Systems
 
-### Community AI (`AI/v9.py`)
+### Community AI (`ai/v9.py`)
 - Manages non-combat NPCs in communities
 - Features: trait system, needs management, habit learning, adaptive planning
 - Agents learn multi-step behaviors from experience

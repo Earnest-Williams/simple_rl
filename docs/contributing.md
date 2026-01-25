@@ -103,7 +103,7 @@ Passing tests gives confidence that the engine and configurations still behave a
 ### Working on AI Systems
 * Production AI: Modify `game/ai/` directory
 * Test AI behaviors: Use `auto/` test environment for isolated testing
-* Community AI: Work in `AI/` directory (not yet integrated)
+* Community AI: Work in `ai/` directory (not yet integrated)
 
 ### Working on Rendering
 * Test visual changes by running the main game
