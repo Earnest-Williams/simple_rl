@@ -51,6 +51,9 @@ DEFAULT_TILE_SIZE: Final[int] = 16
 MIN_TILE_SIZE: Final[int] = 8
 MAX_TILE_SIZE: Final[int] = 32
 
+# Lighting constants
+LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = 0.0  # Light factor for tiles outside player's field of view
+
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
     "blank_tile_a": 13,
@@ -614,10 +617,13 @@ class LightingFovToolWindow(QMainWindow):
                 fg_color = np.array(elem_config.fg_color, dtype=np.float32)
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
-                # Apply lighting
-                light_factor = lighting[y, x]
-                if not visible[y, x]:
-                    light_factor = 0.15  # Ambient for non-visible
+                # Apply lighting only where player can see (within FOV)
+                if visible[y, x]:
+                    # Show full lighting effect for visible tiles
+                    light_factor = lighting[y, x]
+                else:
+                    # Tiles outside FOV are dark
+                    light_factor = LIGHT_FACTOR_OUTSIDE_FOV
 
                 fg_lit = (fg_color * light_factor).clip(0, 255).astype(np.uint8)
                 bg_lit = (bg_color * light_factor).clip(0, 255).astype(np.uint8)
@@ -705,7 +711,11 @@ class LightingFovToolWindow(QMainWindow):
                 y += sy
 
     def _compute_lighting(self, visible: np.ndarray) -> np.ndarray:
-        """Compute lighting intensity for each tile."""
+        """Compute lighting intensity for each tile.
+
+        Light sources illuminate all tiles they can reach, independent of player FOV.
+        The visible parameter is not used in lighting computation but kept for API compatibility.
+        """
         scene = self._scene
         config = self._config_state
         lighting = np.full(
@@ -723,8 +733,7 @@ class LightingFovToolWindow(QMainWindow):
 
             for y in range(scene.height):
                 for x in range(scene.width):
-                    if not visible[y, x]:
-                        continue
+                    # Light sources illuminate all reachable tiles, not just visible ones
                     dx = x - ls.x
                     dy = y - ls.y
                     dist_sq = dx * dx + dy * dy
