@@ -1,6 +1,5 @@
 """Lighting and visual effect helpers for rendering."""
 
-import colorsys
 import math
 from collections.abc import Iterable
 
@@ -357,7 +356,9 @@ def apply_memory_fade(
 
     except Exception as exc:
         # Be conservative: if blending fails, leave colors alone but do not touch glyphs.
-        log.error("apply_memory_fade: color blending failed", error=str(exc), exc_info=True)
+        log.error(
+            "apply_memory_fade: color blending failed", error=str(exc), exc_info=True
+        )
         return
 
     # NOTE: We deliberately do NOT touch `glyph_indices`. Tiles stay the same;
