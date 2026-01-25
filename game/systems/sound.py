@@ -16,13 +16,23 @@ through configuration.
 from __future__ import annotations
 
 import contextlib
+import importlib
+import importlib.util
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import structlog
-import yaml
+
+if TYPE_CHECKING:
+    import yaml as yaml_module
+else:
+    yaml_module: Any | None = None
+
+_yaml_spec = importlib.util.find_spec("yaml")
+if _yaml_spec is not None:
+    yaml_module = importlib.import_module("yaml")
 
 from game.world import line_of_sight
 from pathfinding.perception_systems import BASE_FLOW_CENTER, NOISE_STRENGTH
@@ -37,25 +47,31 @@ log = structlog.get_logger(__name__)
 
 # Audio backend detection - try multiple backends for compatibility
 AUDIO_BACKEND = None
-try:
-    from openal import AL_PLAYING, Listener, oalOpen
+AL_PLAYING: Any = None
+Listener: Any = None
+oalOpen: Any = None
+audio_backend: Any = None
 
-    AUDIO_BACKEND = "pyopenal"
-    log.info("Using pyopenal audio backend")
-except Exception:  # pragma: no cover - backend availability depends on environment
-    try:
-        import pygame.mixer as audio_backend
-
-        AUDIO_BACKEND = "pygame"
-        log.info("Using pygame audio backend")
-    except ImportError:
-        try:
-            import simpleaudio as audio_backend
-
-            AUDIO_BACKEND = "simpleaudio"
-            log.info("Using simpleaudio backend")
-        except ImportError:
-            log.warning("No audio backend available - sound system will be disabled")
+if importlib.util.find_spec("openal") is not None:
+    openal_module = importlib.import_module("openal")
+    AL_PLAYING = getattr(openal_module, "AL_PLAYING", None)
+    Listener = getattr(openal_module, "Listener", None)
+    oalOpen = getattr(openal_module, "oalOpen", None)
+    if AL_PLAYING is not None and Listener is not None and oalOpen is not None:
+        AUDIO_BACKEND = "pyopenal"
+        log.info("Using pyopenal audio backend")
+    else:
+        log.warning("OpenAL detected but required symbols are missing")
+elif importlib.util.find_spec("pygame") is not None:
+    audio_backend = importlib.import_module("pygame.mixer")
+    AUDIO_BACKEND = "pygame"
+    log.info("Using pygame audio backend")
+elif importlib.util.find_spec("simpleaudio") is not None:
+    audio_backend = importlib.import_module("simpleaudio")
+    AUDIO_BACKEND = "simpleaudio"
+    log.info("Using simpleaudio backend")
+else:
+    log.warning("No audio backend available - sound system will be disabled")
 
 
 class SoundEffect:
@@ -193,8 +209,12 @@ class SoundManager:
             log.warning(f"Sound config file not found: {config_path}")
             return
 
+        if yaml_module is None:
+            log.warning("PyYAML is not available; sound configuration not loaded")
+            return
+
         with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            config = yaml_module.safe_load(f)
 
         # Load general audio settings
         audio_config = config.get("audio", {})
@@ -238,23 +258,35 @@ class SoundManager:
         if not self.enabled:
             return
 
-        try:
-            if AUDIO_BACKEND == "pyopenal":
-                # Listener defaults; position will be updated as needed
-                Listener.position = self.listener_position
-                log.info("PyOpenAL audio backend initialized")
-            elif AUDIO_BACKEND == "pygame":
-                import pygame
+        if AUDIO_BACKEND == "pyopenal":
+            if Listener is None:
+                log.error("PyOpenAL backend not available at runtime")
+                self.enabled = False
+                return
+            # Listener defaults; position will be updated as needed
+            Listener.position = self.listener_position
+            log.info("PyOpenAL audio backend initialized")
+            return
 
-                pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=512)
+        if AUDIO_BACKEND == "pygame":
+            pygame = importlib.import_module("pygame")
+            try:
+                pygame.mixer.pre_init(
+                    frequency=PYGAME_MIXER_FREQUENCY,
+                    size=PYGAME_MIXER_SAMPLE_SIZE,
+                    channels=PYGAME_MIXER_CHANNELS,
+                    buffer=PYGAME_MIXER_BUFFER_SIZE,
+                )
                 pygame.mixer.init()
                 log.info("Pygame audio backend initialized")
-            elif AUDIO_BACKEND == "simpleaudio":
-                # simpleaudio doesn't need initialization
-                log.info("Simpleaudio backend ready")
-        except Exception as e:
-            log.error(f"Failed to initialize audio backend: {e}")
-            self.enabled = False
+            except RuntimeError as exc:
+                log.error(f"Failed to initialize audio backend: {exc}")
+                self.enabled = False
+            return
+
+        if AUDIO_BACKEND == "simpleaudio":
+            # simpleaudio doesn't need initialization
+            log.info("Simpleaudio backend ready")
 
     def play_sound_effect(
         self, effect_name: str, context: dict[str, Any] | None = None
