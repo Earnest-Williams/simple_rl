@@ -1524,11 +1524,9 @@ class AgentF:
         b = self.behaviors["use_ipecac"]
         start_e, start_t = self.energy, self.hours
         success = False
-        amount = 0
         if self.home.raw_inventory.get("ipecac_root", 0) <= 0:
             self._log_task(b.task_id, b.primary_skill, 0, 0, 0)
             return False
-        amount = 1
         self.home.raw_inventory["ipecac_root"] -= 1
         success = True
         self.hours += 0.3
@@ -1560,7 +1558,7 @@ class AgentF:
 
     def _behavior_use_cannabis(self) -> bool:
         b = self.behaviors["use_cannabis"]
-        start_e, start_t = self.energy, self.hours
+        start_t = self.hours
         success = False
         amount = 0
         if self.home.raw_inventory.get("cannabis_bud", 0) <= 0:

@@ -271,9 +271,6 @@ def split_alt_names(value: str) -> list[str]:
 
 def clean_notes(raw_notes: str) -> tuple[str, bool]:
     raw_lower: str = raw_notes.lower()
-    has_user_clarified: bool = any(
-        token in raw_lower for token in USER_CLARIFIED_TOKENS
-    )
     has_ambiguity: bool = any(token in raw_lower for token in AMBIGUITY_TOKENS)
 
     cleaned: str = PAREN_PATTERN.sub("", raw_notes)

@@ -475,11 +475,12 @@ class DiagnosticsDock(QDockWidget):
 
             # Schedule update on main thread
             self.main.qt_invoke(ui_update)
-        except Exception as e:
-            log.error(f"Pipeline run failed: {e}", exc_info=True)
+        except Exception as exc:
+            error_message = str(exc)
+            log.error("Pipeline run failed: %s", error_message, exc_info=True)
 
             def ui_err() -> None:
-                self.append_log(f"Run failed: {e}")
+                self.append_log(f"Run failed: {error_message}")
 
             self.main.qt_invoke(ui_err)
 

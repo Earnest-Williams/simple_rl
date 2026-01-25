@@ -190,8 +190,8 @@ def create_dungeon(
                             getattr(cg, rn)()
                         except TypeError:
                             # try with parameters if needed
-                        with contextlib.suppress(Exception):
-                            getattr(cg, rn)(max_nodes, max_depth)
+                            with contextlib.suppress(Exception):
+                                getattr(cg, rn)(max_nodes, max_depth)
                         break
                 # At this point we expect cg.nodes or cg.node_map to be populated
                 raw_nodes = getattr(cg, "nodes", None)
