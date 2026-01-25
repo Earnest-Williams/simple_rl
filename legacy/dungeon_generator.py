@@ -399,11 +399,8 @@ def find_empty_position(
     if real and hasattr(real, "find_empty_position"):
         try:
             return real.find_empty_position(dungeon, room, rng)
-        with contextlib.suppress(Exception):
-            if hasattr(real, "get_dungeon_string"):
-                return real.get_dungeon_string(dungeon, entities)
-            if hasattr(real, "render"):
-                return real.render(dungeon, entities)
+        except Exception:
+            pass
 
     if not dungeon or not dungeon[0]:
         return None
