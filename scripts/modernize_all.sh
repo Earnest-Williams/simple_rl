@@ -5,15 +5,30 @@ set -euo pipefail
 BRANCH=${1:-modernize/pep585}
 
 echo "Creating branch: $BRANCH"
-git fetch origin
-git checkout -b "$BRANCH"
+git fetch origin main
+
+# If local branch exists, check it out. If remote branch exists, fetch and check it out.
+# Otherwise create a new branch from origin/main.
+if git show-ref --quiet "refs/heads/$BRANCH"; then
+  git checkout "$BRANCH"
+elif git ls-remote --heads origin "$BRANCH" | grep -q "refs/heads/$BRANCH"; then
+  git fetch origin "$BRANCH":"$BRANCH"
+  git checkout "$BRANCH"
+else
+  git checkout -b "$BRANCH" origin/main
+fi
 
 echo "Ensure dev tools are installed..."
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-echo "Running pyupgrade..."
-pyupgrade --py311-plus -r .
+echo "Running pyupgrade on tracked Python files..."
+# Only run pyupgrade if there are python files tracked by git.
+if git ls-files -- '*.py' | grep -q .; then
+  git ls-files -z -- '*.py' | xargs -0 pyupgrade --py311-plus
+else
+  echo "No tracked Python files found; skipping pyupgrade."
+fi
 
 echo "Running cleanup script..."
 python scripts/cleanup_typing_imports.py
