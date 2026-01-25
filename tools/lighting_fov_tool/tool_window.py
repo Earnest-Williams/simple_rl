@@ -744,7 +744,7 @@ class LightingFovToolWindow(QMainWindow):
                     if 0 <= x < output.shape[1] and 0 <= y < output.shape[0]:
                         # Blend with existing
                         output[y, x, :3] = [
-                            min(255, output[y, x, 0] + color[0] // 2),
-                            min(255, output[y, x, 1] + color[1] // 2),
-                            min(255, output[y, x, 2] + color[2] // 2),
+                            min(255, int(output[y, x, 0]) + color[0] // 2),
+                            min(255, int(output[y, x, 1]) + color[1] // 2),
+                            min(255, int(output[y, x, 2]) + color[2] // 2),
                         ]
