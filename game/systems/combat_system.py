@@ -32,7 +32,7 @@ log = structlog.get_logger(__name__)
 DEFAULT_UNARMED_DAMAGE = "1d2"  # Damage if attacker has no weapon
 
 
-def _determine_weapon_skill(item_reg: "ItemRegistry", weapon_id: int | None) -> Skill:
+def _determine_weapon_skill(item_reg: ItemRegistry, weapon_id: int | None) -> Skill:
     """Determine which weapon skill applies to a given weapon.
 
     Args:
@@ -98,7 +98,7 @@ def _determine_weapon_skill(item_reg: "ItemRegistry", weapon_id: int | None) -> 
 def handle_melee_attack(
     attacker_id: int,
     defender_id: int,
-    gs: "GameState",
+    gs: GameState,
     damage_type: str = "physical",
 ):
     """

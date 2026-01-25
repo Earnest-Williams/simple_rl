@@ -33,7 +33,7 @@ class MainLoop:
     def __init__(
         self: Self,
         game_state: GameState,
-        window: "WindowManager",
+        window: WindowManager,
         # Rendering options passed through
         vis_enabled_default: bool,
         vis_max_diff: int,
@@ -134,7 +134,7 @@ class MainLoop:
     def update_console(
         self: Self,
         game_state: GameState,
-        viewport: "ViewportParams",
+        viewport: ViewportParams,
     ) -> Image.Image | None:
         """Orchestrate rendering by gathering data and calling the renderer module."""
         gs = game_state

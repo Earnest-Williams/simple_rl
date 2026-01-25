@@ -287,7 +287,7 @@ class GameState:
         self.message_queue = remaining
 
     def schedule_low_detail_update(
-        self, x: int, y: int, callback: Callable[["GameState"], None]
+        self, x: int, y: int, callback: Callable[[GameState], None]
     ) -> None:
         """Queue a low-detail update for the zone containing ``(x, y)``.
 
@@ -395,7 +395,7 @@ class GameState:
         return self._list_component_consume(entity_id, "vent_targets", target)
 
     def schedule_timed_event(
-        self, delay: int, callback: Callable[["GameState"], None]
+        self, delay: int, callback: Callable[[GameState], None]
     ) -> None:
         """Schedule ``callback`` to run after ``delay`` turns."""
         trigger_turn = self.turn_count + max(0, delay)

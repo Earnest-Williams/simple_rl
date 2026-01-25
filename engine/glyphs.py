@@ -26,24 +26,23 @@ def load_glyph_map(path: str | Path | None = None) -> dict[str, int]:
     Returns a mapping name_or_alt_name -> tile_id (int).
     Caches result so repeated imports are cheap.
     """
-    global _cache
-    if _cache is not None:
-        return _cache
-
     glyphs_path = Path(path) if path is not None else _default_glyphs_path()
+    if glyphs_path in _cache:
+        return _cache[glyphs_path]
+
     if not glyphs_path.exists():
-        _cache = {}
-        return _cache
+        _cache[glyphs_path] = {}
+        return _cache[glyphs_path]
 
     data = yaml.safe_load(glyphs_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        _cache = {}
-        return _cache
+        _cache[glyphs_path] = {}
+        return _cache[glyphs_path]
 
     glyph_entries = data.get("glyphs", [])
     if not isinstance(glyph_entries, list):
-        _cache = {}
-        return _cache
+        _cache[glyphs_path] = {}
+        return _cache[glyphs_path]
 
     out: dict[str, int] = {}
     for entry in glyph_entries:
@@ -60,7 +59,7 @@ def load_glyph_map(path: str | Path | None = None) -> dict[str, int]:
             for alt in alt_names:
                 if isinstance(alt, str) and alt:
                     out[alt] = tile_id
-    _cache = out
+    _cache[glyphs_path] = out
     return out
 
 
