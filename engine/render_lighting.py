@@ -1,6 +1,5 @@
 """Lighting and visual effect helpers for rendering."""
 
-import colorsys
 import math
 from collections.abc import Iterable
 
@@ -318,97 +317,52 @@ def apply_memory_fade(
     viewport_x: int = 0,
     viewport_y: int = 0,
 ) -> None:
-    """Blend colors and swap glyphs for tiles remembered in the fog."""
+    """Blend colors for tiles remembered in the fog without changing glyph indices.
+
+    IMPORTANT: this function intentionally does NOT write Unicode ordinals into
+    `glyph_indices`. Glyph indices must remain tile indices that index into
+    the tileset (tile_arrays). Memory is expressed purely via color/brightness.
+    """
+    # memory_mask = cells that are drawn but not currently visible
     memory_mask = drawn_mask & (~visible_mask)
     if not np.any(memory_mask):
         return
 
-    fade_vals = map_memory_vp[memory_mask][:, None]
-    coords_y, coords_x = np.nonzero(memory_mask)
-    world_x = coords_x + viewport_x
-    world_y = coords_y + viewport_y
+    # Per-tile fade value (shape = N,)
+    fade_vals = 1.0 - map_memory_vp[memory_mask].astype(np.float32)
 
-    if fade_color_variance > 0.0:
-        count = fade_vals.shape[0]
-        base_h, base_s, base_v = colorsys.rgb_to_hsv(*(fade_color_np / 255.0))
-        hue_offsets = (
-            np.array(
-                [
-                    rng.noise_2d(x, y, seed_offset=1)
-                    for x, y in zip(world_x, world_y, strict=False)
-                ]
-            )
-            * fade_color_variance
+    # For color blending we'll broadcast fade_vals -> (N,1)
+    fade_vals_b = fade_vals[:, None]  # shape (N, 1)
+
+    # Simple deterministic blend: final = base*(1 - fade) + fade_color*fade
+    # We do this for both FG and BG. This is the clean tile-based approach:
+    # tiles stay the same; colors/brightness change to indicate memory.
+    try:
+        # Gather base colors for the memory cells
+        coords_y, coords_x = np.nonzero(memory_mask)
+        base_fg = final_fg[coords_y, coords_x].astype(np.float32)
+        base_bg = final_bg[coords_y, coords_x].astype(np.float32)
+        target_color = np.asarray(fade_color_np, dtype=np.float32)[None, :]  # (1,3)
+
+        blended_fg = base_fg * (1.0 - fade_vals_b) + target_color * fade_vals_b
+        blended_bg = base_bg * (1.0 - fade_vals_b) + target_color * fade_vals_b
+
+        # Optional: clamp and write back as uint8
+        np.clip(blended_fg, 0, 255, out=blended_fg)
+        np.clip(blended_bg, 0, 255, out=blended_bg)
+
+        final_fg[coords_y, coords_x] = blended_fg.astype(np.uint8)
+        final_bg[coords_y, coords_x] = blended_bg.astype(np.uint8)
+
+    except Exception as exc:
+        # Be conservative: if blending fails, leave colors alone but do not touch glyphs.
+        log.error(
+            "apply_memory_fade: color blending failed", error=str(exc), exc_info=True
         )
-        sat_offsets = (
-            np.abs(
-                np.array(
-                    [
-                        rng.noise_2d(x, y, seed_offset=2)
-                        for x, y in zip(world_x, world_y, strict=False)
-                    ]
-                )
-            )
-            * fade_color_variance
-        )
-        hues = (base_h + hue_offsets) % 1.0
-        sats = np.clip(base_s * (1.0 - sat_offsets), 0.0, 1.0)
-        vals = np.full(count, base_v)
-        fade_rgbs = (
-            np.array(
-                [
-                    colorsys.hsv_to_rgb(h, s, v)
-                    for h, s, v in zip(hues, sats, vals, strict=False)
-                ],
-                dtype=np.float32,
-            )
-            * 255.0
-        )
-    else:
-        fade_rgbs = np.tile(fade_color_np.astype(np.float32), (fade_vals.shape[0], 1))
+        return
 
-    final_fg[memory_mask] = (
-        final_fg[memory_mask].astype(np.float32) * fade_vals
-        + fade_rgbs * (1.0 - fade_vals)
-    ).astype(np.uint8)
-    final_bg[memory_mask] = (
-        final_bg[memory_mask].astype(np.float32) * fade_vals
-        + fade_rgbs * (1.0 - fade_vals)
-    ).astype(np.uint8)
-
-    tile_ids = map_tiles_vp[memory_mask]
-    levels = np.clip(
-        (1.0 - map_memory_vp[memory_mask]) * MEMORY_LEVEL_COUNT,
-        0,
-        MEMORY_LEVEL_COUNT - 1,
-    ).astype(np.intp)
-
-    new_glyphs = glyph_indices[memory_mask].copy()
-    if noise_level > 0.0:
-        noise_vals = np.array(
-            [
-                rng.noise_2d(x, y, seed_offset=3)
-                for x, y in zip(world_x, world_y, strict=False)
-            ]
-        )
-        noise_mask = ((noise_vals + 1.0) * 0.5) < noise_level
-    else:
-        noise_mask = np.zeros(levels.shape[0], dtype=bool)
-
-    wall_mask = tile_ids == TILE_ID_WALL
-    if np.any(wall_mask):
-        clean = wall_mask & ~noise_mask
-        noisy = wall_mask & noise_mask
-        if np.any(clean):
-            new_glyphs[clean] = MEMORY_WALL_GLYPHS[levels[clean]]
-        if np.any(noisy):
-            new_glyphs[noisy] = NOISY_MEMORY_WALL_GLYPHS[levels[noisy]]
-    floor_mask = tile_ids == TILE_ID_FLOOR
-    if np.any(floor_mask):
-        clean = floor_mask & ~noise_mask
-        noisy = floor_mask & noise_mask
-        if np.any(clean):
-            new_glyphs[clean] = MEMORY_FLOOR_GLYPHS[levels[clean]]
-        if np.any(noisy):
-            new_glyphs[noisy] = NOISY_MEMORY_FLOOR_GLYPHS[levels[noisy]]
-    glyph_indices[memory_mask] = new_glyphs
+    # NOTE: We deliberately do NOT touch `glyph_indices`. Tiles stay the same;
+    # memory is represented by adjusted FG/BG colors (brightness/tint).
+    # If you later want tile-based memory variants (e.g., darker tile images),
+    # implement a mapping from tile_id -> memory_tile_id and write those tile
+    # indices here instead of Unicode ordinals.
