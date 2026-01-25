@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-_cache: dict[str, int] | None = None
+_cache: dict[Path, dict[str, int]] = {}
 
 
 def _default_glyphs_path() -> Path:
