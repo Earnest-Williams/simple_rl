@@ -9,7 +9,7 @@ import numpy as np
 import structlog
 from PIL import Image
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPixmap
+from PySide6.QtGui import QColor, QImage, QKeyEvent, QPixmap
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -321,8 +321,56 @@ class LightingFovToolWindow(QMainWindow):
         # Set up UI
         self._setup_ui()
 
+        # Enable keyboard focus for movement
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
         # Initial render
         QTimer.singleShot(100, self._render_scene)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle keyboard input for camera movement."""
+        key = event.key()
+
+        # Map keys to movement deltas
+        dx, dy = 0, 0
+        if key in (Qt.Key.Key_Up, Qt.Key.Key_W):
+            dy = -1
+        elif key in (Qt.Key.Key_Down, Qt.Key.Key_S):
+            dy = 1
+        elif key in (Qt.Key.Key_Left, Qt.Key.Key_A):
+            dx = -1
+        elif key in (Qt.Key.Key_Right, Qt.Key.Key_D):
+            dx = 1
+        else:
+            super().keyPressEvent(event)
+            return
+
+        # Try to move player
+        current_x, current_y = self._scene.player_pos
+        new_x = current_x + dx
+        new_y = current_y + dy
+
+        # Check bounds
+        if not (0 <= new_x < self._scene.width and 0 <= new_y < self._scene.height):
+            return
+
+        # Check if tile is walkable (not wall or pillar)
+        tile_type = ElementType(self._scene.tiles[new_y, new_x])
+        if tile_type in (ElementType.WALL, ElementType.PILLAR):
+            return
+
+        # Update player position
+        self._scene.player_pos = (new_x, new_y)
+        self._update_status_label()
+        self._render_scene()
+
+    def _update_status_label(self) -> None:
+        """Update the status label with current player position and instructions."""
+        px, py = self._scene.player_pos
+        self._status_label.setText(
+            f"Player Position: ({px}, {py}) | "
+            f"Use Arrow Keys or WASD to move around and see lighting blending"
+        )
 
     def _load_tileset(self) -> None:
         """Load the tileset images."""
@@ -367,6 +415,12 @@ class LightingFovToolWindow(QMainWindow):
         scroll_area.setWidget(self._scene_label)
         scroll_area.setWidgetResizable(False)
         scene_layout.addWidget(scroll_area, 1)
+
+        # Status label with movement instructions
+        self._status_label = QLabel()
+        self._status_label.setWordWrap(True)
+        self._update_status_label()
+        scene_layout.addWidget(self._status_label)
 
         # Tile size control
         size_layout = QHBoxLayout()
