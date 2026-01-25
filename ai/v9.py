@@ -63,7 +63,7 @@ class Habit:
     def __init__(
         self,
         name: str,
-        sequence: list[Behavior | "Habit"],
+        sequence: list[Behavior | Habit],
         trigger: dict | Callable,
         score: float,
         created_day: int,
@@ -75,7 +75,7 @@ class Habit:
         self.created_day = created_day
         self.last_used_day = created_day  # Initialize last used day
 
-    def estimate_impact(self, agent: "AgentF") -> dict[str, float]:
+    def estimate_impact(self, agent: AgentF) -> dict[str, float]:
         # Basic estimation - sum impacts of direct behaviors
         # Needs refinement with agent task_stats for adaptive costs
         total_impact = defaultdict(float)
@@ -98,7 +98,7 @@ class Habit:
                     ] += v  # Assume nested impact keys are already 'delta_...'
         return dict(total_impact)
 
-    def execute(self, agent: "AgentF") -> bool:
+    def execute(self, agent: AgentF) -> bool:
         # Execute sequence, log individual behaviors via agent methods
         agent.base_logger.debug("habit_execute_start", habit_name=self.name)
         all_completed = True
@@ -145,7 +145,7 @@ class Habit:
         )
         return all_completed
 
-    def is_triggered(self, agent: "AgentF") -> bool:
+    def is_triggered(self, agent: AgentF) -> bool:
         # Handle callable trigger
         if callable(self.trigger):
             try:
@@ -442,7 +442,7 @@ def flatten_behavior_names(item: Habit | Behavior) -> set[str]:
 class AgentF:
     """Enhanced agent with trait system integration (V9.0 Merged)."""
 
-    def __init__(self, rng: "GameRNG", home: "Home", base_logger=None):
+    def __init__(self, rng: GameRNG, home: Home, base_logger=None):
         self.rng = rng
         self.home = home
         self.energy = 16.0
@@ -503,8 +503,8 @@ class AgentF:
         self.memory = ExperienceMemory(ingenuity=self.traits.ingenuity)
         self.self_concept = SelfConcept(resonance=self.traits.resonance)
 
-        self.behaviors: dict[str, "Behavior"] = self._initialize_behaviors()
-        self.habits: list["Habit"] = []
+        self.behaviors: dict[str, Behavior] = self._initialize_behaviors()
+        self.habits: list[Habit] = []
         self.daily_behavior_log: list[tuple[dict[str, Any] | None, str]] = []
         self.behavior_memory: deque[tuple[dict[str, Any] | None, str]] = deque(
             maxlen=250
@@ -537,7 +537,7 @@ class AgentF:
 
         return DummyLogger()
 
-    def _initialize_behaviors(self) -> dict[str, "Behavior"]:
+    def _initialize_behaviors(self) -> dict[str, Behavior]:
         # Using simplified impacts from above for consistency
         return {
             "fetch_water": Behavior(
@@ -654,10 +654,10 @@ class AgentF:
         return {n: b.fn for n, b in self.behaviors.items() if b.fn is not None}
 
     def _seed_initial_habits(self):
-        def t_thirsty(a: "AgentF") -> bool:
+        def t_thirsty(a: AgentF) -> bool:
             return a.thirst > 0.7
 
-        def t_tea(a: "AgentF") -> bool:
+        def t_tea(a: AgentF) -> bool:
             energy_threshold = 9.0 - 2.0 * (a.traits.endurance - 1.0)
             return (
                 a.energy < energy_threshold
@@ -666,7 +666,7 @@ class AgentF:
                 and a.thirst < 0.5
             )
 
-        def t_poisoned(a: "AgentF") -> bool:
+        def t_poisoned(a: AgentF) -> bool:
             return (
                 a.illness.has_condition("poisoned")
                 and a.home.raw_inventory.get("ipecac_root", 0) > 0
@@ -782,7 +782,7 @@ class AgentF:
             features[f"has_condition_{c_name}"] = True
         return features
 
-    def _estimate_habit_impact(self, habit: "Habit") -> dict[str, float]:
+    def _estimate_habit_impact(self, habit: Habit) -> dict[str, float]:
         base_impact = habit.estimate_impact(self)
         behavior_names = flatten_behavior_names(habit)
         if behavior_names and self.traits.ingenuity > 1.0:
@@ -1639,7 +1639,7 @@ class AgentF:
         if self.health < 50:
             self.energy *= 0.8 + 0.1 * self.traits.will
 
-    def update_context(self, season: str, weather: "Weather", day: int):
+    def update_context(self, season: str, weather: Weather, day: int):
         self.context["season"] = season
         self.context["weather"] = weather
         self.context["day"] = day
