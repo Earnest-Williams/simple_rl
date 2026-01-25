@@ -272,7 +272,10 @@ class SoundManager:
             pygame = importlib.import_module("pygame")
             try:
                 pygame.mixer.pre_init(
-                    frequency=22050, size=-16, channels=2, buffer=512
+                    frequency=PYGAME_MIXER_FREQUENCY,
+                    size=PYGAME_MIXER_SAMPLE_SIZE,
+                    channels=PYGAME_MIXER_CHANNELS,
+                    buffer=PYGAME_MIXER_BUFFER_SIZE,
                 )
                 pygame.mixer.init()
                 log.info("Pygame audio backend initialized")
