@@ -614,8 +614,13 @@ class LightingFovToolWindow(QMainWindow):
                 fg_color = np.array(elem_config.fg_color, dtype=np.float32)
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
-                # Apply lighting (show full lighting effect, not limited by FOV)
-                light_factor = lighting[y, x]
+                # Apply lighting only where player can see (within FOV)
+                if visible[y, x]:
+                    # Show full lighting effect for visible tiles
+                    light_factor = lighting[y, x]
+                else:
+                    # Tiles outside FOV are dark
+                    light_factor = 0.0
 
                 fg_lit = (fg_color * light_factor).clip(0, 255).astype(np.uint8)
                 bg_lit = (bg_color * light_factor).clip(0, 255).astype(np.uint8)
