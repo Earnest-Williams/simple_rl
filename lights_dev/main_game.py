@@ -23,6 +23,13 @@ from collections import deque
 import numba
 import numpy as np
 
+# new integer-slope FOV
+try:
+    from lights_dev.fov import compute_fov_all_octants
+except Exception:
+    # best-effort import — existing code will continue to work if import fails
+    compute_fov_all_octants = None
+
 # --- Import Project Modules ---
 # Assuming these are in the same directory or accessible via PYTHONPATH
 try:
