@@ -7,14 +7,14 @@ regressions in output diversity.
 
 import pytest
 
-from utils.game_rng import GameRNG
 from utils.core import (
-    ToneProfile,
     Lexicon,
-    VariationEngine,
     NameGenerator,
+    ToneProfile,
+    VariationEngine,
     compute_variety_metrics,
 )
+from utils.game_rng import GameRNG
 
 
 class TestVarietyCoverageThresholds:

@@ -29,10 +29,11 @@ import time
 import uuid
 import warnings
 from collections import OrderedDict, deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Sequence
+from typing import Any, Literal
 
 import numpy as np
 
@@ -60,7 +61,7 @@ class MetricsCollector:
     """
 
     collection_interval: float = 1.0
-    metrics: Dict[str, int] = field(
+    metrics: dict[str, int] = field(
         default_factory=lambda: {
             "weighted_choices": 0,
             "weighted_samples_ares": 0,
@@ -75,7 +76,7 @@ class MetricsCollector:
             "bits_consumed": 0,
         }
     )
-    stats: Dict[str, float] = field(
+    stats: dict[str, float] = field(
         default_factory=lambda: {
             "start_time": time.monotonic(),
             "last_collection_time": time.monotonic(),
@@ -158,7 +159,7 @@ class MetricsCollector:
                 )
             self.stats["last_collection_time"] = now
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Returns a snapshot of current metrics and statistics."""
         self._process_updates()
         self._update_stats()
@@ -204,7 +205,7 @@ class GameRNG:
         )
         self.weighted_choice_cache_size = 100
 
-        self.distributions: Dict[str, Callable[..., float]] = {
+        self.distributions: dict[str, Callable[..., float]] = {
             "bell": self._bell_dist,
             "triangle": self._triangle_dist,
             "power": self._power_dist,
@@ -247,7 +248,7 @@ class GameRNG:
             self.metrics.update("bits_consumed", (b - a).bit_length())
         return val
 
-    def get_ints(self, a: int, b: int, count: int) -> List[int]:
+    def get_ints(self, a: int, b: int, count: int) -> list[int]:
         """Returns a list of random integers in [a, b] inclusive."""
         if count < 0:
             raise ValueError("count must be non-negative")
@@ -293,7 +294,7 @@ class GameRNG:
             self.metrics.update("bits_consumed", 53)
         return a + (b - a) * val
 
-    def get_floats(self, a: float, b: float, count: int) -> List[float]:
+    def get_floats(self, a: float, b: float, count: int) -> list[float]:
         """Returns a list of random floats in [a, b)."""
         if count < 0:
             raise ValueError("count must be non-negative")
@@ -464,7 +465,7 @@ class GameRNG:
 
     def weighted_sample_ares(
         self, items: Sequence[Any], weights: Sequence[float], k: int
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Weighted selection without replacement using Accelerated Reservoir Sampling."""
         if len(items) != len(weights):
             raise ValueError("items/weights length mismatch")
@@ -504,7 +505,7 @@ class GameRNG:
             self.metrics.update("choices")
         return items[idx]
 
-    def shuffle(self, seq: List[Any]) -> None:
+    def shuffle(self, seq: list[Any]) -> None:
         """Shuffles the sequence in-place."""
         with self._rng_lock:
             self.rng.shuffle(seq)
@@ -519,7 +520,7 @@ class GameRNG:
         k: int,
         replacement: bool = False,
         weights: Sequence[float] | None = None,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Picks k items from a sequence, optionally with weights or replacement."""
         if k < 0:
             raise ValueError("k must be non-negative")
@@ -552,7 +553,7 @@ class GameRNG:
     # ------------------------------------------------------------------
     def roll_dice(
         self, num_dice: int = 1, sides: int = 6, modifier: int = 0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Simulates dice rolls (e.g., 2d6+1)."""
         if sides < 1 or num_dice < 0:
             raise ValueError("invalid dice parameters")
@@ -562,7 +563,7 @@ class GameRNG:
 
     def coin_flip(
         self, num_flips: int = 1, heads_probability: float = 0.5
-    ) -> str | List[str]:
+    ) -> str | list[str]:
         """Simulates coin flips with a specific bias toward 'heads'."""
         if not 0.0 <= heads_probability <= 1.0:
             raise ValueError("probability out of range")
@@ -571,7 +572,7 @@ class GameRNG:
         results = ["heads" if f < heads_probability else "tails" for f in floats]
         return results[0] if num_flips == 1 else results
 
-    def deck_of_cards(self, shuffled: bool = True) -> List[Dict[str, str]]:
+    def deck_of_cards(self, shuffled: bool = True) -> list[dict[str, str]]:
         """Returns a standard 52-card deck as list of rank/suit dicts."""
         suits = ("hearts", "diamonds", "clubs", "spades")
         ranks = (
@@ -595,8 +596,8 @@ class GameRNG:
         return deck
 
     def loot_table(
-        self, table: Dict[Any, float], count: int = 1, unique: bool = False
-    ) -> List[Any]:
+        self, table: dict[Any, float], count: int = 1, unique: bool = False
+    ) -> list[Any]:
         """Selects items from a weighted dict."""
         if count < 0:
             raise ValueError("count >= 0")
@@ -741,7 +742,7 @@ class GameRNG:
             return arr.item()
         return arr
 
-    def _flatten_state(self, obj: Any, prefix: str, out: Dict[str, np.ndarray]) -> None:
+    def _flatten_state(self, obj: Any, prefix: str, out: dict[str, np.ndarray]) -> None:
         """Recursively flattens state dict for .npz storage."""
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -750,7 +751,7 @@ class GameRNG:
         else:
             out[prefix] = self._value_to_array(obj)
 
-    def _get_raw_state(self) -> Dict[str, Any]:
+    def _get_raw_state(self) -> dict[str, Any]:
         """Return the raw internal state (may contain numpy arrays)."""
         with self._rng_lock:
             return {
@@ -783,12 +784,12 @@ class GameRNG:
 
         return str(obj)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Returns a JSON-serializable snapshot of state."""
         raw = self._get_raw_state()
         return self._to_jsonable(raw)
 
-    def set_state(self, state: Dict[str, Any]) -> None:
+    def set_state(self, state: dict[str, Any]) -> None:
         """Restores the internal state. Accepts the JSON-friendly structure too."""
         with self._rng_lock:
             if "random_state" in state:
@@ -811,7 +812,7 @@ class GameRNG:
             return
 
         state = self._get_raw_state()
-        arrays: Dict[str, np.ndarray] = {}
+        arrays: dict[str, np.ndarray] = {}
         self._flatten_state(state, "", arrays)
         np.savez_compressed(filename, **arrays)
 
@@ -823,7 +824,7 @@ class GameRNG:
             self.set_state(loaded)
             return
 
-        loaded: Dict[str, Any] = {}
+        loaded: dict[str, Any] = {}
         with np.load(filename, allow_pickle=False) as npz:
             for key in npz.files:
                 arr = npz[key]
@@ -842,7 +843,7 @@ class GameRNG:
 
         self.set_state(loaded)
 
-    def get_metrics(self) -> Dict[str, Any] | None:
+    def get_metrics(self) -> dict[str, Any] | None:
         """Returns metric snapshot if tracking is enabled."""
         if not self.metrics_enabled or not self.metrics:
             return None

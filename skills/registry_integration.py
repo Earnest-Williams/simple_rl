@@ -442,7 +442,6 @@ def patch_entity_registry(registry_class: type) -> type:
         class EntityRegistry:
             ...
     """
-    from typing import Any
 
     # Add skills_df, flag, and lock to __init__
     original_init = registry_class.__init__  # type: ignore[misc]

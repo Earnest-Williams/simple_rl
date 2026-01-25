@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Final, Sequence
+from typing import Final
 
 try:
     import yaml
@@ -76,14 +77,10 @@ def main(
 ) -> int:
     repo_root: Path = resolve_repo_root()
     chart_path = (
-        Path(chart_path)
-        if chart_path
-        else repo_root / "fonts" / "glyph_name_chart.md"
+        Path(chart_path) if chart_path else repo_root / "fonts" / "glyph_name_chart.md"
     )
     png_dir = (
-        Path(png_dir)
-        if png_dir
-        else repo_root / "fonts" / "classic_roguelike_sliced"
+        Path(png_dir) if png_dir else repo_root / "fonts" / "classic_roguelike_sliced"
     )
     svg_dir = (
         Path(svg_dir)
@@ -112,16 +109,12 @@ def main(
     missing_images: list[str] = []
 
     for line in iter_table_lines(lines, start_index):
-        row, warnings = parse_row(
-            line, png_dir=png_dir, svg_dir=svg_dir
-        )
+        row, warnings = parse_row(line, png_dir=png_dir, svg_dir=svg_dir)
         skipped_rows.extend(warnings)
         if row is None:
             continue
         if row.png is None or row.svg is None:
-            missing_images.append(
-                format_missing_image(row.tile_id, row.png, row.svg)
-            )
+            missing_images.append(format_missing_image(row.tile_id, row.png, row.svg))
         rows.append(row)
 
     merged: list[GlyphEntry] = merge_rows(rows)
@@ -206,17 +199,13 @@ def parse_row(
     if png_value is not None:
         png_path: Path = png_dir / png_value
         if not png_path.exists():
-            warnings.append(
-                f"Missing PNG file for tile {tile_id}: {png_value}"
-            )
+            warnings.append(f"Missing PNG file for tile {tile_id}: {png_value}")
             png_value = None
 
     if svg_value is not None:
         svg_path: Path = svg_dir / svg_value
         if not svg_path.exists():
-            warnings.append(
-                f"Missing SVG file for tile {tile_id}: {svg_value}"
-            )
+            warnings.append(f"Missing SVG file for tile {tile_id}: {svg_value}")
             svg_value = None
 
     alt_names: list[str] = split_alt_names(alt_cell)

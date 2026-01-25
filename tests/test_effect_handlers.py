@@ -1,6 +1,6 @@
-from game.world.game_map import GameMap, TILE_ID_FLOOR
+from game.effects.handlers import apply_status, deal_damage, heal_target
 from game.game_state import GameState
-from game.effects.handlers import heal_target, deal_damage, apply_status
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 MEMORY_FADE_CFG = {"enabled": True, "duration": 5.0, "midpoint": 2.5, "steepness": 1.2}
 

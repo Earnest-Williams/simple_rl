@@ -445,7 +445,9 @@ def format_next_milestones(
         skill_name = ability.skill.name.replace("_", " ").title()
         lines.append(f"• {ability.name}")
         lines.append(f"  {ability.description}")
-        lines.append(f"  Requires: {skill_name} {ability.unlock_level} (+{levels_needed} levels)")
+        lines.append(
+            f"  Requires: {skill_name} {ability.unlock_level} (+{levels_needed} levels)"
+        )
         lines.append("")
 
     return "\n".join(lines)
@@ -480,7 +482,9 @@ def format_all_milestones() -> str:
         lines.append(f"--- {skill_name} ---")
 
         for ability in abilities:
-            lines.append(f"  Level {ability.unlock_level}: {format_ability(ability, False)}")
+            lines.append(
+                f"  Level {ability.unlock_level}: {format_ability(ability, False)}"
+            )
 
         lines.append("")
 

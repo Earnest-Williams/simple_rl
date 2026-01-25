@@ -35,7 +35,7 @@ except ImportError:
 # --- Polars DataFrame Library ---
 import polars as pl
 
-from .goap_engine import Action, AgentAI, GOAPPlanner
+from .goap_engine import Action
 
 # --- Numba JIT Compiler ---
 try:
@@ -59,7 +59,7 @@ Position = tuple[int, int]
 EntityID = str
 StateDict = dict[str, typing.Any]  # Keep Any for flexibility initially
 # ActionPlan = deque["Action"] # Forward reference string needed if Action defined later
-ActionPlan = deque["Action"]  # Use typing.Deque with forward reference
+ActionPlan = deque["Action"]  # Use deque with forward reference
 
 # Forward reference for Entity if used before definition
 Entity = typing.ForwardRef("Entity")  # If needed, otherwise define Entity first
@@ -290,9 +290,9 @@ class World:
         )
         self.agent: OptionalEntity = None
         self.turn: int = 0
-        self._free_tiles: set[Position] = set(
+        self._free_tiles: set[Position] = {
             (x, y) for x in range(size) for y in range(size)
-        )
+        }
 
         # --- Constants accessible via instance if needed ---
         self.HUNGER_PER_TURN = PASSIVE_HUNGER_PER_TURN  # Example constant
@@ -710,9 +710,7 @@ class World:
         self.entities_by_kind = defaultdict(dict)
         self.agent = None
         self.turn = 0
-        self._free_tiles = set(
-            (x, y) for x in range(self.size) for y in range(self.size)
-        )
+        self._free_tiles = {(x, y) for x in range(self.size) for y in range(self.size)}
         # Populate using the provided RNG instance
         self.populate_world(rng, num_food, num_enemies, num_slimes, num_items)
 

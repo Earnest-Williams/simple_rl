@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 perception_systems.py
@@ -19,7 +18,6 @@ import time
 import uuid  # For simulation ID
 from collections import deque
 from enum import IntEnum
-from typing import Dict, List
 
 import numpy as np
 import polars as pl
@@ -272,7 +270,7 @@ def update_noise(
     cy: int,
     cx: int,
     which_flow: FlowType,
-    penalties: Dict[str, int],
+    penalties: dict[str, int],
 ) -> None:
     """Updates a specific noise flow map by calling the Numba kernel."""
     flow_idx: int = int(which_flow)
@@ -527,11 +525,11 @@ def _process_monster_perception_chunk(
     player_stealth_skill: int,
     noise_flow_type: FlowType,
     rng: GameRNG | None = None,
-) -> List[int]:
+) -> list[int]:
     """Processes perception checks for a chunk of monsters. Cannot log directly."""
     if rng is None:
         rng = GameRNG()
-    alerted_monster_ids: List[int] = []
+    alerted_monster_ids: list[int] = []
 
     for row in monster_df_chunk.iter_rows(named=True):
         monster_id: int = row["id"]
@@ -567,7 +565,7 @@ def monster_perception(
     player_x: int,
     player_stealth_skill: int,
     rng: GameRNG | None = None,
-) -> List[int]:
+) -> list[int]:
     """Updates monster perception based on noise. Parallelized using Joblib."""
     if rng is None:
         rng = GameRNG()
@@ -608,7 +606,7 @@ def monster_perception(
         num_jobs=N_JOBS,
     )
 
-    results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
+    results: list[list[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
             chunk,
             cave_cost,
@@ -621,7 +619,7 @@ def monster_perception(
     )
 
     # --- Aggregate Results ---
-    all_alerted_ids: List[int] = [item for sublist in results for item in sublist]
+    all_alerted_ids: list[int] = [item for sublist in results for item in sublist]
     num_alerted = len(all_alerted_ids)
 
     end_time = time.monotonic()

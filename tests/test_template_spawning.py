@@ -1,8 +1,9 @@
-from game.effects.handlers import create_portal, attempt_spawn_entity
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-from game.game_state import GameState
 import sys
 import types
+
+from game.effects.handlers import attempt_spawn_entity, create_portal
+from game.game_state import GameState
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 from utils.game_rng import GameRNG
 
 # Provide a minimal game.systems.ai_system module for tests

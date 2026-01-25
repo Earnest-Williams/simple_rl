@@ -1,5 +1,5 @@
 # game/effects/executor.py
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -24,7 +24,7 @@ def _check_targeting(effect_definition: dict, context: dict) -> bool:
     return True
 
 
-def _check_and_deduct_costs(effect_definition: dict, context: Dict[str, Any]) -> bool:
+def _check_and_deduct_costs(effect_definition: dict, context: dict[str, Any]) -> bool:
     """
     Checks if costs (item charges, mana, fullness, etc.) can be met
     and deducts them if possible.
@@ -201,13 +201,13 @@ def _check_and_deduct_costs(effect_definition: dict, context: Dict[str, Any]) ->
     return True
 
 
-def _check_conditions(effect_definition: dict, context: Dict[str, Any]) -> bool:
+def _check_conditions(effect_definition: dict, context: dict[str, Any]) -> bool:
     # ... (conditions logic remains the same) ...
     log.debug("All conditions met")  # Assuming it passes for now
     return True
 
 
-def _is_consumable_effect(effect_id: str, context: Dict[str, Any]) -> bool:
+def _is_consumable_effect(effect_id: str, context: dict[str, Any]) -> bool:
     # ... (consumption check logic remains the same) ...
     item_id = context.get("item_instance_id")
     if not item_id:
@@ -226,7 +226,7 @@ def _is_consumable_effect(effect_id: str, context: Dict[str, Any]) -> bool:
     return False
 
 
-def _consume_item(item_id: int, context: Dict[str, Any]):
+def _consume_item(item_id: int, context: dict[str, Any]):
     # ... (item consumption logic remains the same) ...
     gs: "GameState" | None = context.get("game_state")
     if gs is None or gs.item_registry is None:
@@ -246,7 +246,7 @@ def _consume_item(item_id: int, context: Dict[str, Any]):
 # --- Main Executor ---
 
 
-def execute_effect(effect_id: str, context: Dict[str, Any]) -> bool:
+def execute_effect(effect_id: str, context: dict[str, Any]) -> bool:
     """
     Executes a defined effect based on its ID and the provided context.
     Includes checks for targeting, costs, and conditions.

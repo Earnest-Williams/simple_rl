@@ -6,9 +6,10 @@ import sys
 # Removed 'random' import
 import time
 import traceback
+from collections.abc import Callable
 
 # Use modern type hints
-from typing import Any, Callable, Dict, Tuple
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -84,9 +85,9 @@ GRID_RESOLUTION: float = 1.0
 CA_ITERATIONS: int = 8
 CA_BIRTH_THRESHOLD: int = 5
 CA_SURVIVAL_THRESHOLD: int = 4
-DEFAULT_HEIGHT_M: Tuple[float, float] = (2.0, 4.0)  # Default height range
+DEFAULT_HEIGHT_M: tuple[float, float] = (2.0, 4.0)  # Default height range
 
-CHUNK_PROPERTIES: Dict[str, Dict[str, Tuple[float, float]]] = {
+CHUNK_PROPERTIES: dict[str, dict[str, tuple[float, float]]] = {
     "smooth": {"width_m": (3, 5), "height_m": (2.5, 3.5)},
     "flat": {"width_m": (4, 7), "height_m": (2.5, 3.5)},
     "steep": {"width_m": (2, 4), "height_m": (3, 5)},
@@ -105,7 +106,7 @@ DEBUG_DUMP_WINDOW_RADIUS: int = 30
 # ============================================================
 
 
-def _get_chunk_properties(type_name: str) -> Dict[str, Any]:  # Unchanged
+def _get_chunk_properties(type_name: str) -> dict[str, Any]:  # Unchanged
     """Safely gets properties, defaulting to 'smooth' if unknown."""
     base_type = type_name.split(":")[0]
     props = CHUNK_PROPERTIES.get(base_type)
@@ -119,8 +120,8 @@ def _get_chunk_properties(type_name: str) -> Dict[str, Any]:  # Unchanged
 
 
 def _assign_chunk_type_and_subtype(  # Unchanged logic
-    parent_data: Dict, child_data: Dict
-) -> Tuple[str, str | None]:
+    parent_data: dict, child_data: dict
+) -> tuple[str, str | None]:
     """Assigns base chunk type & potential subtype based on features or geometry."""
     feature = parent_data.get("feature")
     if feature and feature.startswith("big_room:"):
@@ -233,7 +234,7 @@ def _rasterize_ellipse_cavern(  # Added rng parameter
     grid: np.ndarray,
     r_center: int,
     c_center: int,
-    properties: Dict,
+    properties: dict,
     orientation_rad: float,
     value: int,
     chunk_type_mask: np.ndarray,
@@ -261,7 +262,7 @@ def _rasterize_rect_cavern(  # Added rng parameter
     grid: np.ndarray,
     r_center: int,
     c_center: int,
-    properties: Dict,
+    properties: dict,
     orientation_rad: float,
     value: int,
     chunk_type_mask: np.ndarray,
@@ -305,7 +306,7 @@ def _rasterize_multicircle_cavern(  # Added rng parameter
     grid: np.ndarray,
     r_center: int,
     c_center: int,
-    properties: Dict,
+    properties: dict,
     value: int,
     chunk_type_mask: np.ndarray,
     type_id: int,
@@ -344,7 +345,7 @@ def _rasterize_noisy_ellipse_cavern(  # Added rng parameter
     grid: np.ndarray,
     r_center: int,
     c_center: int,
-    properties: Dict,
+    properties: dict,
     orientation_rad: float,  # Keep orientation for noise calculation if needed
     value: int,
     chunk_type_mask: np.ndarray,
@@ -408,7 +409,7 @@ def _rasterize_noisy_ellipse_cavern(  # Added rng parameter
         displace_r = scale * np.array(
             [
                 rng.noise_2d(r, c, scale=1.0 / freq, seed_offset=noise_seed_offset)
-                for r, c in zip(base_rr, base_cc)
+                for r, c in zip(base_rr, base_cc, strict=False)
             ]
         )
         # Add a different offset for c displacement for variety
@@ -417,7 +418,7 @@ def _rasterize_noisy_ellipse_cavern(  # Added rng parameter
                 rng.noise_2d(
                     c, r, scale=1.0 / freq, seed_offset=noise_seed_offset + 100
                 )
-                for r, c in zip(base_rr, base_cc)
+                for r, c in zip(base_rr, base_cc, strict=False)
             ]
         )
 
@@ -433,7 +434,7 @@ def _rasterize_noise_blob_cavern(  # Added rng parameter
     grid: np.ndarray,
     r_center: int,
     c_center: int,
-    properties: Dict,
+    properties: dict,
     value: int,
     chunk_type_mask: np.ndarray,
     type_id: int,
@@ -493,7 +494,7 @@ def _rasterize_noise_blob_cavern(  # Added rng parameter
 
 
 # --- Map cavern subtype names to functions ---
-CAVERN_GENERATORS: Dict[str, Callable] = {
+CAVERN_GENERATORS: dict[str, Callable] = {
     "ellipse": _rasterize_ellipse_cavern,
     "rectangle": _rasterize_rect_cavern,
     "multi_circle": _rasterize_multicircle_cavern,
@@ -506,8 +507,8 @@ CAVERN_GENERATORS: Dict[str, Callable] = {
 
 # --- Grid Initialization Helpers (Unchanged Logic) ---
 def _calculate_grid_bounds(
-    nodes: list[Dict],
-) -> Tuple[int, int, int, int] | None:  # Unchanged logic
+    nodes: list[dict],
+) -> tuple[int, int, int, int] | None:  # Unchanged logic
     """Calculates the required grid bounds based on node coordinates."""
     try:
         all_x = [n["x"] for n in nodes if not math.isnan(n.get("x", float("nan")))]
@@ -546,7 +547,7 @@ def _calculate_grid_bounds(
 def _initialize_grids(
     height: int, width: int
 ) -> (
-    Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, int]] | None
+    tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]] | None
 ):  # Unchanged logic
     """Initializes the main grid, depth grid, and type grid."""
     try:
@@ -565,12 +566,12 @@ def _initialize_grids(
 # --- Rasterize Segment (Modified to accept/pass rng, removed NPY dumps) ---
 def _rasterize_segment(  # Added rng parameter
     segment_index: int,
-    parent_data: Dict,
-    child_node_data: Dict,
+    parent_data: dict,
+    child_node_data: dict,
     grid: np.ndarray,
     depth_grid: np.ndarray,
     type_grid: np.ndarray,
-    chunk_type_map: Dict[str, int],
+    chunk_type_map: dict[str, int],
     origin_offset_x: int,
     origin_offset_y: int,
     rng: GameRNG,
@@ -584,7 +585,9 @@ def _rasterize_segment(  # Added rng parameter
             parent_data, child_node_data
         )
         properties = _get_chunk_properties(chunk_base_type)
-        chunk_type_id: int = chunk_type_map.get(chunk_base_type) or chunk_type_map.get("smooth", 1)
+        chunk_type_id: int = chunk_type_map.get(chunk_base_type) or chunk_type_map.get(
+            "smooth", 1
+        )
 
         # Get parent and child coordinates, check for NaN
         p_x, p_y = parent_data.get("x", 0.0), parent_data.get("y", 0.0)
@@ -796,8 +799,8 @@ def _rasterize_segment(  # Added rng parameter
 
 
 def initialize_cave_grid(  # Added rng parameter
-    augmented_nodes: list[Dict], augmented_node_map: Dict[int, Dict], rng: GameRNG
-) -> Tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, Tuple[int, int]]:
+    augmented_nodes: list[dict], augmented_node_map: dict[int, dict], rng: GameRNG
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, tuple[int, int]]:
     """Creates initial 2D grid footprint by orchestrating helper functions."""
     # Removed global debug dump variables
     if not augmented_nodes:
@@ -955,7 +958,7 @@ def create_map_dataframe(  # Added rng parameter
     final_grid: np.ndarray,
     depth_grid: np.ndarray,
     type_grid: np.ndarray,
-    origin_offset: Tuple[int, int],
+    origin_offset: tuple[int, int],
     rng: GameRNG,
 ) -> pl.DataFrame | None:
     """Creates final Polars DataFrame including chamber IDs and open_above calculation."""
@@ -1092,8 +1095,8 @@ def create_map_dataframe(  # Added rng parameter
 
 # === Main Orchestration Function (Modified to accept/pass rng) ===
 def generate_shaped_cave(  # Added rng parameter
-    augmented_nodes: list[Dict],
-    augmented_node_map: Dict[int, Any],
+    augmented_nodes: list[dict],
+    augmented_node_map: dict[int, Any],
     rng: GameRNG,
     ca_iterations: int = CA_ITERATIONS,
 ) -> pl.DataFrame | None:
@@ -1170,7 +1173,7 @@ if __name__ == "__main__":
         output_arrow_file = "shaper_test_output.arrow"
         print(f"--- Loading Test Data from {input_json_file} ---")
 
-        with open(input_json_file, "r") as f:
+        with open(input_json_file) as f:
             processed_data = json.load(f)
 
         processed_nodes_list = processed_data.get("nodes", [])

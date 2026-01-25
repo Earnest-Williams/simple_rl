@@ -2,17 +2,17 @@
 
 import os
 import tempfile
-import yaml
 from pathlib import Path
 
-import pytest
 import numpy as np
+import pytest
+import yaml
 from pydub import AudioSegment
 from pydub.generators import Sine
 
-from game.systems.sound import SoundManager, SoundEffect, BackgroundMusic
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
 from game.constants import FeatureType, FlowType
+from game.systems.sound import BackgroundMusic, SoundEffect, SoundManager
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 from pathfinding.perception_systems import compute_noise_map
 
 

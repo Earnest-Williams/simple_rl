@@ -7,7 +7,7 @@ cardinal direction each turn.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -15,6 +15,7 @@ from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
+
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -25,9 +26,9 @@ _DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 def take_turn(
     entity_row,
-    game_state: "GameState",
-    rng: "GameRNG",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    game_state: GameState,
+    rng: GameRNG,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
     **kwargs,
 ) -> None:
     """Execute one turn for an entity using a simple heuristic."""

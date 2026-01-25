@@ -1,16 +1,18 @@
-import sys
 import json
 import os
+import sys
 import warnings
 from typing import Any
 
-from PySide6 import QtCore, QtGui, QtWidgets
-
 # Import the new dungeon_generator module
 import dungeon_generator  # Import the new module
-from utils.game_rng import GameRNG  # Import GameRNG from game_rng.py
-from utils.game_rng import MetricsCollector
+from PySide6 import QtCore, QtGui, QtWidgets
+
 from scripting_engine import MacroManager  # Import MacroManager from our new module
+from utils.game_rng import (
+    GameRNG,  # Import GameRNG from game_rng.py
+    MetricsCollector,
+)
 
 # Suppress numpy overflow warnings that are expected with uint64 operations
 warnings.filterwarnings(
@@ -571,32 +573,32 @@ class MainWindow(QtWidgets.QMainWindow):
         # Using a common dark theme style
         self.setStyleSheet(
             """
-        QWidget { 
-            background-color: #2b2b2b; 
-            color: #d3d3d3; 
+        QWidget {
+            background-color: #2b2b2b;
+            color: #d3d3d3;
             border: 0px; /* Prevent borders on widgets */
         }
         QMainWindow {
-             background-color: #2b2b2b; 
+             background-color: #2b2b2b;
         }
-        QMenuBar { 
-            background-color: #3c3f41; 
-            color: #d3d3d3; 
+        QMenuBar {
+            background-color: #3c3f41;
+            color: #d3d3d3;
         }
-        QMenuBar::item:selected { 
-            background-color: #4f5254; 
+        QMenuBar::item:selected {
+            background-color: #4f5254;
         }
-        QMenu { 
-            background-color: #3c3f41; 
-            color: #d3d3d3; 
+        QMenu {
+            background-color: #3c3f41;
+            color: #d3d3d3;
             border: 1px solid #4f5254;
         }
-        QMenu::item:selected { 
-            background-color: #4f5254; 
+        QMenu::item:selected {
+            background-color: #4f5254;
         }
-        QLineEdit, QPlainTextEdit, QTextEdit { 
-            background-color: #3c3f41; 
-            color: #d3d3d3; 
+        QLineEdit, QPlainTextEdit, QTextEdit {
+            background-color: #3c3f41;
+            color: #d3d3d3;
             border: 1px solid #4f5254;
             padding: 2px;
         }
@@ -604,42 +606,42 @@ class MainWindow(QtWidgets.QMainWindow):
             background-color: #333333; /* Slightly different for readonly */
             border: 1px solid #444444;
         }
-        QTabWidget::pane { 
-            border: 1px solid #4f5254; 
+        QTabWidget::pane {
+            border: 1px solid #4f5254;
             background-color: #2b2b2b;
         }
-        QTabBar::tab { 
-            background-color: #3c3f41; 
-            color: #b0b0b0; 
+        QTabBar::tab {
+            background-color: #3c3f41;
+            color: #b0b0b0;
             padding: 8px 20px;
             border: 1px solid #4f5254;
             border-bottom: none; /* Tab looks connected to pane */
         }
-        QTabBar::tab:selected { 
-            background-color: #4f5254; 
-            color: #d3d3d3; 
+        QTabBar::tab:selected {
+            background-color: #4f5254;
+            color: #d3d3d3;
             font-weight: bold;
         }
         QTabBar::tab:!selected {
              margin-top: 2px; /* Push non-selected tabs down slightly */
         }
-        QListWidget { 
-            background-color: #3c3f41; 
-            color: #d3d3d3; 
+        QListWidget {
+            background-color: #3c3f41;
+            color: #d3d3d3;
             border: 1px solid #4f5254;
         }
         QListWidget::item:selected {
              background-color: #4f5254;
         }
-        QPushButton { 
-            background-color: #4f5254; 
-            color: #d3d3d3; 
+        QPushButton {
+            background-color: #4f5254;
+            color: #d3d3d3;
             border: 1px solid #5f6163;
             padding: 5px 10px;
             min-width: 60px; /* Ensure buttons have some width */
         }
-        QPushButton:hover { 
-            background-color: #5f6163; 
+        QPushButton:hover {
+            background-color: #5f6163;
         }
         QPushButton:pressed {
              background-color: #4a4d4f;
@@ -661,7 +663,7 @@ class MainWindow(QtWidgets.QMainWindow):
             height: 0px; /* Hide arrows */
             background: none;
         }
-        
+
         /* Splitter handle styling */
         QSplitter::handle {
             background-color: #4f5254;
@@ -832,7 +834,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if fn:
             try:
-                with open(fn, "r") as f:
+                with open(fn) as f:
                     data = json.load(f)
 
                 # Basic validation (as defined in previous fix)
@@ -914,7 +916,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if fn:
             try:
-                with open(fn, "r") as f:
+                with open(fn) as f:
                     loaded_macros = json.load(f)
 
                 if not isinstance(loaded_macros, dict):

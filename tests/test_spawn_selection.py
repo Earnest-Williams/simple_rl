@@ -1,4 +1,4 @@
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 from tools.play_from_arrow import _compute_component_sizes, _select_spawn_position
 
 

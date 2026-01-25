@@ -1,10 +1,12 @@
+import sys
+import types
+
+import numpy as np
+
 from engine.render_base_layers import prepare_base_layers
 from game.ai.perception import gather_perception
 from game.game_state import GameState
 from game.world.game_map import GameMap
-import numpy as np
-import sys
-import types
 
 # Provide a minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

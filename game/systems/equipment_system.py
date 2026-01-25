@@ -6,13 +6,13 @@ considering entity body plans and item mount points.
 """
 # Ensure Union is imported from typing
 import contextlib
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 import structlog
 
-from game.entities.components import Inventory
 from game.effects.executor import execute_effect
+from game.entities.components import Inventory
 
 # Import specific types needed from other modules
 # Ensure these imports work correctly based on your project structure
@@ -50,7 +50,7 @@ with contextlib.suppress(NameError):
 # --- Helper Functions ---
 
 
-def get_item_template(item_id: int, gs: "GameState") -> Dict | None:
+def get_item_template(item_id: int, gs: "GameState") -> dict | None:
     """Helper: Safely get the template data for an item."""
     # Check if item_registry exists on gs
     if not hasattr(gs, "item_registry") or gs.item_registry is None:
@@ -79,14 +79,14 @@ def get_item_attribute(
 
 class EquippedItemCache:
     def __init__(self) -> None:
-        self._equipped_cache: Dict[int, Dict[str, Any]] = {}
+        self._equipped_cache: dict[int, dict[str, Any]] = {}
 
     def on_equip_changed(self, entity_id: int, equipped_items: pl.DataFrame) -> None:
         self._equipped_cache[entity_id] = {
             row["equipped_slot"]: row for row in equipped_items.iter_rows(named=True)
         }
 
-    def get_cached(self, entity_id: int) -> Dict[str, Any] | None:
+    def get_cached(self, entity_id: int) -> dict[str, Any] | None:
         return self._equipped_cache.get(entity_id)
 
 
@@ -131,7 +131,7 @@ def get_general_slot_type(specific_slot: "EquipSlot") -> str | None:
 
 def get_slots_occupied_by_general_type(
     entity_id: int, general_slot_type: str, gs: "GameState"
-) -> List["EquipSlot"]:
+) -> list["EquipSlot"]:
     """Helper: Gets a list of specific slots occupied by items of a general type."""
     occupied_slots = []
     # Ensure registries exist
@@ -231,7 +231,7 @@ def find_first_available_slot(
     )  # Option B
 
     target_general_type = None
-    possible_specific_slots: List[EquipSlot] = []
+    possible_specific_slots: list[EquipSlot] = []
 
     # Determine valid EquipSlot literals dynamically if possible
     try:
@@ -333,9 +333,9 @@ def find_first_available_slot(
 def get_item_mount_points(
     item_id: int,
     gs: "GameState",
-    required_flags: List[str] | None = None,
+    required_flags: list[str] | None = None,
     item_weight: float | None = None,
-) -> List[Dict] | None:
+) -> list[dict] | None:
     """Helper: Get mount_points list for an item, optionally filtering by flags and weight."""
     if not hasattr(gs, "item_registry") or gs.item_registry is None:
         return None
@@ -353,7 +353,7 @@ def get_item_mount_points(
     if not required_flags and item_weight is None:
         return mounts
 
-    filtered: List[Dict] = []
+    filtered: list[dict] = []
     for mp in mounts:
         mp_flags = mp.get("flags", []) or []
         weight_limit = mp.get("weight_limit")
@@ -369,7 +369,7 @@ def get_item_mount_points(
     return filtered
 
 
-def get_attachable_info(item_id: int, gs: "GameState") -> Dict | None:
+def get_attachable_info(item_id: int, gs: "GameState") -> dict | None:
     """Helper: Get attachable_info dict for an item."""
     if not hasattr(gs, "item_registry") or gs.item_registry is None:
         return None
@@ -449,7 +449,7 @@ def remove_passive_effects(item_id: int, entity_id: int, gs: "GameState") -> Non
 
 def can_equip(
     entity_id: int, item_id: int, gs: "GameState"
-) -> Tuple[bool, str, EquipSlot | None]:
+) -> tuple[bool, str, EquipSlot | None]:
     """Checks if entity can equip item directly. Returns (can_equip, reason, target_slot)."""
     log.debug("Checking can_equip", entity_id=entity_id, item_id=item_id)
     # Ensure registries are available
@@ -578,7 +578,7 @@ def equip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
     return True
 
 
-def can_unequip(entity_id: int, item_id: int, gs: "GameState") -> Tuple[bool, str]:
+def can_unequip(entity_id: int, item_id: int, gs: "GameState") -> tuple[bool, str]:
     """Checks if entity can unequip item. Checks for attached items and inventory space."""
     if (
         not hasattr(gs, "entity_registry")
@@ -707,7 +707,7 @@ def unequip_item(entity_id: int, item_id: int, gs: "GameState") -> bool:
 
 def can_attach(
     entity_id: int, item_to_attach_id: int, target_host_item_id: int, gs: "GameState"
-) -> Tuple[bool, str, str | None]:
+) -> tuple[bool, str, str | None]:
     """Checks if item can be attached to host item. Returns (can_attach, reason, mount_slot_id)."""
     if (
         not hasattr(gs, "entity_registry")
@@ -906,7 +906,7 @@ def attach_item(
 
 def can_detach(
     entity_id: int, item_to_detach_id: int, gs: "GameState"
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Checks if item can be detached by the entity."""
     if (
         not hasattr(gs, "entity_registry")

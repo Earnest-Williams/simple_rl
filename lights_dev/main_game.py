@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Updated to use GameRNG
 """
 Main script for the FOV/Light/Memory Simulation Game.
@@ -20,7 +19,6 @@ import os
 import sys
 import time
 from collections import deque
-from typing import List, Set, Tuple
 
 import numba
 import numpy as np
@@ -29,11 +27,12 @@ import numpy as np
 # Assuming these are in the same directory or accessible via PYTHONPATH
 try:
     import constants
+
+    # Assuming Dungeon is correctly imported from dungeon_data
+    import dungeon_generator
     from dungeon_data import (
         Dungeon,
-    )  # Assuming Dungeon is correctly imported from dungeon_data
-
-    import dungeon_generator
+    )
 
     # Import GameRNG
     from utils.game_rng import GameRNG
@@ -147,17 +146,17 @@ class Entity:  # Unchanged base class
         light_radius: int = 0,
         light_level: int = 0,
         size_category: str = constants.DEFAULT_ENTITY_CATEGORY,
-        base_color_rgb: Tuple[int, int, int] = (0, 0, 0),
+        base_color_rgb: tuple[int, int, int] = (0, 0, 0),
     ):
         self.x = x
         self.y = y
         self.light_radius = max(0, light_radius)
         self.light_level = light_level
         self.size_category = size_category
-        self.base_color_rgb: Tuple[int, int, int] = base_color_rgb
+        self.base_color_rgb: tuple[int, int, int] = base_color_rgb
 
     @property
-    def position(self) -> Tuple[int, int]:
+    def position(self) -> tuple[int, int]:
         return (self.x, self.y)
 
 
@@ -166,10 +165,10 @@ class Player(Entity):  # Unchanged Player class
         super().__init__(
             x, y, light_radius, light_level, "medium", constants.TORCH_COLOR_RGB
         )
-        self.path: List[Tuple[int, int]] = []
+        self.path: list[tuple[int, int]] = []
         self.path_index = 0
 
-    def set_path(self, path: List[Tuple[int, int]]):
+    def set_path(self, path: list[tuple[int, int]]):
         self.path = path
         self.path_index = 0
 
@@ -191,7 +190,7 @@ class LightSource(Entity):
         light_radius: int = 16,
         light_level: int = 5,
         flicker: bool = False,
-        base_color_rgb: Tuple[int, int, int] = constants.ORB_COLOR_RGB,
+        base_color_rgb: tuple[int, int, int] = constants.ORB_COLOR_RGB,
     ):
         super().__init__(x, y, light_radius, light_level, "small", base_color_rgb)
         self.flicker = flicker
@@ -245,8 +244,8 @@ def _update_memory_fade_internal(
 
 @numba.jit(nopython=True)
 def _transform_coordinate(
-    x: int, y: int, octant: int, origin: Tuple[int, int]
-) -> Tuple[int, int]:
+    x: int, y: int, octant: int, origin: tuple[int, int]
+) -> tuple[int, int]:
     ox, oy = origin
     nx, ny = ox, oy
     if octant == 0:
@@ -278,7 +277,7 @@ def _transform_coordinate(
 
 @numba.jit(nopython=True)
 def _blocks_light_in_octant(
-    x: int, y: int, octant: int, origin: Tuple[int, int], dungeon_instance: Dungeon
+    x: int, y: int, octant: int, origin: tuple[int, int], dungeon_instance: Dungeon
 ) -> bool:
     nx, ny = _transform_coordinate(x, y, octant, origin)
     return dungeon_instance.blocks_light(nx, ny)
@@ -286,7 +285,7 @@ def _blocks_light_in_octant(
 
 @numba.jit(nopython=True, fastmath=True)
 def _calculate_top_y(
-    x: int, top: Slope, octant: int, origin: Tuple[int, int], dungeon_instance: Dungeon
+    x: int, top: Slope, octant: int, origin: tuple[int, int], dungeon_instance: Dungeon
 ) -> int:
     if top.x == 1:
         return x
@@ -310,7 +309,7 @@ def _calculate_bottom_y(
     x: int,
     bottom: Slope,
     octant: int,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     dungeon_instance: Dungeon,
 ) -> int:
     if bottom.y == 0:
@@ -332,7 +331,7 @@ def _mark_color_in_octant_array(
     x: int,
     y: int,
     octant: int,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     dungeon_instance: Dungeon,
     target_rgb_sum_array: np.ndarray,
     weighted_r: float,
@@ -349,7 +348,7 @@ def _mark_color_in_octant_array(
 @numba.jit(nopython=True, fastmath=True, cache=True)
 def _compute_octant_for_color(
     octant: int,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     x: int,
     top: Slope,
@@ -460,7 +459,7 @@ def _mark_visible_boolean_in_octant_array(
     x: int,
     y: int,
     octant: int,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     dungeon_instance: Dungeon,
     target_los_array: np.ndarray,
 ) -> None:
@@ -472,7 +471,7 @@ def _mark_visible_boolean_in_octant_array(
 @numba.jit(nopython=True, fastmath=True, cache=True)
 def _compute_octant_for_boolean_array(
     octant: int,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     x: int,
     top: Slope,
@@ -553,11 +552,11 @@ def _compute_octant_for_boolean_array(
 # --- Top-Level Calculation Functions (Unchanged) ---
 # ============================================================
 def compute_illumination_color_array(
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
     target_rgb_sum_array: np.ndarray,
-    base_color_rgb: Tuple[int, int, int],
+    base_color_rgb: tuple[int, int, int],
 ) -> None:
     ox, oy = origin
     if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
@@ -587,7 +586,7 @@ def compute_illumination_color_array(
 
 
 def compute_los_into_boolean_array(
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
     target_los_array: np.ndarray,
@@ -615,12 +614,12 @@ def compute_los_into_boolean_array(
 # --- BFS Pathfinding (Unchanged) ---
 # ============================================================
 def find_path(
-    start: Tuple[int, int],
-    end: Tuple[int, int],
+    start: tuple[int, int],
+    end: tuple[int, int],
     tiles: np.ndarray,
     width: int,
     height: int,
-) -> List[Tuple[int, int]] | None:
+) -> list[tuple[int, int]] | None:
     if not (
         0 <= start[0] < width
         and 0 <= start[1] < height
@@ -636,7 +635,7 @@ def find_path(
     if start == end:
         return [start]
     q = deque([(start, [start])])
-    visited: Set[Tuple[int, int]] = {start}
+    visited: set[tuple[int, int]] = {start}
     while q:
         (vx, vy), path = q.popleft()
         for dx, dy in [(0, -1), (0, 1), (1, 0), (-1, 0)]:
@@ -675,7 +674,7 @@ def get_memory_character(tile_id: int, intensity: float) -> str:
 
 
 def get_object_size_category(
-    dungeon: Dungeon, x: int, y: int, entities: List[Entity]
+    dungeon: Dungeon, x: int, y: int, entities: list[Entity]
 ) -> str:
     for entity in entities:
         if entity.x == x and entity.y == y:
@@ -692,8 +691,8 @@ def distance_sq(x1: int, y1: int, x2: int, y2: int) -> int:
 
 
 def _interpolate_color(
-    factor: float, start_rgb: Tuple[int, int, int], end_rgb: Tuple[int, int, int]
-) -> Tuple[int, int, int]:
+    factor: float, start_rgb: tuple[int, int, int], end_rgb: tuple[int, int, int]
+) -> tuple[int, int, int]:
     factor = max(0.0, min(1.0, factor))
     r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * factor)
     g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * factor)
@@ -701,7 +700,7 @@ def _interpolate_color(
     return (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
 
 
-def _format_true_color(rgb: Tuple[int, int, int]) -> str:
+def _format_true_color(rgb: tuple[int, int, int]) -> str:
     return f"\033[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
 
 
@@ -717,10 +716,10 @@ def _get_brightness_from_rgb_sum(rgb_sum: np.ndarray) -> float:
 
 
 def _apply_lighting_to_base(
-    base_rgb: Tuple[int, int, int],
+    base_rgb: tuple[int, int, int],
     rgb_sum: np.ndarray,
     brightness: float,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
     tint_scale_r = float(rgb_sum[0]) / max_comp
     tint_scale_g = float(rgb_sum[1]) / max_comp
@@ -742,8 +741,8 @@ class GameState:
         self.rng = rng  # Store RNG instance
         self.dungeon = Dungeon(width, height)
         self.player: Player | None = None
-        self.light_sources: List[LightSource] = []
-        self.all_entities: List[Entity] = []
+        self.light_sources: list[LightSource] = []
+        self.all_entities: list[Entity] = []
         self.current_illumination_rgb_sum: np.ndarray = np.zeros(
             (height, width, 3), dtype=np.float32
         )
@@ -1135,7 +1134,7 @@ def run_simulation():
     target_duration = 60 if is_profiling else 300
     total_update_vis_time = 0.0
     last_key_pressed = ""
-    profiler_path: List[Tuple[int, int]] | None = None
+    profiler_path: list[tuple[int, int]] | None = None
     profiler_path_index = 0
     profiler_target_x = (
         game_state.dungeon.width - 6

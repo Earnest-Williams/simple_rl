@@ -1,7 +1,9 @@
-from engine import main_loop as ml_module
 import sys
 import types
+
 import pytest
+
+from engine import main_loop as ml_module
 
 # Provide lightweight stubs for heavy modules to avoid unnecessary imports
 sys.modules.setdefault(

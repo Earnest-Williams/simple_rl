@@ -2,6 +2,12 @@
 
 import pytest
 
+from game.skills.effects import (
+    calculate_total_combat_bonuses,
+    calculate_total_magic_bonuses,
+    get_fighting_bonus_damage,
+    get_fighting_bonus_hp,
+)
 from game.skills.models import (
     Skill,
     SkillProgress,
@@ -10,19 +16,13 @@ from game.skills.models import (
     TrainingState,
 )
 from game.skills.progression import (
-    get_xp_for_level,
-    get_level_from_xp,
-    get_aptitude_multiplier,
     apply_xp_to_skill,
+    get_aptitude_multiplier,
+    get_level_from_xp,
+    get_xp_for_level,
     get_xp_to_next_level,
 )
 from game.skills.training import distribute_xp
-from game.skills.effects import (
-    get_fighting_bonus_hp,
-    get_fighting_bonus_damage,
-    calculate_total_combat_bonuses,
-    calculate_total_magic_bonuses,
-)
 
 
 class TestSkillProgression:

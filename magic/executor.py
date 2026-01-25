@@ -19,15 +19,10 @@ optional :class:`Counterseal`s to ensure the Work is permitted.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import (
-    Callable,
-    Dict,
-    Tuple,
-    Iterable,
-    Set,
     TYPE_CHECKING,
-    List,
     Literal,
 )
 
@@ -43,12 +38,12 @@ log = structlog.get_logger()
 
 
 EffectHandler = Callable[["Work", "GameState"], None]
-EFFECT_HANDLERS: Dict[Tuple[Art, Substance], EffectHandler] = {}
+EFFECT_HANDLERS: dict[tuple[Art, Substance], EffectHandler] = {}
 
 # ---------------------------------------------------------------------------
 # Friction event callbacks
 FrictionCallback = Callable[["Work", "GameState"], None]
-FRICTION_CALLBACKS: Dict[str, List[FrictionCallback]] = {
+FRICTION_CALLBACKS: dict[str, list[FrictionCallback]] = {
     "quiver": [],
     "warp": [],
     "shiver": [],
@@ -68,7 +63,7 @@ def register_friction_callback(event: str, callback: FrictionCallback) -> None:
     log.debug("Registered friction callback", event_name=event, callback=callback)
 
 
-def _dispatch_friction_event(event: str, work: "Work", context: "GameState") -> None:
+def _dispatch_friction_event(event: str, work: Work, context: GameState) -> None:
     """Invoke callbacks registered for ``event``."""
     for cb in FRICTION_CALLBACKS.get(event, []):
         try:
@@ -96,7 +91,7 @@ class Work:
     substance: Substance
 
     # Compatibility with ward logic from master branch: wards may inspect this.
-    substances: Set[Substance] = field(default_factory=set)
+    substances: set[Substance] = field(default_factory=set)
 
     # Optional direct callable (master branch behavior) when no handler exists.
     func: Callable[[], object] | None = None
@@ -140,7 +135,7 @@ ExecutionReason = Literal[
 class ExecutionResult:
     executed: bool
     reason: ExecutionReason | None = None
-    diagnostics: Dict[str, str] | None = None
+    diagnostics: dict[str, str] | None = None
 
 
 def execute_work(

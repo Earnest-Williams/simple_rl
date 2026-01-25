@@ -3,7 +3,7 @@
 Global constants for the FOV/Light/Memory Simulation Game.
 Includes base colors for light sources.
 """
-from typing import Dict, Tuple
+
 
 # --- Core Gameplay ---
 MAX_LOS_DISTANCE = 500
@@ -23,10 +23,10 @@ MEMORY_LIGHT = "+"
 UNSEEN = " "
 
 # --- Base Tile/Entity Colors ---
-PLAYER_COLOR_RGB: Tuple[int, int, int] = (255, 225, 180)  # Warm highlight
-WALL_COLOR_RGB: Tuple[int, int, int] = (130, 130, 150)  # Stone gray
-PILLAR_COLOR_RGB: Tuple[int, int, int] = (150, 135, 120)  # Aged stone
-FLOOR_COLOR_RGB: Tuple[int, int, int] = (90, 90, 110)  # Cool slate
+PLAYER_COLOR_RGB: tuple[int, int, int] = (255, 225, 180)  # Warm highlight
+WALL_COLOR_RGB: tuple[int, int, int] = (130, 130, 150)  # Stone gray
+PILLAR_COLOR_RGB: tuple[int, int, int] = (150, 135, 120)  # Aged stone
+FLOOR_COLOR_RGB: tuple[int, int, int] = (90, 90, 110)  # Cool slate
 
 # --- Memory Fade ---
 MEMORY_DURATION = 60.0
@@ -62,10 +62,10 @@ COLOR = {
 
 # --- True Color Definitions ---
 # Base colors for different light source types (adjust as desired)
-TORCH_COLOR_RGB: Tuple[int, int, int] = (255, 160, 60)  # Orangey-yellow
-ORB_COLOR_RGB: Tuple[int, int, int] = (160, 200, 255)  # Bluish-white
+TORCH_COLOR_RGB: tuple[int, int, int] = (255, 160, 60)  # Orangey-yellow
+ORB_COLOR_RGB: tuple[int, int, int] = (160, 200, 255)  # Bluish-white
 # Ambient color for unlit areas or minimum light
-AMBIENT_COLOR_RGB: Tuple[int, int, int] = (30, 30, 45)  # Dim, slightly blue/purple
+AMBIENT_COLOR_RGB: tuple[int, int, int] = (30, 30, 45)  # Dim, slightly blue/purple
 # Max level used for mapping intensity -> level for visibility checks
 MAX_LIGHT_LEVEL_FOR_VIS_CHECK = 6
 
@@ -81,7 +81,7 @@ LIGHT_LEVEL_FALLOFF_RATE = 5
 DEBUG_RENDER_MODE = "normal"  # Options: "normal", "level" (shows brightness), "intensity" (memory), "level_color" (shows blended color)
 
 # --- Light Level Data --- (Used for visibility checks based on mapped level)
-LIGHT_LEVEL_DATA: Dict[str, Dict[str, Dict[str, int]]] = {
+LIGHT_LEVEL_DATA: dict[str, dict[str, dict[str, int]]] = {
     "0": {
         "description": "None",
         "small": {"id_range": 0, "noticeable_range": 0},
@@ -148,7 +148,7 @@ LIGHT_LEVEL_DATA: Dict[str, Dict[str, Dict[str, int]]] = {
 }
 
 # --- Tile to Size Category Mapping ---
-TILE_ID_TO_CATEGORY: Dict[int, str] = {
+TILE_ID_TO_CATEGORY: dict[int, str] = {
     WALL_ID: "wall",
     FLOOR_ID: "floor",
     PILLAR_ID: "medium",

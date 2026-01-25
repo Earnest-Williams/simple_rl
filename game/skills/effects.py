@@ -5,8 +5,6 @@ Defines how skill levels translate into mechanical bonuses.
 
 from __future__ import annotations
 
-from typing import Dict
-
 from game.skills.models import Skill, SkillProgress
 
 
@@ -182,10 +180,10 @@ def get_invocations_bonus_mp(invocations_level: int) -> float:
 
 
 def calculate_total_combat_bonuses(
-    skills: Dict[Skill, SkillProgress],
+    skills: dict[Skill, SkillProgress],
     weapon_skill: Skill | None = None,
     base_armor: int = 0,
-) -> Dict[str, int | float]:
+) -> dict[str, int | float]:
     """Calculate total combat bonuses from all relevant skills.
 
     Args:
@@ -202,7 +200,7 @@ def calculate_total_combat_bonuses(
         - armor_bonus: Armor effectiveness bonus
         - evasion_bonus: Evasion bonus
     """
-    bonuses: Dict[str, int | float] = {
+    bonuses: dict[str, int | float] = {
         "hp_bonus": 0.0,
         "damage_multiplier": 1.0,
         "accuracy_bonus": 0,
@@ -247,8 +245,8 @@ def calculate_total_combat_bonuses(
 
 
 def calculate_total_magic_bonuses(
-    skills: Dict[Skill, SkillProgress], magic_school: Skill | None = None
-) -> Dict[str, float]:
+    skills: dict[Skill, SkillProgress], magic_school: Skill | None = None
+) -> dict[str, float]:
     """Calculate total magic bonuses from all relevant skills.
 
     Args:
@@ -292,7 +290,7 @@ def calculate_total_magic_bonuses(
     return bonuses
 
 
-def get_skill_level(skills: Dict[Skill, SkillProgress], skill: Skill) -> int:
+def get_skill_level(skills: dict[Skill, SkillProgress], skill: Skill) -> int:
     """Helper to safely get a skill level.
 
     Args:

@@ -7,7 +7,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from skills.models import Skill, SkillCategory, SkillProgress, TrainingMode, TrainingState
+from skills.models import (
+    Skill,
+    SkillCategory,
+    SkillProgress,
+    TrainingMode,
+    TrainingState,
+)
 from skills.progression import calculate_xp_to_next_level
 
 if TYPE_CHECKING:
@@ -88,7 +94,9 @@ def get_skill_screen_text(
 
     # Training mode indicator
     if training_config:
-        mode_name = "Manual" if training_config.mode == TrainingMode.MANUAL else "Automatic"
+        mode_name = (
+            "Manual" if training_config.mode == TrainingMode.MANUAL else "Automatic"
+        )
         lines.append(f"Training Mode: {mode_name}")
         lines.append("")
 
@@ -132,7 +140,9 @@ def get_skill_screen_text(
 
                 target_level = training_config.targets.get(skill)
 
-            skill_line = format_skill_line(skill, progress, training_state, target_level)
+            skill_line = format_skill_line(
+                skill, progress, training_state, target_level
+            )
             lines.append(f"  {skill_line}")
 
         lines.append("")

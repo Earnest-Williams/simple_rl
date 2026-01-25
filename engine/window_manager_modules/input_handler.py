@@ -5,8 +5,6 @@ or UI commands based on keybindings and game state.
 """
 # Standard Imports
 from typing import TYPE_CHECKING, Any
-from typing import Dict as PyDict
-from typing import List
 
 # Third-party Imports
 import structlog
@@ -21,7 +19,9 @@ if TYPE_CHECKING:
     from engine.main_loop import MainLoop
     from engine.window_manager import (
         WindowManager,
-    )  # Adjust if WindowManager moves later
+    )
+
+    # Adjust if WindowManager moves later
     from game.game_state import GameState
 
 log = structlog.get_logger(__name__)
@@ -34,10 +34,10 @@ class InputHandler:
 
     def __init__(
         self,
-        keybindings_config: PyDict[str, Any],
+        keybindings_config: dict[str, Any],
         window_manager_ref: "WindowManager",  # WindowManager stays in engine/
     ):
-        self.keybindings_config: PyDict[str, Any] = keybindings_config
+        self.keybindings_config: dict[str, Any] = keybindings_config
         self.window_manager_ref: "WindowManager" = window_manager_ref
         log.debug("InputHandler initialized.")
 
@@ -89,7 +89,7 @@ class InputHandler:
         log.warning("Could not map key string to Qt.Key", key_str=key_str)
         return None
 
-    def _get_qt_modifier_enum(self, mods_list: List[str]) -> Qt.KeyboardModifier:
+    def _get_qt_modifier_enum(self, mods_list: list[str]) -> Qt.KeyboardModifier:
         """Converts a list of modifier strings (e.g., ["Ctrl", "Shift"]) to Qt.KeyboardModifiers."""
         modifier = Qt.KeyboardModifier.NoModifier
         if not mods_list:
@@ -108,8 +108,8 @@ class InputHandler:
         self,
         key_code: int,
         modifiers: Qt.KeyboardModifier,
-        active_keybinding_sets: List[str],
-    ) -> PyDict[str, Any] | None:
+        active_keybinding_sets: list[str],
+    ) -> dict[str, Any] | None:
         """Finds the action dictionary corresponding to a key press and active binding sets."""
         bindings = self.keybindings_config.get("bindings", {})
         for set_name in active_keybinding_sets:
@@ -121,7 +121,7 @@ class InputHandler:
                     continue
                 bound_key_str: str | None = binding_data.get("key")
                 bound_key_enum: Qt.Key | None = self._get_qt_key_enum(bound_key_str)
-                bound_mods_list: List[str] = binding_data.get("mods", [])
+                bound_mods_list: list[str] = binding_data.get("mods", [])
                 required_mod_enum: Qt.KeyboardModifier = self._get_qt_modifier_enum(
                     bound_mods_list
                 )
@@ -163,7 +163,7 @@ class InputHandler:
         event: QKeyEvent,
         game_state: "GameState",
         main_loop_ref: "MainLoop",
-        active_keybinding_sets: List[str],
+        active_keybinding_sets: list[str],
     ) -> bool:
         """
         Processes a QKeyEvent.
@@ -180,7 +180,7 @@ class InputHandler:
             ui_state=game_state.ui_state,
         )
 
-        action_to_dispatch: PyDict[str, Any] | None = None
+        action_to_dispatch: dict[str, Any] | None = None
         key_handled = False
 
         # Universal Escape handling

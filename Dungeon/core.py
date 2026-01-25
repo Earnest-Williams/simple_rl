@@ -10,7 +10,7 @@ import traceback
 from dataclasses import dataclass, field
 
 # Use modern type hints (list instead of List, etc.)
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 from scipy.spatial import KDTree
@@ -89,7 +89,7 @@ class CaveStep:
     """Represents a step in the cave generation process for logging."""
 
     desc: str
-    vars: Dict[str, Any]
+    vars: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         """Converts step to a JSON-serializable dictionary."""
@@ -252,9 +252,9 @@ class CaveGenerator:
         self.analyzer = BranchConvergenceAnalyzer()
         self.active_nodes: list[CaveNode] = []
         self.kdtree: KDTree | None = None
-        self.kdtree_points: list[Tuple[float, float]] = []
+        self.kdtree_points: list[tuple[float, float]] = []
         self.kdtree_node_ids: list[int] = []
-        self.node_map: Dict[int, CaveNode] = {}
+        self.node_map: dict[int, CaveNode] = {}
         self._nodes_since_kdtree = 0
         self._generation_complete = False
 
@@ -306,7 +306,7 @@ class CaveGenerator:
         self.cavern_type_counts[min_type] = new_min_count
         self.cavern_type_counts[max_type] = new_max_count
 
-    def _get_weights(self) -> Tuple[list[str], list[float]]:
+    def _get_weights(self) -> tuple[list[str], list[float]]:
         """Calculates weights inversely proportional to counts."""
         counts = self.cavern_type_counts
         types = list(counts.keys())
@@ -321,7 +321,7 @@ class CaveGenerator:
         normalized_weights = [w / total_weight for w in raw_weights]
         return types, normalized_weights
 
-    def _choose_and_assign_big_room_feature(self, parent: CaveNode, step_vars: Dict):
+    def _choose_and_assign_big_room_feature(self, parent: CaveNode, step_vars: dict):
         """Performs weighted choice using GameRNG and assigns feature."""
         types, weights = self._get_weights()
         # USE self.rng for weighted choice
@@ -332,7 +332,7 @@ class CaveGenerator:
 
         step_vars["feature_assigned"] = parent.feature
         step_vars["weights"] = {
-            t: round(w, 3) for t, w in zip(types, weights)
+            t: round(w, 3) for t, w in zip(types, weights, strict=False)
         }  # Log weights used
         self.steps.append(
             CaveStep(f"Assign Feature {parent.id}: {parent.feature}", step_vars)

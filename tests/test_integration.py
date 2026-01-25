@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict
 
 from worldgen import build_full_world, default_world_config, read_world_meta
 from worldgen.config import WorldConfig
@@ -29,7 +28,7 @@ def test_full_pipeline_creates_meta_and_report(tmp_path: Path) -> None:
 
     report_path: Path = out_dir / "report.json"
     assert report_path.exists()
-    report: Dict[str, object] = json.loads(report_path.read_text())
+    report: dict[str, object] = json.loads(report_path.read_text())
     assert "land_fraction" in report
     assert "temp_quantiles" in report
     assert "precip_quantiles" in report

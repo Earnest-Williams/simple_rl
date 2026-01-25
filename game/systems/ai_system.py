@@ -8,15 +8,17 @@ can mix multiple decision making systems.
 
 from __future__ import annotations
 
-from typing import Iterable, TYPE_CHECKING, Tuple
+from collections.abc import Iterable
+from multiprocessing.dummy import Pool as ThreadPool
+from typing import TYPE_CHECKING
 
 import structlog
-from multiprocessing.dummy import Pool as ThreadPool
 
 from game.ai import get_adapter, goap
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
+
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -25,9 +27,9 @@ log = structlog.get_logger()
 
 def dispatch_ai(
     entities,
-    game_state: "GameState",
-    rng: "GameRNG",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    game_state: GameState,
+    rng: GameRNG,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
     batch_size: int = 4,
 ) -> None:
     """Execute AI adapters for a batch of entities in parallel."""

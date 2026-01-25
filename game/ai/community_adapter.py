@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -22,7 +22,6 @@ from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from game.game_state import GameState
-    from utils.game_rng import GameRNG
 
 log = structlog.get_logger()
 
@@ -32,11 +31,11 @@ class CommunityProfile:
     """Normalized view of community configuration stored on entities."""
 
     template_id: str | None
-    traits: Dict[str, float]
-    habits: Tuple[str, ...]
+    traits: dict[str, float]
+    habits: tuple[str, ...]
 
 
-def _normalize_traits(template_data: Dict[str, Any]) -> TraitProfile:
+def _normalize_traits(template_data: dict[str, Any]) -> TraitProfile:
     trait_data = (
         template_data.get("community", {}).get("traits")
         or template_data.get("traits")
@@ -52,7 +51,7 @@ def _normalize_traits(template_data: Dict[str, Any]) -> TraitProfile:
 
 
 def _normalize_habits(
-    template_data: Dict[str, Any], behaviors: Dict[str, Behavior]
+    template_data: dict[str, Any], behaviors: dict[str, Behavior]
 ) -> list[Habit]:
     habits: list[Habit] = []
     raw_habits = template_data.get("community", {}).get("habits", [])
@@ -93,7 +92,7 @@ def _apply_traits(agent: AgentF, traits: TraitProfile) -> None:
     agent.self_concept = SelfConcept(resonance=traits.resonance)
 
 
-def _build_home(template_data: Dict[str, Any]) -> Home:
+def _build_home(template_data: dict[str, Any]) -> Home:
     home = Home()
     home_data = template_data.get("community", {}).get("home", {})
     home.water_storage = float(home_data.get("water_storage", 0.0))
@@ -124,12 +123,12 @@ def _build_profile(
 class CommunityManager:
     """Manage v9 community agents within the game loop."""
 
-    def __init__(self, game_state: "GameState") -> None:
+    def __init__(self, game_state: GameState) -> None:
         self.gs = game_state
         self.rng = game_state.rng_instance
 
     def spawn_agent_from_template(
-        self, template: str | Dict[str, Any], x: int, y: int
+        self, template: str | dict[str, Any], x: int, y: int
     ) -> int | None:
         template_id: str | None
         if isinstance(template, str):
@@ -225,7 +224,7 @@ class CommunityManager:
                     continue
                 self.spawn_agent_from_template(template_id, spawn_x, spawn_y)
 
-    def _step_agent(self, entity_id: int, row: Dict[str, Any], agent: AgentF) -> None:
+    def _step_agent(self, entity_id: int, row: dict[str, Any], agent: AgentF) -> None:
         agent.context["day"] = self.gs.turn_count
         agent.context["position"] = (row["x"], row["y"])
         action_taken = False
@@ -268,14 +267,14 @@ class CommunityManager:
 
 
 def spawn_community_agent(
-    game_state: "GameState", template: str | Dict[str, Any], x: int, y: int
+    game_state: GameState, template: str | dict[str, Any], x: int, y: int
 ) -> int | None:
     """Public adapter API for spawning a community agent."""
 
     return game_state.community_manager.spawn_agent_from_template(template, x, y)
 
 
-def step_community_agents(game_state: "GameState") -> None:
+def step_community_agents(game_state: GameState) -> None:
     """Public adapter API for stepping all community agents."""
 
     game_state.community_manager.step()

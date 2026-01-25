@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import List, Tuple
-
 from utils.game_rng import GameRNG
 
 
-def _sample_noise(rng: GameRNG, points: List[Tuple[int, int]]) -> List[float]:
+def _sample_noise(rng: GameRNG, points: list[tuple[int, int]]) -> list[float]:
     return [rng.noise_2d(x, y, scale=1.0, seed_offset=0) for x, y in points]
 
 

@@ -15,7 +15,6 @@ now so they can be used directly in tests.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -43,7 +42,7 @@ class MagicLibrary:
     """
 
     def __init__(self) -> None:
-        self._works: Dict[str, Work] = {}
+        self._works: dict[str, Work] = {}
 
     def learn(self, work: Work) -> None:
         """Add a work to the library.

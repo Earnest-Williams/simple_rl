@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 import game.world.fov as visibility
 from game.world.fov import line_of_sight
 

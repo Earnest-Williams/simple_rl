@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict
-from typing import Dict as PyDict
-from typing import List, Tuple
+from typing import TYPE_CHECKING, Any
 
 # Third-party imports
 import numpy as np
@@ -21,7 +20,7 @@ from PIL import Image
 from pydantic import TypeAdapter, ValidationError
 
 # PySide6 imports
-from PySide6.QtCore import QPoint, Qt, QRect, QTimer, Signal
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QAction,
     QBrush,
@@ -31,7 +30,6 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPainter,
-    QPalette,
     QPen,
     QPixmap,
     QResizeEvent,
@@ -43,16 +41,14 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QMainWindow,
-    QMenu,
-    QMenuBar,
-    QMessageBox,
-    QPushButton,
-    QPlainTextEdit,
     QListWidget,
     QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QTextEdit,
@@ -60,23 +56,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from engine.renderer import ViewportParams
+
 # Modularized Imports
 from engine.window_manager_modules.input_handler import InputHandler
 from engine.window_manager_modules.tileset_manager import TilesetManager
 from engine.window_manager_modules.ui_overlay_manager import UIOverlayManager
-from engine.renderer import ViewportParams
 
 # Type Checking
 if TYPE_CHECKING:
     from engine.main_loop import MainLoop
 
 # Logging Setup
-import structlog
 import threading
+
+import structlog
 
 log = structlog.get_logger(__name__)
 
-NODE_TO_TILE_ADAPTER = TypeAdapter(Dict[int, Tuple[int, int]])
+NODE_TO_TILE_ADAPTER = TypeAdapter(dict[int, tuple[int, int]])
 
 DEFAULT_MIN_TILE_SIZE = 4
 DEFAULT_SCROLL_SCALE_DEBOUNCE_MS = 200
@@ -97,7 +95,7 @@ def tile_grid_to_qimage(tile_grid: np.ndarray, scale: int = 4) -> QImage:
     rgb_array: np.ndarray = np.full((h, w, 3), (120, 120, 120), dtype=np.uint8)
 
     # Define color mapping for vectorized application
-    color_map: PyDict[int, Tuple[int, int, int]] = {
+    color_map: dict[int, tuple[int, int, int]] = {
         int(Material.SOLID_ROCK): (20, 20, 20),
         int(Material.CAVE_FLOOR): (220, 220, 220),
         int(Material.SHAFT_OPENING): (200, 150, 50),
@@ -106,7 +104,7 @@ def tile_grid_to_qimage(tile_grid: np.ndarray, scale: int = 4) -> QImage:
 
     # Apply colors using vectorized boolean indexing, which is much faster than a Python loop
     mat_id: int
-    color: Tuple[int, int, int]
+    color: tuple[int, int, int]
     for mat_id, color in color_map.items():
         rgb_array[tile_grid == mat_id] = color
 
@@ -135,7 +133,7 @@ class ClickableLabel(QLabel):
 class NodeInspectorDock(QDockWidget):
     """Docked inspector for backbone nodes: summary, generator steps, children, JSON."""
 
-    main: "WindowManager"
+    main: WindowManager
     layout: QVBoxLayout
     header: QLabel
     children_label: QLabel
@@ -146,8 +144,8 @@ class NodeInspectorDock(QDockWidget):
     steps_list: QListWidget
     json_view: QPlainTextEdit
     _current_node_id: int | None
-    _generator_steps: List[Dict[str, Any]] | None
-    _augmented_node_map: Dict[str | int, Any] | None
+    _generator_steps: list[dict[str, Any]] | None
+    _augmented_node_map: dict[str | int, Any] | None
     navigate_callback: Callable[[int], None] | None
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -188,9 +186,9 @@ class NodeInspectorDock(QDockWidget):
     def display_node(
         self,
         node_id: int,
-        node_dict: Dict[str, Any],
-        generator_steps: List[Dict[str, Any]] | None,
-        augmented_node_map: Dict[str | int, Any] | None,
+        node_dict: dict[str, Any],
+        generator_steps: list[dict[str, Any]] | None,
+        augmented_node_map: dict[str | int, Any] | None,
     ) -> None:
         """Populate the inspector with a node's details."""
         self._current_node_id = node_id
@@ -269,7 +267,7 @@ class NodeInspectorDock(QDockWidget):
 class DiagnosticsDock(QDockWidget):
     """Diagnostics dock widget for exposing pipeline controls and visualization."""
 
-    main: "WindowManager"
+    main: WindowManager
     seed_spin: QSpinBox
     max_nodes_spin: QSpinBox
     max_depth_spin: QSpinBox
@@ -280,11 +278,11 @@ class DiagnosticsDock(QDockWidget):
     dump_processed_btn: QPushButton
     image_label: ClickableLabel
     log: QTextEdit
-    _last_run_results: PyDict[str, Any] | None
-    node_tile_coords: PyDict[int, Tuple[int, int]]
+    _last_run_results: dict[str, Any] | None
+    node_tile_coords: dict[int, tuple[int, int]]
     preview_scale: int
     overlay_enabled: bool
-    _node_inspector: "NodeInspectorDock" | None
+    _node_inspector: NodeInspectorDock | None
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Diagnostics", parent)
@@ -397,7 +395,7 @@ class DiagnosticsDock(QDockWidget):
 
     def on_run(self) -> None:
         """Handle Run Pipeline button click."""
-        params: PyDict[str, int] = {
+        params: dict[str, int] = {
             "seed": self.seed_spin.value(),
             "max_nodes": self.max_nodes_spin.value(),
             "max_depth": self.max_depth_spin.value(),
@@ -410,13 +408,13 @@ class DiagnosticsDock(QDockWidget):
         )
         t.start()
 
-    def _run_pipeline_thread(self, params: PyDict[str, int]) -> None:
+    def _run_pipeline_thread(self, params: dict[str, int]) -> None:
         """Run the pipeline in a background thread."""
         from orchestrator import run_pipeline
 
         try:
             # Run the pipeline with specified parameters
-            res: PyDict[str, Any] = run_pipeline(
+            res: dict[str, Any] = run_pipeline(
                 seed=params["seed"],
                 max_nodes=params["max_nodes"],
                 max_depth=params["max_depth"],
@@ -498,9 +496,9 @@ class DiagnosticsDock(QDockWidget):
 
     def _map_nodes_to_tile_coords(
         self,
-        augmented_nodes: List[PyDict[str, Any]],
-        tile_shape: Tuple[int, int],
-    ) -> PyDict[int, Tuple[int, int]]:
+        augmented_nodes: list[dict[str, Any]],
+        tile_shape: tuple[int, int],
+    ) -> dict[int, tuple[int, int]]:
         """Map processor node x/y values to tile (row,col) using normalization."""
         xs = [
             float(node.get("x", 0.0))
@@ -521,7 +519,7 @@ class DiagnosticsDock(QDockWidget):
         dx = max(1e-6, max_x - min_x)
         dy = max(1e-6, max_y - min_y)
         h, w = tile_shape
-        mapping: PyDict[int, Tuple[int, int]] = {}
+        mapping: dict[int, tuple[int, int]] = {}
         for node in augmented_nodes:
             node_id = node.get("id")
             if node_id is None:
@@ -538,7 +536,7 @@ class DiagnosticsDock(QDockWidget):
     def _image_with_overlay(
         self,
         base_img: QImage,
-        node_tile_coords: PyDict[int, Tuple[int, int]],
+        node_tile_coords: dict[int, tuple[int, int]],
         highlight_node: int | None,
     ) -> QPixmap:
         """Return a QPixmap built from base_img with backbone overlay drawn on top."""
@@ -613,7 +611,7 @@ class DiagnosticsDock(QDockWidget):
                 Qt.DockWidgetArea.RightDockWidgetArea, self._node_inspector
             )
         steps_obj = self._last_run_results.get("generator_steps")
-        steps: List[Dict[str, Any]] = steps_obj if isinstance(steps_obj, list) else []
+        steps: list[dict[str, Any]] = steps_obj if isinstance(steps_obj, list) else []
         self._node_inspector.display_node(node_id, node, steps, augmented_map_obj)
         tile_grid_obj = self._last_run_results.get("tile_grid")
         if isinstance(tile_grid_obj, np.ndarray) and self.node_tile_coords:
@@ -655,8 +653,8 @@ class DiagnosticsDock(QDockWidget):
 class WindowManager(QMainWindow):
     def __init__(
         self,
-        app_config: PyDict[str, Any],
-        keybindings_config: PyDict[str, Any],
+        app_config: dict[str, Any],
+        keybindings_config: dict[str, Any],
         initial_tileset_path: str,
         initial_tile_width: int,
         initial_tile_height: int,
@@ -687,12 +685,12 @@ class WindowManager(QMainWindow):
         )
 
         # FIXED: Improved cache management
-        self._render_coord_cache: PyDict[str, np.ndarray] = {}
-        self._cached_vp_pixel_dims: Tuple[int, int] | None = None
-        self._cached_tile_dims: Tuple[int, int] | None = None
+        self._render_coord_cache: dict[str, np.ndarray] = {}
+        self._cached_vp_pixel_dims: tuple[int, int] | None = None
+        self._cached_tile_dims: tuple[int, int] | None = None
         self._cache_generation: int = 0
         self._last_tileset_change: int = 0
-        self._px_idx: Tuple[np.ndarray, np.ndarray] | None = None
+        self._px_idx: tuple[np.ndarray, np.ndarray] | None = None
         self._last_frame_image: Image.Image | None = None
         self._cached_frame: QPixmap | None = None
         self._frame_dirty: bool = True
@@ -779,7 +777,7 @@ class WindowManager(QMainWindow):
         self.frame_timer.start(16)
 
         # Active keybindings
-        self.active_keybinding_sets: List[str] = ["common", "numpad"]
+        self.active_keybinding_sets: list[str] = ["common", "numpad"]
         for default_set in ("modern", "arrows"):
             if default_set not in self.active_keybinding_sets:
                 self.active_keybinding_sets.append(default_set)
@@ -981,7 +979,7 @@ class WindowManager(QMainWindow):
                 self, "Tileset Error", f"Failed to load tileset from:\n{folder}"
             )
 
-    def set_main_loop(self, main_loop: "MainLoop") -> None:
+    def set_main_loop(self, main_loop: MainLoop) -> None:
         self.main_loop = main_loop
         log.info("MainLoop instance set in WindowManager")
         QTimer.singleShot(0, self.update_frame)
@@ -1062,7 +1060,7 @@ class WindowManager(QMainWindow):
         self._last_frame_image.paste(partial_image, (rect.x(), rect.y()))
         self._frame_dirty = True
 
-    def update_frame_partial(self, dirty_rects: List[QRect]) -> None:
+    def update_frame_partial(self, dirty_rects: list[QRect]) -> None:
         if not dirty_rects or self.main_loop is None:
             return
         viewport_params = self._get_viewport_params()
@@ -1349,7 +1347,9 @@ class WindowManager(QMainWindow):
                         "Training configuration updated", (0, 255, 255)
                     )
         except Exception as e:
-            log.error("Failed to show skill training dialog", error=str(e), exc_info=True)
+            log.error(
+                "Failed to show skill training dialog", error=str(e), exc_info=True
+            )
 
     def ui_open_inventory_view(self) -> None:
         """Open inventory view (stub for compatibility)."""

@@ -2,7 +2,7 @@
 
 import colorsys
 import math
-from typing import Iterable
+from collections.abc import Iterable
 
 import numpy as np
 import structlog
@@ -23,10 +23,10 @@ except ImportError:
     float32 = np.float32  # type: ignore
 
 try:
-    from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+    from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 except ImportError:
     try:
-        from basicrl.game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+        from basicrl.game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
     except ImportError:
         GameMap = object  # type: ignore
         TILE_ID_FLOOR = 0  # type: ignore
@@ -336,7 +336,10 @@ def apply_memory_fade(
         base_h, base_s, base_v = colorsys.rgb_to_hsv(*(fade_color_np / 255.0))
         hue_offsets = (
             np.array(
-                [rng.noise_2d(x, y, seed_offset=1) for x, y in zip(world_x, world_y)]
+                [
+                    rng.noise_2d(x, y, seed_offset=1)
+                    for x, y in zip(world_x, world_y, strict=False)
+                ]
             )
             * fade_color_variance
         )
@@ -345,7 +348,7 @@ def apply_memory_fade(
                 np.array(
                     [
                         rng.noise_2d(x, y, seed_offset=2)
-                        for x, y in zip(world_x, world_y)
+                        for x, y in zip(world_x, world_y, strict=False)
                     ]
                 )
             )
@@ -356,7 +359,10 @@ def apply_memory_fade(
         vals = np.full(count, base_v)
         fade_rgbs = (
             np.array(
-                [colorsys.hsv_to_rgb(h, s, v) for h, s, v in zip(hues, sats, vals)],
+                [
+                    colorsys.hsv_to_rgb(h, s, v)
+                    for h, s, v in zip(hues, sats, vals, strict=False)
+                ],
                 dtype=np.float32,
             )
             * 255.0
@@ -383,7 +389,10 @@ def apply_memory_fade(
     new_glyphs = glyph_indices[memory_mask].copy()
     if noise_level > 0.0:
         noise_vals = np.array(
-            [rng.noise_2d(x, y, seed_offset=3) for x, y in zip(world_x, world_y)]
+            [
+                rng.noise_2d(x, y, seed_offset=3)
+                for x, y in zip(world_x, world_y, strict=False)
+            ]
         )
         noise_mask = ((noise_vals + 1.0) * 0.5) < noise_level
     else:

@@ -1,8 +1,8 @@
 import pytest
 
 from engine import action_handler
-from game.world.game_map import GameMap
 from game.game_state import GameState
+from game.world.game_map import GameMap
 
 MEMORY_FADE_CFG = {"enabled": True, "duration": 5.0, "midpoint": 2.5, "steepness": 1.2}
 

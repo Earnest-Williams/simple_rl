@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -10,7 +8,7 @@ def validate_array(
     arr: NDArray[np.generic],
     name: str,
     expected_dtype: np.dtype[np.generic],
-    expected_shape: Tuple[int, ...],
+    expected_shape: tuple[int, ...],
 ) -> None:
     if arr.dtype != expected_dtype:
         msg: str = f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"

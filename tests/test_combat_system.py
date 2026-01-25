@@ -1,9 +1,11 @@
-from game.systems.combat_system import handle_melee_attack
-from game.game_state import GameState
-from game.world.game_map import GameMap
 import sys
 import types
+
 import polars as pl
+
+from game.game_state import GameState
+from game.systems.combat_system import handle_melee_attack
+from game.world.game_map import GameMap
 
 # Stub ai_system dispatch
 ai_module = types.ModuleType("game.systems.ai_system")

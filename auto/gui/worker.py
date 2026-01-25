@@ -4,8 +4,8 @@ import time
 
 # Imports seem correct now
 from PySide6.QtCore import QMutex, QMutexLocker, QObject, Signal, Slot
-
 from utils.game_rng import GameRNG  # Assuming World passes a GameRNG instance
+
 from ..simulation import (
     ENEMY_SPAWN_CHANCE,
     MAX_TURNS,

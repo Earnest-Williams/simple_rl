@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -15,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from game.game_state import GameState
 
 
-def _build_walkable(game_state: "GameState") -> np.ndarray:
+def _build_walkable(game_state: GameState) -> np.ndarray:
     walkable_ids = [tid for tid, t in TILE_TYPES.items() if t.walkable]
     return np.isin(game_state.game_map.tiles, walkable_ids)
 
@@ -70,7 +70,7 @@ class _GameEntityAdapter:
 
 
 class _GameStateWorldAdapter:
-    def __init__(self, game_state: "GameState") -> None:
+    def __init__(self, game_state: GameState) -> None:
         self.game_state = game_state
         self.entity_df = game_state.entity_registry.entities_df
         self.item_df = game_state.item_registry.items_df
@@ -145,7 +145,7 @@ class _GameStateWorldAdapter:
         return None
 
 
-def _build_agent_adapter(game_state: "GameState", entity_id: int) -> _GameAgentAdapter:
+def _build_agent_adapter(game_state: GameState, entity_id: int) -> _GameAgentAdapter:
     entity_df = game_state.entity_registry.entities_df
     entity_rows = entity_df.filter(pl.col("entity_id") == entity_id)
     if entity_rows.is_empty():
@@ -185,7 +185,7 @@ def _build_agent_adapter(game_state: "GameState", entity_id: int) -> _GameAgentA
     )
 
 
-def plan_for_agent(game_state: "GameState", entity_id: int) -> list[Action]:
+def plan_for_agent(game_state: GameState, entity_id: int) -> list[Action]:
     """Build and return a GOAP plan for a single entity."""
     world = _GameStateWorldAdapter(game_state)
     agent = _build_agent_adapter(game_state, entity_id)

@@ -21,12 +21,12 @@ import hashlib
 import json
 import math
 import time
-from collections import deque, defaultdict
+from collections import defaultdict, deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 try:
     import polars as pl
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
     from jinja2 import Environment
 
 from utils.game_rng import GameRNG
-
 
 # ---------------------------------------------------------------------------
 # Enums and Constants
@@ -94,7 +93,7 @@ class Lexicon:
     def load_from_file(cls, path: str | Path) -> Lexicon:
         """Load lexicon from JSON or YAML file."""
         path = Path(path)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             if path.suffix == ".json":
                 data = json.load(f)
             elif path.suffix in {".yaml", ".yml"}:
@@ -467,7 +466,7 @@ def read_ndjson(path: str | Path) -> list[OutputRecord]:
     """
     path = Path(path)
     records = []
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 data = json.loads(line)
@@ -767,7 +766,7 @@ class NameGenerator:
 # ---------------------------------------------------------------------------
 
 
-def make_jinja_env(rng: GameRNG) -> "Environment":
+def make_jinja_env(rng: GameRNG) -> Environment:
     """Create a Jinja2 environment with RNG-based filters.
 
     Requires jinja2 to be installed.

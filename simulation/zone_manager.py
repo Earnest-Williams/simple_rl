@@ -8,7 +8,8 @@ frequency which reduces the cost of simulating the entire world every turn.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Callable, Dict, Set, Tuple
+from collections.abc import Callable
+from typing import Any
 
 
 class ZoneManager:
@@ -32,30 +33,30 @@ class ZoneManager:
         self.zone_size = zone_size
         self.active_radius = active_radius
         self.passive_interval = passive_interval
-        self.last_update: Dict[Tuple[int, int], int] = defaultdict(int)
+        self.last_update: dict[tuple[int, int], int] = defaultdict(int)
         # Queue stores mapping of zone -> event id.  Event callbacks are kept in
         # ``event_registry`` so they can be serialised via identifier and
         # restored on load.
-        self.event_queue: Dict[Tuple[int, int], int] = {}
-        self.event_registry: Dict[int, Callable[[Any], None]] = {}
+        self.event_queue: dict[tuple[int, int], int] = {}
+        self.event_registry: dict[int, Callable[[Any], None]] = {}
         self._next_event_id: int = 1
 
     # ------------------------------------------------------------------
     # Zone helpers
     # ------------------------------------------------------------------
-    def get_zone(self, x: int, y: int) -> Tuple[int, int]:
+    def get_zone(self, x: int, y: int) -> tuple[int, int]:
         """Return the zone coordinate for the tile ``(x, y)``."""
         return x // self.zone_size, y // self.zone_size
 
     def get_active_zones(
-        self, player_pos: Tuple[int, int] | None
-    ) -> Set[Tuple[int, int]]:
+        self, player_pos: tuple[int, int] | None
+    ) -> set[tuple[int, int]]:
         """Return the set of zones considered active around ``player_pos``."""
         if player_pos is None:
             return set()
         px, py = player_pos
         pz_x, pz_y = self.get_zone(px, py)
-        zones: Set[Tuple[int, int]] = set()
+        zones: set[tuple[int, int]] = set()
         for dx in range(-self.active_radius, self.active_radius + 1):
             for dy in range(-self.active_radius, self.active_radius + 1):
                 zones.add((pz_x + dx, pz_y + dy))
@@ -77,14 +78,14 @@ class ZoneManager:
         return event_id
 
     def schedule_zone_event(
-        self, zone: Tuple[int, int], callback: Callable[[Any], None]
+        self, zone: tuple[int, int], callback: Callable[[Any], None]
     ) -> None:
         """Queue ``callback`` to run for ``zone`` if none is already pending."""
         if zone not in self.event_queue:
             self.event_queue[zone] = self._register_event(callback)
 
     def process(
-        self, turn: int, active_zones: Set[Tuple[int, int]], game_state: Any
+        self, turn: int, active_zones: set[tuple[int, int]], game_state: Any
     ) -> None:
         """Process queued events.
 
@@ -106,7 +107,7 @@ class ZoneManager:
     # ------------------------------------------------------------------
     # Serialisation helpers
     # ------------------------------------------------------------------
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialise the manager to a plain dictionary."""
         return {
             "map_width": self.map_width,
@@ -126,9 +127,9 @@ class ZoneManager:
     @classmethod
     def from_dict(
         cls,
-        data: Dict[str, Any],
-        event_registry: Dict[int, Callable[[Any], None]],
-    ) -> "ZoneManager":
+        data: dict[str, Any],
+        event_registry: dict[int, Callable[[Any], None]],
+    ) -> ZoneManager:
         """Restore a ``ZoneManager`` from ``data``.
 
         ``event_registry`` should contain callbacks for all event identifiers

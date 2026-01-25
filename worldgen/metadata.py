@@ -88,9 +88,7 @@ class LayerMetaModel(BaseModel):
 
     @field_validator("sentinel")
     @classmethod
-    def _sentinel_not_bool(
-        cls, value: int | float | None
-    ) -> int | float | None:
+    def _sentinel_not_bool(cls, value: int | float | None) -> int | float | None:
         if isinstance(value, bool):
             raise ValueError("sentinel must be a number or null")
         return value

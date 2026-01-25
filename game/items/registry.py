@@ -1,5 +1,5 @@
 # game/items/registry.py
-from typing import Any, Dict, Literal, Self, cast
+from typing import Any, Literal, Self, cast
 
 import polars as pl
 import structlog
@@ -106,9 +106,9 @@ ITEM_SCHEMA: dict[str, pl.DataType] = {
 
 
 class ItemRegistry:
-    def __init__(self: Self, item_templates: Dict[str, dict]):
+    def __init__(self: Self, item_templates: dict[str, dict]):
         log.info("Initializing ItemRegistry with expanded schema")
-        self.item_templates: Dict[str, dict] = item_templates
+        self.item_templates: dict[str, dict] = item_templates
 
         schema_copy = ITEM_SCHEMA.copy()
         known_template_ids = list(item_templates.keys())

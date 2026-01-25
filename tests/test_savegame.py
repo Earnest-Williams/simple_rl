@@ -6,10 +6,7 @@ Tests correctness of serialization/deserialization and proper error handling.
 from __future__ import annotations
 
 import base64
-import gzip
-import io
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import orjson

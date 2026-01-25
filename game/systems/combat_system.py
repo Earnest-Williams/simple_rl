@@ -7,32 +7,30 @@ from typing import TYPE_CHECKING
 import polars as pl
 import structlog
 
-# Import roll_dice from its new location
-from utils.helpers import roll_dice
-from game.entities.components import CombatStats
 from game.effects.handlers import apply_status
+from game.entities.components import CombatStats
 from game.systems.death_system import handle_entity_death
+from skills.effects import get_combat_bonuses_dict
 
 # Skill system integration
 from skills.models import Skill, SkillProgress
 from skills.system import award_xp, record_skill_usage
-from skills.effects import get_combat_bonuses_dict
+
+# Import roll_dice from its new location
+from utils.helpers import roll_dice
 
 if TYPE_CHECKING:
-    from utils.game_rng import GameRNG  # Assuming this is importable for type hint
-
     from game.entities.registry import EntityRegistry
     from game.game_state import GameState
     from game.items.registry import ItemRegistry
+    from utils.game_rng import GameRNG  # Assuming this is importable for type hint
 
 log = structlog.get_logger(__name__)
 
 DEFAULT_UNARMED_DAMAGE = "1d2"  # Damage if attacker has no weapon
 
 
-def _determine_weapon_skill(
-    item_reg: "ItemRegistry", weapon_id: int | None
-) -> Skill:
+def _determine_weapon_skill(item_reg: "ItemRegistry", weapon_id: int | None) -> Skill:
     """Determine which weapon skill applies to a given weapon.
 
     Args:
@@ -46,7 +44,9 @@ def _determine_weapon_skill(
         return Skill.UNARMED_COMBAT
 
     # Check weapon type from item attributes or flags
-    weapon_type = item_reg.get_item_static_attribute(weapon_id, "weapon_type", default=None)
+    weapon_type = item_reg.get_item_static_attribute(
+        weapon_id, "weapon_type", default=None
+    )
 
     if weapon_type is None:
         # Fallback: try to determine from name or flags
@@ -138,7 +138,7 @@ def handle_melee_attack(
     # --- Determine Attacker's Damage ---
     damage_dice = DEFAULT_UNARMED_DAMAGE
     weapon_name = "unarmed"
-    
+
     # Initialize weapon variables before conditionals
     main_hand_weapon_id: int | None = None
     off_hand_weapon_id: int | None = None
@@ -205,14 +205,24 @@ def handle_melee_attack(
     attacker_skills = entity_reg.get_skills(attacker_id)
     weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
 
-    fighting_level = (attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)).level
-    weapon_level = (attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)).level
+    fighting_level = (
+        attacker_skills.get(Skill.FIGHTING) or SkillProgress(Skill.FIGHTING, 0, 0, 0)
+    ).level
+    weapon_level = (
+        attacker_skills.get(weapon_skill) or SkillProgress(weapon_skill, 0, 0, 0)
+    ).level
 
     # Get defender skills for armor/dodging
     defender_skills = entity_reg.get_skills(defender_id)
-    defender_armour_level = (defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)).level
-    defender_dodging_level = (defender_skills.get(Skill.DODGING) or SkillProgress(Skill.DODGING, 0, 0, 0)).level
-    defender_shields_level = (defender_skills.get(Skill.SHIELDS) or SkillProgress(Skill.SHIELDS, 0, 0, 0)).level
+    defender_armour_level = (
+        defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)
+    ).level
+    defender_dodging_level = (
+        defender_skills.get(Skill.DODGING) or SkillProgress(Skill.DODGING, 0, 0, 0)
+    ).level
+    defender_shields_level = (
+        defender_skills.get(Skill.SHIELDS) or SkillProgress(Skill.SHIELDS, 0, 0, 0)
+    ).level
 
     # Calculate skill-based bonuses
     skill_bonuses = get_combat_bonuses_dict(
@@ -243,7 +253,9 @@ def handle_melee_attack(
     # Apply armor bonus from skill (already calculated in skill_bonuses)
     effective_armor = defender_armor + skill_bonuses.armor_bonus
 
-    modified_damage = raw_damage + attacker_strength - defender_defense - effective_armor
+    modified_damage = (
+        raw_damage + attacker_strength - defender_defense - effective_armor
+    )
     # Apply evasion from dodging skill
     modified_damage = max(0, modified_damage - skill_bonuses.evasion_bonus)
 
@@ -371,7 +383,9 @@ def handle_melee_attack(
         xp_amount = 50  # Base XP for successful hit
         if defender_died:
             # Award bonus XP for kill based on defender difficulty
-            defender_xp_reward = entity_reg.get_entity_component(defender_id, "xp_reward") or 0
+            defender_xp_reward = (
+                entity_reg.get_entity_component(defender_id, "xp_reward") or 0
+            )
             xp_amount += max(100, defender_xp_reward)  # At least 100 bonus XP for kills
 
         level_ups = award_xp(entity_reg, attacker_id, xp_amount)

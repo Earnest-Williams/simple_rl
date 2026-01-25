@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, Tuple, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import pytest
 
@@ -13,13 +13,12 @@ if TYPE_CHECKING:
 
 class ApplyLightingFn(Protocol):
     def __call__(
-        self, base_rgb: Tuple[int, int, int], rgb_sum: np.ndarray, brightness: float
-    ) -> Tuple[int, int, int]:
-        ...
+        self, base_rgb: tuple[int, int, int], rgb_sum: np.ndarray, brightness: float
+    ) -> tuple[int, int, int]: ...
 
 
 class ConstantsModule(Protocol):
-    AMBIENT_COLOR_RGB: Tuple[int, int, int]
+    AMBIENT_COLOR_RGB: tuple[int, int, int]
 
 
 def _load_lights_dev_module() -> types.ModuleType:
@@ -33,9 +32,7 @@ def _load_lights_dev_module() -> types.ModuleType:
     module_path = repo_root / "lights_dev" / "main_game.py"
     if not module_path.exists():
         raise FileNotFoundError("lights_dev/main_game.py not found on disk.")
-    spec = importlib.util.spec_from_file_location(
-        "lights_dev_main_game", module_path
-    )
+    spec = importlib.util.spec_from_file_location("lights_dev_main_game", module_path)
     if spec is None or spec.loader is None:
         raise ImportError("Failed to build module spec for lights_dev.main_game.")
     module = importlib.util.module_from_spec(spec)
@@ -59,9 +56,9 @@ def _get_constants(module: types.ModuleType) -> ConstantsModule:
 
 def _expected_interpolate(
     factor: float,
-    start_rgb: Tuple[int, int, int],
-    end_rgb: Tuple[int, int, int],
-) -> Tuple[int, int, int]:
+    start_rgb: tuple[int, int, int],
+    end_rgb: tuple[int, int, int],
+) -> tuple[int, int, int]:
     clamped = max(0.0, min(1.0, factor))
     r_val = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * clamped)
     g_val = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * clamped)

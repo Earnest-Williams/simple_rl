@@ -1,9 +1,11 @@
-from game.systems.equipment_system import apply_passive_effects, remove_passive_effects
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-from game.game_state import GameState
-import polars as pl
 import sys
 import types
+
+import polars as pl
+
+from game.game_state import GameState
+from game.systems.equipment_system import apply_passive_effects, remove_passive_effects
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # Stub ai_system to satisfy GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

@@ -6,7 +6,7 @@ applying skill bonuses to entity stats.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -28,7 +28,7 @@ log = structlog.get_logger(__name__)
 def initialize_entity_skills(
     entity_registry: EntityRegistry,
     entity_id: int,
-    initial_skills: Dict[Skill, tuple[int, int]] | None = None,
+    initial_skills: dict[Skill, tuple[int, int]] | None = None,
     training_mode: TrainingMode = TrainingMode.MANUAL,
 ) -> None:
     """Initialize skill system for an entity.
@@ -40,7 +40,7 @@ def initialize_entity_skills(
         training_mode: Initial training mode (default: MANUAL)
     """
     # Initialize skills dict
-    skills: Dict[Skill, SkillProgress] = {}
+    skills: dict[Skill, SkillProgress] = {}
 
     if initial_skills:
         for skill, (level, aptitude) in initial_skills.items():
@@ -68,7 +68,7 @@ def initialize_entity_skills(
 
 def award_xp(
     entity_registry: EntityRegistry, entity_id: int, xp_amount: int
-) -> Dict[Skill, tuple[int, int]]:
+) -> dict[Skill, tuple[int, int]]:
     """Award XP to an entity and distribute it among trained skills.
 
     Args:

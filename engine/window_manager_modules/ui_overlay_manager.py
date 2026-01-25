@@ -22,11 +22,9 @@ tile graphics by referencing image paths.
 """
 # Standard Imports
 import contextlib
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from typing import Dict as PyDict
-from typing import List, Tuple
-import tomllib
 
 # Third-party Imports
 import polars as pl
@@ -39,7 +37,9 @@ if TYPE_CHECKING:
     from engine.main_loop import MainLoop
     from engine.window_manager import (
         WindowManager,
-    )  # Needs reference for config/fonts/state
+    )
+
+    # Needs reference for config/fonts/state
     from game.game_state import GameState
 
 log = structlog.get_logger(__name__)
@@ -54,16 +54,16 @@ class UIOverlayManager:
         self.window_manager_ref: "WindowManager" = window_manager_ref
         self.overlay_config_path = overlay_config_path
         self._overlay_base_path = self.overlay_config_path.parent
-        self.overlay_defs: List[PyDict[str, Any]] = self._load_overlay_definitions()
-        self._image_cache: PyDict[str, Image.Image] = {}
+        self.overlay_defs: list[dict[str, Any]] = self._load_overlay_definitions()
+        self._image_cache: dict[str, Image.Image] = {}
         # Inventory state
         self.inventory_cursor: int = 0
         self.inventory_scroll_offset: int = 0  # For future scrolling
         # Map from display line index to (item_id | None, is_equipped_flag, is_attached)
-        self._inventory_ui_map: PyDict[int, Tuple[int | None, bool, bool]] = {}
+        self._inventory_ui_map: dict[int, tuple[int | None, bool, bool]] = {}
         log.debug("UIOverlayManager initialized.")
 
-    def _load_overlay_definitions(self) -> List[PyDict[str, Any]]:
+    def _load_overlay_definitions(self) -> list[dict[str, Any]]:
         """Loads overlay definitions from the TOML configuration file."""
         if not self.overlay_config_path.is_file():
             log.warning(
@@ -120,7 +120,7 @@ class UIOverlayManager:
         font_size = int(font_cfg.get("ui_font_size", 10))
         try:
             text_font = ImageFont.truetype(font_path, font_size)
-        except IOError:
+        except OSError:
             text_font = ImageFont.load_default()
 
         bg_rect_debug = (0, 0, 0, 0)
@@ -156,7 +156,7 @@ class UIOverlayManager:
         font: ImageFont.FreeTypeFont,
         gs: "GameState",
         ml: "MainLoop",
-    ) -> Tuple[int, int, int, int]:
+    ) -> tuple[int, int, int, int]:
         """Renders the debug text overlay. Returns bounding box of background."""
         try:
             wm = self.window_manager_ref  # Shortcut for readability
@@ -235,7 +235,7 @@ class UIOverlayManager:
         self,
         draw: ImageDraw.ImageDraw,
         font: ImageFont.FreeTypeFont,
-        debug_bg_rect: Tuple[int, int, int, int],
+        debug_bg_rect: tuple[int, int, int, int],
         ml: "MainLoop",
     ) -> None:
         """Renders the height visualization key."""
@@ -299,7 +299,7 @@ class UIOverlayManager:
             )
 
     def _render_image_overlay(
-        self, base_image: Image.Image, overlay: PyDict[str, Any]
+        self, base_image: Image.Image, overlay: dict[str, Any]
     ) -> Image.Image:
         """Renders a static image overlay defined in the config."""
         path_str = overlay.get("path")
@@ -555,10 +555,10 @@ class UIOverlayManager:
 
     def _get_combined_inventory_list(
         self, gs: "GameState"
-    ) -> List[Tuple[str | None, int | None, bool]]:
+    ) -> list[tuple[str | None, int | None, bool]]:
         """Generates the list of items for display, using GameState."""
         # (Implementation unchanged from previous step)
-        combined_list: List[Tuple[str | None, int | None, bool]] = []
+        combined_list: list[tuple[str | None, int | None, bool]] = []
         player_id = gs.player_id
         item_reg = gs.item_registry
         entity_reg = gs.entity_registry
@@ -626,7 +626,7 @@ class UIOverlayManager:
                     break
         # Redraw will be triggered by InputHandler via WindowManager.update_frame()
 
-    def get_action_for_key(self, action_type: str) -> PyDict[str, Any] | None:
+    def get_action_for_key(self, action_type: str) -> dict[str, Any] | None:
         """Get the game action dictionary for the selected inventory item."""
         selected_data = self._inventory_ui_map.get(self.inventory_cursor)
         if not selected_data or selected_data[0] is None:

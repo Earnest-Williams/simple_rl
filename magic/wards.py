@@ -11,8 +11,9 @@ complex rule systems that a full game might implement.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable, Protocol, Set
+from typing import Protocol
 
 
 class WorkLike(Protocol):
@@ -38,8 +39,8 @@ def _normalize_name(value: object) -> str:
 class Ward:
     """Blocks Works that match any of the configured Arts/Substances."""
 
-    arts: Set[str] = field(default_factory=set)
-    substances: Set[str] = field(default_factory=set)
+    arts: set[str] = field(default_factory=set)
+    substances: set[str] = field(default_factory=set)
     _arts_normalized: frozenset[str] = field(init=False, repr=False)
     _substances_normalized: frozenset[str] = field(init=False, repr=False)
 
@@ -67,8 +68,8 @@ class Ward:
 class Counterseal:
     """Allows Works through Wards when the Art/Substance matches."""
 
-    arts: Set[str] = field(default_factory=set)
-    substances: Set[str] = field(default_factory=set)
+    arts: set[str] = field(default_factory=set)
+    substances: set[str] = field(default_factory=set)
     _arts_normalized: frozenset[str] = field(init=False, repr=False)
     _substances_normalized: frozenset[str] = field(init=False, repr=False)
 

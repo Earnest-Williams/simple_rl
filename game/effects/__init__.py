@@ -6,10 +6,12 @@ ensures that magical Works can resolve their effect functions before
 execution.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
+from magic.executor import register_handler
 
 from .handlers import ART_SUBSTANCE_DISPATCHER
-from magic.executor import register_handler
 
 
 def _adapt_handler(

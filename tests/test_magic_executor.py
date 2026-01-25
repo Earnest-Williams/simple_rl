@@ -1,6 +1,7 @@
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Sequence, Tuple
 
+from magic import executor
 from magic.executor import (
     Art,
     ExecutionResult,
@@ -9,8 +10,7 @@ from magic.executor import (
     execute_work,
     register_handler,
 )
-from magic import executor
-from magic.wards import Ward, Counterseal
+from magic.wards import Counterseal, Ward
 
 
 class _EntityRegistryStub:
@@ -36,7 +36,7 @@ class _EntityRegistryStub:
 @dataclass(frozen=True)
 class _WorkStub:
     art: object
-    substances: List[object]
+    substances: list[object]
 
 
 class DummyGameState:
@@ -79,7 +79,7 @@ class DummyGameState:
 
 def make_basic_work(**kwargs: object) -> Work:
     """Helper to create a Work with mandatory validation fields populated."""
-    defaults: Dict[str, object] = {
+    defaults: dict[str, object] = {
         "art": Art.CREATE,
         "substance": Substance.FIRE,
         "seals": ["s"],
@@ -156,7 +156,7 @@ def test_ward_blocks_with_normalized_art_and_substance_names() -> None:
 
 
 def test_friction_increases_and_triggers_thresholds(monkeypatch) -> None:
-    calls: List[str] = []
+    calls: list[str] = []
 
     def recorder(name: str) -> Callable[[Work, DummyGameState], None]:
         def _rec(work: Work, ctx: DummyGameState) -> None:
@@ -177,7 +177,7 @@ def test_friction_increases_and_triggers_thresholds(monkeypatch) -> None:
     )
     gs = DummyGameState()
 
-    frictions: List[float] = []
+    frictions: list[float] = []
     for _ in range(4):
         result: ExecutionResult = execute_work(work, gs)
         assert result.executed is True
@@ -198,7 +198,7 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch) -> None:
         {"quiver": [], "warp": [], "shiver": [], "backlash": []},
     )
 
-    events: List[str] = []
+    events: list[str] = []
     for evt in ("quiver", "warp", "shiver", "backlash"):
         executor.register_friction_callback(evt, lambda w, c, e=evt: events.append(e))
 
@@ -241,7 +241,7 @@ def test_threshold_handlers_modify_state_and_emit_events(monkeypatch) -> None:
 
 
 def test_registered_handlers_are_invoked(monkeypatch) -> None:
-    called: List[Tuple[Work, DummyGameState]] = []
+    called: list[tuple[Work, DummyGameState]] = []
     monkeypatch.setattr(executor, "EFFECT_HANDLERS", {})
 
     def handler(work: Work, state: DummyGameState) -> None:
@@ -262,6 +262,7 @@ def test_game_effects_register_existing_handlers(monkeypatch) -> None:
     monkeypatch.setattr(executor, "EFFECT_HANDLERS", {})
 
     import importlib
+
     import game.effects
 
     importlib.reload(game.effects)

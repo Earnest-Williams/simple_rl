@@ -11,21 +11,21 @@ imported a stub object is used and the related actions become no-ops. Player
 turns may still be consumed, but equipment changes and melee attacks will have
 no effect. Import failures are logged once during module initialisation.
 """
-from typing import Any, Dict, Tuple  # Added Tuple
-
 import importlib
+from typing import Any
+
 import structlog
 
 from game.effects.executor import execute_effect
-from game.entities.registry import EntityRegistry
 from game.entities.components import Position
+from game.entities.registry import EntityRegistry
 
 # Use absolute imports for game modules
 from game.game_state import GameState
 from game.items.registry import ItemRegistry
-from game.world.game_map import GameMap
 from game.systems import movement_system
 from game.systems.death_system import handle_entity_death
+from game.world.game_map import GameMap
 
 log = structlog.get_logger(__name__)
 
@@ -71,8 +71,8 @@ MAX_FALL_DEPTH: int = 20  # Max tiles to check downwards
 # --- Fall Handling Helper ---
 def _handle_fall(
     entity_id: int,
-    start_pos_h: Tuple[int, int, int],  # x, y, h
-    fall_trigger_pos: Tuple[int, int, int],  # nx, ny, nh
+    start_pos_h: tuple[int, int, int],  # x, y, h
+    fall_trigger_pos: tuple[int, int, int],  # nx, ny, nh
     gs: GameState,
     max_step: int,  # Pass max_traversable_step
 ) -> bool:
@@ -458,7 +458,7 @@ def _handle_player_drop(item_id_to_drop: int, gs: GameState) -> bool:
 
 # --- Main Action Processing Function ---
 def process_player_action(
-    action: Dict[str, Any],
+    action: dict[str, Any],
     gs: GameState,
     max_traversable_step: int,  # Pass necessary config directly
 ) -> bool:

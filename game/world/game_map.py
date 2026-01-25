@@ -1,10 +1,10 @@
 # game/world/game_map.py
-from typing import Final, NamedTuple, Set, Tuple, Dict
-
 import math
+from dataclasses import dataclass
+from typing import Final, NamedTuple
+
 import numpy as np
 import structlog
-from dataclasses import dataclass
 
 # Ensure correct import for the memory helper and visibility class
 from game.world.fov import update_memory_fade
@@ -48,17 +48,17 @@ TILE_TYPES: Final[dict[int, TileType]] = {
 }
 
 
-TILE_NAME_TO_ID: Final[Dict[str, int]] = {
+TILE_NAME_TO_ID: Final[dict[str, int]] = {
     "floor": TILE_ID_FLOOR,
     "wall": TILE_ID_WALL,
 }
 
 
 def _normalize_tile_modifier_overrides(
-    overrides: Dict[str | int, float],
-) -> Dict[int, float]:
+    overrides: dict[str | int, float],
+) -> dict[int, float]:
     """Convert user-provided keys (names or IDs) to tile ID -> modifier."""
-    normalized: Dict[int, float] = {}
+    normalized: dict[int, float] = {}
     for key, value in overrides.items():
         tile_id: int | None
         tile_id = key if isinstance(key, int) else TILE_NAME_TO_ID.get(str(key).lower())
@@ -69,7 +69,7 @@ def _normalize_tile_modifier_overrides(
 
 
 def get_memory_modifier_map(
-    tiles: np.ndarray, overrides: Dict[int, float] | None = None
+    tiles: np.ndarray, overrides: dict[int, float] | None = None
 ) -> np.ndarray:
     """Return an array of memory modifiers per tile."""
     modifiers = np.ones_like(tiles, dtype=np.float32)
@@ -106,7 +106,7 @@ class GameMap:
         self,
         width: int,
         height: int,
-        tile_memory_modifiers: Dict[str | int, float] | None = None,
+        tile_memory_modifiers: dict[str | int, float] | None = None,
     ):
         """Initializes the game map with dimensions and default tile arrays."""
         if width <= 0 or height <= 0:
@@ -126,7 +126,7 @@ class GameMap:
         # Cached transparency map
         self.transparent: np.ndarray = get_transparency_map(self.tiles)
         # Memory modifier map per tile
-        self._tile_modifier_overrides: Dict[int, float] = {}
+        self._tile_modifier_overrides: dict[int, float] = {}
         self.tile_memory_modifiers: np.ndarray = get_memory_modifier_map(self.tiles)
         if tile_memory_modifiers:
             self.apply_memory_modifier_overrides(tile_memory_modifiers)
@@ -178,7 +178,7 @@ class GameMap:
         log.info("Transparency map updated", transparent_count=transparent_count)
 
     def apply_memory_modifier_overrides(
-        self, overrides: Dict[str | int, float]
+        self, overrides: dict[str | int, float]
     ) -> None:
         """Apply designer-provided memory fade overrides per tile type."""
         self._tile_modifier_overrides = _normalize_tile_modifier_overrides(overrides)
@@ -317,7 +317,7 @@ class GameMap:
 
     def update_fov_with_tracking(
         self, x: int, y: int, radius: int
-    ) -> Set[Tuple[int, int]]:  # Use Tuple, Set imported
+    ) -> set[tuple[int, int]]:  # Use Tuple, Set imported
         """
         Updates FOV and returns a set of (x, y) coordinates where
         visibility changed (either became visible or hidden).

@@ -450,11 +450,7 @@ def _build_rivers_derived_fields_numba(
     size: int = 0
 
     for u in range(n_cells):
-        if (
-            is_river_u8[u] == 1
-            and in_deg[u] == 0
-            and flow_to_i32[u] != FLOW_SINK
-        ):
+        if is_river_u8[u] == 1 and in_deg[u] == 0 and flow_to_i32[u] != FLOW_SINK:
             key: float = float(u)
             size = heap_push(
                 heap_nodes,

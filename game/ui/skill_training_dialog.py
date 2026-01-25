@@ -290,7 +290,9 @@ class SkillTrainingDialog(QDialog):
             return
 
         # Set training mode
-        mode_text = "Manual" if training_config.mode == TrainingMode.MANUAL else "Automatic"
+        mode_text = (
+            "Manual" if training_config.mode == TrainingMode.MANUAL else "Automatic"
+        )
         self.mode_selector.setCurrentText(mode_text)
 
         # Set skill states

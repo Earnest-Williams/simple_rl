@@ -12,19 +12,17 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
-from utils.game_rng import GameRNG
 from utils.core import (
-    ToneProfile,
     Lexicon,
-    VariationEngine,
     NameGenerator,
-    record_output,
-    write_ndjson,
-    read_ndjson,
+    ToneProfile,
+    VariationEngine,
     compute_variety_metrics,
+    read_ndjson,
+    write_ndjson,
 )
+from utils.game_rng import GameRNG
 
 
 def load_lexicon_file(path: str) -> Lexicon:
@@ -212,7 +210,7 @@ def analyze_file(args) -> None:
         records = read_ndjson(path)
         variants = [r.text for r in records]
     elif path.suffix == ".json":
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
                 # List of records or strings
@@ -222,7 +220,7 @@ def analyze_file(args) -> None:
                     variants = data
     else:
         # Plain text, one per line
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             variants = [line.strip() for line in f if line.strip()]
 
     print(f"Loaded {len(variants)} variants from {path}")

@@ -1,4 +1,4 @@
-from magic.models import Art, Substance, Bounds, Flow, Work, Balances, Seals
+from magic.models import Art, Balances, Bounds, Flow, Seals, Substance, Work
 
 
 def test_calculate_effect_level_with_adjuncts_bounds_and_flow():

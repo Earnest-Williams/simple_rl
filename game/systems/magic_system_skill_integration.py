@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from skills.effects import get_magic_bonuses_dict
 from skills.models import Skill
 from skills.system import award_xp, record_skill_usage
-from skills.effects import get_magic_bonuses_dict
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
@@ -70,9 +70,7 @@ def get_spell_power_multiplier(
     skills = registry.get_skills(caster_id)
 
     spellcasting_level = (
-        skills.get(Skill.SPELLCASTING).level
-        if skills.get(Skill.SPELLCASTING)
-        else 0
+        skills.get(Skill.SPELLCASTING).level if skills.get(Skill.SPELLCASTING) else 0
     )
     school_level = skills.get(spell_school).level if skills.get(spell_school) else 0
 
@@ -105,9 +103,7 @@ def get_caster_max_mp(
     skills = registry.get_skills(caster_id)
 
     spellcasting_level = (
-        skills.get(Skill.SPELLCASTING).level
-        if skills.get(Skill.SPELLCASTING)
-        else 0
+        skills.get(Skill.SPELLCASTING).level if skills.get(Skill.SPELLCASTING) else 0
     )
     invocations_level = (
         skills.get(Skill.INVOCATIONS).level if skills.get(Skill.INVOCATIONS) else 0
