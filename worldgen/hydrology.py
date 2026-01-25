@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-from worldgen.kernels.heap import (
-    heap_decrease_key,
-    heap_pop_min,
-    heap_push,
-)
-from worldgen.kernels.union_find import uf_find, uf_init, uf_union
 from worldgen.constants import (
     FLOW_DOMAIN,
     FLOW_HEAP_JITTER_MASK,
@@ -19,6 +11,12 @@ from worldgen.constants import (
     FLOW_SINK,
     FLOW_UNRESOLVED,
 )
+from worldgen.kernels.heap import (
+    heap_decrease_key,
+    heap_pop_min,
+    heap_push,
+)
+from worldgen.kernels.union_find import uf_find, uf_init, uf_union
 from worldgen.utils_coord import coord_hash_domain
 from worldgen.validation import validate_array
 
@@ -337,7 +335,7 @@ def build_flow_direction(
 def _build_flow_accumulation_numba(
     flow_to_i32: NDArray[np.int32],
     cell_area_f32: NDArray[np.float32],
-) -> Tuple[NDArray[np.float32], int]:
+) -> tuple[NDArray[np.float32], int]:
     n_cells: int = int(flow_to_i32.shape[0])
     in_deg: NDArray[np.int32] = np.zeros(n_cells, dtype=np.int32)
     u: int
@@ -420,7 +418,7 @@ def _build_rivers_derived_fields_numba(
     cell_area_f32: NDArray[np.float32],
     min_catchment_cells: int,
     intensity_log_base: float,
-) -> Tuple[NDArray[np.uint8], NDArray[np.float32], NDArray[np.uint8]]:
+) -> tuple[NDArray[np.uint8], NDArray[np.float32], NDArray[np.uint8]]:
     n_cells: int = int(accum_f32.shape[0])
     cell_area_ref: float = float(np.median(cell_area_f32))
     threshold: float = cell_area_ref * float(min_catchment_cells)
@@ -509,7 +507,7 @@ def build_rivers_derived_fields(
     *,
     min_catchment_cells: int,
     intensity_log_base: float,
-) -> Tuple[NDArray[np.uint8], NDArray[np.float32], NDArray[np.uint8]]:
+) -> tuple[NDArray[np.uint8], NDArray[np.float32], NDArray[np.uint8]]:
     n_cells: int = int(accum_f32.shape[0])
     validate_array(accum_f32, "accum_f32", np.dtype("float32"), (n_cells,))
     validate_array(flow_to_i32, "flow_to_i32", np.dtype("int32"), (n_cells,))

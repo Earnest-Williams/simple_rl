@@ -4,7 +4,6 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import Dict, List
 
 from worldgen import build_full_world, default_world_config
 from worldgen.config import WorldConfig
@@ -13,11 +12,11 @@ from worldgen.config import WorldConfig
 def run_profile(
     out_root: Path,
     *,
-    Ns: List[int],
+    Ns: list[int],
     seed: int,
     precompile: bool,
-) -> Dict[str, Dict[str, float]]:
-    results: Dict[str, Dict[str, float]] = {}
+) -> dict[str, dict[str, float]]:
+    results: dict[str, dict[str, float]] = {}
     cfg: WorldConfig = default_world_config()
     for N in Ns:
         out_dir: Path = out_root / f"world_N{N}"
@@ -44,11 +43,11 @@ def main() -> None:
     parser.add_argument("--precompile", action="store_true")
     args: argparse.Namespace = parser.parse_args()
     out_root: Path = args.out
-    Ns: List[int] = args.Ns
+    Ns: list[int] = args.Ns
     seed_val: int = args.seed
     precompile_val: bool = args.precompile
 
-    stats: Dict[str, Dict[str, float]] = run_profile(
+    stats: dict[str, dict[str, float]] = run_profile(
         out_root,
         Ns=Ns,
         seed=seed_val,

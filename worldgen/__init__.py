@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 from numba import njit
@@ -38,17 +37,17 @@ from worldgen.constants import (
     ELEVATION_PLATE_NOISE_OCTAVES,
     ELEVATION_PLATE_NOISE_PERSISTENCE,
     ELEVATION_PLATE_NOISE_SCALE,
-    ELEVATION_ROUGHNESS_AMPLITUDE_M,
-    ELEVATION_ROUGHNESS_BASELINE,
-    ELEVATION_ROUGHNESS_EXPONENT,
     ELEVATION_ROUGH_NOISE_LACUNARITY,
     ELEVATION_ROUGH_NOISE_OCTAVES,
     ELEVATION_ROUGH_NOISE_PERSISTENCE,
     ELEVATION_ROUGH_NOISE_SCALE,
+    ELEVATION_ROUGHNESS_AMPLITUDE_M,
+    ELEVATION_ROUGHNESS_BASELINE,
+    ELEVATION_ROUGHNESS_EXPONENT,
     ELEVATION_TECTONIC_AMPLITUDE_M,
     ELEVATION_TECTONIC_EXPONENT,
-    NORMALIZE_EPS,
     NOISE_DOMAIN,
+    NORMALIZE_EPS,
     PLATE_SEED_DOMAIN,
     WIND_DOMAIN,
     WIND_JITTER_MASK,
@@ -57,28 +56,28 @@ from worldgen.constants import (
     WIND_SCORE_FLOOR,
     WIND_SIGN_LAT_FREQ,
 )
-from worldgen.kernels.advection import advect_moisture_step
-from worldgen.kernels.erosion import hydraulic_erosion_step, thermal_erosion_step
-from worldgen.kernels.noise import eval_noise_sphere
-from worldgen.kernels.smoothing import smooth_i32_nbr4
 from worldgen.hydrology import (
     build_flow_accumulation,
     build_flow_direction,
     build_rivers_derived_fields,
 )
 from worldgen.io import ensure_dir, read_layer, write_layer
+from worldgen.kernels.advection import advect_moisture_step
+from worldgen.kernels.erosion import hydraulic_erosion_step, thermal_erosion_step
+from worldgen.kernels.noise import eval_noise_sphere
+from worldgen.kernels.smoothing import smooth_i32_nbr4
 from worldgen.metadata import WorldMeta, build_world_meta, read_world_meta
 from worldgen.report import WorldGenReport, generate_report
 from worldgen.topology_cube_sphere import (
     build_cell_area,
     build_nbr_tables,
     build_pos_xyz,
+    lin_index,
 )
-from worldgen.topology_cube_sphere import lin_index
 from worldgen.utils_coord import coord_hash_domain
 from worldgen.validation import validate_array, validate_no_nan
 
-__all__: List[str] = [
+__all__: list[str] = [
     "ClimateConfig",
     "ElevationConfig",
     "HydrologyConfig",
@@ -97,7 +96,7 @@ __all__: List[str] = [
 _SEA_LEVEL_Q_DEFAULT: int = 0
 
 
-def _write_report(out_dir: Path, payload: Dict[str, object]) -> None:
+def _write_report(out_dir: Path, payload: dict[str, object]) -> None:
     path: Path = out_dir / "report.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True))
 
@@ -268,7 +267,7 @@ def build_elevation(
     if meta.world_seed != seed:
         raise ValueError("seed must match meta.json")
 
-    required_layers: Tuple[str, ...] = ("pos_xyz", "nbr4", "nbr8", "cell_area")
+    required_layers: tuple[str, ...] = ("pos_xyz", "nbr4", "nbr8", "cell_area")
     for key in required_layers:
         if key not in meta.layers:
             raise ValueError(f"{key} layer is required for elevation")
@@ -432,7 +431,7 @@ def build_climate(
     if meta.world_seed != seed:
         raise ValueError("seed must match meta.json")
 
-    required_layers: Tuple[str, ...] = ("pos_xyz", "nbr4", "cell_area", "elev_q")
+    required_layers: tuple[str, ...] = ("pos_xyz", "nbr4", "cell_area", "elev_q")
     for key in required_layers:
         if key not in meta.layers:
             raise ValueError(f"{key} layer is required for climate")
@@ -647,7 +646,7 @@ def get_chunk(
     height: int,
     margin_cells: int,
     detail_cells_per_sim: int,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     meta: WorldMeta = read_world_meta(out_dir)
     if face < 0 or face >= 6:
         raise ValueError("face must be in [0, 5]")
@@ -662,7 +661,7 @@ def get_chunk(
     if i0 + width > meta.N or j0 + height > meta.N:
         raise ValueError("chunk bounds exceed face dimensions")
 
-    required_layers: Tuple[str, ...] = (
+    required_layers: tuple[str, ...] = (
         "pos_xyz",
         "elev_q",
         "temp",
@@ -753,7 +752,7 @@ def get_chunk(
     center_lin: int = lin_index(face, center_i, center_j, meta.N)
     center_xyz: NDArray[np.float32] = pos_xyz[center_lin].astype(np.float32)
 
-    payload: Dict[str, object] = {
+    payload: dict[str, object] = {
         "request": {
             "face": face,
             "i0": i0,
@@ -794,14 +793,14 @@ def get_chunk(
 def _extract_seam_pairs(
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
     N: int,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """
     Extract pairs of cell indices that cross cube-sphere face boundaries.
     Returns a list of (u, v) tuples where u and v are on different faces.
     """
     n_cells: int = int(nbr4.shape[0])
     n_face_cells: int = N * N
-    seam_pairs: List[Tuple[int, int]] = []
+    seam_pairs: list[tuple[int, int]] = []
 
     # Determine which face each cell belongs to
     face_idx: NDArray[np.int32] = np.arange(n_cells, dtype=np.int32) // n_face_cells
@@ -822,14 +821,14 @@ def _extract_seam_pairs(
     return seam_pairs
 
 
-def _compute_report(out_dir: Path) -> Dict[str, object]:
+def _compute_report(out_dir: Path) -> dict[str, object]:
     """
     Compute the canonical report.json payload (land_fraction, quantiles, rivers).
     Delegates to worldgen.report.generate_report for consistency.
     """
     meta: WorldMeta = read_world_meta(out_dir)
 
-    required_layers: Tuple[str, ...] = (
+    required_layers: tuple[str, ...] = (
         "elev_q",
         "temp",
         "precip",
@@ -868,7 +867,7 @@ def _compute_report(out_dir: Path) -> Dict[str, object]:
     )
 
     # Extract seam pairs from nbr4
-    seam_pairs: List[Tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
+    seam_pairs: list[tuple[int, int]] = _extract_seam_pairs(nbr4_i32, meta.N)
 
     # Delegate to generate_report from worldgen.report
     # Use _SEA_LEVEL_Q_DEFAULT to match the original threshold (elev_q > 0 for land)
