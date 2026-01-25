@@ -122,3 +122,12 @@ backup.sh
 .gemini/
 !.gemini/
 !.gemini/styleguide.md
+
+# Generated test/output files
+core_test_output.json
+run_log.txt
+generated_cave_contextual.json
+processed_cave_data.json
+shaped_dungeon_map.arrow
+debug_*.png
+stitched_debug_grid.png

@@ -26,6 +26,23 @@ except ImportError:
 
 log = structlog.get_logger()
 
+
+def _is_list_dtype(dtype: pl.DataType) -> bool:
+    """
+    Helper function to check if a Polars dtype represents a list type.
+    More robust than isinstance checks against polars internals.
+    """
+    try:
+        # Check if it's a List instance
+        if isinstance(dtype, pl.List):
+            return True
+        # Check string representation as fallback
+        dtype_str = str(dtype)
+        return dtype_str.startswith("List(")
+    except Exception:
+        return False
+
+
 # ENTITY_SCHEMA
 ENTITY_SCHEMA: dict[str, pl.DataType] = {
     "entity_id": pl.UInt32,
@@ -60,6 +77,8 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
     "max_mana": pl.Float32,
     "fullness": pl.Float32,
     "max_fullness": pl.Float32,
+    "fuel": pl.Float32,
+    "max_fuel": pl.Float32,
     "equipped_item_ids": pl.List(pl.UInt64),
     "body_plan": pl.Object,
     "resistances": pl.Object,
@@ -104,12 +123,55 @@ class EntityRegistry:
         self.entities_df: pl.DataFrame = pl.DataFrame(schema=ENTITY_SCHEMA)
         self._next_entity_id: int = 0
 
+        # Migrate existing entities_df to include any new columns from ENTITY_SCHEMA
+        self._migrate_schema()
+
         # Vectorized skill system
         self.skills_df: pl.DataFrame = pl.DataFrame(schema=SKILL_TABLE_SCHEMA)
         self.use_vectorized_skills: bool = True  # Enable by default
         self._skills_lock: Lock = Lock()
 
         log.debug("EntityRegistry initialized", schema=list(ENTITY_SCHEMA.keys()))
+
+    def _migrate_schema(self: Self) -> None:
+        """
+        Migrate entities_df to include any missing columns from ENTITY_SCHEMA.
+        This ensures compatibility when loading registries created before new columns were added.
+        """
+        if self.entities_df.height == 0:
+            # Empty dataframe already has the correct schema
+            return
+
+        for col, dtype in ENTITY_SCHEMA.items():
+            if col not in self.entities_df.columns:
+                # Determine default value based on dtype
+                if dtype in (pl.Float32, pl.Float64):
+                    default = 0.0
+                elif dtype in (pl.Int16, pl.Int32, pl.Int64, pl.UInt16, pl.UInt32, pl.UInt64):
+                    default = 0
+                elif dtype == pl.Boolean:
+                    default = False
+                elif dtype == pl.Utf8:
+                    default = None
+                elif _is_list_dtype(dtype):
+                    default = []
+                elif dtype == pl.Object:
+                    default = None
+                else:
+                    default = None
+
+                # Add the missing column with default values
+                log.info(
+                    "Migrating schema: adding missing column",
+                    column=col,
+                    dtype=str(dtype),
+                    default=default,
+                )
+                # Use repeat for better performance on large DataFrames
+                default_series = pl.Series([default]).repeat(self.entities_df.height).cast(dtype)
+                self.entities_df = self.entities_df.with_columns(
+                    default_series.alias(col)
+                )
 
     def _get_next_id(self: Self) -> int:
         # (Implementation unchanged)
@@ -147,6 +209,8 @@ class EntityRegistry:
         max_mana: float = 0.0,
         fullness: float = 100.0,
         max_fullness: float = 100.0,
+        fuel: float = 0.0,
+        max_fuel: float = 0.0,
         status_effects: list | None = None,
         initial_body_plan: Dict[str, int] | None = None,
         resistances: Dict[str, float] | None = None,
@@ -227,6 +291,8 @@ class EntityRegistry:
             "max_mana": [max_mana],
             "fullness": [fullness],
             "max_fullness": [max_fullness],
+            "fuel": [fuel],
+            "max_fuel": [max_fuel],
             "equipped_item_ids": [[]],
             "body_plan": [body_plan],
             "resistances": [resistances if resistances is not None else {}],
@@ -302,7 +368,7 @@ class EntityRegistry:
             target_dtype = ENTITY_SCHEMA[component_name]
 
             # Extract value, handling List types specifically
-            if isinstance(target_dtype, pl.List):
+            if _is_list_dtype(target_dtype):
                 # For list types, accessing the first element of the Series
                 # and then converting to list should yield the Python list.
                 # Polars Series.item() often returns the first element directly.
