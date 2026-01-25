@@ -105,24 +105,17 @@ If you need to run these for debugging or legacy testing, you can run them from 
    python orchestrator.py
    ```
 
-### Testing Components
+### Development Harnesses
 
-Different components have dedicated test harnesses for development:
+Different components have dedicated development harnesses:
 
 * **Dungeon Generation:** `cd Dungeon && ./run.sh`
-* **GOAP AI Testing (Headless):** `cd auto && ./run.sh --mode headless`
-* **GOAP AI Testing (GUI):** `cd auto && ./run.sh --mode gui`
+* **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
+* **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
-* **Perception Testbed:** `cd pathfinding && python test.py`
-* **Legacy GUI:** `python legacy/simple_rl.py` (maintained for scripting_engine.py testing)
+* **Legacy GUI:** `python legacy/simple_rl.py` (maintained for scripting_engine.py development)
 
-### Running Tests
-
-```bash
-pytest
-```
-
-Tests cover pathfinding, effects, perception, inventory, AI, and other core systems. Refer to individual component READMEs for specific requirements and usage details.
+Refer to individual component READMEs for specific requirements and usage details.
 
 ## Performance & Known Issues
 

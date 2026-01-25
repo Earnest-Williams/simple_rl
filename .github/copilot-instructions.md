@@ -51,35 +51,27 @@ Simple RL is a simulation-heavy roguelike/RPG research project focused on comple
 - **`game/`**: Main game engine and systems
 - **`utils/`**: Shared utilities including `GameRNG` (deterministic RNG)
 - **`scripting_engine.py`**: Macro expansion and Brainfuck interpreter for spell system
-- **`tests/`**: pytest-based test suite
 
 ### Vestigial Components
 - **`simple_rl.py`**: Legacy PySide6 GUI, superseded by newer components
 - **`dungeon_generator.py`**: Simple room-and-corridor generator for legacy GUI
 
-These are maintained primarily for testing `scripting_engine.py`.
+These are maintained primarily for development of `scripting_engine.py`.
 
 ## Development Workflow
-
-### Testing
-- Run tests with `pytest` before submitting changes
-- Add tests for new features when feasible
-- Tests cover pathfinding, effects, perception, inventory, AI, and other core systems
-- Use fixtures from `tests/conftest.py` for common test setup
 
 ### Running Components
 - Dungeon generation: `cd Dungeon && ./run.sh`
 - GOAP AI (headless): `cd auto && ./run.sh --mode headless`
 - GOAP AI (GUI): `cd auto && ./run.sh --mode gui`
-- Lighting/FOV testbed: `cd lights_dev && python main_game.py`
-- Perception testbed: `cd pathfinding && python test.py`
+- Lighting/FOV development: `cd lights_dev && python main_game.py`
 - Legacy GUI: `python simple_rl.py` or `python main.py` (via orchestrator)
 
 ### Dependencies
 - Python 3.11+ required
 - Core dependencies in `pyproject.toml`: numpy, polars, numba, scipy, scikit-image, joblib, PySide6, pygame
 - Install with: `pip install -e .` or `pip install -r requirements.txt`
-- Dev dependencies: pytest, mypy, black
+- Dev dependencies: mypy, black, ruff
 
 ## AI Systems
 
@@ -197,5 +189,4 @@ When working on this project, consider:
 - Is this performance-critical? (Consider Numba, vectorization, or Polars)
 - Are all types explicit and correct?
 - Does this follow the project's architectural patterns?
-- Are there relevant tests to update or add?
 - Is the documentation current?

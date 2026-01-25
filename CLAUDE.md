@@ -125,19 +125,13 @@ AGENT_TIMEOUTS: Final[Mapping[str, float]] = MappingProxyType({"claude": 1.5})
 * Keep changes focused and well documented.
 * Reuse helper functions and existing patterns where possible.
 
-### 3.2 Tests
-
-* Run `pytest` before submitting changes.
-* Add tests for new features when feasible.
-* Verify deterministic behavior with fixed RNG seeds where applicable.
-
-### 3.3 Performance work
+### 3.2 Performance work
 
 * For performance-critical changes, profile before and after (e.g. `cProfile`).
 * Confirm Numba compilation and correctness.
 * Test with realistic dataset sizes (e.g., large maps, 100+ entities).
 
-### 3.4 Documentation
+### 3.3 Documentation
 
 * When adding or changing behavior, update relevant docs in `docs/` and
   component README files.

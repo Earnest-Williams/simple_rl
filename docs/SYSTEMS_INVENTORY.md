@@ -411,8 +411,8 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 - **Very High Sophistication Systems:** 4 (Perception, AI, GameRNG, FOV/Visibility)
 - **High Sophistication Systems:** 5 (Flow Field, Lighting, Magic/Effects, Entity/Component, Rendering)
 - **Fully Integrated Systems:** 16+
-- **R&D Systems (Not Integrated):** 2 (Community NPC AI, Lighting Testbed)
-- **Test/Tuning Environments:** 1 (GOAP auto/ directory - core already integrated)
+- **R&D Systems (Not Integrated):** 2 (Community NPC AI, Lighting Research)
+- **Development/Tuning Environments:** 1 (GOAP auto/ directory - core already integrated)
 
 ---
 
@@ -442,13 +442,12 @@ See `PERFORMANCE_ANALYSIS.md` for detailed recommendations:
 6. Implement frame rate limiting and dirty rect tracking
 7. Cache flow fields and frequently accessed data
 
-### Priority 4: Testing & Quality
-1. Add tests for 3D dungeon generator
-2. Test perception flow fields with different configurations
+### Priority 4: Quality & Validation
+1. Validate 3D dungeon generator output
+2. Verify perception flow fields with different configurations
 3. Validate GOAP planner behavior
-4. Add performance regression tests
-5. Profile Numba-accelerated functions
-6. Validate Polars DataFrame operations
+4. Profile Numba-accelerated functions
+5. Validate Polars DataFrame operations
 
 ---
 
@@ -573,18 +572,18 @@ Spell Definition (magic/work parser)
 - Root implementation: `/home/user/simple_rl/game_rng.py` (18K, full implementation)
 - Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
 
-#### 2. lights_dev/ Testbed is Non-Deterministic ⚠️
+#### 2. lights_dev/ Development Environment is Non-Deterministic ⚠️
 
-**Status:** The `lights_dev/` R&D testbed creates simple test maps programmatically for testing lighting and FOV algorithms.
+**Status:** The `lights_dev/` R&D environment creates simple maps programmatically for developing lighting and FOV algorithms.
 
-**Location:** `lights_dev/` development testbed
+**Location:** `lights_dev/` development environment
 
 **Impact:**
-- Simple test maps are sufficient for FOV/lighting algorithm testing
-- For complex dungeon testing, the production `Dungeon/` pipeline should be used
-- Testbed focuses on rendering algorithms, not dungeon generation
+- Simple maps are sufficient for FOV/lighting algorithm development
+- For complex dungeon development, the production `Dungeon/` pipeline should be used
+- Development environment focuses on rendering algorithms, not dungeon generation
 
-**Note:** This is a non-issue as the testbed's focus is on lighting/FOV/memory systems, not dungeon generation. The production `Dungeon/` pipeline at the repository root uses GameRNG for deterministic generation.
+**Note:** This is a non-issue as the development environment's focus is on lighting/FOV/memory systems, not dungeon generation. The production `Dungeon/` pipeline at the repository root uses GameRNG for deterministic generation.
 
 ---
 
@@ -627,11 +626,11 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ---
 
-### 2. Lighting/FOV/Memory R&D Testbed ❌ NOT INTEGRATED
+### 2. Lighting/FOV/Memory R&D Environment ❌ NOT INTEGRATED
 
 **Location:** `lights_dev/` directory
 
-**Purpose:** R&D testbed for advanced visual and memory systems
+**Purpose:** R&D environment for advanced visual and memory systems
 
 **Sophistication:** High
 - Octant-based shadowcasting FOV (Numba-accelerated)
@@ -647,7 +646,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - 🔄 **May combine** with pathfinding/perception systems
 
 **Files:**
-- `main_game.py` - Standalone test environment with FOV/lighting algorithms
+- `main_game.py` - Standalone development environment with FOV/lighting algorithms
 - `dungeon_data.py` - Numba jitclass for high-performance grids
 - `constants.py` - R&D-specific constants
 
@@ -664,7 +663,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 **Location:** `auto/` directory
 
-**Purpose:** Development/testing environment for Goal-Oriented Action Planning AI
+**Purpose:** Development and tuning environment for Goal-Oriented Action Planning AI
 
 **Sophistication:** High
 - Complete GOAP implementation with A* planning
@@ -675,15 +674,15 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - PySide6 GUI for visualization/debugging
 
 **Status:**
-- ⚠️ **Development environment** - testing GOAP AI
+- ⚠️ **Development environment** - tuning GOAP AI
 - ✅ **Core GOAP Fully Integrated** - game/ai/goap.py is production code
 - ✅ **Adapter Integrated** - game/ai/goap_adapter.py connects to main game
-- ❌ **Standalone simulation separate** - auto/simulation.py is test environment only
+- ❌ **Standalone simulation separate** - auto/simulation.py is development environment only
 - ❌ **GUI for development only** - auto/gui/ not for gameplay
 
 **Files:**
 - `goap_engine.py` - Core GOAP planner (extracted to game/ai/)
-- `simulation.py` - Standalone world simulation (test environment)
+- `simulation.py` - Standalone world simulation (development environment)
 - `main.py` - Headless runner with multiprocessing
 - `gui/` - PySide6 visualization tool
 - `run.sh` - Execution wrapper
@@ -692,14 +691,14 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - ✅ **GOAP Planner:** Fully integrated in game/ai/goap.py
 - ✅ **AI Strategy:** Fully integrated in game/ai/strategy.py
 - ✅ **Adapter:** game/ai/goap_adapter.py connects game state to GOAP
-- ❌ **Standalone simulation:** auto/simulation.py is separate test environment
+- ❌ **Standalone simulation:** auto/simulation.py is separate development environment
 - ❌ **GUI:** auto/gui/ is development-only, not for gameplay
 
-**Use Case:** 
+**Use Case:**
 - Core GOAP drives NPC/monster decision making in production
-- auto/ environment used for training, tuning, and testing new behaviors
+- auto/ environment used for training, tuning, and developing new behaviors
 
-**Note:** The core GOAP AI is **fully integrated**. The auto/ directory serves as a **testing and tuning environment** for the AI before deploying changes to the main game.
+**Note:** The core GOAP AI is **fully integrated**. The auto/ directory serves as a **development and tuning environment** for the AI before deploying changes to the main game.
 
 ---
 
@@ -713,7 +712,6 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - `game/game_state.py`
 - `engine/main_loop.py`
 - `auto/main.py`
-- `tests/test_zone_manager.py`
 
 **Purpose:** Zone-based world management (integrated successfully)
 
@@ -739,8 +737,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 │   └── window_manager_modules/
 ├── pathfinding/             # Perception & pathfinding (INTEGRATED)
 │   ├── perception_systems.py  # Sound/smell flow fields
-│   ├── flowfield.py           # Flow field pathfinding
-│   └── test.py
+│   └── flowfield.py           # Flow field pathfinding
 ├── Dungeon/                 # 3D dungeon generator (INTEGRATED)
 │   ├── core.py              # CaveGenerator
 │   ├── processor.py         # Geometry processing
@@ -755,7 +752,6 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ├── common/                  # Common utilities
 ├── config/                  # Configuration files
 ├── data/                    # Game data
-├── tests/                   # Test suite
 └── game_rng.py              # Central RNG (root level)
 ```
 
@@ -765,13 +761,13 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ├── ai/                      # Community NPC AI (NOT INTEGRATED)
 │   ├── v9.py                # Advanced trait-based NPC AI
 │   └── README.md
-├── auto/                    # GOAP testing environment (NOT INTEGRATED)
-│   ├── simulation.py        # Test world
+├── auto/                    # GOAP development environment (NOT INTEGRATED)
+│   ├── simulation.py        # Development world
 │   ├── main.py              # Headless runner
 │   ├── gui/                 # Visualization tool
 │   └── README.md
-├── lights_dev/              # Lighting R&D testbed (NOT INTEGRATED)
-│   ├── main_game.py         # Standalone test environment
+├── lights_dev/              # Lighting R&D environment (NOT INTEGRATED)
+│   ├── main_game.py         # Standalone development environment
 │   ├── dungeon_data.py      # Numba jitclass
 │   └── README.md
 ```

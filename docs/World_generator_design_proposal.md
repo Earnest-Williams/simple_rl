@@ -362,7 +362,7 @@ This section captures the constraints that directly shape module design.
 ### Practical Workflow Rules
 
 1. Keep diffs tight and well documented.
-2. Add tests where feasible, including determinism tests with fixed seeds.
+2. Verify determinism where feasible using fixed seeds.
 
 ---
 
@@ -408,13 +408,7 @@ simple_rl/
 │ └── chunk_gen.py
 ├── biome.py
 ├── visualization.py # matplotlib / mini-web viewer helpers
-├── report.py # diagnostics + report.json writer
-└── tests/
-├── test_topology.py
-├── test_coord_hash.py
-├── test_flow_direction.py
-├── test_kernels.py
-└── test_small_pipeline.py
+└── report.py # diagnostics + report.json writer
 ```
 
 ### Config Conventions
@@ -2631,7 +2625,7 @@ def generate_report(
 
 15. **CLI** + **visualization** + **diagnostics**.
 
-16. **CI**: unit tests + small-`N` determinism job (`N=64` or `N=128`).
+16. **CI**: linting, type checking, and small-`N` determinism validation (`N=64` or `N=128`).
 
 ---
 
@@ -2652,12 +2646,12 @@ def generate_report(
 1. ☐ Add the `worldgen/` package with skeleton modules.
 2. ☐ Implement reference Numba kernels in `kernels/` subpackage.
 3. ☐ Implement `utils_coord.coord_hash`, `hash01_domain`, and `game_rng.GameRNG`.
-4. ☐ Implement `topology_cube_sphere.build_nbr_tables` plus tests.
+4. ☐ Implement `topology_cube_sphere.build_nbr_tables` with validation.
 5. ☐ Implement atomic layer I/O and metadata helpers with two-tier hashing.
 6. ☐ Implement elevation pipeline with Stage H2 erosion.
 7. ☐ Implement climate with polar wind handling and two-phase advection.
 8. ☐ Implement hydrology with indexed heap and fixed Strahler semantics.
-9. ☐ Add unit tests and CI determinism pipeline.
+9. ☐ Add validation checks and CI determinism pipeline.
 10. ☐ Generate `report.json` with all required diagnostics.
 11. ☐ Document the exact `meta.json` schema in repo README.
 12. ☐ Add CLI entrypoints and visualization workflow.
@@ -2679,8 +2673,8 @@ Publish a pinned runtime matrix (for example supported CPU architectures, Python
 ### For critical operations, provide integer/quantized fallbacks or exact integer algorithms
 Extend the quantized-elevation pattern to other continuous fields used in reductions or thresholds by specifying fixed-point representations and explicit scaling factors so rounding is consistent and deterministic. For accumulation and reduction algorithms (moisture transport, discharge accumulation, talus redistribution) provide integer arithmetic reference implementations with defined rounding rules and fixed-point multipliers, and prefer two-phase delta accumulation or pairwise deterministic combine trees for parallel reductions. For noise and random-domain conversions prefer lattice/hash-based integer noise or a deterministic integer-to-float bit-extraction method to produce `[0,1)` values, and document exact bit-level conversions so all platforms yield identical results. Finally, require integer-only core steps for graph algorithms (union-find, Strahler order) with deterministic tie-breakers (for example by `lin`) and include pseudo-code for the integer variants.
 
-### Add a CI/regression plan and canonical test vectors (high priority)
-Provide a CI job that runs on the pinned Docker image and verifies a small suite of canonical seeds; each CI run should execute the global simulation and a set of chunk generations and assert SHA-256 checksums for `report.json` and one or more golden chunk blobs. Publish a minimal golden dataset in the repository (a tiny planet plus 4–8 golden chunks and the corresponding `report.json`) and gate merges on strict bitwise equality for those golden artifacts; allow an opt-in numeric-tolerance mode only for exploratory branches. Add cross-platform smoke tests (Linux x86_64, Linux arm64, and where feasible macOS) and a nightly job that runs larger seeds to detect performance and seam-continuity regressions early. Document how to reproduce CI failures locally and require that any intentional change to canonical outputs be accompanied by a reviewed update to the golden dataset.
+### Add a CI/regression plan and canonical reference vectors (high priority)
+Provide a CI job that runs on the pinned Docker image and verifies a small suite of canonical seeds; each CI run should execute the global simulation and a set of chunk generations and assert SHA-256 checksums for `report.json` and one or more golden chunk blobs. Publish a minimal golden dataset in the repository (a tiny planet plus 4–8 golden chunks and the corresponding `report.json`) and gate merges on strict bitwise equality for those golden artifacts; allow an opt-in numeric-tolerance mode only for exploratory branches. Add cross-platform validation (Linux x86_64, Linux arm64, and where feasible macOS) and a nightly job that runs larger seeds to detect performance and seam-continuity regressions early. Document how to reproduce CI failures locally and require that any intentional change to canonical outputs be accompanied by a reviewed update to the golden dataset.
 
 ### Specify performance/scale targets (medium priority)
 Provide at least one reference configuration to guide capacity planning: for example a “large” target with `facesize = 4096` (≈100M cells across six faces), default chunk `64×64`, an estimated worst-case global simulation memory footprint of 12–16 GiB, and a warm-cache chunk generator memory footprint of 64–256 MiB per generator. Define latency SLOs for interactive use such as: cold-cache 64×64 chunk generation ≤ 500 ms on a modern 8-core CPU and warm-cache generation < 150 ms, and define a batch throughput goal such as ~1M cells/sec on an 8-core node as an initial target. Provide microbenchmark harnesses and instructions to measure per-cell pipeline time, chunk latency, and peak memory for a given facesize so teams can extrapolate to different hardware. Finally, include guidance that enumerates trade-offs (reduce `facesize`, change `chunk_w`, or apply stage approximations) and their expected effects on latency and memory.
