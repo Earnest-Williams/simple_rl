@@ -94,7 +94,7 @@ class ColorButton(QPushButton):
         text_color = "black" if luminance > 0.5 else "white"
         self.setStyleSheet(
             f"background-color: rgb({r}, {g}, {b}); color: {text_color}; "
-            f"border: 1px solid #555;"
+            "border: 1px solid #555;"
         )
         self.setText(f"#{r:02x}{g:02x}{b:02x}")
 
