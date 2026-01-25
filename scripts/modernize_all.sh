@@ -10,9 +10,7 @@ git checkout -b "$BRANCH"
 
 echo "Ensure dev tools are installed..."
 python -m pip install --upgrade pip
-# If pyproject has pyupgrade in dev extras, `pip install -e ".[dev]"` is fine.
-# Otherwise install minimal tools explicitly:
-pip install pyupgrade==3.4.1 ruff==0.1.14 black==24.1.0 mypy==1.8.0 pytest
+pip install -e ".[dev]"
 
 echo "Running pyupgrade..."
 pyupgrade --py311-plus -r .

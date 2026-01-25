@@ -11,8 +11,13 @@ from typing import Final
 ROOT: Final[Path] = Path(".")
 EXCLUDE_PARTS: Final[set[str]] = {".venv", "venv", "build", "dist", ".git", "__pycache__"}
 PATTERNS: Final[list[re.Pattern[str]]] = [
-    re.compile(r"from\s+typing\s+import\s+.*\b(List|Dict|Tuple|Set|FrozenSet|Deque)\b"),
-    re.compile(r"\btyping\.(List|Dict|Tuple|Set|FrozenSet|Deque)\b"),
+    re.compile(
+        r"from\s+typing\s+import\s+.*\b"
+        r"(List|Dict|Tuple|Set|FrozenSet|Deque|DefaultDict|OrderedDict)\b"
+    ),
+    re.compile(
+        r"\btyping\.(List|Dict|Tuple|Set|FrozenSet|Deque|DefaultDict|OrderedDict)\b"
+    ),
 ]
 
 
