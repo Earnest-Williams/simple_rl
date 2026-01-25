@@ -25,15 +25,12 @@ except ImportError:
 try:
     from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 except ImportError:
-    try:
-        from basicrl.game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
-    except ImportError:
-        GameMap = object  # type: ignore
-        TILE_ID_FLOOR = 0  # type: ignore
-        TILE_ID_WALL = 1  # type: ignore
-        structlog.get_logger().error(
-            "CRITICAL: Failed to import tile IDs in render_lighting."
-        )
+    GameMap = object  # type: ignore
+    TILE_ID_FLOOR = 0  # type: ignore
+    TILE_ID_WALL = 1  # type: ignore
+    structlog.get_logger().error(
+        "CRITICAL: Failed to import tile IDs in render_lighting."
+    )
 
 try:
     from utils.game_rng import GameRNG

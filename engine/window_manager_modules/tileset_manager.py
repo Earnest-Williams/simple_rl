@@ -30,11 +30,8 @@ from engine.tileset_loader import load_tiles
 try:
     from game.world.game_map import TILE_TYPES
 except ImportError:
-    try:
-        from basicrl.game.world.game_map import TILE_TYPES
-    except ImportError:
-        TILE_TYPES = {}
-        structlog.get_logger().error("Could not import TILE_TYPES for TilesetManager.")
+    TILE_TYPES = {}
+    structlog.get_logger().error("Could not import TILE_TYPES for TilesetManager.")
 
 log = structlog.get_logger(__name__)
 
