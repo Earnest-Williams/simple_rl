@@ -51,6 +51,9 @@ DEFAULT_TILE_SIZE: Final[int] = 16
 MIN_TILE_SIZE: Final[int] = 8
 MAX_TILE_SIZE: Final[int] = 32
 
+# Lighting constants
+LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = 0.0  # Light factor for tiles outside player's field of view
+
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
     "blank_tile_a": 13,
@@ -620,7 +623,7 @@ class LightingFovToolWindow(QMainWindow):
                     light_factor = lighting[y, x]
                 else:
                     # Tiles outside FOV are dark
-                    light_factor = 0.0
+                    light_factor = LIGHT_FACTOR_OUTSIDE_FOV
 
                 fg_lit = (fg_color * light_factor).clip(0, 255).astype(np.uint8)
                 bg_lit = (bg_color * light_factor).clip(0, 255).astype(np.uint8)
