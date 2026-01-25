@@ -522,31 +522,33 @@ Possible extensions:
 
 ---
 
-## Testing
+## Usage Examples
 
 ```python
-# Test manuals
+# Using manuals
 consume_manual(registry, entity_id, Skill.FIGHTING, 150)
-assert has_active_manual(registry, entity_id, Skill.FIGHTING)
+# Check if manual is active
+if has_active_manual(registry, entity_id, Skill.FIGHTING):
+    print("Manual active")
 
-# Test forms
+# Using forms
 shift_form(registry, entity_id, "beast")
 level = get_effective_skill_level(registry, entity_id, Skill.UNARMED_COMBAT)
-assert level == base_level + 5
+# Beast form adds +5 to unarmed combat
 
-# Test prerequisites
+# Checking prerequisites
 can_train = can_train_skill(registry, entity_id, Skill.FIRE_MAGIC)
-assert can_train == (spellcasting_level >= 3)
+# Returns true if spellcasting_level >= 3
 
-# Test milestones
+# Checking milestones
 abilities = get_unlocked_abilities(registry, entity_id)
-assert has_ability(registry, entity_id, "Cleave") == (fighting_level >= 10)
+# Check if entity has Cleave ability (requires fighting >= 10)
+has_cleave = has_ability(registry, entity_id, "Cleave")
 
-# Test synergies
+# Checking synergies
 synergies = get_active_synergies(registry, entity_id)
-assert has_synergy(registry, entity_id, Skill.FIGHTING, Skill.ARMOUR) == (
-    fighting_level >= 10 and armour_level >= 10
-)
+# Check if Fighting + Armour synergy is active (both skills >= 10)
+has_warrior_synergy = has_synergy(registry, entity_id, Skill.FIGHTING, Skill.ARMOUR)
 ```
 
 ---

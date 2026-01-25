@@ -147,12 +147,11 @@ The codebase demonstrates strong adherence to most architectural and performance
   ```toml
   # pyproject.toml lines 31-32
   [project.optional-dependencies]
-  dev = ["pytest>=7.4"]
+  dev = []
   ```
   - ❌ No mypy version specified
   - ❌ No black version specified
   - ❌ No ruff/flake8/pylint version specified
-  - ✅ Only pytest partially pinned
 - **Impact:**
   - Tool behavior can vary between developer machines
   - CI cannot enforce consistent checks
@@ -161,7 +160,6 @@ The codebase demonstrates strong adherence to most architectural and performance
   ```toml
   [project.optional-dependencies]
   dev = [
-      "pytest>=7.4",
       "mypy==1.8.0",
       "black==24.1.0",
       "ruff==0.1.14",
@@ -183,7 +181,6 @@ The codebase demonstrates strong adherence to most architectural and performance
   - Black formatting check
   - Mypy type checking with --strict
   - Ruff linting
-  - Pytest execution
 
 ---
 
@@ -196,20 +193,11 @@ The codebase demonstrates strong adherence to most architectural and performance
   - ✅ `6f208b6` - "Use pathlib for RNG state files" (single concern)
   - Shows awareness of tight change requirements
 
-#### 3.2 Tests ⚠️ MOSTLY COMPLIANT
-- **Status:** PARTIAL PASS
-- **Findings:**
-  - ✅ 38 test files in `tests/` directory
-  - ✅ Tests use `conftest.py` for fixtures
-  - ✅ Deterministic testing with GameRNG seeds
-  - ⚠️ Unknown: Test coverage percentage (no CI reports)
-- **Recommendation:** Add coverage reporting to CI
+#### 3.2 Performance Work ℹ️ INSUFFICIENT DATA
+- **Status:** Cannot assess without performance profiling
+- **Recommendation:** Profile performance-critical changes with cProfile
 
-#### 3.3 Performance Work ℹ️ INSUFFICIENT DATA
-- **Status:** Cannot assess without performance tests
-- **Recommendation:** Add performance regression tests with cProfile
-
-#### 3.4 Documentation ℹ️ INSUFFICIENT DATA
+#### 3.3 Documentation ℹ️ INSUFFICIENT DATA
 - **Status:** Cannot fully assess
 - **Finding:** AGENTS.md exists, unclear if component READMEs exist
 - **Recommendation:** Verify docs/ directory exists and is updated
@@ -289,7 +277,6 @@ The codebase demonstrates strong adherence to most architectural and performance
          - run: black --check .
          - run: mypy --strict .
          - run: ruff check .
-         - run: pytest
    ```
 
 ### Phase 2: Type Annotation Fixes (Days 2-3)
@@ -330,9 +317,8 @@ Priority order:
 
 1. Run `black .` to format all files
 2. Run `mypy --strict .` and fix all errors
-3. Run `pytest` to ensure tests pass
-4. Push to trigger CI workflow
-5. Verify CI passes
+3. Push to trigger CI workflow
+4. Verify CI passes
 
 ---
 

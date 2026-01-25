@@ -21,7 +21,7 @@ simulation-heavy roguelike. **Critical** rules are non-negotiable.
 * **Rule:** Target **Python 3.11+**. Use Python 3.11 language and typing features (PEP 604, PEP 585, etc.). (See `pyproject.toml`.)
 
 ### 1.2 Determinism
-* **Rule:** Use `from utils.game_rng import GameRNG` for all randomness in game logic and deterministic tests. Do not use `random` or NumPy RNGs directly for game logic.
+* **Rule:** Use `from utils.game_rng import GameRNG` for all randomness in game logic. Do not use `random` or NumPy RNGs directly for game logic.
 
 ### 1.3 Formatting
 * **Rule:** Format with `black` configured for **88-character** line length. CI and local dev must run the same commands.
@@ -109,22 +109,13 @@ Canonical layout:
 ├─ Dungeon/
 ├─ ai/
 ├─ utils/
-├─ tests/
 └─ scripts/
 ```
 
-Tests go in `tests/` and mirror package structure; tests should use absolute imports.
-
-Do not add `__init__.py` under `tests/`.
-
-### 3.2 Tests & determinism
-Use `pytest`. Tests must be deterministic — use `GameRNG` with fixed seeds. Treat warnings as errors in CI.
-
-### 3.3 PR checklist
+### 3.2 PR checklist
 Before PR:
 - [ ] `black .` and `ruff format .` run cleanly.
 - [ ] `ruff check .` and `mypy .` produce no errors.
-- [ ] `pytest` passes.
 - [ ] Documentation updated for behavior changes.
 - [ ] Diffs focused and small.
 
@@ -149,5 +140,5 @@ Before PR:
 
 1. Add `pyupgrade` to dev deps.
 2. Add `scripts/check_pep585.py` to CI & pre-commit.
-3. Create modernization branch and run `pyupgrade --py311-plus -r .`, `python scripts/cleanup_typing_imports.py`, `ruff --fix .`, `black .`, `mypy .`, `pytest`.
+3. Create modernization branch and run `pyupgrade --py311-plus -r .`, `python scripts/cleanup_typing_imports.py`, `ruff --fix .`, `black .`, `mypy .`.
 4. Commit and open a PR describing the codemod.

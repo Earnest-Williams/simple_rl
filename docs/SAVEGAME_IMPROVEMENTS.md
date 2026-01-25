@@ -142,29 +142,16 @@ Requires conda/mamba environment:
 # Activate environment
 mamba activate simple_rl  # or: conda activate simple_rl
 
-# Run all tests
-pytest tests/test_savegame.py -v
-
-# Run specific test class
-pytest tests/test_savegame.py::TestRoundTripSerialization -v
-
-# Run with coverage
-pytest tests/test_savegame.py --cov=utils.savegame --cov-report=html
+# Verify by running the game
+python main.py
 ```
 
-### Option 2: Standalone Verification
-
-Quick verification without pytest:
-
-```bash
-python test_savegame_standalone.py
-```
-
-This runs a subset of critical tests to verify:
-1. Lists stay as lists
-2. Arrays stay as arrays
-3. Error handling works
-4. Full save/load cycle works
+Manual verification should check:
+1. Save game functionality works correctly
+2. Load game restores state properly
+3. Lists are preserved as lists
+4. Arrays are preserved as arrays
+5. Error handling works as expected
 
 ## Performance Comparison
 
@@ -255,21 +242,15 @@ All code changes have been:
 
 To verify improvements:
 
+Verification can be performed by running the main game and exercising save/load functionality:
 ```bash
-# Quick check
-python test_savegame_standalone.py
-
-# Full test suite
-pytest tests/test_savegame.py -v
+python main.py
 ```
 
-Expected output:
-```
-✓ Lists correctly preserved
-✓ Arrays correctly preserved with proper dtypes
-✓ Proper error raised for unserializable object
-✓ Tuples correctly preserved
-✓ Full round-trip successful with correct types
-✓ Clear error message for invalid IPC
-ALL TESTS PASSED!
-```
+Expected behavior:
+- Lists correctly preserved
+- Arrays correctly preserved with proper dtypes
+- Proper error raised for unserializable object
+- Tuples correctly preserved
+- Full round-trip successful with correct types
+- Clear error message for invalid IPC

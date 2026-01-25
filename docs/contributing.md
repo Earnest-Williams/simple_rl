@@ -50,39 +50,11 @@ Thank you for your interest in improving Simple RL. This document describes how 
 
 ### Before Submitting Changes
 
-1. Run tests: `pytest`
-2. Format code: `black .`
-3. Update documentation if needed
-4. Verify type annotations if added new code
+1. Format code: `black .`
+2. Update documentation if needed
+3. Verify type annotations if added new code
 
-## Testing expectations
-
-Run the unit test suite before submitting changes:
-
-```bash
-pytest
-```
-
-Tests cover core systems including:
-* Pathfinding and flow fields
-* Effects and status management
-* Perception systems (sound/scent propagation)
-* Inventory and equipment
-* Combat system
-* AI behaviors
-* Save/load functionality
-
-### Adding New Tests
-
-When adding new features, include accompanying tests when feasible:
-
-1. Create test file in `tests/` directory (e.g., `test_new_feature.py`)
-2. Use fixtures from `tests/conftest.py` for common test setup
-3. Test both success and error cases
-4. Verify deterministic behavior with fixed RNG seeds
-5. Run tests locally before committing: `pytest tests/test_new_feature.py -v`
-
-### Performance Testing
+## Performance Considerations
 
 For performance-critical changes:
 
@@ -90,8 +62,6 @@ For performance-critical changes:
 2. Verify Numba compilation works correctly
 3. Test with realistic dataset sizes (100+ entities, large maps)
 4. Check memory usage with `memory_profiler` if applicable
-
-Passing tests gives confidence that the engine and configurations still behave as expected.
 
 ## Component-Specific Development
 

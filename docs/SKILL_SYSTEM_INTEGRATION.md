@@ -152,7 +152,7 @@ Created comprehensive skill UI with:
 **Example Output:**
 ```
 ============================================================
-Skills for Test Hero
+Skills for Example Hero
 ============================================================
 
 Training Mode: Manual
@@ -255,9 +255,9 @@ summary = get_skill_summary(registry, player_id, max_skills=3)
 
 ---
 
-## Testing
+## Verification
 
-### Manual Test (Quick Verification)
+### Manual Verification (Quick Check)
 
 ```python
 from game.entities.registry import EntityRegistry
@@ -270,7 +270,7 @@ registry = EntityRegistry()
 entity_id = registry.create_entity(
     x=10, y=10, glyph=64,
     color_fg=(255,255,255),
-    name="Test Hero",
+    name="Example Hero",
     hp=100, max_hp=100
 )
 
@@ -284,16 +284,6 @@ print(f"Level ups: {level_ups}")
 # View skills
 print_skill_screen(registry, entity_id)
 ```
-
-### Automated Tests
-
-Run existing skill system tests:
-```bash
-pytest skills/test_skills.py -v
-pytest skills/test_parity.py -v
-```
-
-All tests should pass with the integration.
 
 ---
 

@@ -117,12 +117,12 @@ To introduce a new generation algorithm:
 
 Generators should output data structures compatible with `game/world/game_map.py` so that entities and items can be placed on the resulting map.
 
-## Testing mods
+## Verifying mods
 
-After editing configuration or adding code, run the game's unit tests to ensure nothing regresses:
+After editing configuration or adding code, verify your changes by running the game:
 
 ```bash
-pytest
+python main.py
 ```
 
-Testing early helps catch schema mistakes or Python errors before launching the game.
+Early verification helps catch schema mistakes or Python errors before extensive gameplay.
