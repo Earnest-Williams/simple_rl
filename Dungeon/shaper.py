@@ -1,6 +1,7 @@
 # Dungeon/shaper.py - Revised for main.py orchestration & GameRNG
 
 import math
+import sys
 
 # Removed 'random' import
 import time
@@ -865,15 +866,19 @@ def _run_ca_step_numpy(grid: np.ndarray) -> np.ndarray:
 
             # Apply CA rules
             # Use central constant
-            if grid[r, c] == Material.SOLID_ROCK:
-                if non_solid_neighbors >= CA_BIRTH_THRESHOLD:
-                    # Use central constant
-                    new_grid[r, c] = Material.CAVE_FLOOR
+            if (
+                grid[r, c] == Material.SOLID_ROCK
+                and non_solid_neighbors >= CA_BIRTH_THRESHOLD
+            ):
+                # Use central constant
+                new_grid[r, c] = Material.CAVE_FLOOR
             # Use central constant
-            elif grid[r, c] != Material.SOLID_ROCK:
-                if non_solid_neighbors < CA_SURVIVAL_THRESHOLD:
-                    # Use central constant
-                    new_grid[r, c] = Material.SOLID_ROCK
+            elif (
+                grid[r, c] != Material.SOLID_ROCK
+                and non_solid_neighbors < CA_SURVIVAL_THRESHOLD
+            ):
+                # Use central constant
+                new_grid[r, c] = Material.SOLID_ROCK
             # Else (other non-solid types remain unchanged by these basic rules)
 
     return new_grid
@@ -1111,8 +1116,8 @@ def generate_shaped_cave(  # Added rng parameter
     # Removed NPY dump call for post-CA state
 
     # Optionally save debug images (keep this for development)
-    SAVE_DEBUG_IMAGES = True
-    if SAVE_DEBUG_IMAGES:
+    save_debug_images = True
+    if save_debug_images:
         print("\n--- Stage: Saving Debug Images ---")
         try:
             import matplotlib.pyplot as plt  # Local import
@@ -1159,11 +1164,11 @@ if __name__ == "__main__":
         import time
 
         test_start_time = time.time()
-        INPUT_JSON_FILE = "processed_cave_data.json"  # Assumes this exists
-        OUTPUT_ARROW_FILE = "shaper_test_output.arrow"
-        print(f"--- Loading Test Data from {INPUT_JSON_FILE} ---")
+        input_json_file = "processed_cave_data.json"  # Assumes this exists
+        output_arrow_file = "shaper_test_output.arrow"
+        print(f"--- Loading Test Data from {input_json_file} ---")
 
-        with open(INPUT_JSON_FILE, "r") as f:
+        with open(input_json_file, "r") as f:
             processed_data = json.load(f)
 
         processed_nodes_list = processed_data.get("nodes", [])
@@ -1192,8 +1197,8 @@ if __name__ == "__main__":
             print("\n--- Test Map DataFrame (Sample) ---")
             print(test_map.head())
             try:
-                print(f"\n--- Saving Test DataFrame to {OUTPUT_ARROW_FILE} ---")
-                test_map.write_ipc(OUTPUT_ARROW_FILE)
+                print(f"\n--- Saving Test DataFrame to {output_arrow_file} ---")
+                test_map.write_ipc(output_arrow_file)
                 print("Test map saved successfully.")
             except Exception as e:
                 print(f"Error saving test map DataFrame: {e}")

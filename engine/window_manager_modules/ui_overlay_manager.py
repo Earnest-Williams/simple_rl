@@ -21,6 +21,7 @@ Mods can add or replace overlay definitions in this file and supply their own
 tile graphics by referencing image paths.
 """
 # Standard Imports
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from typing import Dict as PyDict
@@ -343,10 +344,8 @@ class UIOverlayManager:
         panel_padding = 10
         title_height = 20
         panel_width = 350
-        try:
+        with contextlib.suppress(IOError):
             title_font = ImageFont.truetype(font_path, font.size + 2)
-        except IOError:
-            pass
         all_displayable_items = self._get_combined_inventory_list(gs)
         actual_item_count = sum(
             1
@@ -388,19 +387,15 @@ class UIOverlayManager:
         num_display_lines += 1  # Equipped header
         num_display_lines += len(equipped_items_tuples)
         for _, item_id, _ in equipped_items_tuples:
-            try:
+            with contextlib.suppress(Exception):
                 num_display_lines += item_reg.get_attached_items(item_id).height
-            except Exception:
-                pass
         if not has_equipped_items:
             num_display_lines += 1  # Placeholder
         num_display_lines += 1  # Spacer + Inv Header
         num_display_lines += len(inventory_items_tuples)
         for _, item_id, _ in inventory_items_tuples:
-            try:
+            with contextlib.suppress(Exception):
                 num_display_lines += item_reg.get_attached_items(item_id).height
-            except Exception:
-                pass
         if not has_inventory_items:
             num_display_lines += 1  # Placeholder
         panel_height = (
@@ -426,7 +421,7 @@ class UIOverlayManager:
                 title_w = draw.textlength(title_text, font=title_font)
             else:
                 title_w = len(title_text) * 7
-        except:
+        except Exception:
             title_w = len(title_text) * 7
         draw.text(
             (panel_x + (panel_width - title_w) // 2, panel_y + panel_padding),

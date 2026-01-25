@@ -326,7 +326,7 @@ def list_all_forms() -> str:
     lines.append("Available Shapeshifting Forms:")
     lines.append("")
 
-    for form_name, form in ALL_FORMS.items():
+    for _, form in ALL_FORMS.items():
         lines.append(format_form_info(form))
         lines.append("")
 

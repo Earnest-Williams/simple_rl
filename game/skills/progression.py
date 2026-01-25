@@ -119,8 +119,6 @@ def get_skill_xp_cost(from_level: int, to_level: int, aptitude: int = 0) -> floa
         return 0.0
 
     base_cost = get_xp_for_level(to_level) - get_xp_for_level(from_level)
-    multiplier = get_aptitude_multiplier(aptitude)
-
     # The actual XP the player needs to earn (before aptitude adjustment)
     # is base_cost / multiplier
     # But we track invested XP (after adjustment), so we return base_cost

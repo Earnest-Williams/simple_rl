@@ -9,9 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 import numpy as np
 import polars as pl
 
@@ -66,7 +63,7 @@ def test_error_on_unserializable() -> None:
 
     try:
         _make_json_serializable(obj)
-        assert False, "Should have raised SaveGameSerializationError!"
+        raise AssertionError("Should have raised SaveGameSerializationError!")
     except SaveGameSerializationError as e:
         assert "CustomClass" in str(e)
         print("✓ Proper error raised for unserializable object")
@@ -174,7 +171,7 @@ def test_ipc_error_handling() -> None:
 
         try:
             load_game_state(save_path)
-            assert False, "Should have raised ValueError!"
+            raise AssertionError("Should have raised ValueError!")
         except ValueError as e:
             # Check that error message is clear
             error_msg = str(e).lower()

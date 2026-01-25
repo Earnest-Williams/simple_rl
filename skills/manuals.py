@@ -273,7 +273,7 @@ def list_active_manuals(
     if not manuals:
         return ["No active manuals"]
 
-    return [get_manual_info(registry, entity_id, skill) for skill in manuals.keys()]
+    return [get_manual_info(registry, entity_id, skill) for skill in manuals]
 
 
 # Integration with skill system

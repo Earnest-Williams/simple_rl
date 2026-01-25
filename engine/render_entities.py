@@ -46,9 +46,11 @@ def _extract_color_components(color_dict: dict) -> tuple[int, int, int, int]:
         Normalised ``(r, g, b, a)`` components.
     """
 
-    if "color" in color_dict and isinstance(color_dict["color"], (list, tuple)):
+    if "color" in color_dict and isinstance(color_dict["color"], list | tuple):
         seq = color_dict["color"]
-    elif "color_fg" in color_dict and isinstance(color_dict["color_fg"], (list, tuple)):
+    elif "color_fg" in color_dict and isinstance(
+        color_dict["color_fg"], list | tuple
+    ):
         seq = color_dict["color_fg"]
     else:
         seq = (

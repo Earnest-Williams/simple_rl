@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Registry for entity templates.
 
 Stores immutable template data for entities and portals.  Templates are loaded
 from configuration files at start-up and can be looked up by ID when spawning
 or creating entities in the game world.
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, Self
 

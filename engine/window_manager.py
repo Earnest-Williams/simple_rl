@@ -16,6 +16,7 @@ from typing import List, Tuple
 
 # Third-party imports
 import numpy as np
+import orjson
 from PIL import Image
 from pydantic import TypeAdapter, ValidationError
 
@@ -125,7 +126,7 @@ class ClickableLabel(QLabel):
 
     clicked = Signal(QPoint)
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(event.pos())
         super().mousePressEvent(event)
@@ -213,7 +214,7 @@ class NodeInspectorDock(QDockWidget):
         for key in keys:
             if key in node_dict:
                 lines.append(f"{key}: {node_dict.get(key)}")
-        other_keys = sorted([key for key in node_dict.keys() if key not in keys])
+        other_keys = sorted([key for key in node_dict if key not in keys])
         for key in other_keys:
             lines.append(f"{key}: {node_dict.get(key)}")
         self.summary.setPlainText("\n".join(lines))
@@ -228,9 +229,9 @@ class NodeInspectorDock(QDockWidget):
         else:
             for child_id in children:
                 child_id_int: int | None = None
-                if isinstance(child_id, (int, np.integer)):
-                    child_id_int = int(child_id)
-                elif isinstance(child_id, str) and child_id.lstrip("-").isdigit():
+                if isinstance(child_id, int | np.integer) or (
+                    isinstance(child_id, str) and child_id.lstrip("-").isdigit()
+                ):
                     child_id_int = int(child_id)
                 btn = QPushButton(f"Child {child_id}")
 
@@ -430,7 +431,7 @@ class DiagnosticsDock(QDockWidget):
             tile_grid: np.ndarray = tile_grid_obj
 
             backbone_value = res.get("backbone_nodes")
-            if not isinstance(backbone_value, (int, np.integer)):
+            if not isinstance(backbone_value, int | np.integer):
                 raise RuntimeError("Pipeline did not return a backbone count.")
             backbone_count = int(backbone_value)
 
@@ -611,11 +612,7 @@ class DiagnosticsDock(QDockWidget):
                 Qt.DockWidgetArea.RightDockWidgetArea, self._node_inspector
             )
         steps_obj = self._last_run_results.get("generator_steps")
-        steps: List[Dict[str, Any]]
-        if isinstance(steps_obj, list):
-            steps = steps_obj
-        else:
-            steps = []
+        steps: List[Dict[str, Any]] = steps_obj if isinstance(steps_obj, list) else []
         self._node_inspector.display_node(node_id, node, steps, augmented_map_obj)
         tile_grid_obj = self._last_run_results.get("tile_grid")
         if isinstance(tile_grid_obj, np.ndarray) and self.node_tile_coords:
@@ -988,7 +985,7 @@ class WindowManager(QMainWindow):
         log.info("MainLoop instance set in WindowManager")
         QTimer.singleShot(0, self.update_frame)
 
-    def resizeEvent(self, event: QResizeEvent) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         log.debug("Resize event detected", new_size=event.size())
         # FIXED: Handle resize with cache management
         old_width = self.window_width
@@ -1147,9 +1144,6 @@ class WindowManager(QMainWindow):
         self.viewport_height = vp_render_tile_h
 
         # Calculate pixel size
-        output_pixel_w = vp_render_tile_w * current_tile_w
-        output_pixel_h = vp_render_tile_h * current_tile_h
-
         # Update coordinate cache if necessary
         try:
             self._update_render_coordinate_cache()
@@ -1219,7 +1213,7 @@ class WindowManager(QMainWindow):
         if frame_duration > 100:
             log.warning(f"Slow frame: {frame_duration:.1f}ms")
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         try:
             main_loop_ref = getattr(self, "main_loop", None)
             game_state = getattr(main_loop_ref, "game_state", None)
@@ -1265,7 +1259,7 @@ class WindowManager(QMainWindow):
 
         QMessageBox.information(self, "Help", help_text)
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, event) -> None:  # noqa: N802
         log.info("Window close event")
         app_instance = QApplication.instance()
         if app_instance:
@@ -1367,7 +1361,7 @@ class WindowManager(QMainWindow):
         if app_instance:
             app_instance.quit()
 
-    def wheelEvent(self, event: QWheelEvent) -> None:
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         if not self.main_loop:
             return
 
@@ -1427,7 +1421,6 @@ class WindowManager(QMainWindow):
         new_width = max(min_sz, min(target_width, max_sz))
         new_height = max(min_sz, min(target_height, max_sz))
 
-        accumulated_change = self._pending_tile_size_change
         self._pending_tile_size_change = 0
 
         if new_width != old_tile_w or new_height != old_tile_h:

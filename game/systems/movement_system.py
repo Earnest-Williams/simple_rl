@@ -8,6 +8,7 @@ entity's position component.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from game.entities.components import Position
@@ -60,10 +61,8 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
     moved = entity_reg.set_position(entity_id, Position(dest_x, dest_y))
     if moved:
         # Moving entities generate noise at their destination
-        try:
+        with contextlib.suppress(AttributeError):
             gs.noise_events.append((dest_x, dest_y, 10.0))
-        except AttributeError:
-            pass
 
         # Play movement sound effect if it's the player
         if entity_id == gs.player_id:

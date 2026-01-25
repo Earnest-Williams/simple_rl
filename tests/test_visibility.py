@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
-import game.world.fov as MyVisibility
+import game.world.fov as visibility
 from game.world.fov import line_of_sight
 
 # Alias compute function for convenience
-MyVisibility.compute = MyVisibility.compute_fov
+visibility.compute = visibility.compute_fov
 
 
 def _make_basic_maps(width: int = 5, height: int = 5):

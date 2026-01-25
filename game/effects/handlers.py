@@ -1,6 +1,7 @@
 # game/effects/handlers.py
 # Contains the actual Python functions that implement effect logic.
 
+import contextlib
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 import structlog
@@ -449,18 +450,14 @@ def deal_damage(context: Dict[str, Any], params: Dict[str, Any]) -> None:
 
     resistances: Dict[str, float] = {}
     vulnerabilities: Dict[str, float] = {}
-    try:
+    with contextlib.suppress(ValueError):
         resistances = (
             gs.entity_registry.get_entity_component(target_id, "resistances") or {}
         )
-    except ValueError:
-        pass
-    try:
+    with contextlib.suppress(ValueError):
         vulnerabilities = (
             gs.entity_registry.get_entity_component(target_id, "vulnerabilities") or {}
         )
-    except ValueError:
-        pass
 
     multiplier = 1.0
     if isinstance(resistances, dict):

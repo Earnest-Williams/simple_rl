@@ -206,12 +206,15 @@ def _find_nearest_suitable_spawn(
     require_diagonals: bool = SPAWN_REQUIRE_DIAGONALS,
 ) -> tuple[int, int] | None:
     """BFS for the nearest tile that is walkable, open, and in a large area."""
-    if game_map.in_bounds(start_x, start_y):
-        if game_map.is_walkable(start_x, start_y) and _has_open_neighbors(
+    if (
+        game_map.in_bounds(start_x, start_y)
+        and game_map.is_walkable(start_x, start_y)
+        and _has_open_neighbors(
             game_map, start_x, start_y, require_diagonals=require_diagonals
-        ):
-            if component_sizes[start_y, start_x] >= min_room_size:
-                return start_x, start_y
+        )
+        and component_sizes[start_y, start_x] >= min_room_size
+    ):
+        return start_x, start_y
 
     height: int = game_map.height
     width: int = game_map.width
@@ -332,7 +335,7 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
     print("\n".join(rows))
     if gs.message_log:
         print("--- Messages ---")
-        for msg, color in gs.message_log[-5:]:
+        for msg, _ in gs.message_log[-5:]:
             print(msg)
     print(f"Player: ({px},{py})  Map size: {gm.width}x{gm.height}")
 
@@ -526,7 +529,7 @@ def run_gui_mode(arrow_path: Path) -> None:
         if isinstance(value, bool):
             print(f"Invalid {label} value (bool); using default {default}.")
             return default
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return int(value)
         if isinstance(value, str):
             text_value = value.strip()

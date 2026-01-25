@@ -76,16 +76,16 @@ class DiceRoll(BaseModel):
         else:
             try:
                 num_dice = int(num_dice_str)
-            except ValueError:
-                raise ValueError(f"Invalid number of dice: {num_dice_str}")
+            except ValueError as err:
+                raise ValueError(f"Invalid number of dice: {num_dice_str}") from err
 
         # Parse sides
         if not sides_str:
             raise ValueError("Dice sides cannot be empty")
         try:
             sides = int(sides_str)
-        except ValueError:
-            raise ValueError(f"Invalid number of sides: {sides_str}")
+        except ValueError as err:
+            raise ValueError(f"Invalid number of sides: {sides_str}") from err
 
         return cls(num_dice=num_dice, sides=sides, modifier=modifier)
 

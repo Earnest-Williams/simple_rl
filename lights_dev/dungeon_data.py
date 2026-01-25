@@ -42,7 +42,7 @@ class Dungeon:
         tile_id = self.tiles[y, x]
         # Use constants directly here, assuming they won't change dynamically
         # If they needed to be dynamic, they'd have to be passed or part of spec
-        return tile_id == WALL_ID or tile_id == PILLAR_ID
+        return tile_id in (WALL_ID, PILLAR_ID)
 
     def get_distance(self, x: int, y: int) -> float:
         """Calculates Euclidean distance from origin (0,0) - used within octants."""

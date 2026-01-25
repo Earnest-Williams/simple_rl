@@ -15,6 +15,7 @@ through configuration.
 
 from __future__ import annotations
 
+import contextlib
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
@@ -30,6 +31,7 @@ from utils.game_rng import GameRNG
 
 if TYPE_CHECKING:
     from game.world.game_map import GameMap
+    from pydub import AudioSegment
 
 log = structlog.get_logger(__name__)
 
@@ -350,10 +352,8 @@ class SoundManager:
             return False
         finally:
             for temp in cleanup_files:
-                try:
+                with contextlib.suppress(Exception):
                     temp.unlink()
-                except Exception:
-                    pass
 
     def update_background_music(self, context: Dict[str, Any]) -> None:
         """Update background music based on current game context."""
@@ -470,16 +470,21 @@ class SoundManager:
                     final_volume *= rear
 
         # Apply occlusion based on map data
-        if source_pos and listener_pos and game_map and occlusion_cfg:
-            if not line_of_sight(
+        if (
+            source_pos
+            and listener_pos
+            and game_map
+            and occlusion_cfg
+            and not line_of_sight(
                 int(listener_pos[0]),
                 int(listener_pos[1]),
                 int(source_pos[0]),
                 int(source_pos[1]),
                 game_map.transparent,
-            ):
-                wall_abs = occlusion_cfg.get("wall_absorption", 0.5)
-                final_volume *= 1.0 - wall_abs
+            )
+        ):
+            wall_abs = occlusion_cfg.get("wall_absorption", 0.5)
+            final_volume *= 1.0 - wall_abs
 
         return max(0.0, min(1.0, final_volume))
 
@@ -564,27 +569,21 @@ class SoundManager:
                 s for s in self.active_sounds if getattr(s, "state", None) != AL_PLAYING
             }
             for src in finished:
-                try:
+                with contextlib.suppress(Exception):
                     src.stop()
                     src.delete()
-                except Exception:
-                    pass
             self.active_sounds.difference_update(finished)
         elif AUDIO_BACKEND == "pygame":
             finished = {c for c in self.active_sounds if not c.get_busy()}
             for c in finished:
-                try:
+                with contextlib.suppress(Exception):
                     c.stop()
-                except Exception:
-                    pass
             self.active_sounds.difference_update(finished)
         elif AUDIO_BACKEND == "simpleaudio":
             finished = {p for p in self.active_sounds if not p.is_playing()}
             for p in finished:
-                try:
+                with contextlib.suppress(Exception):
                     p.stop()
-                except Exception:
-                    pass
             self.active_sounds.difference_update(finished)
 
     def _calculate_pan(
@@ -709,7 +708,7 @@ class SoundManager:
         """Stop the current background music."""
         if self.current_music:
             log.debug(f"Stopping background music: {self.current_music_name}")
-            try:
+            with contextlib.suppress(Exception):
                 if AUDIO_BACKEND == "pyopenal":
                     self.current_music.stop()
                     self.current_music.delete()
@@ -717,14 +716,10 @@ class SoundManager:
                     audio_backend.music.stop()
                 elif AUDIO_BACKEND == "simpleaudio":
                     self.current_music.stop()
-            except Exception:
-                pass
 
         if self.current_music_file:
-            try:
+            with contextlib.suppress(Exception):
                 self.current_music_file.unlink()
-            except Exception:
-                pass
             self.current_music_file = None
 
         self.current_music = None

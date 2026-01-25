@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import DefaultDict, List, Tuple
 
 
 class SpatialHashTable:
     def __init__(self, cell_size: int = 10) -> None:
         self.cell_size = cell_size
-        self.grid: DefaultDict[Tuple[int, int], List[Tuple[int, int, int, str]]] = (
+        self.grid: defaultdict[tuple[int, int], list[tuple[int, int, int, str]]] = (
             defaultdict(list)
         )
 
@@ -20,21 +19,21 @@ class SpatialHashTable:
         )
 
     def query_radius(
-        self, center: Tuple[int, int], radius: int, kind: str | None = None
-    ) -> List[Tuple[int, int, int]]:
+        self, center: tuple[int, int], radius: int, kind: str | None = None
+    ) -> list[tuple[int, int, int]]:
         cx, cy = center
         min_cell_x = (cx - radius) // self.cell_size
         max_cell_x = (cx + radius) // self.cell_size
         min_cell_y = (cy - radius) // self.cell_size
         max_cell_y = (cy + radius) // self.cell_size
 
-        results: List[Tuple[int, int, int]] = []
+        results: list[tuple[int, int, int]] = []
         for cell_x in range(min_cell_x, max_cell_x + 1):
             for cell_y in range(min_cell_y, max_cell_y + 1):
                 items = self.grid.get((cell_x, cell_y), [])
                 if kind is None:
                     # Return all items regardless of kind
-                    for entity_id, x, y, entity_kind in items:
+                    for entity_id, x, y, _ in items:
                         results.append((entity_id, x, y))
                 else:
                     # Filter by the specified kind

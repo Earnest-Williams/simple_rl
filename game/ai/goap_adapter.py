@@ -88,7 +88,7 @@ class _GameStateWorldAdapter:
             if item_df.is_empty():
                 return None, float("inf")
             for row in item_df.filter(
-                (pl.col("location_type") == "ground") & (pl.col("is_active") == True)
+                (pl.col("location_type") == "ground") & pl.col("is_active")
             ).iter_rows(named=True):
                 x = row.get("x")
                 y = row.get("y")
@@ -105,7 +105,7 @@ class _GameStateWorldAdapter:
             return None, float("inf")
 
         for row in entity_df.filter(
-            (pl.col("is_active") == True) & (pl.col("entity_id") != agent.entity_id)
+            pl.col("is_active") & (pl.col("entity_id") != agent.entity_id)
         ).iter_rows(named=True):
             if not _entity_kind_matches(row, kind):
                 continue
@@ -161,7 +161,7 @@ def _build_agent_adapter(game_state: "GameState", entity_id: int) -> _GameAgentA
     equipped_weapon = None
     if not item_df.is_empty():
         owned_items = item_df.filter(
-            (pl.col("owner_entity_id") == entity_id) & (pl.col("is_active") == True)
+            (pl.col("owner_entity_id") == entity_id) & pl.col("is_active")
         )
         for row in owned_items.iter_rows(named=True):
             item = {

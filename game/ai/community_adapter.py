@@ -208,14 +208,14 @@ class CommunityManager:
             region_x, region_y, region_w, region_h = region
             existing = 0
             for row in self.gs.entity_registry.entities_df.iter_rows(named=True):
-                if row.get("community_profile"):
-                    profile = row["community_profile"]
-                    if profile.get("template_id") == template_id:
-                        if (
-                            region_x <= row["x"] < region_x + region_w
-                            and region_y <= row["y"] < region_y + region_h
-                        ):
-                            existing += 1
+                profile = row.get("community_profile")
+                if (
+                    profile
+                    and profile.get("template_id") == template_id
+                    and region_x <= row["x"] < region_x + region_w
+                    and region_y <= row["y"] < region_y + region_h
+                ):
+                    existing += 1
             for _ in range(max(0, desired - existing)):
                 spawn_x = self.rng.get_int(region_x, region_x + region_w - 1)
                 spawn_y = self.rng.get_int(region_y, region_y + region_h - 1)

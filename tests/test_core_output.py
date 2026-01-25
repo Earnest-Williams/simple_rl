@@ -128,11 +128,11 @@ class TestVariationEngine:
         rng = GameRNG(seed=456)
 
         terse = VariationEngine(rng, tone=ToneProfile.TERSE)
-        terse_desc = terse.room_description()
+        terse.room_description()
 
         rng.reset(seed=456)  # Reset to same state
         ornate = VariationEngine(rng, tone=ToneProfile.ORNATE)
-        ornate_desc = ornate.room_description()
+        ornate.room_description()
 
         # Different tones should produce different descriptions
         # (though with same seed, they might occasionally match by chance)

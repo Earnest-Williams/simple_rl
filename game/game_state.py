@@ -1,4 +1,5 @@
 # game/game_state.py
+import contextlib
 from typing import Any, Callable, Dict, List, Literal, Set, Tuple
 
 import structlog
@@ -344,10 +345,8 @@ class GameState:
         ratio = self.player_fuel / self.player_max_fuel
         new_radius = max(1, round(self.base_fov_radius * ratio))
         self.fov_radius = new_radius
-        try:
+        with contextlib.suppress(IndexError, AttributeError):
             self.light_sources[self.player_light_index].radius = new_radius
-        except (IndexError, AttributeError):
-            pass
         if self.player_fuel == 0:
             self.add_message("Your light flickers out!", (255, 255, 0))
 
@@ -551,14 +550,14 @@ class GameState:
                 ex, ey = row.get("x", 0), row.get("y", 0)
                 # Check if entity is within reasonable combat distance and visible
                 distance_sq = (px - ex) ** 2 + (py - ey) ** 2
-                if distance_sq <= (self.fov_radius + 2) ** 2:
-                    if (
-                        hasattr(self.game_map, "visible")
-                        and self.game_map.visible[ey, ex]
-                    ):
-                        # Assume any visible nearby entity means combat
-                        game_state = "combat"
-                        break
+                if (
+                    distance_sq <= (self.fov_radius + 2) ** 2
+                    and hasattr(self.game_map, "visible")
+                    and self.game_map.visible[ey, ex]
+                ):
+                    # Assume any visible nearby entity means combat
+                    game_state = "combat"
+                    break
 
         # Determine depth (if available)
         depth = getattr(self, "current_depth", 1)

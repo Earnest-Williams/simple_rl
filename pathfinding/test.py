@@ -19,7 +19,7 @@ import time
 import uuid  # For simulation ID
 from collections import deque
 from enum import IntEnum
-from typing import Deque, Dict, List
+from typing import Dict, List
 
 import numpy as np
 import polars as pl
@@ -228,7 +228,7 @@ def _propagate_noise_kernel(
         return
 
     cost_grid[start_y, start_x] = start_cost
-    queue: Deque[QueueItem] = deque([(start_y, start_x, start_cost)])
+    queue: deque[QueueItem] = deque([(start_y, start_x, start_cost)])
 
     while queue:
         y, x, current_cost = queue.popleft()
