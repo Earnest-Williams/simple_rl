@@ -1,154 +1,153 @@
-# Simple RL LLM Style Guide
+# Simple RL — AGENTS.md
 
-## Purpose (LLM-only)
+> For human contributors and automated code-assist agents. If instructions conflict,
+> follow the most restrictive rule.
 
-This file is for **LLMs only**. It defines repo-wide engineering constraints and
-output expectations. If instructions conflict, follow the **most restrictive**.
+## Purpose
+This document defines repository-wide engineering constraints, LLM operating rules,
+and contributor ergonomics for *Simple RL* — a high-performance, deterministic,
+simulation-heavy roguelike. **Critical** rules are non-negotiable.
 
 ## Priority levels
+* **Critical** — Must not be violated.
+* **Strong** — Expected for most code; deviations require explanation in the PR.
+* **Guideline** — Preferred default.
 
-* **Critical**: Must not be violated.
-* **Strong**: Expected for almost all code; deviations require a reason.
-* **Guideline**: Preferred default.
+---
 
 ## 1. Critical engineering rules
 
 ### 1.1 Python target
-
-* **Rule:** Target **Python 3.11+** across the repo.
+* **Rule:** Target **Python 3.11+**. Use Python 3.11 language and typing features (PEP 604, PEP 585, etc.). (See `pyproject.toml`.)
 
 ### 1.2 Determinism
-
-* **Rule:** Use `from utils.game_rng import GameRNG` for all randomness.
-* **Rule:** Never use Python’s `random` module or NumPy RNG directly in game
-  logic.
+* **Rule:** Use `from utils.game_rng import GameRNG` for all randomness in game logic and deterministic tests. Do not use `random` or NumPy RNGs directly for game logic.
 
 ### 1.3 Formatting
+* **Rule:** Format with `black` configured for **88-character** line length. CI and local dev must run the same commands.
 
-* **Rule:** Format with `black` using an **88-character** line length.
+### 1.4 Static typing (CRITICAL)
+* **Rule:** All code must have explicit type annotations; function signatures must be fully annotated (including `-> None`) and pass `mypy --strict`.
 
-### 1.4 Static typing
+* **Rule (PEP 585 — CRITICAL):** Always use built-in generic types for annotations (e.g., `list[str]`, `dict[str, int]`, `tuple[int, ...]`, `set[str]`). Do **not** use `typing.List`, `typing.Dict`, or `typing.Tuple`. Import from `typing` only for names without builtin equivalents (e.g., `TypeVar`, `Callable`, `Protocol`, `Literal`, `TYPE_CHECKING`).
 
-* **Rule:** All code must have explicit type annotations. No type inference.
-* **Rule:** Use PEP 604 unions (`X | None`), never `Optional[X]`.
-* **Rule:** Function signatures must be fully annotated, including `-> None` for
-  void functions.
-* **Rule:** Code must pass `mypy --strict`.
-* **Rule:** Do not introduce `Any` unless there is no practical alternative, and
-  isolate it as tightly as possible.
+  **LLM / contributor guidance:**
+  1. Replace `List`, `Dict`, `Tuple`, `Set`, etc. with `list`, `dict`, `tuple`, `set`.
+  2. Remove these names from `from typing import ...` lines; consolidate `from typing import ...` into a single line per module with only required names.
+  3. Use `from __future__ import annotations` when appropriate.
+  4. After edits, run `black .`, `ruff format .`, `ruff check .`, `mypy .` and fix failures.
 
-### 1.5 Data + performance primitives
+  **Example:**
+  ```py
+  # Bad
+  from typing import List, Dict
 
-* **Rule:** Prefer `pathlib.Path` over string paths for filesystem work.
-* **Rule:** **Pandas is prohibited.** Use **Polars** for data
-  manipulation/state.
-* **Rule:** Use **Numba** for performance-critical loops/hot paths.
-* **Rule:** For anything involving scale, prefer `mmap`, NumPy, Polars
-  expressions, or other vectorized approaches. Avoid slow Python loops over
-  large data.
+  def foo(xs: List[str]) -> Dict[str, int]:
+      ...
 
-### 1.6 Parsing and string rules
+  # Good
+  def foo(xs: list[str]) -> dict[str, int]:
+      ...
+  ```
 
-* **Rule:** Regex is a last resort. Prefer `pyparsing` or `pydantic` for
-  structured parsing/validation.
-* **Rule:** If an f-string expression becomes unclear on one line, precompute
-  intermediate values into named variables.
+### 1.5 Tool version pinning
+* **Rule:** Pin `mypy`, `black`, `ruff`, and other tools in `pyproject.toml`. CI must run same pinned versions.
 
-### 1.7 Architecture
+### 1.6 Performance & data primitives
+* **Rule:** Use `pathlib.Path`. Pandas is prohibited — use Polars. Use Numba for hot loops. For scale, prefer vectorized, mmap, or NumPy approaches. Avoid Python loops over massive datasets.
 
-* **Rule:** Avoid object-oriented clutter. Prefer structural clarity, explicit
-  data flow, and throughput-oriented design.
+### 1.7 Parsing & strings
+* **Rule:** Prefer `pyparsing` or `pydantic` for structured parsing. Avoid complex regex as first choice. Precompute complex f-string expressions into named variables.
 
-### 1.8 Constants
+### 1.8 Architecture & constants
+* **Rule:** Favor structural clarity and throughput over unnecessary OOP. Define constants at module top, use `typing.Final`, and prefer immutable types.
 
-* **Rule:** Declare constant values at the top of the module (after docstring and
-  imports, before any class or function definitions) and name them using
-  `ALL_CAPS_WITH_UNDERSCORES`.
-* **Rule:** For shared or numerous constants, create a dedicated `constants.py`
-  (or `constants/` package) and import from there. Prefer this when:
+### 1.9 LLM operating rules (CRITICAL)
+* **Rule:** Do not invent APIs, files, or configuration keys. Use only what exists or what you add via focused changes. Every change must satisfy Critical rules. If uncertain, stop and request clarification.
 
-  * A value is used by two or more modules.
-  * A module would otherwise have many constants (roughly >10).
-  * Constants represent domain/global configuration rather than module-specific
-    settings.
+---
 
-* **Rule:** Use explicit type annotations and `typing.Final` for constants.
-* **Rule:** Prefer immutable types for constants (`tuple`, `frozenset`,
-  `MappingProxyType`) over mutable `list`/`dict`.
-* **Rule:** Add a short inline comment describing purpose and units where
-  relevant.
-* **Rule:** Group related constants with a one-line header comment.
-* **Rule:** If a shared constants module would introduce circular imports, split
-  constants by package or keep truly local constants in the original module.
-* **Rule:** Do not store secrets or environment-specific values in code
-  constants; use environment/config instead.
-* **Rule:** Constants must not be mutable runtime state.
-* **Rule:** Consider a lightweight lint/CI check to enforce placement and
-  `Final` annotations.
+## 2. Tooling & CI (CRITICAL)
 
-Example:
+### 2.1 Dev dependencies & venv
+Use a venv for development:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+.venv\Scripts\Activate.ps1  # Windows PowerShell
+pip install -e ".[dev]"
+```
+Pinned dev tools are in `pyproject.toml`.
 
-```python
-from types import MappingProxyType
-from typing import Final, Mapping
+### 2.2 Formatting & lint commands
+Local commands:
+```bash
+black .
+ruff format .
+ruff check .
+mypy .
+```
+CI must run the same.
 
-MAX_RETRIES: Final[int] = 3  # max retries for network calls
-DEFAULT_TIMEOUT_SECONDS: Final[float] = 5.0  # seconds; default network timeout
-AGENT_NAMES: Final[tuple[str, ...]] = ("claude", "gpt", "bard")
-AGENT_TIMEOUTS: Final[Mapping[str, float]] = MappingProxyType({"claude": 1.5})
+### 2.3 Enforce PEP-585 automatically (CRITICAL)
+Add `pyupgrade` and a small check script to fail CI on legacy `typing.List`/`typing.Dict`/`typing.Tuple` uses.
+
+Add `pyupgrade --py311-plus -r .` to modernization pipeline and `ruff --fix` + `black` for cleanup.
+
+---
+
+## 3. Development workflow (STRONG)
+
+### 3.1 Repository layout & imports (CRITICAL)
+Canonical layout:
+```
+.
+├─ README.md
+├─ AGENTS.md
+├─ pyproject.toml
+├─ game/
+├─ Dungeon/
+├─ AI/
+├─ utils/
+├─ tests/
+└─ scripts/
 ```
 
-### 1.9 LLM operating rules
+Tests go in `tests/` and mirror package structure; tests should use absolute imports.
 
-* **Rule:** Do not invent APIs, files, classes, or configuration keys. Only use
-  what exists in the repo or what you add explicitly.
-* **Rule:** Prefer minimal diffs. Avoid drive-by refactors.
-* **Rule:** Every code change must satisfy all **Critical** rules in this
-  document.
-* **Rule:** If you are uncertain about a requirement, stop and request the
-  missing information rather than guessing.
+Do not add `__init__.py` under `tests/`.
 
-## 2. Tooling and CI (Critical)
+### 3.2 Tests & determinism
+Use `pytest`. Tests must be deterministic — use `GameRNG` with fixed seeds. Treat warnings as errors in CI.
 
-### 2.1 Tool version pinning
+### 3.3 PR checklist
+Before PR:
+- [ ] `black .` and `ruff format .` run cleanly.
+- [ ] `ruff check .` and `mypy .` produce no errors.
+- [ ] `pytest` passes.
+- [ ] Documentation updated for behavior changes.
+- [ ] Diffs focused and small.
 
-* **Rule:** `pyproject.toml` must pin **mypy**, **black**, and the repository
-  linter versions (for example, ruff), and they must be consistent across
-  developer machines and CI.
-* **Rule:** CI must run the formatter, linter, and type checker in a way that
-  matches local expectations.
+---
 
-## 3. Development workflow (Strong)
+## 4. LLM edit hygiene (for Codex / Gemini / other agents)
 
-### 3.1 Keep changes tight
+1. Consolidate `from typing import ...` into one line with only required names.
+2. Prefer PEP-585 builtins. Remove `List`/`Dict`/`Tuple` imports and uses.
+3. Run formatters and typechecker after edits.
+4. Avoid drive-by refactors — if you must modernize widely, do a single modernization PR (`pyupgrade` + `ruff` + `black`) and document it.
 
-* Keep changes focused and well documented.
-* Reuse helper functions and existing patterns where possible.
+---
 
-### 3.2 Tests
+## 5. Appendix: Enforcement snippets & examples
 
-* Run `pytest` before submitting changes.
-* Add tests for new features when feasible.
-* Verify deterministic behavior with fixed RNG seeds where applicable.
+(Place suggested scripts under `scripts/` and CI hooks / pre-commit as shown in repo addenda).
 
-### 3.3 Performance work
+---
 
-* For performance-critical changes, profile before and after (e.g. `cProfile`).
-* Confirm Numba compilation and correctness.
-* Test with realistic dataset sizes (e.g., large maps, 100+ entities).
+## 6. Migration plan
 
-### 3.4 Documentation
-
-* When adding or changing behavior, update relevant docs in `docs/` and
-  component README files.
-* Document complex algorithms and design decisions with clear examples.
-
-## 4. Project context (Guideline)
-
-* This is a simulation-heavy roguelike/RPG research project emphasizing
-  determinism, modularity, and high-performance Python.
-* Key libraries and patterns:
-
-  * Polars for state/dataframes.
-  * Numba + NumPy for fast kernels and numerical work.
-  * `GameRNG` for deterministic randomness.
+1. Add `pyupgrade` to dev deps.
+2. Add `scripts/check_pep585.py` to CI & pre-commit.
+3. Create modernization branch and run `pyupgrade --py311-plus -r .`, `python scripts/cleanup_typing_imports.py`, `ruff --fix .`, `black .`, `mypy .`, `pytest`.
+4. Commit and open a PR describing the codemod.
