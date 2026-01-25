@@ -36,7 +36,7 @@ def _is_list_dtype(dtype: pl.DataType) -> bool:
         # Check if it's a List instance
         if isinstance(dtype, pl.List):
             return True
-        # Check dtype base_type or string representation as fallback
+        # Check string representation as fallback
         dtype_str = str(dtype)
         return dtype_str.startswith("List(")
     except Exception:
@@ -145,11 +145,9 @@ class EntityRegistry:
         for col, dtype in ENTITY_SCHEMA.items():
             if col not in self.entities_df.columns:
                 # Determine default value based on dtype
-                if dtype == pl.Float32 or dtype == pl.Float64:
+                if dtype in (pl.Float32, pl.Float64):
                     default = 0.0
-                elif dtype == pl.Int16 or dtype == pl.Int32 or dtype == pl.Int64:
-                    default = 0
-                elif dtype == pl.UInt16 or dtype == pl.UInt32 or dtype == pl.UInt64:
+                elif dtype in (pl.Int16, pl.Int32, pl.Int64, pl.UInt16, pl.UInt32, pl.UInt64):
                     default = 0
                 elif dtype == pl.Boolean:
                     default = False
@@ -169,9 +167,8 @@ class EntityRegistry:
                     dtype=str(dtype),
                     default=default,
                 )
-                default_series = pl.Series(
-                    [default] * self.entities_df.height
-                ).cast(dtype)
+                # Use repeat for better performance on large DataFrames
+                default_series = pl.Series([default]).repeat(self.entities_df.height).cast(dtype)
                 self.entities_df = self.entities_df.with_columns(
                     default_series.alias(col)
                 )
