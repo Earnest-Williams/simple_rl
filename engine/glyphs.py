@@ -32,17 +32,17 @@ def load_glyph_map(path: str | Path | None = None) -> dict[str, int]:
 
     if not glyphs_path.exists():
         _cache[glyphs_path] = {}
-        return {}
+        return _cache[glyphs_path]
 
     data = yaml.safe_load(glyphs_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         _cache[glyphs_path] = {}
-        return {}
+        return _cache[glyphs_path]
 
     glyph_entries = data.get("glyphs", [])
     if not isinstance(glyph_entries, list):
         _cache[glyphs_path] = {}
-        return {}
+        return _cache[glyphs_path]
 
     out: dict[str, int] = {}
     for entry in glyph_entries:
