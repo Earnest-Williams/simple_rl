@@ -365,7 +365,7 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 
 ### Sound System
 - **Location:** `game/systems/sound.py`
-- **Features:** YAML config, distance falloff, multi-backend (pyopenal, pygame, simpleaudio)
+- **Features:** YAML config, distance falloff, SDL_mixer backend
 - **Use:** Audio effects and background music
 
 ### Game State Management

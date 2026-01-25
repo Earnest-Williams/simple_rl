@@ -18,17 +18,16 @@ dependencies = [
   "pydantic>=2.0",
   "orjson>=3.8.0",
   "PySide6>=6.5",
-  "pygame>=2.5",
+  "PySDL2>=0.9.16",
+  "pysdl2-dll>=2.30.0",
   "matplotlib>=3.7",
   "Pillow>=9.2",
   "structlog>=23.1",
   "PyYAML>=6.0",
   "readchar>=4.0",
   "pydub>=0.25.1",
-  "simpleaudio>=1.0.4",
   "pyparsing>=3.0",
   "msgpack>=1.0",
-# removed  "openal>=1.1.1", now provided via mamba
 ]
 
 [project.optional-dependencies]

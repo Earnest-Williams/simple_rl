@@ -20,7 +20,7 @@ import importlib
 import importlib.util
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 import structlog
@@ -45,39 +45,26 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger(__name__)
 
-# Pygame mixer configuration
-PYGAME_MIXER_FREQUENCY: int = 22050  # Hz
-PYGAME_MIXER_SAMPLE_SIZE: int = -16  # 16-bit signed
-PYGAME_MIXER_CHANNELS: int = 2  # Stereo
-PYGAME_MIXER_BUFFER_SIZE: int = 512  # Buffer size in samples
+# SDL_mixer configuration
+SDL_MIXER_FREQUENCY: Final[int] = 22050  # Hz
+SDL_MIXER_CHANNELS: Final[int] = 2  # Stereo
+SDL_MIXER_CHUNK_SIZE: Final[int] = 512  # Buffer size in samples
 
-# Audio backend detection - try multiple backends for compatibility
-AUDIO_BACKEND = None
-AL_PLAYING: Any = None
-Listener: Any = None
-oal_open: Any = None
-audio_backend: Any = None
+# Audio backend detection - SDL_mixer only
+AUDIO_BACKEND: str | None = None
+sdl2_module: Any | None = None
+sdl_mixer: Any | None = None
 
-if importlib.util.find_spec("openal") is not None:
-    openal_module = importlib.import_module("openal")
-    AL_PLAYING = getattr(openal_module, "AL_PLAYING", None)
-    Listener = getattr(openal_module, "Listener", None)
-    oal_open = getattr(openal_module, "oalOpen", None)
-    if AL_PLAYING is not None and Listener is not None and oal_open is not None:
-        AUDIO_BACKEND = "pyopenal"
-        log.info("Using pyopenal audio backend")
-    else:
-        log.warning("OpenAL detected but required symbols are missing")
-elif importlib.util.find_spec("pygame") is not None:
-    audio_backend = importlib.import_module("pygame.mixer")
-    AUDIO_BACKEND = "pygame"
-    log.info("Using pygame audio backend")
-elif importlib.util.find_spec("simpleaudio") is not None:
-    audio_backend = importlib.import_module("simpleaudio")
-    AUDIO_BACKEND = "simpleaudio"
-    log.info("Using simpleaudio backend")
+if (
+    importlib.util.find_spec("sdl2") is not None
+    and importlib.util.find_spec("sdl2.sdlmixer") is not None
+):
+    sdl2_module = importlib.import_module("sdl2")
+    sdl_mixer = importlib.import_module("sdl2.sdlmixer")
+    AUDIO_BACKEND = "sdl_mixer"
+    log.info("Using SDL_mixer audio backend")
 else:
-    log.warning("No audio backend available - sound system will be disabled")
+    log.warning("SDL_mixer not available - sound system will be disabled")
 
 
 class SoundEffect:
@@ -185,7 +172,7 @@ class SoundManager:
         self.current_music = None
         self.current_music_name = None
         self.current_music_file: Path | None = None
-        self.active_sounds: set[Any] = set()
+        self.active_sounds: dict[int, Any] = {}
         self.listener_position: tuple[float, float, float] = (0.0, 0.0, 0.0)
         self.listener_orientation: tuple[float, float] = (0.0, 1.0)
         self.rng = rng if rng is not None else GameRNG()
@@ -264,35 +251,39 @@ class SoundManager:
         if not self.enabled:
             return
 
-        if AUDIO_BACKEND == "pyopenal":
-            if Listener is None:
-                log.error("PyOpenAL backend not available at runtime")
-                self.enabled = False
-                return
-            # Listener defaults; position will be updated as needed
-            Listener.position = self.listener_position
-            log.info("PyOpenAL audio backend initialized")
+        if AUDIO_BACKEND != "sdl_mixer" or sdl_mixer is None or sdl2_module is None:
+            log.error("SDL_mixer backend not available at runtime")
+            self.enabled = False
             return
 
-        if AUDIO_BACKEND == "pygame":
-            pygame = importlib.import_module("pygame")
-            try:
-                pygame.mixer.pre_init(
-                    frequency=PYGAME_MIXER_FREQUENCY,
-                    size=PYGAME_MIXER_SAMPLE_SIZE,
-                    channels=PYGAME_MIXER_CHANNELS,
-                    buffer=PYGAME_MIXER_BUFFER_SIZE,
-                )
-                pygame.mixer.init()
-                log.info("Pygame audio backend initialized")
-            except RuntimeError as exc:
-                log.error(f"Failed to initialize audio backend: {exc}")
-                self.enabled = False
+        init_result = sdl2_module.SDL_Init(sdl2_module.SDL_INIT_AUDIO)
+        if init_result != 0:
+            error_message = sdl2_module.SDL_GetError()
+            log.error(f"Failed to init SDL audio: {error_message}")
+            self.enabled = False
             return
 
-        if AUDIO_BACKEND == "simpleaudio":
-            # simpleaudio doesn't need initialization
-            log.info("Simpleaudio backend ready")
+        init_flags = getattr(sdl_mixer, "MIX_INIT_OGG", 0)
+        if init_flags:
+            loaded_flags = sdl_mixer.Mix_Init(init_flags)
+            if loaded_flags & init_flags != init_flags:
+                log.warning("SDL_mixer OGG support not fully available")
+
+        format_value = sdl2_module.AUDIO_S16SYS
+        open_result = sdl_mixer.Mix_OpenAudio(
+            SDL_MIXER_FREQUENCY,
+            format_value,
+            SDL_MIXER_CHANNELS,
+            SDL_MIXER_CHUNK_SIZE,
+        )
+        if open_result != 0:
+            error_message = sdl_mixer.Mix_GetError()
+            log.error(f"Failed to open SDL_mixer audio: {error_message}")
+            self.enabled = False
+            return
+
+        sdl_mixer.Mix_AllocateChannels(self.max_concurrent_sounds)
+        log.info("SDL_mixer audio backend initialized")
 
     def play_sound_effect(
         self, effect_name: str, context: dict[str, Any] | None = None
@@ -458,7 +449,7 @@ class SoundManager:
             context = {}
 
         # Apply distance-based falloff if not handled by backend
-        distance = 0 if AUDIO_BACKEND == "pyopenal" else context.get("distance", 0)
+        distance = context.get("distance", 0)
         if distance > 0 and self.sound_fade_distance > 0:
             distance_modifier = max(0.0, 1.0 - (distance / self.sound_fade_distance))
             final_volume *= distance_modifier
@@ -603,27 +594,18 @@ class SoundManager:
         """Remove finished sound handles from active list."""
         if not self.active_sounds:
             return
-        if AUDIO_BACKEND == "pyopenal":
-            finished = {
-                s for s in self.active_sounds if getattr(s, "state", None) != AL_PLAYING
-            }
-            for src in finished:
-                with contextlib.suppress(Exception):
-                    src.stop()
-                    src.delete()
-            self.active_sounds.difference_update(finished)
-        elif AUDIO_BACKEND == "pygame":
-            finished = {c for c in self.active_sounds if not c.get_busy()}
-            for c in finished:
-                with contextlib.suppress(Exception):
-                    c.stop()
-            self.active_sounds.difference_update(finished)
-        elif AUDIO_BACKEND == "simpleaudio":
-            finished = {p for p in self.active_sounds if not p.is_playing()}
-            for p in finished:
-                with contextlib.suppress(Exception):
-                    p.stop()
-            self.active_sounds.difference_update(finished)
+        if AUDIO_BACKEND != "sdl_mixer" or sdl_mixer is None:
+            return
+        finished_channels: list[int] = []
+        for channel in self.active_sounds:
+            if sdl_mixer.Mix_Playing(channel) == 0:
+                finished_channels.append(channel)
+        for channel in finished_channels:
+            chunk = self.active_sounds.pop(channel, None)
+            if chunk is None:
+                continue
+            with contextlib.suppress(Exception):
+                sdl_mixer.Mix_FreeChunk(chunk)
 
     def _calculate_pan(
         self,
@@ -651,110 +633,72 @@ class SoundManager:
     ) -> bool:
         """Play a sound file using the current audio backend."""
         fname = str(filename)
-        if AUDIO_BACKEND == "pyopenal":
-            try:
-                sound = oal_open(fname)
-                src = sound.play()
-                if pitch_variance:
-                    pitch = 1.0 + self.rng.get_float(-pitch_variance, pitch_variance)
-                    src.set_pitch(pitch)
-                src.set_gain(volume)
-                if source_pos:
-                    sx, sy = source_pos
-                    src.position = (sx, 0.0, sy)
-                if listener_pos:
-                    Listener.position = listener_pos
-                if listener_orientation:
-                    Listener.orientation = (
-                        listener_orientation[0],
-                        listener_orientation[1],
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    )
-                self.active_sounds.add(src)
-                return True
-            except Exception as e:
-                log.warning(f"OpenAL failed to play sound {fname}: {e}")
+        if AUDIO_BACKEND != "sdl_mixer" or sdl_mixer is None:
+            log.debug(f"No audio backend to play sound: {fname}")
+            return False
+
+        if pitch_variance:
+            log.debug("SDL_mixer backend does not support pitch variance.")
+
+        try:
+            chunk = sdl_mixer.Mix_LoadWAV(fname.encode("utf-8"))
+            if not chunk:
+                log.warning(f"SDL_mixer failed to load sound {fname}")
                 return False
-        elif AUDIO_BACKEND == "pygame":
-            try:
-                sound = audio_backend.Sound(fname)
-                channel = sound.play()
-                if channel:
-                    if source_pos and listener_pos and listener_orientation:
-                        pan = self._calculate_pan(
-                            source_pos, listener_pos, listener_orientation
-                        )
-                        left = volume * (1 - pan) / 2
-                        right = volume * (1 + pan) / 2
-                        channel.set_volume(left, right)
-                    else:
-                        channel.set_volume(volume, volume)
-                    self.active_sounds.add(channel)
-                return channel is not None
-            except Exception as e:
-                log.warning(f"Pygame failed to play sound {fname}: {e}")
+            channel = sdl_mixer.Mix_PlayChannel(-1, chunk, 0)
+            if channel == -1:
+                sdl_mixer.Mix_FreeChunk(chunk)
+                log.warning(f"SDL_mixer failed to play sound {fname}")
                 return False
-        elif AUDIO_BACKEND == "simpleaudio":
-            try:
-                wave_obj = audio_backend.WaveObject.from_wave_file(fname)
-                play_obj = wave_obj.play()
-                self.active_sounds.add(play_obj)
-                return True
-            except Exception as e:
-                log.warning(f"Simpleaudio failed to play sound {fname}: {e}")
-                return False
-        log.debug(f"No audio backend to play sound: {fname}")
-        return False
+            volume_value = int(max(0.0, min(1.0, volume)) * 128)
+            sdl_mixer.Mix_Volume(channel, volume_value)
+            if source_pos and listener_pos and listener_orientation:
+                pan = self._calculate_pan(source_pos, listener_pos, listener_orientation)
+                left = int(((1.0 - pan) / 2.0) * 255)
+                right = int(((1.0 + pan) / 2.0) * 255)
+                sdl_mixer.Mix_SetPanning(channel, left, right)
+            else:
+                sdl_mixer.Mix_SetPanning(channel, 255, 255)
+            self.active_sounds[channel] = chunk
+            return True
+        except Exception as exc:
+            log.warning(f"SDL_mixer failed to play sound {fname}: {exc}")
+            return False
 
     def _play_background_music_file(
         self, filename: Path, volume: float, loop: bool = True
     ) -> None:
         """Play background music using the current audio backend."""
         fname = str(filename)
-        if AUDIO_BACKEND == "pyopenal":
-            try:
-                sound = oal_open(fname)
-                src = sound.play()
-                src.set_gain(volume)
-                src.looping = loop
-                self.current_music = src
-                self.active_sounds.add(src)
-            except Exception as e:
-                log.warning(f"OpenAL failed to play music {fname}: {e}")
-        elif AUDIO_BACKEND == "pygame":
-            try:
-                audio_backend.music.load(fname)
-                audio_backend.music.set_volume(volume)
-                audio_backend.music.play(-1 if loop else 0)
-                self.current_music = "pygame"
-            except Exception as e:
-                log.warning(f"Pygame failed to play music {fname}: {e}")
-        elif AUDIO_BACKEND == "simpleaudio":
-            try:
-                wave_obj = audio_backend.WaveObject.from_wave_file(fname)
-                play_obj = wave_obj.play()
-                self.current_music = play_obj
-                self.active_sounds.add(play_obj)
-            except Exception as e:
-                log.warning(f"Simpleaudio failed to play music {fname}: {e}")
-        else:
+        if AUDIO_BACKEND != "sdl_mixer" or sdl_mixer is None:
             log.debug(f"No audio backend to play music: {fname}")
+            return
+        try:
+            music = sdl_mixer.Mix_LoadMUS(fname.encode("utf-8"))
+            if not music:
+                log.warning(f"SDL_mixer failed to load music {fname}")
+                return
+            volume_value = int(max(0.0, min(1.0, volume)) * 128)
+            sdl_mixer.Mix_VolumeMusic(volume_value)
+            loops = -1 if loop else 0
+            result = sdl_mixer.Mix_PlayMusic(music, loops)
+            if result != 0:
+                sdl_mixer.Mix_FreeMusic(music)
+                log.warning(f"SDL_mixer failed to play music {fname}")
+                return
+            self.current_music = music
+        except Exception as exc:
+            log.warning(f"SDL_mixer failed to play music {fname}: {exc}")
 
     def _stop_background_music(self) -> None:
         """Stop the current background music."""
         if self.current_music:
             log.debug(f"Stopping background music: {self.current_music_name}")
-            with contextlib.suppress(Exception):
-                if AUDIO_BACKEND == "pyopenal":
-                    self.current_music.stop()
-                    self.current_music.delete()
-                elif AUDIO_BACKEND == "pygame":
-                    audio_backend.music.stop()
-                elif AUDIO_BACKEND == "simpleaudio":
-                    self.current_music.stop()
+            if AUDIO_BACKEND == "sdl_mixer" and sdl_mixer is not None:
+                with contextlib.suppress(Exception):
+                    sdl_mixer.Mix_HaltMusic()
+                with contextlib.suppress(Exception):
+                    sdl_mixer.Mix_FreeMusic(self.current_music)
 
         if self.current_music_file:
             with contextlib.suppress(Exception):
@@ -791,8 +735,6 @@ class SoundManager:
     def set_listener_position(self, x: float, y: float, z: float = 0.0) -> None:
         """Update the 3D listener position."""
         self.listener_position = (x, y, z)
-        if AUDIO_BACKEND == "pyopenal" and self.enabled:
-            Listener.position = self.listener_position
 
     def set_listener_orientation(self, x: float, y: float) -> None:
         """Update the 2D listener orientation vector."""
@@ -800,15 +742,6 @@ class SoundManager:
         if length == 0:
             return
         self.listener_orientation = (x / length, y / length)
-        if AUDIO_BACKEND == "pyopenal" and self.enabled:
-            Listener.orientation = (
-                self.listener_orientation[0],
-                self.listener_orientation[1],
-                0.0,
-                0.0,
-                0.0,
-                1.0,
-            )
 
     def enable_audio(self, enabled: bool) -> None:
         """Enable or disable the entire audio system."""
@@ -824,13 +757,11 @@ class SoundManager:
         """Clean up audio resources."""
         if self.enabled:
             self._stop_background_music()
-            for src in list(self.active_sounds):
+            for channel, chunk in list(self.active_sounds.items()):
                 try:
-                    if AUDIO_BACKEND == "pyopenal":
-                        src.stop()
-                        src.delete()
-                    else:
-                        src.stop()
+                    if AUDIO_BACKEND == "sdl_mixer" and sdl_mixer is not None:
+                        sdl_mixer.Mix_HaltChannel(channel)
+                        sdl_mixer.Mix_FreeChunk(chunk)
                 except Exception:
                     pass
             self.active_sounds.clear()

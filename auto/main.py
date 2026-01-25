@@ -29,7 +29,6 @@ from .simulation import (
     enemy_act,
 )
 
-
 # --- Configuration ---
 DEFAULT_NUM_RUNS = 5
 DEFAULT_NUM_WORKERS = max(1, cpu_count() // 2)

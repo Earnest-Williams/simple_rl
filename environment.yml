@@ -13,16 +13,13 @@ dependencies:
   - scikit-image>=0.22
   - joblib>=1.3
   - pyside6>=6.5           # PySide6 (Qt)
-  - pygame>=2.5
   - matplotlib>=3.7
   - pillow>=9.2            # conda package is 'pillow'
   - structlog>=23.1
   - pyyaml>=6.0            # conda package name all-lowercase
   - readchar>=4.0
   - pydub>=0.25.1
-  - simpleaudio>=1.0.4
   - ffmpeg                 # required by pydub for audio handling (conda-forge)
-  - openal-soft            # OpenAL implementation (audio backend)
   - pytest>=7.4            # dev/test tool (include here for devs)
 
   # Ensure pip is present so we can install the project editable
@@ -36,4 +33,6 @@ dependencies:
   # Install the project itself in editable mode via pip
   - pip:
       - -e .                 # install package from local pyproject.toml (editable)
+      - PySDL2>=0.9.16
+      - pysdl2-dll>=2.30.0
       # Add any pip-only packages here if absolutely necessary

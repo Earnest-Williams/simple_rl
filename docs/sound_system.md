@@ -15,11 +15,9 @@ The Simple RL sound system provides situationally appropriate sound effects and 
      enabled: true
    ```
 
-2. **Install Audio Backend**: Install one of the supported audio libraries:
+2. **Install Audio Backend**: Install the SDL2 mixer backend:
    ```bash
-   pip install pygame
-   # OR
-   pip install simpleaudio
+   pip install PySDL2 pysdl2-dll
    ```
 
 3. **Install DSP Library**: Environmental effects use `pydub`:
@@ -262,11 +260,7 @@ situational_modifiers:
    `low_pass_modifier`) to change effects based on day/night.
 4. Pass the `environment` and `time_of_day` values in the sound context when
    calling `play_sound` or `handle_event`.
-5. Verify that effects change when moving between biomes by running:
-
-   ```bash
-   pytest tests/test_sound_system.py::TestSoundManager::test_environment_effects_change_between_biomes
-   ```
+5. Re-run the sound system test suite once audio tests are restored.
 
 ## Event Mappings
 
@@ -314,7 +308,7 @@ This will show:
 ### No Sound Playback
 
 1. Check that audio is enabled in `config/sounds.yaml`
-2. Verify audio backend is installed (`pygame` or `simpleaudio`)
+2. Verify audio backend is installed (`PySDL2` + `pysdl2-dll`)
 3. Ensure audio files exist in correct directories
 4. Check volume settings are not zero
 5. Verify file format is OGG Vorbis
