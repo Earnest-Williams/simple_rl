@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import structlog  # Added
-from cairosvg import svg2png  # type: ignore[import-not-found]  # For SVG rasterization
+from cairosvg import svg2png  # type: ignore[import-not-found]
 from PIL import Image
 
 log = structlog.get_logger()  # Added
