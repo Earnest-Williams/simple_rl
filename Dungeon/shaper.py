@@ -35,7 +35,7 @@ except ImportError:
 
 # === Dependency Imports ===
 try:
-    from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]  # Use specific name
+    from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
     from scipy.signal import convolve2d  # type: ignore[import-untyped]
 
     HAS_SCIPY = True
