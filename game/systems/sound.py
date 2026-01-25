@@ -654,8 +654,8 @@ class SoundManager:
             sdl_mixer.Mix_Volume(channel, volume_value)
             if source_pos and listener_pos and listener_orientation:
                 pan = self._calculate_pan(source_pos, listener_pos, listener_orientation)
-                left = int(max(0.0, min(1.0, (1.0 - pan) / 2.0)) * 255)
-                right = int(max(0.0, min(1.0, (1.0 + pan) / 2.0)) * 255)
+                left = int(((1.0 - pan) / 2.0) * 255)
+                right = int(((1.0 + pan) / 2.0) * 255)
                 sdl_mixer.Mix_SetPanning(channel, left, right)
             else:
                 sdl_mixer.Mix_SetPanning(channel, 255, 255)
