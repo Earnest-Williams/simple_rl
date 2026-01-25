@@ -27,11 +27,11 @@ import polars as pl
 import yaml
 from polars.exceptions import ColumnNotFoundError, PolarsError
 
-_SCRIPT_PATH = Path(__file__)
-if _SCRIPT_PATH.exists():
-    _REPO_ROOT = _SCRIPT_PATH.resolve().parents[1]
-    if str(_REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(_REPO_ROOT))
+SCRIPT_PATH = Path(__file__)
+if SCRIPT_PATH.exists():
+    repo_root = SCRIPT_PATH.resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
 from common.constants import Material
 from engine.main_loop import MainLoop
