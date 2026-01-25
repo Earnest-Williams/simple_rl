@@ -55,10 +55,38 @@ echo "Running cleanup script..."
 python scripts/cleanup_typing_imports.py
 
 echo "Applying ruff fixes..."
-ruff --fix .
+# Limit ruff to tracked Python files so it won't try to parse TOML/etc.
+mapfile -t PY_FILES < <(git ls-files -- '*.py' '*.pyi' || true)
+if [ "${#PY_FILES[@]}" -gt 0 ]; then
+  if ruff --fix "${PY_FILES[@]}"; then
+    echo "ruff --fix succeeded in bulk mode."
+  else
+    echo "ruff bulk run failed. Running per-file to locate errors." >&2
+    failed=0
+    for f in "${PY_FILES[@]}"; do
+      if ! ruff --fix "$f" 2> "/tmp/ruff.$(basename "$f").err"; then
+        echo "ruff FAILED on: $f" >&2
+        echo "stderr (tail):"
+        tail -n 200 "/tmp/ruff.$(basename "$f").err" >&2 || true
+        failed=1
+      fi
+    done
+    if [ $failed -eq 1 ]; then
+      echo "One or more ruff errors detected; aborting." >&2
+      exit 1
+    fi
+  fi
+else
+  echo "No tracked Python files found; skipping ruff."
+fi
 
 echo "Formatting with black..."
-black .
+# Run black only on tracked Python files (same list)
+if [ "${#PY_FILES[@]}" -gt 0 ]; then
+  black "${PY_FILES[@]}"
+else
+  echo "No tracked Python files found; skipping black."
+fi
 
 echo "Type check with mypy (may fail; fix issues if needed)..."
 mypy . || true
