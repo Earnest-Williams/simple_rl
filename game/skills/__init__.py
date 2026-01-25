@@ -12,6 +12,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# Effects (wrap the new return types into the old dicts/dataclasses expected)
+from skills.effects import (
+    get_combat_bonuses_dict as _get_combat_bonuses_dict,
+)
+from skills.effects import (
+    get_magic_bonuses_dict as _get_magic_bonuses_dict,
+)
+
 # Models & types ---------------------------------------------------------
 from skills.models import (
     Skill,
@@ -30,6 +38,9 @@ from skills.progression import (
     get_aptitude_multiplier,
 )
 
+# Registry integration helpers (for initializing entity skills)
+from skills.registry_integration import SkillSystemMixin
+
 # System / high-level operations
 from skills.system import (
     award_xp,
@@ -38,15 +49,6 @@ from skills.system import (
     set_skill_training,
     set_training_mode,
 )
-
-# Effects (wrap the new return types into the old dicts/dataclasses expected)
-from skills.effects import (
-    get_combat_bonuses_dict as _get_combat_bonuses_dict,
-    get_magic_bonuses_dict as _get_magic_bonuses_dict,
-)
-
-# Registry integration helpers (for initializing entity skills)
-from skills.registry_integration import SkillSystemMixin
 
 if TYPE_CHECKING:
     from typing import Any
@@ -145,7 +147,7 @@ def get_entity_skill_level(entity_registry: Any, entity_id: int, skill: Skill) -
         # fallback to component-based access if implemented
         try:
             skills = entity_registry.get_entity_component(entity_id, "skills")
-        except (AttributeError, KeyError): # Catch specific exceptions
+        except (AttributeError, KeyError):  # Catch specific exceptions
             skills = None
 
     if not skills:

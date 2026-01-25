@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Dict, List, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import polars as pl
 import structlog
@@ -147,7 +147,14 @@ class EntityRegistry:
                 # Determine default value based on dtype
                 if dtype in (pl.Float32, pl.Float64):
                     default = 0.0
-                elif dtype in (pl.Int16, pl.Int32, pl.Int64, pl.UInt16, pl.UInt32, pl.UInt64):
+                elif dtype in (
+                    pl.Int16,
+                    pl.Int32,
+                    pl.Int64,
+                    pl.UInt16,
+                    pl.UInt32,
+                    pl.UInt64,
+                ):
                     default = 0
                 elif dtype == pl.Boolean:
                     default = False
@@ -168,7 +175,9 @@ class EntityRegistry:
                     default=default,
                 )
                 # Use repeat for better performance on large DataFrames
-                default_series = pl.Series([default]).repeat(self.entities_df.height).cast(dtype)
+                default_series = (
+                    pl.Series([default]).repeat(self.entities_df.height).cast(dtype)
+                )
                 self.entities_df = self.entities_df.with_columns(
                     default_series.alias(col)
                 )
@@ -212,9 +221,9 @@ class EntityRegistry:
         fuel: float = 0.0,
         max_fuel: float = 0.0,
         status_effects: list | None = None,
-        initial_body_plan: Dict[str, int] | None = None,
-        resistances: Dict[str, float] | None = None,
-        vulnerabilities: Dict[str, float] | None = None,
+        initial_body_plan: dict[str, int] | None = None,
+        resistances: dict[str, float] | None = None,
+        vulnerabilities: dict[str, float] | None = None,
         drop_table: list[dict] | None = None,
     ) -> int:
         # (Implementation unchanged - uses direct schema on creation)
@@ -311,7 +320,9 @@ class EntityRegistry:
             "skill_training": [None],  # Will be initialized when needed
             "active_manuals": [{}],  # No active manuals
             "shapeshifted_form": [None],  # Normal form
-            "training_mode": [TrainingMode.MANUAL.value],  # Default to manual training mode
+            "training_mode": [
+                TrainingMode.MANUAL.value
+            ],  # Default to manual training mode
         }
         try:
             new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
@@ -466,8 +477,8 @@ class EntityRegistry:
         return Position(int(x), int(y)) if x is not None and y is not None else None
 
     def get_entity_components(
-        self: Self, entity_id: int, component_names: List[str]
-    ) -> Dict[str, Any]:
+        self: Self, entity_id: int, component_names: list[str]
+    ) -> dict[str, Any]:
         entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
         if entity_df.height == 0:
             return {}
@@ -574,12 +585,12 @@ class EntityRegistry:
             log.error("Error getting active entities", error=str(e), exc_info=True)
             return pl.DataFrame(schema=ENTITY_SCHEMA)
 
-    def get_body_plan(self, entity_id: int) -> Dict[str, int] | None:
+    def get_body_plan(self, entity_id: int) -> dict[str, int] | None:
         # (Implementation unchanged)
         plan = self.get_entity_component(entity_id, "body_plan")
         return plan if isinstance(plan, dict) else None
 
-    def set_body_plan(self, entity_id: int, body_plan: Dict[str, int]) -> bool:
+    def set_body_plan(self, entity_id: int, body_plan: dict[str, int]) -> bool:
         # (Implementation unchanged)
         if not isinstance(body_plan, dict):
             log.error(
@@ -590,7 +601,7 @@ class EntityRegistry:
             return False
         return self.set_entity_component(entity_id, "body_plan", body_plan)
 
-    def get_equipped_ids(self, entity_id: int) -> List[int] | None:
+    def get_equipped_ids(self, entity_id: int) -> list[int] | None:
         """Gets the list of directly equipped item IDs for an active entity."""
         ids = self.get_entity_component(entity_id, "equipped_item_ids")
         # --- REMOVED Series check ---
@@ -599,7 +610,7 @@ class EntityRegistry:
         # Return None if not a list
         return ids if isinstance(ids, list) else None
 
-    def set_equipped_ids(self, entity_id: int, equipped_ids: List[int]) -> bool:
+    def set_equipped_ids(self, entity_id: int, equipped_ids: list[int]) -> bool:
         # (Implementation unchanged)
         if not isinstance(equipped_ids, list):
             log.error(
@@ -618,7 +629,7 @@ class EntityRegistry:
     _sync_skills_to_legacy = SkillSystemMixin._sync_skills_to_legacy
     _set_skills_impl = SkillSystemMixin._set_skills_impl
 
-    def get_skills(self, entity_id: int) -> Dict[Skill, SkillProgress]:
+    def get_skills(self, entity_id: int) -> dict[Skill, SkillProgress]:
         """Get the skills dictionary for an entity."""
         if self.use_vectorized_skills:
             # Use vectorized path from mixin
@@ -628,7 +639,7 @@ class EntityRegistry:
             skills = self.get_entity_component(entity_id, "skills")
             return skills if skills is not None else {}
 
-    def set_skills(self, entity_id: int, skills: Dict[Skill, SkillProgress]) -> None:
+    def set_skills(self, entity_id: int, skills: dict[Skill, SkillProgress]) -> None:
         """Set the skills dictionary for an entity."""
         if not isinstance(skills, dict):
             log.error(

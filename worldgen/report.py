@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, TypedDict
+from typing import TypedDict
 
 import numpy as np
 import orjson
 from numpy.typing import NDArray
 
-from worldgen.constants import ELEV_Q_M, REPORT_PERCENTILES_PCT, REPORT_SAMPLE_SIZE_DEFAULT
+from worldgen.constants import (
+    ELEV_Q_M,
+    REPORT_PERCENTILES_PCT,
+    REPORT_SAMPLE_SIZE_DEFAULT,
+)
 
 
 class RiverStats(TypedDict):
     """Statistics about river cells and stream orders."""
 
     total_river_cells: int
-    order_histogram: List[int]
+    order_histogram: list[int]
 
 
 class SeamContinuity(TypedDict):
@@ -30,16 +34,16 @@ class WorldGenReport(TypedDict):
     """Complete world generation validation report."""
 
     land_fraction: float
-    temp_quantiles: Dict[str, float]
-    precip_quantiles: Dict[str, float]
+    temp_quantiles: dict[str, float]
+    precip_quantiles: dict[str, float]
     river_stats: RiverStats
     seam_continuity: SeamContinuity
 
 
 def compute_quantiles(
     arr: NDArray[np.floating[np.generic]],  # float32[n_cells]
-    percentiles: List[int],
-) -> Dict[str, float]:
+    percentiles: list[int],
+) -> dict[str, float]:
     if arr.size == 0:
         raise ValueError("arr must be non-empty")
     p: int
@@ -48,7 +52,7 @@ def compute_quantiles(
             raise ValueError("percentiles must be between 0 and 100")
     sorted_arr: NDArray[np.floating[np.generic]] = np.sort(arr)
     n: int = int(sorted_arr.shape[0])
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     for p in percentiles:
         idx: int = int(p * n / 100)
         if idx >= n:
@@ -60,7 +64,7 @@ def compute_quantiles(
 def compute_seam_continuity(
     layer: NDArray[np.floating[np.generic]],  # float32[n_cells]
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
-    seam_pairs: List[Tuple[int, int]],
+    seam_pairs: list[tuple[int, int]],
     sample_size: int,
 ) -> float:
     if sample_size <= 0:
@@ -71,7 +75,7 @@ def compute_seam_continuity(
     if nbr4.shape[0] != n_cells:
         raise ValueError("nbr4 must have the same length as layer")
 
-    seam_set: Set[Tuple[int, int]] = set(seam_pairs)
+    seam_set: set[tuple[int, int]] = set(seam_pairs)
     u: int
     v: int
     for u, v in seam_pairs:
@@ -125,7 +129,7 @@ def generate_report(
     stream_order_u8: NDArray[np.uint8],  # uint8[n_cells]
     nbr4: NDArray[np.int32],  # int32[n_cells, 4]
     sea_level_q: int,
-    seam_pairs: List[Tuple[int, int]],
+    seam_pairs: list[tuple[int, int]],
     sample_size: int = REPORT_SAMPLE_SIZE_DEFAULT,
 ) -> WorldGenReport:
     if not out_dir.exists():
@@ -136,18 +140,18 @@ def generate_report(
     land_mask: NDArray[np.bool_] = elev_q_i32 >= sea_level_q
     land_fraction: float = float(np.mean(land_mask))
 
-    temp_quantiles: Dict[str, float] = compute_quantiles(
+    temp_quantiles: dict[str, float] = compute_quantiles(
         temp_f32,
         list(REPORT_PERCENTILES_PCT),
     )
-    precip_quantiles: Dict[str, float] = compute_quantiles(
+    precip_quantiles: dict[str, float] = compute_quantiles(
         precip_f32,
         list(REPORT_PERCENTILES_PCT),
     )
 
     total_river_cells: int = int(np.sum(is_river_u8))
     max_order: int = int(np.max(stream_order_u8)) if stream_order_u8.size else 0
-    order_hist: List[int] = []
+    order_hist: list[int] = []
     o: int
     for o in range(1, max_order + 1):
         order_hist.append(int(np.sum(stream_order_u8 == o)))

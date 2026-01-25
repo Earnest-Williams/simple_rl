@@ -8,35 +8,32 @@ simulation for townsfolk) within the same simulation.
 
 from __future__ import annotations
 
-from typing import Callable, Dict
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
 from . import (
-    goap,
-    community,
-    simple,
-    ml_policy,
-    strategy,
-    insect,
     bird,
+    community,
+    goap,
+    insect,
     mammal,
-    reptile,
+    ml_policy,
     plant,
+    reptile,
+    simple,
+    strategy,
 )
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:  # pragma: no cover - for type checking
-    from polars import series
-    from game.game_state import GameState
-    from utils.game_rng import GameRNG
+    pass
 
 log = structlog.get_logger()
 
 # Mapping from ai_type string to the adapter function that will
 # execute a turn for entities of that type.
-ADAPTERS: Dict[str, Callable] = {
+ADAPTERS: dict[str, Callable] = {
     "goap": goap.take_turn,
     "community": community.take_turn,
     "simple": simple.take_turn,

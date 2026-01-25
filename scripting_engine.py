@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, Literal, Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 
 import structlog
 
@@ -199,7 +199,7 @@ class MacroManager:
         Args:
             game_state: Reference to the game state for command execution
         """
-        self.macros: Dict[str, str] = {}
+        self.macros: dict[str, str] = {}
         self.game_state: GameStateProtocol | None = (
             game_state  # Ensure this is updated if game_state changes (e.g., on load)
         )

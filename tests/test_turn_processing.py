@@ -1,7 +1,8 @@
-from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
 import sys
 import types
+
+from game.game_state import GameState
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # Minimal ai_system dispatch for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

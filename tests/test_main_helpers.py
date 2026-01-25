@@ -1,7 +1,8 @@
 import os
+
 from PySide6.QtWidgets import QApplication
 
-from main import Configs, load_configs, init_game_state, init_window
+from main import Configs, init_game_state, init_window, load_configs
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 

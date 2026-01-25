@@ -9,16 +9,18 @@ scheduler.
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import structlog
 
-from .perception import find_visible_enemies
 from game.systems import movement_system
+
+from .perception import find_visible_enemies
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
     from polars import series
+
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -42,14 +44,14 @@ def _step_towards(src: tuple[int, int], dst: tuple[int, int]) -> tuple[int, int]
     return dx, dy
 
 
-def _move(entity_row: "series", dx: int, dy: int, game_state: "GameState") -> None:
+def _move(entity_row: series, dx: int, dy: int, game_state: GameState) -> None:
     movement_system.try_move(entity_row["entity_id"], dx, dy, game_state)
 
 
 def charge_behavior(
-    entity_row: "series",
-    game_state: "GameState",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    entity_row: series,
+    game_state: GameState,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
 ) -> None:
     noise, scent, los = perception
     enemies = find_visible_enemies(entity_row, game_state, los)
@@ -62,7 +64,7 @@ def charge_behavior(
     _move(entity_row, dx, dy, game_state)
 
 
-def home_behavior(entity_row: "series", game_state: "GameState") -> None:
+def home_behavior(entity_row: series, game_state: GameState) -> None:
     home_x = entity_row.get("home_x", 0)
     home_y = entity_row.get("home_y", 0)
     dx, dy = _step_towards((entity_row.get("x"), entity_row.get("y")), (home_x, home_y))
@@ -70,9 +72,9 @@ def home_behavior(entity_row: "series", game_state: "GameState") -> None:
 
 
 def flee_behavior(
-    entity_row: "series",
-    game_state: "GameState",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    entity_row: series,
+    game_state: GameState,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
 ) -> None:
     noise, scent, los = perception
     enemies = find_visible_enemies(entity_row, game_state, los)
@@ -87,9 +89,9 @@ def flee_behavior(
 
 
 def smart_kobold_behavior(
-    entity_row: "series",
-    game_state: "GameState",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    entity_row: series,
+    game_state: GameState,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
 ) -> None:
     hp = entity_row.get("hp", 1)
     max_hp = entity_row.get("max_hp", hp)
@@ -100,10 +102,10 @@ def smart_kobold_behavior(
 
 
 def dispatch_strategy(
-    entity_row: "series",
-    game_state: "GameState",
-    rng: "GameRNG",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    entity_row: series,
+    game_state: GameState,
+    rng: GameRNG,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
     **kwargs,
 ) -> None:
     """Dispatch behaviour based on the entity's ``strategy_state``."""

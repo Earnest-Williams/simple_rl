@@ -6,7 +6,6 @@ including Numba-compatible NumPy arrays.
 # Standard Imports
 from pathlib import Path
 from typing import Any
-from typing import Dict as PyDict
 
 # Third-party Imports
 import numpy as np
@@ -57,8 +56,8 @@ class TilesetManager:
         self.min_tile_size: int = min_tile_size_cfg
         self.current_tileset_path: str = ""
         # PIL images {tile_index: Image}
-        self.tiles: PyDict[int, Image.Image] = {}
-        self.tiles_loaded: PyDict[int, np.ndarray] = {}
+        self.tiles: dict[int, Image.Image] = {}
+        self.tiles_loaded: dict[int, np.ndarray] = {}
         self.tile_width: int = 0
         self.tile_height: int = 0
 
@@ -342,7 +341,7 @@ class TilesetManager:
             log.error(f"Failed to populate render cache: {e}", exc_info=True)
             self.max_defined_tile_id = -1
 
-    def get_render_data(self) -> PyDict[str, Any]:
+    def get_render_data(self) -> dict[str, Any]:
         """Get render data with proper validation and fallback."""
         # Validate all components
         cache_valid = (

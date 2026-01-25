@@ -1,6 +1,7 @@
 # basicrl/game/world/procgen.py
 from collections import deque
-from typing import Dict, Iterator, List, NamedTuple, Tuple, Union
+from collections.abc import Iterator
+from typing import NamedTuple
 
 import numpy as np
 import structlog
@@ -40,7 +41,7 @@ class Rect(NamedTuple):
     y2: int
 
     @property
-    def center(self) -> Tuple[int, int]:
+    def center(self) -> tuple[int, int]:
         """Center coordinates of the rectangle."""
         center_x = (self.x1 + self.x2) // 2
         center_y = (self.y1 + self.y2) // 2
@@ -111,7 +112,7 @@ class BSPNode:
         self.left: BSPNode | None = None
         self.right: BSPNode | None = None
         self.room: Rect | None = None
-        self.corridors: List[Rect] = []
+        self.corridors: list[Rect] = []
         self.base_height: int = base_height  # Floor height for this node's region
 
     @property
@@ -301,7 +302,7 @@ def _carve_tunnel(
     end_floor_h: int,  # Use floor heights
     game_map: GameMap,
     rng: GameRNG,
-) -> List[Rect]:
+) -> list[Rect]:
     """
     Carves an L-shaped tunnel between two points, assigning simple heights.
     Returns list of Rects carved.
@@ -459,7 +460,7 @@ def _connect_rooms(node: BSPNode, game_map: GameMap, rng: GameRNG) -> None:
 
 def _generate_bsp_dungeon(
     game_map: GameMap, map_width: int, map_height: int, rng: GameRNG
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Generate a classic rooms-and-corridors layout using BSP."""
     initial_base_height = 0
     root_node = BSPNode(Rect(1, 1, map_width - 2, map_height - 2), initial_base_height)
@@ -473,7 +474,7 @@ def _generate_bsp_dungeon(
     log.info("Defining rooms...")
     _create_rooms_in_leaves(root_node, rng)
 
-    all_rooms: List[Rect] = []
+    all_rooms: list[Rect] = []
     log.info("Carving rooms onto map...")
     for leaf in root_node.get_leaves():
         if leaf.room:
@@ -504,7 +505,7 @@ def _generate_bsp_dungeon(
 
 def _generate_cavern_level(
     game_map: GameMap, map_width: int, map_height: int, rng: GameRNG
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Generate a cave layout using cellular automata."""
     fill_prob = 0.45
     for y in range(1, map_height - 1):
@@ -570,8 +571,8 @@ def _generate_cavern_level(
 
 
 def _apply_prefab(
-    game_map: GameMap, x: int, y: int, prefab: List[str]
-) -> Tuple[int, int]:
+    game_map: GameMap, x: int, y: int, prefab: list[str]
+) -> tuple[int, int]:
     """Carve a prefab module onto the map and return its center."""
     for dy, row in enumerate(prefab):
         for dx, char in enumerate(row):
@@ -594,9 +595,9 @@ PREFABS = [
 
 def _generate_surface_level(
     game_map: GameMap, map_width: int, map_height: int, rng: GameRNG
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Place prefab surface structures."""
-    centers: List[Tuple[int, int]] = []
+    centers: list[tuple[int, int]] = []
     for prefab in PREFABS:
         h = len(prefab)
         w = len(prefab[0])
@@ -612,7 +613,7 @@ def _place_vertical_transitions(
     game_map: GameMap, rng: GameRNG, floor_positions: np.ndarray
 ) -> None:
     floor_list = [tuple(p) for p in floor_positions]
-    transitions: List[Dict[str, Union[int, str]]] = []
+    transitions: list[dict[str, int | str]] = []
     if floor_list:
         choices = rng.sample(floor_list, k=min(2, len(floor_list)))
         if len(choices) >= 1:
@@ -637,7 +638,7 @@ def _add_story_hooks(
         "a mysterious rune etched into stone",
     ]
     floor_list = [tuple(p) for p in floor_positions]
-    hooks: List[Dict[str, Union[int, str]]] = []
+    hooks: list[dict[str, int | str]] = []
     if floor_list:
         count = min(count, len(floor_list))
         positions = rng.sample(floor_list, k=count)
@@ -659,7 +660,7 @@ def generate_dungeon(
     seed: int | None = None,
     algorithm: str = "bsp",
     region: str | None = None,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Entry point for dungeon generation selecting different algorithms."""
     if not isinstance(game_map, GameMap):
         log.error("Generate dungeon called with invalid GameMap object")

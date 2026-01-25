@@ -1,8 +1,10 @@
-from game.game_state import GameState
-from game.world.game_map import GameMap
-from structlog.testing import capture_logs
 import sys
 import types
+
+from structlog.testing import capture_logs
+
+from game.game_state import GameState
+from game.world.game_map import GameMap
 
 # Provide a minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

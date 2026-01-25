@@ -36,9 +36,7 @@ SKILL_PREREQUISITES: Final[dict[Skill, list[Prerequisite]]] = {
     Skill.POLEARMS: [Prerequisite(Skill.FIGHTING, 3, "Basic combat training required")],
     Skill.STAVES: [Prerequisite(Skill.FIGHTING, 2, "Basic combat training required")],
     # Shield use requires some defensive skill
-    Skill.SHIELDS: [
-        Prerequisite(Skill.DODGING, 2, "Basic defense training required")
-    ],
+    Skill.SHIELDS: [Prerequisite(Skill.DODGING, 2, "Basic defense training required")],
     # Advanced magic schools require spellcasting foundation
     Skill.CONJURATIONS: [
         Prerequisite(Skill.SPELLCASTING, 4, "Spellcasting foundation required")

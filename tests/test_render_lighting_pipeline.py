@@ -7,7 +7,7 @@ from PIL import Image
 from engine.render_lighting import apply_light_sources, calculate_lighting
 from engine.renderer import RenderConfig, ViewportParams, render_viewport
 from game.game_state import GameState
-from game.world.game_map import GameMap, LightSource, TILE_ID_FLOOR
+from game.world.game_map import TILE_ID_FLOOR, GameMap, LightSource
 
 # Provide a minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

@@ -1,21 +1,21 @@
 # game/game_state.py
 import contextlib
-from typing import Any, Callable, Dict, List, Literal, Set, Tuple
+import heapq
+from collections.abc import Callable
+from typing import Any, Literal
 
 import structlog
-import heapq
-from utils.game_rng import GameRNG  # Assuming this path is correct
 
-from game.entities.registry import EntityRegistry
+from game.ai.perception import gather_perception
 from game.entities.components import Position
+from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
+from game.systems.ai_system import dispatch_ai
 
 # Assuming these imports are correct relative to game_state.py
-
 from game.world.game_map import GameMap, LightSource
-from game.systems.ai_system import dispatch_ai
-from game.ai.perception import gather_perception
 from simulation.zone_manager import ZoneManager
+from utils.game_rng import GameRNG  # Assuming this path is correct
 
 # Import sound system
 try:
@@ -56,17 +56,17 @@ class GameState:
     def __init__(
         self,
         existing_map: GameMap,
-        player_start_pos: Tuple[int, int],
+        player_start_pos: tuple[int, int],
         # Config values passed directly
         player_glyph: int,
         player_start_hp: int,
         player_fov_radius: int,
-        item_templates: Dict[str, Any],
-        entity_templates: Dict[str, Any] | None = None,
-        effect_definitions: Dict[str, Any] | None = None,
+        item_templates: dict[str, Any],
+        entity_templates: dict[str, Any] | None = None,
+        effect_definitions: dict[str, Any] | None = None,
         rng_seed: int | None = None,
-        ai_config: Dict[str, Any] | None = None,
-        memory_fade_config: Dict[str, Any] | None = None,
+        ai_config: dict[str, Any] | None = None,
+        memory_fade_config: dict[str, Any] | None = None,
         enable_sound: bool = True,
         enable_ai: bool = True,
     ):
@@ -95,8 +95,8 @@ class GameState:
         self.entity_templates = EntityTemplateRegistry(entity_templates or {})
 
         self.item_registry: ItemRegistry = ItemRegistry(item_templates)
-        self.effect_definitions: Dict[str, Any] = effect_definitions or {}
-        self.ai_config: Dict[str, Any] = ai_config or {}
+        self.effect_definitions: dict[str, Any] = effect_definitions or {}
+        self.ai_config: dict[str, Any] = ai_config or {}
         self.ai_enabled: bool = enable_ai
         mf_config = memory_fade_config or {}
         duration = mf_config.get("duration", 60.0)
@@ -405,7 +405,7 @@ class GameState:
 
     def process_turn(
         self,
-    ) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
         """Handle per-turn updates like status effects and resources."""
         # Timed events scheduled for this turn
         while self.timed_events and self.timed_events[0][0] <= self.turn_count:
@@ -415,8 +415,8 @@ class GameState:
             except Exception as err:
                 log.error("Timed event callback failed", error=str(err))
 
-        active_rows: List[Dict[str, object]] = []
-        ai_entities: List[Dict[str, object]] = []
+        active_rows: list[dict[str, object]] = []
+        ai_entities: list[dict[str, object]] = []
         for row in self.entity_registry.entities_df.iter_rows(named=True):
             if not row.get("is_active", False):
                 continue
@@ -430,7 +430,7 @@ class GameState:
         self._consume_player_fuel()
         return active_rows, ai_entities
 
-    def _process_zone(self, zone: Tuple[int, int]) -> None:
+    def _process_zone(self, zone: tuple[int, int]) -> None:
         """Aggregate update for all entities within ``zone``.
 
         This performs a very coarse simulation step used for areas that are far
@@ -462,7 +462,7 @@ class GameState:
             px, py = player_pos
             self.scent_events.append((px, py, 5.0))
 
-        active_zones: Set[Tuple[int, int]] = self.zone_manager.get_active_zones(
+        active_zones: set[tuple[int, int]] = self.zone_manager.get_active_zones(
             player_pos
         )
 

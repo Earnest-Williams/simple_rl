@@ -109,7 +109,8 @@ def _apply_manual_aptitude(
         registry.skills_df = registry.skills_df.with_columns(
             [
                 pl.when(
-                    (pl.col("entity_id") == entity_id) & (pl.col("skill") == skill.value)
+                    (pl.col("entity_id") == entity_id)
+                    & (pl.col("skill") == skill.value)
                 )
                 .then(pl.col("aptitude") + bonus)
                 .otherwise(pl.col("aptitude"))

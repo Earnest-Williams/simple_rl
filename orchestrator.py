@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import orjson
@@ -17,7 +17,6 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from scipy.spatial import KDTree
 
-from Dungeon import core, processor, shaper
 from auto.simulation import (
     PASSIVE_HUNGER_PER_TURN,
     REST_HEALTH_REGEN,
@@ -27,10 +26,11 @@ from auto.simulation import (
     World,
     enemy_act,
 )
+from Dungeon import core, processor, shaper
 from engine.render_lighting import apply_memory_fade
+from skills.utils import numba_warmup
 from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
-from skills.utils import numba_warmup
 
 REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
@@ -58,7 +58,7 @@ class NodeMapRow(BaseModel):
     df_index: int | None = None
 
 
-NODE_MAP_ROWS_ADAPTER = TypeAdapter(List[NodeMapRow])
+NODE_MAP_ROWS_ADAPTER = TypeAdapter(list[NodeMapRow])
 
 
 def run_headless_sim(
@@ -166,12 +166,12 @@ def run_pipeline(
         x_arr = df.get_column("x").to_numpy().astype(np.float64)
         y_arr = df.get_column("y").to_numpy().astype(np.float64)
 
-        node_map_rows: List[Dict[str, Any]] = []
+        node_map_rows: list[dict[str, Any]] = []
         node_id_col = np.full(len(df), -1, dtype=np.int32)
 
         if isinstance(augmented_nodes, list) and len(df) > 0:
-            node_ids: List[int] = []
-            node_coords: List[Tuple[float, float]] = []
+            node_ids: list[int] = []
+            node_coords: list[tuple[float, float]] = []
             for node in augmented_nodes:
                 nid = int(node.get("id"))
                 nx = float(node.get("x", 0.0))
@@ -190,7 +190,11 @@ def run_pipeline(
                 tile_y_arr = np.rint(y_arr[idxs]).astype(np.int32)
 
                 for i, ((nid, (nx, ny)), idx) in enumerate(
-                    zip(zip(node_ids, node_coords), idxs.tolist())
+                    zip(
+                        zip(node_ids, node_coords, strict=False),
+                        idxs.tolist(),
+                        strict=False,
+                    )
                 ):
                     tile_x = tile_x_arr[i]
                     tile_y = tile_y_arr[i]
@@ -226,7 +230,7 @@ def run_pipeline(
         log.warning("Shaped map missing x/y columns; skipping node->tile mapping.")
 
     map_arrays = load_shaped_map_as_arrays(output_file)
-    node_to_tile: Dict[int, Tuple[int, int]] = {}
+    node_to_tile: dict[int, tuple[int, int]] = {}
     origin_obj = map_arrays.get("origin", (0, 0))
     if (
         isinstance(origin_obj, tuple)

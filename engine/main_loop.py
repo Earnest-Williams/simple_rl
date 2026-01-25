@@ -1,6 +1,6 @@
 # engine/main_loop.py
 # Added typing imports
-from typing import TYPE_CHECKING, Any, Dict, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import structlog
@@ -195,11 +195,11 @@ class MainLoop:
     # ------------------------------------------------------------------
     # Save / Load hooks
     # ------------------------------------------------------------------
-    def save_state(self) -> Dict[str, Any]:
+    def save_state(self) -> dict[str, Any]:
         """Return a serialisable snapshot of the main loop state."""
         return {"zone_manager": self.game_state.zone_manager.to_dict()}
 
-    def load_state(self, data: Dict[str, Any]) -> None:
+    def load_state(self, data: dict[str, Any]) -> None:
         """Restore state produced by :meth:`save_state`."""
         z_data = data.get("zone_manager")
         if z_data:

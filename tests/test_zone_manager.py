@@ -1,8 +1,9 @@
-from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-from simulation.zone_manager import ZoneManager
 import sys
 import types
+
+from game.game_state import GameState
+from game.world.game_map import TILE_ID_FLOOR, GameMap
+from simulation.zone_manager import ZoneManager
 
 # Stub ai_system to satisfy GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict
 
 
 class SkillCategory(Enum):
@@ -64,7 +63,7 @@ class Skill(Enum):
 
 
 # Skill category mapping
-SKILL_CATEGORIES: Dict[Skill, SkillCategory] = {
+SKILL_CATEGORIES: dict[Skill, SkillCategory] = {
     # Offense
     Skill.FIGHTING: SkillCategory.OFFENSE,
     Skill.AXES: SkillCategory.OFFENSE,
@@ -102,7 +101,7 @@ SKILL_CATEGORIES: Dict[Skill, SkillCategory] = {
 
 # Cross-training bonuses: skill -> list of (related_skill, bonus_percentage)
 # e.g., training Maces & Flails also trains Axes and Staves at reduced rate
-CROSS_TRAINING: Dict[Skill, list[tuple[Skill, float]]] = {
+CROSS_TRAINING: dict[Skill, list[tuple[Skill, float]]] = {
     Skill.MACES_AND_FLAILS: [
         (Skill.AXES, 0.25),
         (Skill.STAVES, 0.25),
@@ -184,11 +183,11 @@ class SkillTrainingConfig:
 
     mode: TrainingMode = TrainingMode.AUTOMATIC
     # Skill -> TrainingState mapping
-    training_states: Dict[Skill, TrainingState] = field(default_factory=dict)
+    training_states: dict[Skill, TrainingState] = field(default_factory=dict)
     # Skill -> target level (auto-disable when reached)
-    target_levels: Dict[Skill, int] = field(default_factory=dict)
+    target_levels: dict[Skill, int] = field(default_factory=dict)
     # Track recent skill usage for automatic mode (skill -> usage_count)
-    recent_usage: Dict[Skill, int] = field(default_factory=dict)
+    recent_usage: dict[Skill, int] = field(default_factory=dict)
 
     def get_training_state(self, skill: Skill) -> TrainingState:
         """Get the training state for a skill, defaulting to ENABLED."""

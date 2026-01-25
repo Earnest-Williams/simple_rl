@@ -7,10 +7,9 @@ import json
 import time
 from collections import Counter
 
-from utils.game_rng import GameRNG
-
 from auto import main as auto_main
 from auto import simulation as auto_simulation
+from utils.game_rng import GameRNG
 
 
 def run_regression(
@@ -58,7 +57,7 @@ def run_regression(
                     "outcome": outcome,
                 }
                 for run_id, run_seed, (turns, _weights, outcome) in zip(
-                    range(1, num_runs + 1), run_seeds, results
+                    range(1, num_runs + 1), run_seeds, results, strict=False
                 )
             ],
             "elapsed_seconds": elapsed_s,

@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-Fail if code uses typing.List / typing.Dict / typing.Tuple or imports them
+Fail if code uses list / dict / tuple or imports them
 from typing. Excludes common venv/build dirs.
 """
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 from typing import Final
 
 ROOT: Final[Path] = Path(".")
-EXCLUDE_PARTS: Final[set[str]] = {".venv", "venv", "build", "dist", ".git", "__pycache__"}
+EXCLUDE_PARTS: Final[set[str]] = {
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    ".git",
+    "__pycache__",
+}
 PATTERNS: Final[list[re.Pattern[str]]] = [
     re.compile(
         r"from\s+typing\s+import\s+.*\b"

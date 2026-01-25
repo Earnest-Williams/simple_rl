@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Dict
 
 import orjson
 
@@ -20,7 +19,7 @@ def compute_chunk_cache_key(
     detail_cells_per_sim: int,
 ) -> str:
     """Return a stable sha256 cache key for a chunk request."""
-    payload: Dict[str, object] = {
+    payload: dict[str, object] = {
         "global_tunables_hash": meta.global_tunables_hash,
         "chunk_tunables_hash": meta.chunk_tunables_hash,
         "world_seed": int(meta.world_seed),

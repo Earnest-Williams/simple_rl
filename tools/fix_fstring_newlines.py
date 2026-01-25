@@ -17,7 +17,11 @@ Runs on git-tracked .py files. Use:
 """
 
 from __future__ import annotations
-import pathlib, subprocess, sys, difflib
+
+import difflib
+import pathlib
+import subprocess
+import sys
 
 PREFIX_CHARS = set("rRbBuUfF")
 

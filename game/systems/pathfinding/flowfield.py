@@ -1,8 +1,7 @@
 # game/systems/pathfinding/flowfield.py
-from typing import Dict, Final, List, Tuple
-
 import heapq
 import time
+from typing import Final
 
 import numpy as np
 import structlog  # Added
@@ -28,7 +27,7 @@ except ImportError:
 log = structlog.get_logger(__name__)
 
 # --- Type Aliases ---
-GridPosition = Tuple[int, int]  # (y, x) format
+GridPosition = tuple[int, int]  # (y, x) format
 
 # --- Constants ---
 DIRECTIONS_8: Final[np.ndarray] = np.array(
@@ -160,15 +159,15 @@ class FlowFieldPathfinder:
         )
         self.flow_x: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
         self.flow_y: np.ndarray = np.zeros(self.passable.shape, dtype=np.int8)
-        self._last_sources: List[GridPosition] | None = None
-        self._flow_field_cache: Dict[
-            Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray]
+        self._last_sources: list[GridPosition] | None = None
+        self._flow_field_cache: dict[
+            tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]
         ] = {}
 
     def invalidate_flow_fields(self) -> None:
         self._flow_field_cache.clear()
 
-    def compute_field(self, stimulus_sources: List[GridPosition]) -> bool:
+    def compute_field(self, stimulus_sources: list[GridPosition]) -> bool:
         # (Initial checks and source validation unchanged - Source [source 1555-1559])
         if not stimulus_sources:
             log.warning("No stimulus sources provided.")
@@ -289,7 +288,7 @@ class FlowFieldPathfinder:
 
     def get_flow_field(
         self, ty: int | None = None, tx: int | None = None
-    ) -> Tuple[np.ndarray, np.ndarray] | Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Returns the flow field arrays, optionally cached by target."""
         if ty is None or tx is None:
             return self.flow_x, self.flow_y
@@ -349,7 +348,7 @@ if __name__ == "__main__":
     )
 
     # 3. Define Stimulus Source(s)
-    sources: List[GridPosition] = [(map_h - 5, map_w - 5)]  # Bottom-right corner
+    sources: list[GridPosition] = [(map_h - 5, map_w - 5)]  # Bottom-right corner
 
     # Check source validity
     if not pathfinder.passable[sources[0]]:

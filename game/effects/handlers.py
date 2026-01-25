@@ -2,17 +2,19 @@
 # Contains the actual Python functions that implement effect logic.
 
 import contextlib
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any
 
-import structlog
 import polars as pl
+import structlog
+
+from magic.models import Art, Substance
 
 # Imports for type hinting and GameRNG
 from utils.game_rng import GameRNG
 from utils.helpers import roll_dice as _roll_dice
-from ..world import line_of_sight
+
 from ..systems.death_system import handle_entity_death
-from magic.models import Art, Substance
+from ..world import line_of_sight
 
 # Import sound system for audio feedback
 try:
@@ -47,10 +49,10 @@ def is_visible_to_player(entity_id: int | None, gs: "GameState") -> bool:
 
 # --- AOE Helper ---
 def _get_entities_in_aoe(
-    center_pos: Tuple[int, int], radius: int, gs: "GameState"
-) -> List[int]:
+    center_pos: tuple[int, int], radius: int, gs: "GameState"
+) -> list[int]:
     """Finds active entity IDs within a specified radius of a center point."""
-    target_entities: List[int] = []
+    target_entities: list[int] = []
     radius_sq = radius * radius
     cx, cy = center_pos
 
@@ -94,7 +96,7 @@ def _get_entities_in_aoe(
 # --- Handler Functions ---
 
 
-def heal_target(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def heal_target(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Heals the target entity."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
@@ -157,7 +159,7 @@ def heal_target(context: Dict[str, Any], params: Dict[str, Any]) -> None:
             log.error("Failed to set new HP for heal target", target_id=target_id)
 
 
-def modify_resource(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def modify_resource(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Modifies a generic entity resource (e.g., fullness, mana). Requires component exists."""
     gs: "GameState" = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
@@ -236,7 +238,7 @@ def modify_resource(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         )
 
 
-def recall_ammo(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def recall_ammo(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Returns a projectile item to its owner's inventory."""
     gs: "GameState" = context.get("game_state")
     projectile_item_id = context.get("projectile_item_id")
@@ -294,7 +296,7 @@ def recall_ammo(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         )
 
 
-def apply_status(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def apply_status(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Applies a status effect to the target entity."""
     gs: "GameState" = context.get("game_state")
     target_id = context.get("target_entity_id", context.get("source_entity_id"))
@@ -336,7 +338,7 @@ def apply_status(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         )
         return
 
-    updated_statuses: List[Dict[str, Any]] = []
+    updated_statuses: list[dict[str, Any]] = []
     found_existing = False
 
     for status_dict in current_statuses_list:
@@ -404,7 +406,7 @@ def apply_status(context: Dict[str, Any], params: Dict[str, Any]) -> None:
 
 
 # --- Implemented AOE ---
-def apply_status_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def apply_status_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Applies a status effect to all valid targets within an AOE."""
     gs: "GameState" = context.get("game_state")
     center_pos = context.get("target_pos")
@@ -428,7 +430,7 @@ def apply_status_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None
 
 
 # --- Implemented Damage ---
-def deal_damage(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def deal_damage(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Deals damage to a target entity."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
@@ -448,8 +450,8 @@ def deal_damage(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         log.debug("Damage calculated as zero or less", raw=raw_damage)
         return
 
-    resistances: Dict[str, float] = {}
-    vulnerabilities: Dict[str, float] = {}
+    resistances: dict[str, float] = {}
+    vulnerabilities: dict[str, float] = {}
     with contextlib.suppress(ValueError):
         resistances = (
             gs.entity_registry.get_entity_component(target_id, "resistances") or {}
@@ -551,7 +553,7 @@ def deal_damage(context: Dict[str, Any], params: Dict[str, Any]) -> None:
 
 
 # --- Implemented AOE Damage ---
-def deal_damage_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def deal_damage_in_aoe(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Deals damage to all valid targets within an AOE."""
     gs: "GameState" = context.get("game_state")
     center_pos = context.get("target_pos")
@@ -582,7 +584,7 @@ def deal_damage_in_aoe(context: Dict[str, Any], params: Dict[str, Any]) -> None:
 
 
 # --- Implemented Dig Tunnel (minor refinement) ---
-def dig_tunnel(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def dig_tunnel(context: dict[str, Any], params: dict[str, Any]) -> None:
     gs: "GameState" = context.get("game_state")
     source_entity_id = context.get("source_entity_id")
     direction = context.get("target_direction")
@@ -633,7 +635,7 @@ def dig_tunnel(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         gs.game_map.update_tile_transparency()  # Crucial after changing tiles
 
 
-def create_portal(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def create_portal(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Creates a portal entity at the target location."""
     gs: "GameState" = context.get("game_state")
     target_pos = context.get("target_pos")
@@ -697,7 +699,7 @@ def create_portal(context: Dict[str, Any], params: Dict[str, Any]) -> None:
         log.error("Failed to create portal entity", pos=target_pos)
 
 
-def attempt_spawn_entity(context: Dict[str, Any], params: Dict[str, Any]) -> None:
+def attempt_spawn_entity(context: dict[str, Any], params: dict[str, Any]) -> None:
     """Attempts to spawn a specified entity at the target location based on chance."""
     gs: "GameState" = context.get("game_state")
     rng: GameRNG | None = context.get("rng")
@@ -762,7 +764,7 @@ def attempt_spawn_entity(context: Dict[str, Any], params: Dict[str, Any]) -> Non
 
 
 # --- Handler Registry (no changes needed here) ---
-EFFECT_LOGIC_HANDLERS: Dict[str, callable] = {
+EFFECT_LOGIC_HANDLERS: dict[str, callable] = {
     "heal_target": heal_target,
     "modify_resource": modify_resource,
     "recall_ammo": recall_ammo,
@@ -785,13 +787,13 @@ EFFECT_LOGIC_HANDLERS: Dict[str, callable] = {
 
 
 def _no_op_effect(
-    context: Dict[str, Any], params: Dict[str, Any] | None = None
+    context: dict[str, Any], params: dict[str, Any] | None = None
 ) -> None:
     """Fallback effect when no mapping exists."""
     log.debug("No-op effect executed", context=context)
 
 
-ART_SUBSTANCE_DISPATCHER: Dict[Tuple[Art, Substance], callable] = {
+ART_SUBSTANCE_DISPATCHER: dict[tuple[Art, Substance], callable] = {
     # Example mappings – these can be expanded as more of the magic system is
     # implemented.
     (Art.CREATE, Substance.WATER): heal_target,

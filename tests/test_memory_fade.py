@@ -1,10 +1,12 @@
-from game.game_state import GameState
-from game.world.game_map import GameMap
-import numpy as np
-import pytest
 import sys
 import types
+
+import numpy as np
+import pytest
+
+from game.game_state import GameState
 from game.world.fov import update_memory_fade
+from game.world.game_map import GameMap
 
 # Minimal stubs for external modules
 ai_module = types.ModuleType("game.systems.ai_system")

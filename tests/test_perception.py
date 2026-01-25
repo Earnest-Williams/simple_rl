@@ -1,10 +1,12 @@
-from game.systems import movement_system
-from game.ai.perception import gather_perception
-from game.game_state import GameState
-from game.world.game_map import GameMap
 import sys
 import types
+
 import numpy as np
+
+from game.ai.perception import gather_perception
+from game.game_state import GameState
+from game.systems import movement_system
+from game.world.game_map import GameMap
 
 # Provide a minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

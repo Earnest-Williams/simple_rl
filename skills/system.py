@@ -9,8 +9,9 @@ See CONCURRENCY.md for lock usage patterns and batch operation recommendations.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -27,11 +28,11 @@ from skills.registry_integration import (
 )
 
 if TYPE_CHECKING:
-    from game.entities.registry import EntityRegistry
+    pass
 
 
 @contextmanager
-def _acquire_skills_lock(registry: SkillRegistryHost) -> Generator[None, None, None]:
+def _acquire_skills_lock(registry: SkillRegistryHost) -> Generator[None]:
     """Context manager to safely acquire registry._skills_lock.
 
     Args:
@@ -394,7 +395,11 @@ def set_skill_training(
                     (pl.col("entity_id") == entity_id)
                     & (pl.col("skill") == skill.value)
                 )
-                .then(pl.lit(normalize_target_level_to_polars(target_level), dtype=pl.UInt8))
+                .then(
+                    pl.lit(
+                        normalize_target_level_to_polars(target_level), dtype=pl.UInt8
+                    )
+                )
                 .otherwise(pl.col("target_level"))
                 .alias("target_level"),
             ]

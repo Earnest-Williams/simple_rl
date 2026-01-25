@@ -8,7 +8,8 @@ from .models import *  # noqa: F401,F403
 
 if TYPE_CHECKING:
     from .executor import ExecutionResult, Work, execute_work
-    from .library import MagicLibrary, Work as LibraryWork, learn_work, research_work
+    from .library import MagicLibrary, learn_work, research_work
+    from .library import Work as LibraryWork
     from .wards import Counterseal, Ward, is_blocked
 
 __all__: list[str] = [
@@ -34,9 +35,11 @@ def __getattr__(name: str) -> object:
     }:
         from .library import (
             MagicLibrary,
-            Work as LibraryWork,
             learn_work,
             research_work,
+        )
+        from .library import (
+            Work as LibraryWork,
         )
 
         lookup = {

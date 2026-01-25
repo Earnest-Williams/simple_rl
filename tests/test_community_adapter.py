@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 def _make_game_state(templates):
     from game.game_state import GameState
-    from game.world.game_map import GameMap, TILE_ID_FLOOR
+    from game.world.game_map import TILE_ID_FLOOR, GameMap
 
     game_map = GameMap(5, 5)
     game_map.tiles[:] = TILE_ID_FLOOR

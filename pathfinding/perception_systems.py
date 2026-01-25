@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 perception_systems.py
@@ -15,7 +14,6 @@ import os  # For determining CPU count
 import time
 from collections import deque
 from enum import IntEnum
-from typing import Dict, List
 
 import numpy as np
 import polars as pl
@@ -234,7 +232,7 @@ def update_noise(
     cy: int,
     cx: int,  # Center coordinates for this update
     which_flow: FlowType,  # Which flow map to update
-    penalties: Dict[str, int],  # Dict with 'pass' and 'real' penalties
+    penalties: dict[str, int],  # Dict with 'pass' and 'real' penalties
 ) -> None:
     """
     Updates a specific noise flow map by calling the Numba kernel.
@@ -587,7 +585,7 @@ def _process_monster_perception_chunk(
     player_stealth_skill: int,  # Player's current stealth value
     noise_flow_type: FlowType,  # Which noise map to use (e.g., REAL_NOISE)
     rng: GameRNG | None = None,  # RNG instance for skill checks
-) -> List[int]:  # Return list of IDs of monsters that detected player
+) -> list[int]:  # Return list of IDs of monsters that detected player
     """
     Processes perception checks for a chunk of monsters.
     Called by Joblib workers.
@@ -605,7 +603,7 @@ def _process_monster_perception_chunk(
     """
     if rng is None:
         rng = GameRNG()
-    alerted_monster_ids: List[int] = []
+    alerted_monster_ids: list[int] = []
 
     # Iterate through the rows of the DataFrame chunk
     for row in monster_df_chunk.iter_rows(named=True):
@@ -659,7 +657,7 @@ def monster_perception(
     rng: GameRNG | None = None,  # RNG instance for perception checks
     # Add other relevant params: player_attacked_recently?, main_roll?,
     # difficulty?
-) -> List[int]:
+) -> list[int]:
     """
     Updates monster perception based on noise. Parallelized using Joblib.
 
@@ -706,7 +704,7 @@ def monster_perception(
     # backend="multiprocessing" is another option
     if rng is None:
         rng = GameRNG()
-    results: List[List[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
+    results: list[list[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
         delayed(_process_monster_perception_chunk)(
             chunk,
             cave_cost,
@@ -719,7 +717,7 @@ def monster_perception(
     )
 
     # --- Aggregate Results ---
-    all_alerted_ids: List[int] = [item for sublist in results for item in sublist]
+    all_alerted_ids: list[int] = [item for sublist in results for item in sublist]
 
     end_time = time.time()
     duration_s: float = end_time - start_time

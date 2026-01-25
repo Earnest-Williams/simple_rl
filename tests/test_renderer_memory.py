@@ -1,17 +1,19 @@
+import sys
+import types
+
+import numpy as np
 from PIL import Image
-from engine.renderer import RenderConfig, ViewportParams, render_viewport
+
+from engine.render_base_layers import prepare_base_layers
 from engine.render_lighting import (
-    apply_memory_fade,
     MEMORY_FLOOR_GLYPHS,
     MEMORY_LEVEL_COUNT,
     NOISY_MEMORY_FLOOR_GLYPHS,
+    apply_memory_fade,
 )
-from engine.render_base_layers import prepare_base_layers
+from engine.renderer import RenderConfig, ViewportParams, render_viewport
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-import sys
-import types
-import numpy as np
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # Provide a minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

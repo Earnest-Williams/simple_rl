@@ -1,11 +1,11 @@
 # brainfuck_numba.py
 from __future__ import annotations
 
+import resource
+import time
 from dataclasses import dataclass
 from multiprocessing import Pipe, get_context
 from multiprocessing.connection import Connection
-import resource
-import time
 from typing import Literal
 
 import numpy as np

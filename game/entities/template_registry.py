@@ -7,7 +7,7 @@ or creating entities in the game world.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Self
+from typing import Any, Self
 
 import structlog
 
@@ -17,10 +17,10 @@ log = structlog.get_logger()
 class EntityTemplateRegistry:
     """Simple container providing access to entity templates."""
 
-    def __init__(self: Self, templates: Dict[str, Any] | None = None):
-        self.templates: Dict[str, Any] = templates or {}
+    def __init__(self: Self, templates: dict[str, Any] | None = None):
+        self.templates: dict[str, Any] = templates or {}
         log.debug("EntityTemplateRegistry initialized", templates=len(self.templates))
 
-    def get_template(self: Self, template_id: str) -> Dict[str, Any] | None:
+    def get_template(self: Self, template_id: str) -> dict[str, Any] | None:
         """Retrieve a template definition by ID."""
         return self.templates.get(template_id)

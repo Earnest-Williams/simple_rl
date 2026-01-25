@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import polars as pl
 
 from common.constants import Material
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
 MAX_LOOKUP_MATERIAL_ID: int = 100_000
 

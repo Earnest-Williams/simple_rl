@@ -1,10 +1,8 @@
 # utils/helpers.py
 from __future__ import annotations
 
-from typing import Literal
-
 import structlog
-from pydantic import BaseModel, field_validator, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 log = structlog.get_logger(__name__)
 

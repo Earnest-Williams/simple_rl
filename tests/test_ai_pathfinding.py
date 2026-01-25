@@ -1,11 +1,12 @@
-from game.ai import goap, community
-from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
 import sys
 import types
 
 import numpy as np
 import polars as pl
+
+from game.ai import community, goap
+from game.game_state import GameState
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # Minimal ai_system module for GameState imports
 ai_module = types.ModuleType("game.systems.ai_system")

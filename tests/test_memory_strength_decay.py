@@ -1,4 +1,4 @@
-from game.world.game_map import GameMap, MAX_MEMORY_STRENGTH
+from game.world.game_map import MAX_MEMORY_STRENGTH, GameMap
 
 
 def test_memory_strength_reinforce_and_decay():

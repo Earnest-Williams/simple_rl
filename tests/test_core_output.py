@@ -6,20 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from utils.game_rng import GameRNG
 from utils.core import (
-    ToneProfile,
     Lexicon,
-    VariationEngine,
-    OutputRecord,
-    VarietyMetrics,
     NameGenerator,
-    record_output,
-    write_ndjson,
-    read_ndjson,
+    OutputRecord,
+    ToneProfile,
+    VariationEngine,
     compute_variety_metrics,
     jaccard_similarity,
+    read_ndjson,
+    record_output,
+    write_ndjson,
 )
+from utils.game_rng import GameRNG
 
 
 class TestLexicon:
@@ -514,7 +513,7 @@ class TestIntegrationVarietyWorkflow:
 
             # Verify
             assert len(loaded_records) == 10
-            for orig, loaded in zip(records, loaded_records):
+            for orig, loaded in zip(records, loaded_records, strict=False):
                 assert orig.text == loaded.text
                 assert orig.tag == loaded.tag
                 assert orig.seed == loaded.seed

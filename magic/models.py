@@ -13,11 +13,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List
-import re
-
 
 # =========================
 # Engine (tested) data model
@@ -91,7 +89,7 @@ class Work:
     substance: Substance
     substance_rank: int
     bounds: Bounds = field(default_factory=Bounds)
-    adjuncts: List["Work"] = field(default_factory=list)
+    adjuncts: list[Work] = field(default_factory=list)
     flow: Flow = field(default_factory=Flow)
     balances: Balances = field(default_factory=Balances)
     seals: Seals = field(default_factory=Seals)

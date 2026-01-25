@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import pytest
-from pathlib import Path
-from typing import Any, List
 
 from utils.game_rng import GameRNG
 
 
-def _draw_sequence(rng: GameRNG, count: int) -> List[int]:
+def _draw_sequence(rng: GameRNG, count: int) -> list[int]:
     return [rng.get_int(0, 10) for _ in range(count)]
 
 

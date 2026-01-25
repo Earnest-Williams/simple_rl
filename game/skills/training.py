@@ -5,17 +5,15 @@ Handles automatic and manual training modes, focus multipliers, and cross-traini
 
 from __future__ import annotations
 
-from typing import Dict
-
 import structlog
 
 from game.skills.models import (
+    CROSS_TRAINING,
     Skill,
     SkillProgress,
     SkillTrainingConfig,
     TrainingMode,
     TrainingState,
-    CROSS_TRAINING,
 )
 from game.skills.progression import apply_xp_to_skill
 
@@ -24,9 +22,9 @@ log = structlog.get_logger(__name__)
 
 def distribute_xp(
     xp_pool: float,
-    skills: Dict[Skill, SkillProgress],
+    skills: dict[Skill, SkillProgress],
     config: SkillTrainingConfig,
-) -> Dict[Skill, tuple[int, int]]:
+) -> dict[Skill, tuple[int, int]]:
     """Distribute XP pool among skills based on training configuration.
 
     Args:
@@ -41,7 +39,7 @@ def distribute_xp(
         return {}
 
     # Determine which skills receive XP and their weights
-    skill_weights: Dict[Skill, float] = {}
+    skill_weights: dict[Skill, float] = {}
 
     if config.mode == TrainingMode.MANUAL:
         # Manual mode: distribute evenly among enabled/focused skills
@@ -81,7 +79,7 @@ def distribute_xp(
         skill_weights[skill] /= total_weight
 
     # Distribute XP and track level-ups
-    level_changes: Dict[Skill, tuple[int, int]] = {}
+    level_changes: dict[Skill, tuple[int, int]] = {}
 
     for skill, weight in skill_weights.items():
         skill_xp = xp_pool * weight

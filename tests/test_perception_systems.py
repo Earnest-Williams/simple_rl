@@ -4,10 +4,10 @@ import polars as pl
 from common.constants import FeatureType
 from pathfinding.perception_systems import (
     BASE_FLOW_CENTER,
-    NOISE_MAX_DIST,
-    FlowType,
     MAX_FLOWS,
+    NOISE_MAX_DIST,
     SCENT_ADJUST_TABLE,
+    FlowType,
     _lay_scent_kernel,
     _process_monster_perception_chunk,
     cave_closed_door,

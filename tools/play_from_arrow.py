@@ -15,21 +15,21 @@ from __future__ import annotations
 import argparse
 import inspect
 import tomllib
-import yaml
 from collections import deque
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Literal, Protocol, Tuple
+from typing import Literal, Protocol
 
 import numpy as np
 import polars as pl
+import yaml
 from polars.exceptions import ColumnNotFoundError, PolarsError
 
 from common.constants import Material
 from engine.main_loop import MainLoop
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES, GameMap
 from utils.shaped_map import shaped_dataframe_to_game_map
 
 SPAWN_MIN_ROOM_SIZE = 20
@@ -48,8 +48,8 @@ class ApplicationProtocol(Protocol):
 
 
 def pick_player_spawn_from_df(
-    df: pl.DataFrame, origin: Tuple[int, int]
-) -> Tuple[int, int]:
+    df: pl.DataFrame, origin: tuple[int, int]
+) -> tuple[int, int]:
     """
     Pick a spawn position (x,y) in map grid coords.
     Strategy:
@@ -305,7 +305,7 @@ def _select_spawn_position(
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
     """Print an ASCII viewport centered on the player showing local tiles."""
     gm: GameMap = gs.game_map
-    player_pos: Tuple[int, int] | None = gs.player_position
+    player_pos: tuple[int, int] | None = gs.player_position
     if player_pos is None:
         print("Player position unknown.")
         return
@@ -342,14 +342,14 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
 
 def create_gamestate_from_arrow(
     arrow_path: Path, rng_seed: int | None = None
-) -> Tuple[GameState, pl.DataFrame, Tuple[int, int]]:
+) -> tuple[GameState, pl.DataFrame, tuple[int, int]]:
     """
     Create GameMap and GameState from an arrow/ipc file.
     Returns (GameState, dataframe, origin)
     """
     df: pl.DataFrame = pl.read_ipc(arrow_path)
     game_map: GameMap
-    origin: Tuple[int, int]
+    origin: tuple[int, int]
     game_map, origin = shaped_dataframe_to_game_map(df)
 
     spawn_x: int
@@ -387,7 +387,7 @@ class DummyWindow:
 def run_cli_mode(arrow_path: Path) -> None:
     gs: GameState
     _df: pl.DataFrame
-    _origin: Tuple[int, int]
+    _origin: tuple[int, int]
     gs, _df, _origin = create_gamestate_from_arrow(arrow_path)
 
     ml: MainLoop = MainLoop(
@@ -418,7 +418,7 @@ def run_cli_mode(arrow_path: Path) -> None:
         if cmd[0] == "q":
             print("Quitting.")
             break
-        mapping: dict[str, Tuple[int, int]] = {
+        mapping: dict[str, tuple[int, int]] = {
             "w": (0, -1),
             "s": (0, 1),
             "a": (-1, 0),
@@ -455,8 +455,8 @@ def _load_gui_dependencies() -> (
         raise AttributeError("engine.window_manager.WindowManager not found.")
     if not hasattr(qt_widgets_module, "QApplication"):
         raise AttributeError("PySide6.QtWidgets.QApplication not found.")
-    window_manager = getattr(window_manager_module, "WindowManager")
-    application = getattr(qt_widgets_module, "QApplication")
+    window_manager = window_manager_module.WindowManager
+    application = qt_widgets_module.QApplication
     return window_manager, application
 
 
@@ -477,7 +477,7 @@ def run_gui_mode(arrow_path: Path) -> None:
 
     gs: GameState
     _df: pl.DataFrame
-    _origin: Tuple[int, int]
+    _origin: tuple[int, int]
     gs, _df, _origin = create_gamestate_from_arrow(arrow_path)
 
     app: ApplicationProtocol = application_cls([])

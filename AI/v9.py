@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 from collections.abc import Callable
 from typing import (
     Any,  # Removed Optional per PEP 604 preference
-    )
+)
 
 import numpy as np
 

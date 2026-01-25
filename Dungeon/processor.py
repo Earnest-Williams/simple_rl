@@ -1,9 +1,8 @@
 # Dungeon/processor.py
 
-from pathlib import Path
-from typing import Any, Dict, List, Literal, Set, Tuple
-
 import math
+from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
@@ -37,8 +36,8 @@ DepthZone = Literal["surface", "shallow", "mid", "deep", "unknown"]
 
 
 def process_backbone_graph(
-    backbone_data: Dict[str, Any],
-) -> Tuple[List[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
+    backbone_data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[int, dict[str, Any]]]:
     """
     Interstitial step to process raw backbone graph data from core.py.
     Calculates segment geometry (length, incline) using simple linear depth_m.
@@ -66,7 +65,7 @@ def process_backbone_graph(
     def is_valid_number(value: object) -> bool:
         return isinstance(value, int | float) and not isinstance(value, bool)
 
-    def reset_geometry_fields(node: Dict[str, Any]) -> None:
+    def reset_geometry_fields(node: dict[str, Any]) -> None:
         node["segment_length_xy"] = 0.0
         node["segment_incline_rate"] = 0.0
         node["segment_delta_depth_m"] = 0.0
@@ -82,26 +81,26 @@ def process_backbone_graph(
         node["turn_angle_deg"] = 0.0
         node["turn_direction"] = "none"
 
-    def validate_id(value: object) -> List[str]:
+    def validate_id(value: object) -> list[str]:
         if value is None:
             return ["Missing id."]
         if not is_valid_int(value):
             return [f"Invalid id value: {value!r}."]
         return []
 
-    def validate_parent_id(value: object) -> List[str]:
+    def validate_parent_id(value: object) -> list[str]:
         if value is None:
             return ["Missing parent_id."]
         if not is_valid_int(value):
             return [f"Invalid parent_id value: {value!r}."]
         return []
 
-    def validate_coordinate(label: str, value: object) -> List[str]:
+    def validate_coordinate(label: str, value: object) -> list[str]:
         if value is None or not is_valid_number(value):
             return [f"Invalid {label} value: {value!r}."]
         return []
 
-    def normalize_children_ids(value: object) -> Dict[str, Any]:
+    def normalize_children_ids(value: object) -> dict[str, Any]:
         if value is None:
             return {"normalized": [], "errors": []}
         if not isinstance(value, list):
@@ -318,11 +317,11 @@ def process_backbone_graph(
         return "junction"
 
     def compute_flow_metrics(
-        nodes: List[Dict[str, Any]],
-        node_lookup: Dict[int, Dict[str, Any]],
+        nodes: list[dict[str, Any]],
+        node_lookup: dict[int, dict[str, Any]],
     ) -> None:
-        flow_next_lookup: Dict[int, int | None] = {}
-        flow_distance_cache: Dict[int, float] = {}
+        flow_next_lookup: dict[int, int | None] = {}
+        flow_distance_cache: dict[int, float] = {}
 
         for node in nodes:
             children_ids = node.get("children_ids") or []
@@ -351,7 +350,7 @@ def process_backbone_graph(
                 node["flow_next_id"] = next_node["id"]
                 flow_next_lookup[node["id"]] = next_node["id"]
 
-        def compute_flow_distance(node_id: int, visited: Set[int]) -> float:
+        def compute_flow_distance(node_id: int, visited: set[int]) -> float:
             if node_id in flow_distance_cache:
                 return flow_distance_cache[node_id]
             if node_id in visited:
@@ -386,11 +385,11 @@ def process_backbone_graph(
         for node in nodes:
             node["flow_accumulation_n"] = accumulation.get(node["id"], 1)
 
-    path_length_cache: Dict[int, float] = {}
-    path_depth_cache: Dict[int, int] = {}
-    root_info_cache: Dict[int, Tuple[int, float, float]] = {}
+    path_length_cache: dict[int, float] = {}
+    path_depth_cache: dict[int, int] = {}
+    root_info_cache: dict[int, tuple[int, float, float]] = {}
 
-    def compute_path_info(node_id: int) -> Tuple[float, int]:
+    def compute_path_info(node_id: int) -> tuple[float, int]:
         if node_id in path_length_cache and node_id in path_depth_cache:
             return path_length_cache[node_id], path_depth_cache[node_id]
 
@@ -409,7 +408,7 @@ def process_backbone_graph(
         path_depth_cache[node_id] = total_depth
         return total_length, total_depth
 
-    def compute_root_info(node_id: int) -> Tuple[int, float, float]:
+    def compute_root_info(node_id: int) -> tuple[int, float, float]:
         if node_id in root_info_cache:
             return root_info_cache[node_id]
 
@@ -428,7 +427,7 @@ def process_backbone_graph(
         return root_id, root_x, root_y
 
     def compute_turn_metrics(
-        node: Dict[str, Any], *, node_lookup: Dict[int, Dict[str, Any]]
+        node: dict[str, Any], *, node_lookup: dict[int, dict[str, Any]]
     ) -> None:
         parent_id = node.get("parent_id")
         if parent_id is None or parent_id not in node_lookup:

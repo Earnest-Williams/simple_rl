@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -10,6 +10,7 @@ from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
+
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -28,7 +29,7 @@ _DIRECTIONS = [
 ]
 
 
-def _random_direction(rng: "GameRNG") -> Tuple[int, int]:
+def _random_direction(rng: GameRNG) -> tuple[int, int]:
     if not hasattr(rng, "get_int"):
         raise TypeError("rng must provide get_int from GameRNG")
     idx = rng.get_int(0, len(_DIRECTIONS) - 1)
@@ -37,9 +38,9 @@ def _random_direction(rng: "GameRNG") -> Tuple[int, int]:
 
 def take_turn(
     entity_row,
-    game_state: "GameState",
-    rng: "GameRNG",
-    perception: Tuple["np.ndarray", "np.ndarray", "np.ndarray"],
+    game_state: GameState,
+    rng: GameRNG,
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
     **kwargs,
 ) -> None:
     """Execute one turn for a flying bird.

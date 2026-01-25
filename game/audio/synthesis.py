@@ -13,11 +13,12 @@ playback.
 
 from __future__ import annotations
 
-from pathlib import Path
 import math
 import tempfile
 import wave
-from typing import Callable, Dict, Any
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -67,14 +68,14 @@ def generate_magic(duration: float = 0.5, start_freq: float = 880.0) -> Path:
 
 
 # Registry of available generators
-GENERATORS: Dict[str, Callable[..., Path]] = {
+GENERATORS: dict[str, Callable[..., Path]] = {
     "footsteps": generate_footstep,
     "magic": generate_magic,
 }
 
 
 def generate_sound(
-    generator: str, settings: Dict[str, Any], rng: GameRNG | None = None
+    generator: str, settings: dict[str, Any], rng: GameRNG | None = None
 ) -> Path:
     """Generate a procedural sound using the named generator.
 

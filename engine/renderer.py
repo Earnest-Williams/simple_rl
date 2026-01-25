@@ -5,7 +5,7 @@ pre-calculated data and optimized techniques.
 """
 # Standard Library Imports
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Dict as PyDict
+from typing import TYPE_CHECKING
 
 # Third-party Imports
 import numpy as np
@@ -13,26 +13,27 @@ import polars as pl
 import structlog
 from PIL import Image, ImageDraw
 
+from .render_base_layers import prepare_base_layers
+
 # Local imports
 from .render_entities import (
-    pack_ground_items,
     pack_entities,
-    render_map_tiles,
-    render_ground_items_py,
+    pack_ground_items,
     render_entities_py,
+    render_ground_items_py,
+    render_map_tiles,
 )
 from .render_lighting import (
-    calculate_lighting,
     apply_height_visualization,
-    apply_memory_fade,
     apply_light_sources,
+    apply_memory_fade,
+    calculate_lighting,
 )
-from .render_base_layers import prepare_base_layers
 
 # Numba for acceleration
 try:
-    from numba.typed import Dict as NumbaDict
     from numba import types as nb_types
+    from numba.typed import Dict as NumbaDict
 
     _NUMBA_AVAILABLE = True
 except ImportError:
@@ -83,14 +84,14 @@ class ViewportParams:
     viewport_y: int
     viewport_width: int
     viewport_height: int
-    tile_arrays: NumbaDict | PyDict
+    tile_arrays: NumbaDict | dict
     tile_fg_colors: np.ndarray
     tile_bg_colors: np.ndarray
     tile_indices_render: np.ndarray
     max_defined_tile_id: int
     tile_w: int
     tile_h: int
-    coord_arrays: PyDict[str, np.ndarray]
+    coord_arrays: dict[str, np.ndarray]
 
 
 def convert_to_numba_dict(py_dict: dict) -> NumbaDict:

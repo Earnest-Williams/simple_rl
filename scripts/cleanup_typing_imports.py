@@ -6,8 +6,8 @@ and replace 'typing.X' references with builtin forms where possible.
 This script runs after pyupgrade and is conservative: it only edits
 lines that begin with 'from typing import'.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Final
 
 ROOT: Final[Path] = Path(".")
@@ -54,7 +54,7 @@ def process_file(p: Path) -> bool:
 
     text = FROM_TYPING_RE.sub(repl_from_typing, text)
 
-    # Replace occurrences of typing.List etc -> list
+    # Replace occurrences of list etc -> list
     text = TYPING_DOT_RE.sub(lambda m: m.group(1).lower(), text)
 
     if text != original:

@@ -17,11 +17,11 @@ Example
 
 from __future__ import annotations
 
-from pathlib import Path
 import math
 import struct
 import tempfile
 import wave
+from pathlib import Path
 
 SAMPLE_RATE = 22050  # Hz – lower rate keeps files small for tests
 

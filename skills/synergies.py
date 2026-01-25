@@ -161,12 +161,8 @@ def get_active_synergies(
     active: list[Synergy] = []
 
     for synergy in SYNERGIES:
-        level1 = (
-            skills.get(synergy.skill1).level if skills.get(synergy.skill1) else 0
-        )
-        level2 = (
-            skills.get(synergy.skill2).level if skills.get(synergy.skill2) else 0
-        )
+        level1 = skills.get(synergy.skill1).level if skills.get(synergy.skill1) else 0
+        level2 = skills.get(synergy.skill2).level if skills.get(synergy.skill2) else 0
 
         if level1 >= synergy.min_level_each and level2 >= synergy.min_level_each:
             active.append(synergy)
@@ -244,12 +240,8 @@ def get_available_synergies(
     available: list[tuple[Synergy, int, int]] = []
 
     for synergy in SYNERGIES:
-        level1 = (
-            skills.get(synergy.skill1).level if skills.get(synergy.skill1) else 0
-        )
-        level2 = (
-            skills.get(synergy.skill2).level if skills.get(synergy.skill2) else 0
-        )
+        level1 = skills.get(synergy.skill1).level if skills.get(synergy.skill1) else 0
+        level2 = skills.get(synergy.skill2).level if skills.get(synergy.skill2) else 0
 
         # Check if not yet active but could be
         if level1 < synergy.min_level_each or level2 < synergy.min_level_each:

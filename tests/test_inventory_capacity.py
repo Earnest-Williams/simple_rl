@@ -1,8 +1,9 @@
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-from game.game_state import GameState
-from engine.action_handler import _handle_player_pickup
 import sys
 import types
+
+from engine.action_handler import _handle_player_pickup
+from game.game_state import GameState
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # Provide a minimal game.systems.ai_system module for tests
 ai_module = types.ModuleType("game.systems.ai_system")

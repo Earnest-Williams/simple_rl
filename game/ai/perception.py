@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -12,6 +12,7 @@ from game.world.los import line_of_sight
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from polars import series
+
     from game.game_state import GameState
 
 log = structlog.get_logger()
@@ -33,8 +34,8 @@ def _apply_event(
 
 
 def gather_perception(
-    game_state: "GameState",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    game_state: GameState,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate perception maps used by AI systems.
 
     Noise and scent layers are stored on ``GameMap`` and decayed every call
@@ -73,10 +74,10 @@ def gather_perception(
 
 
 def find_visible_enemies(
-    entity_row: "series",
-    game_state: "GameState",
+    entity_row: series,
+    game_state: GameState,
     los_map: np.ndarray,
-) -> List["series"]:
+) -> list[series]:
     """Return a list of enemies visible to ``entity_row``.
 
     Entities are considered enemies if they belong to a different faction.
@@ -87,7 +88,7 @@ def find_visible_enemies(
     ex, ey = entity_row.get("x"), entity_row.get("y")
     faction = entity_row.get("faction")
     game_map = game_state.game_map
-    enemies: List["series"] = []
+    enemies: list[series] = []
 
     if ex is None or ey is None:
         return enemies

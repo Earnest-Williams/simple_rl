@@ -13,6 +13,7 @@ import numba
 import numpy as np
 import structlog
 from numba.typed import List as NumbaList
+
 from .los import line_of_sight as _los_line_of_sight
 
 

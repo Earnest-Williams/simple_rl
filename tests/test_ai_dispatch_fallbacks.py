@@ -1,13 +1,15 @@
-from game.ai import ADAPTERS
-from game.systems.ai_system import dispatch_ai
-from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
-import types
 import sys
-import polars as pl
-import numpy as np
+import types
 from pathlib import Path
+
+import numpy as np
+import polars as pl
 import yaml
+
+from game.ai import ADAPTERS
+from game.game_state import GameState
+from game.systems.ai_system import dispatch_ai
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 # deterministic RNG
 module = types.ModuleType("game_rng")
