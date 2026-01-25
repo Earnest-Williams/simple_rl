@@ -23,31 +23,29 @@ python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
 echo "Running pyupgrade on tracked Python files..."
-# Only run pyupgrade if there are python files tracked by git.
-if git ls-files -- '*.py' | grep -q .; then
-  # Try bulk mode first; if it fails, run per-file and print failing files' stderr.
-  mapfile -t FILES < <(git ls-files -- '*.py')
-  if [ "${#FILES[@]}" -gt 0 ]; then
-    if python -m pyupgrade --py311-plus "${FILES[@]}"; then
-      echo "pyupgrade succeeded in bulk mode."
-    else
-      echo "pyupgrade bulk run failed. Running per-file to locate errors." >&2
-      failed=0
-      for f in "${FILES[@]}"; do
-        if ! python -m pyupgrade --py311-plus "$f" 2> "/tmp/pyupgrade.$(basename "$f").err"; then
-          echo "pyupgrade FAILED on: $f" >&2
-          echo "stderr (tail):"
-          tail -n 200 "/tmp/pyupgrade.$(basename "$f").err" >&2 || true
-          failed=1
-        fi
-      done
-      if [ $failed -eq 1 ]; then
-        echo "One or more pyupgrade errors detected; aborting." >&2
-        exit 1
-      fi
-    fi
+# Try bulk mode first; if it fails, run per-file and print failing files' stderr.
+mapfile -t FILES < <(git ls-files -- '*.py')
+if [ "${#FILES[@]}" -gt 0 ]; then
+  if python -m pyupgrade --py311-plus "${FILES[@]}"; then
+    echo "pyupgrade succeeded in bulk mode."
   else
-    echo "No tracked Python files found; skipping pyupgrade."
+    echo "pyupgrade bulk run failed. Running per-file to locate errors." >&2
+    failed=0
+    temp_dir="$(mktemp -d)"
+    trap 'rm -rf "$temp_dir"' EXIT
+    for f in "${FILES[@]}"; do
+      err_file="$temp_dir/pyupgrade.$(basename "$f").err"
+      if ! python -m pyupgrade --py311-plus "$f" 2> "$err_file"; then
+        echo "pyupgrade FAILED on: $f" >&2
+        echo "stderr (tail):" >&2
+        tail -n 200 "$err_file" >&2 || true
+        failed=1
+      fi
+    done
+    if [ $failed -eq 1 ]; then
+      echo "One or more pyupgrade errors detected; aborting." >&2
+      exit 1
+    fi
   fi
 else
   echo "No tracked Python files found; skipping pyupgrade."
