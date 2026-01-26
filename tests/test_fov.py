@@ -3,7 +3,7 @@ import numpy as np
 from lights_dev import fov
 
 
-def make_arrays(h, w):
+def make_arrays(h: int, w: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     opaque = np.zeros((h, w), dtype=np.uint8)
     transparency = np.ones((h, w), dtype=np.float32)
     visible = np.zeros((h, w), dtype=np.uint8)
@@ -12,7 +12,7 @@ def make_arrays(h, w):
     return opaque, transparency, visible, dist, side
 
 
-def test_empty_room_center_source():
+def test_empty_room_center_source() -> None:
     h = w = 11
     opaque, transparency, visible, dist, side = make_arrays(h, w)
     cx = cy = 5
