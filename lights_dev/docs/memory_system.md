@@ -120,7 +120,7 @@ differentiation between characters.
 Higher intelligence means better memory retention.
 
 ```
-Modifier = BASE_INT / current_intelligence
+Modifier = BASE_INTELLIGENCE / current_intelligence
 
 Examples:
 - INT 5:  modifier = 2.0  (2x faster decay, memories last half as long)
@@ -445,15 +445,20 @@ def on_player_stats_changed(player):
 
 ```python
 def save_game(game_state):
-    # Save memory arrays
-    np.save("memory_intensity.npy", memory._memory_intensity)
-    np.save("memory_last_seen.npy", memory._last_seen_time)
-    save_float("memory_time", memory._current_time)
+    # Save memory state using public API
+    memory_state = memory_system.save_state()
+    np.save("memory_intensity.npy", memory_state["memory_intensity"])
+    np.save("memory_last_seen.npy", memory_state["last_seen_time"])
+    save_float("memory_time", memory_state["current_time"])
 
 def load_game(game_state):
-    memory._memory_intensity = np.load("memory_intensity.npy")
-    memory._last_seen_time = np.load("memory_last_seen.npy")
-    memory._current_time = load_float("memory_time")
+    # Restore memory state using public API
+    state = {
+        "memory_intensity": np.load("memory_intensity.npy"),
+        "last_seen_time": np.load("memory_last_seen.npy"),
+        "current_time": load_float("memory_time"),
+    }
+    memory_system.load_state(state)
 ```
 
 ### Integration with Map Changes
@@ -657,10 +662,7 @@ implement save/load for memory arrays.
 
 | Version | Changes |
 |---------|---------|
-| 1.0.0   | Initial implementation with trait modifiers |
-| -       | Vectorized Numba updates |
-| -       | Batch processing support |
-| -       | Slowed base decay (60s → 90s) |
+| 1.0.0   | Initial implementation: trait modifiers, vectorized Numba updates, batch processing support, slowed base decay (60s → 90s), save/load state API |
 
 ---
 

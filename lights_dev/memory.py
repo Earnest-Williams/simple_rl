@@ -76,9 +76,7 @@ BASE_INTELLIGENCE: Final[int] = 10
 DEFAULT_UPDATE_INTERVAL: Final[float] = 0.1  # Seconds between memory updates
 MIN_INTENSITY_THRESHOLD: Final[float] = 0.001  # Below this, treat as forgotten
 
-# --- Numba-typed constants for JIT functions ---
-_STEEPNESS_F32: np.float32 = np.float32(BASE_SIGMOID_STEEPNESS)
-_MIDPOINT_F32: np.float32 = np.float32(BASE_SIGMOID_MIDPOINT)
+# --- Numba constant for exp overflow prevention ---
 _EXP_CLAMP: Final[float] = 70.0  # Prevent exp overflow
 
 
@@ -272,9 +270,9 @@ def _update_memory_vectorized(
 
             # Compute new intensity via sigmoid
             exponent = steepness * (elapsed - midpoint)
-            if exponent >= 70.0:
+            if exponent >= _EXP_CLAMP:
                 new_intensity = 0.0
-            elif exponent <= -70.0:
+            elif exponent <= -_EXP_CLAMP:
                 new_intensity = 1.0
             else:
                 new_intensity = 1.0 / (1.0 + math.exp(exponent))
@@ -440,9 +438,9 @@ def _batch_update_region(
                 elapsed = 0.0
 
             exponent = steepness * (elapsed - midpoint)
-            if exponent >= 70.0:
+            if exponent >= _EXP_CLAMP:
                 new_intensity = 0.0
-            elif exponent <= -70.0:
+            elif exponent <= -_EXP_CLAMP:
                 new_intensity = 1.0
             else:
                 new_intensity = 1.0 / (1.0 + math.exp(exponent))
@@ -669,7 +667,7 @@ class MemorySystem:
         if char_index == -1:
             # Currently visible - caller should handle this
             return ""
-        if char_index == -2 or char_index < 0:
+        if char_index == -2:
             return UNSEEN_CHAR
 
         index = min(MEMORY_LEVEL_COUNT - 1, max(0, char_index))
@@ -705,7 +703,9 @@ class MemorySystem:
         Returns:
             2D array of memory intensities
         """
-        return self._memory_intensity.view()
+        view = self._memory_intensity.view()
+        view.flags.writeable = False
+        return view
 
     def get_active_tile_count(self) -> int:
         """
@@ -776,6 +776,66 @@ class MemorySystem:
     def effective_midpoint(self) -> float:
         """Get effective sigmoid midpoint after trait modifiers."""
         return float(self._cached_midpoint)
+
+    def save_state(self) -> dict[str, NDArray[np.float32] | float]:
+        """
+        Save memory state for serialization.
+
+        Returns a dictionary containing all state needed to restore memory.
+        Use with load_state() for save/load functionality.
+
+        Returns:
+            Dictionary with keys:
+                - 'memory_intensity': 2D array of memory intensities
+                - 'last_seen_time': 2D array of last seen times
+                - 'current_time': Current simulation time
+        """
+        return {
+            "memory_intensity": self._memory_intensity.copy(),
+            "last_seen_time": self._last_seen_time.copy(),
+            "current_time": float(self._current_time),
+        }
+
+    def load_state(self, state: dict[str, NDArray[np.float32] | float]) -> None:
+        """
+        Restore memory state from saved data.
+
+        Args:
+            state: Dictionary from save_state() containing:
+                - 'memory_intensity': 2D array of memory intensities
+                - 'last_seen_time': 2D array of last seen times
+                - 'current_time': Current simulation time
+
+        Raises:
+            ValueError: If state arrays have wrong dimensions
+            KeyError: If required keys are missing
+        """
+        intensity = state["memory_intensity"]
+        last_seen = state["last_seen_time"]
+        current_time = state["current_time"]
+
+        # Validate array shapes
+        if not isinstance(intensity, np.ndarray) or not isinstance(
+            last_seen, np.ndarray
+        ):
+            raise ValueError("State arrays must be numpy arrays")
+
+        if intensity.shape != (self.height, self.width):
+            raise ValueError(
+                f"memory_intensity shape {intensity.shape} does not match "
+                f"system dimensions ({self.height}, {self.width})"
+            )
+        if last_seen.shape != (self.height, self.width):
+            raise ValueError(
+                f"last_seen_time shape {last_seen.shape} does not match "
+                f"system dimensions ({self.height}, {self.width})"
+            )
+
+        # Restore state
+        np.copyto(self._memory_intensity, intensity.astype(np.float32))
+        np.copyto(self._last_seen_time, last_seen.astype(np.float32))
+        self._current_time = np.float32(current_time)
+        self._time_since_update = 0.0
 
 
 # =============================================================================
