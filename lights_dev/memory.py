@@ -614,8 +614,8 @@ class MemorySystem:
         """
         # Need visible state to distinguish visible vs remembered
         # For this, we check if memory_intensity == 1.0 and last_seen == current
-        visible = (self._memory_intensity == 1.0) & (
-            self._last_seen_time == self._current_time
+        visible = (
+            (self._memory_intensity == 1.0) & (self._last_seen_time == self._current_time)
         )
         return _compute_character_indices(
             tile_ids,
