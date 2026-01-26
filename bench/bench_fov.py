@@ -14,7 +14,7 @@ def bench(h=200, w=200, radius=20, trials=50):
     cx = h // 2
     cy = w // 2
     # make some random walls
-    rng = np.random.RandomState(1)
+    rng = GameRNG(seed=1)
     for _ in range(h * w // 10):
         y = rng.randint(0, h)
         x = rng.randint(0, w)
