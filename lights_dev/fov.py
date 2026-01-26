@@ -17,14 +17,14 @@ from numba import boolean, float32, uint8, uint32
 # Side bit definitions
 # Must match lighting accumulator mapping:
 # 1:N, 2:E, 4:S, 8:W, 16:NE, 32:SE, 64:SW, 128:NW
-SIDE_N: Final[int] = 1  # North
-SIDE_E: Final[int] = 2  # East
-SIDE_S: Final[int] = 4  # South
-SIDE_W: Final[int] = 8  # West
-SIDE_NE: Final[int] = 16  # Northeast
-SIDE_SE: Final[int] = 32  # Southeast
-SIDE_SW: Final[int] = 64  # Southwest
-SIDE_NW: Final[int] = 128  # Northwest
+SIDE_N: Final[int] = 1 << 0  # North (bit 0)
+SIDE_E: Final[int] = 1 << 1  # East (bit 1)
+SIDE_S: Final[int] = 1 << 2  # South (bit 2)
+SIDE_W: Final[int] = 1 << 3  # West (bit 3)
+SIDE_NE: Final[int] = 1 << 4  # Northeast (bit 4)
+SIDE_SE: Final[int] = 1 << 5  # Southeast (bit 5)
+SIDE_SW: Final[int] = 1 << 6  # Southwest (bit 6)
+SIDE_NW: Final[int] = 1 << 7  # Northwest (bit 7)
 
 INT = numba.int64
 _DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros((1, 1), dtype=np.uint32)
