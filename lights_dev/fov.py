@@ -69,7 +69,7 @@ def _octant_map_coords(
 @numba.njit(inline="always")
 def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
     """
-    Compute an 8-bit mask for which side(s) of the target cell face the source.
+    Compute an 8-bit mask for the direction from source to target.
     Bits: N, NE, E, SE, S, SW, W, NW.
     Rule:
       - if |dx| > |dy| => horizontal side (E if dx>0 else W)
