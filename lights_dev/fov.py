@@ -21,7 +21,7 @@ INT = numba.int64
 
 
 @numba.njit(inline="always")
-def _slope_ge(a_n: INT, a_d: INT, b_n: INT, b_d: INT) -> boolean:
+def _slope_ge(a_n: int, a_d: int, b_n: int, b_d: int) -> bool:
     # true iff a_n/a_d >= b_n/b_d without dividing (cross-multiply)
     return a_n * b_d >= b_n * a_d
 
