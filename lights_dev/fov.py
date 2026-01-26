@@ -7,6 +7,8 @@
 # - side bits per tile (N/E/S/W) accumulated across octants
 from __future__ import annotations
 
+from typing import Final
+
 import numba
 import numpy as np
 from numba import boolean, float32, uint8
@@ -66,35 +68,26 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
       - if |dy| > |dx| => vertical side (S if dy>0 else N)
       - if |dx| == |dy| => set both corresponding horizontal and vertical sides
     """
-    absdx = dx if dx >= 0 else -dx
-    absdy = dy if dy >= 0 else -dy
+    if dx == 0 and dy == 0:
+        # source tile: set all sides
+        return uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
+
     mask = uint8(0)
-    if absdx > absdy:
-        # horizontal
+    absdx = abs(dx)
+    absdy = abs(dy)
+
+    if absdx >= absdy:  # Horizontal or diagonal component
         if dx > 0:
             mask |= SIDE_E
         elif dx < 0:
             mask |= SIDE_W
-    elif absdy > absdx:
-        # vertical
+
+    if absdy >= absdx:  # Vertical or diagonal component
         if dy > 0:
             mask |= SIDE_S
         elif dy < 0:
             mask |= SIDE_N
-    else:
-        # diagonal: set both corresponding sides if nonzero; if both zero (origin) set all sides
-        if dx == 0 and dy == 0:
-            # source tile: set all sides
-            mask = uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
-        else:
-            if dx > 0:
-                mask |= SIDE_E
-            elif dx < 0:
-                mask |= SIDE_W
-            if dy > 0:
-                mask |= SIDE_S
-            elif dy < 0:
-                mask |= SIDE_N
+
     return mask
 
 
