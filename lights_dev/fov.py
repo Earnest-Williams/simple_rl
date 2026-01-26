@@ -12,10 +12,10 @@ import numpy as np
 from numba import boolean, float32, uint8
 
 # Side bit definitions
-SIDE_N: int = 1  # North
-SIDE_E: int = 2  # East
-SIDE_S: int = 4  # South
-SIDE_W: int = 8  # West
+SIDE_N: Final[int] = 1  # North
+SIDE_E: Final[int] = 2  # East
+SIDE_S: Final[int] = 4  # South
+SIDE_W: Final[int] = 8  # West
 
 INT = numba.int64
 
