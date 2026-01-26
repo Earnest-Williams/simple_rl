@@ -4,22 +4,28 @@
 # - half-cell slope representation for top-inclusive / bottom-exclusive tie-break
 # - early exit when top <= bottom
 # - simple transparency threshold model (t < 1 => treated as blocker for slope updates)
-# - side bits per tile (N/E/S/W) accumulated across octants
+# - side bits per tile (N/NE/E/SE/S/SW/W/NW) accumulated across octants
 from __future__ import annotations
 
+import math
 from typing import Final
 
 import numba
 import numpy as np
-from numba import boolean, float32, uint8
+from numba import boolean, float32, uint8, uint32
 
 # Side bit definitions
 SIDE_N: Final[int] = 1  # North
-SIDE_E: Final[int] = 2  # East
-SIDE_S: Final[int] = 4  # South
-SIDE_W: Final[int] = 8  # West
+SIDE_NE: Final[int] = 2  # Northeast
+SIDE_E: Final[int] = 4  # East
+SIDE_SE: Final[int] = 8  # Southeast
+SIDE_S: Final[int] = 16  # South
+SIDE_SW: Final[int] = 32  # Southwest
+SIDE_W: Final[int] = 64  # West
+SIDE_NW: Final[int] = 128  # Northwest
 
 INT = numba.int64
+_DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros((1, 1), dtype=np.uint32)
 
 
 @numba.njit(inline="always")
@@ -61,38 +67,82 @@ def _octant_map_coords(
 @numba.njit(inline="always")
 def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
     """
-    Compute a 4-bit mask for which side(s) of the target cell face the source.
-    Bits: N=1, E=2, S=4, W=8.
+    Compute an 8-bit mask for which side(s) of the target cell face the source.
+    Bits: N, NE, E, SE, S, SW, W, NW.
     Rule:
       - if |dx| > |dy| => horizontal side (E if dx>0 else W)
       - if |dy| > |dx| => vertical side (S if dy>0 else N)
-      - if |dx| == |dy| => set both corresponding horizontal and vertical sides
+      - if |dx| == |dy| => diagonal side (NE/SE/SW/NW)
     """
     if dx == 0 and dy == 0:
         # source tile: set all sides
-        return uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
+        return uint8(
+            SIDE_N | SIDE_NE | SIDE_E | SIDE_SE | SIDE_S | SIDE_SW | SIDE_W | SIDE_NW
+        )
 
     mask = uint8(0)
     absdx = abs(dx)
     absdy = abs(dy)
 
-    if absdx >= absdy:  # Horizontal or diagonal component
+    if absdx > absdy:
         if dx > 0:
             mask |= SIDE_E
         elif dx < 0:
             mask |= SIDE_W
-
-    if absdy >= absdx:  # Vertical or diagonal component
+    elif absdy > absdx:
         if dy > 0:
             mask |= SIDE_S
         elif dy < 0:
             mask |= SIDE_N
+    else:
+        if dx > 0 and dy > 0:
+            mask |= SIDE_SE
+        elif dx > 0 and dy < 0:
+            mask |= SIDE_NE
+        elif dx < 0 and dy > 0:
+            mask |= SIDE_SW
+        elif dx < 0 and dy < 0:
+            mask |= SIDE_NW
 
     return mask
 
 
+@numba.njit(inline="always")
+def _in_cone(
+    dx: int,
+    dy: int,
+    use_angle: int,
+    dir_x: float32,
+    dir_y: float32,
+    cos_half: float32,
+) -> boolean:
+    if use_angle == 0:
+        return True
+    if dx == 0 and dy == 0:
+        return True
+    dd = dx * dx + dy * dy
+    if dd <= 0:
+        return True
+    inv_len = 1.0 / math.sqrt(float(dd))
+    dot = (float(dx) * dir_x + float(dy) * dir_y) * inv_len
+    return dot >= cos_half
+
+
+@numba.njit(inline="always")
+def _is_masked_transparent_for_blocking(
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    x: int,
+    y: int,
+) -> boolean:
+    if use_mask == 0:
+        return False
+    return (cell_mask[y, x] & light_channels) == uint32(0)
+
+
 @numba.njit(nogil=True, cache=True)
-def _compute_octant_core(
+def _compute_octant_core_legacy(
     transparency: np.float32[:, :],
     visible: np.uint8[:, :],
     dist: np.int32[:, :],
@@ -104,34 +154,18 @@ def _compute_octant_core(
     opacity_threshold: float32,
 ) -> None:
     """
-    Core integer-slope octant scan with side-bit accumulation.
-
-    Parameters:
-    - transparency: 2D float32 0..1 (1 = fully transparent). Tiles with transparency <= opacity_threshold
-      are treated as blocking for slope updates.
-    - visible: output uint8 mask written in-place (1 = visible)
-    - dist: output int32 squared distance in tiles, -1 if not visible
-    - side_bits: output uint8 per-tile ORed mask of N/E/S/W bits
-    - cx, cy: origin coordinates
-    - radius: integer radius (Euclidean)
-    - octant: 0..7 octant index
-    - opacity_threshold: float threshold
+    Core integer-slope octant scan with side-bit accumulation (legacy).
     """
     h, w = transparency.shape
     radius_sq = radius * radius
 
-    # initial integer slope pairs
     top_n = INT(1)
     top_d = INT(1)
     bottom_n = INT(0)
     bottom_d = INT(1)
 
-    # scan columns x = 1..radius
     for x in range(1, radius + 1):
-        # compute integer bounds for y using cross-multiplied ceil/floor
-        # y_min = ceil((bottom_n/bottom_d) * x)
         y_min = int((bottom_n * x + bottom_d - 1) // bottom_d)
-        # y_max = floor((top_n/top_d) * x)
         y_max = int((top_n * x) // top_d)
         if y_min > y_max:
             continue
@@ -143,39 +177,113 @@ def _compute_octant_core(
 
             d = x * x + y * y
             if d <= radius_sq:
-                # mark visible and distance
                 visible[my, mx] = 1
                 if dist[my, mx] == -1 or d < dist[my, mx]:
                     dist[my, mx] = d
 
-                # compute and accumulate side mask
                 dx = mx - cx
                 dy = my - cy
                 mask = _compute_side_mask_from_vector(dx, dy)
                 side_bits[my, mx] |= mask
 
-            # treat tile as blocking for slope updates if transparency <= threshold
             if transparency[my, mx] <= opacity_threshold:
-                # update top: half-cell top boundary (2*y + 1) / (2*x - 1)
                 new_top_n = INT(2 * y + 1)
                 new_top_d = INT(2 * x - 1)
                 if _slope_ge(new_top_n, new_top_d, top_n, top_d):
                     top_n = new_top_n
                     top_d = new_top_d
-                # update bottom: half-cell bottom boundary (2*y - 1) / (2*x + 1)
                 new_bottom_n = INT(2 * y - 1)
                 new_bottom_d = INT(2 * x + 1)
                 if _slope_le(new_bottom_n, new_bottom_d, bottom_n, bottom_d):
                     bottom_n = new_bottom_n
                     bottom_d = new_bottom_d
 
-        # early-exit if top <= bottom (no further visible columns)
+        if top_n * bottom_d <= bottom_n * top_d:
+            break
+
+
+def _compute_octant_core_ex(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    use_angle: int,
+    dir_x: float32,
+    dir_y: float32,
+    cos_half: float32,
+    visible: np.uint8[:, :],
+    dist: np.int32[:, :],
+    side_bits: np.uint8[:, :],
+    cx: int,
+    cy: int,
+    radius: int,
+    octant: int,
+    opacity_threshold: float32,
+) -> None:
+    """
+    Core integer-slope octant scan with side-bit accumulation and angle/mask support.
+    """
+    h, w = transparency.shape
+    radius_sq = radius * radius
+
+    top_n = INT(1)
+    top_d = INT(1)
+    bottom_n = INT(0)
+    bottom_d = INT(1)
+
+    for x in range(1, radius + 1):
+        y_min = int((bottom_n * x + bottom_d - 1) // bottom_d)
+        y_max = int((top_n * x) // top_d)
+        if y_min > y_max:
+            continue
+
+        for y in range(y_min, y_max + 1):
+            mx, my = _octant_map_coords(cx, cy, x, y, octant)
+            if mx < 0 or my < 0 or mx >= w or my >= h:
+                continue
+
+            d = x * x + y * y
+            if d > radius_sq:
+                continue
+
+            dx = mx - cx
+            dy = my - cy
+
+            if not _in_cone(dx, dy, use_angle, dir_x, dir_y, cos_half):
+                continue
+
+            visible[my, mx] = 1
+            if dist[my, mx] == -1 or d < dist[my, mx]:
+                dist[my, mx] = d
+
+            mask = _compute_side_mask_from_vector(dx, dy)
+            side_bits[my, mx] |= mask
+
+            if _is_masked_transparent_for_blocking(
+                cell_mask, use_mask, light_channels, mx, my
+            ):
+                continue
+
+            if opaque[my, mx] != uint8(0) or transparency[my, mx] <= opacity_threshold:
+                new_top_n = INT(2 * y + 1)
+                new_top_d = INT(2 * x - 1)
+                if _slope_ge(new_top_n, new_top_d, top_n, top_d):
+                    top_n = new_top_n
+                    top_d = new_top_d
+
+                new_bottom_n = INT(2 * y - 1)
+                new_bottom_d = INT(2 * x + 1)
+                if _slope_le(new_bottom_n, new_bottom_d, bottom_n, bottom_d):
+                    bottom_n = new_bottom_n
+                    bottom_d = new_bottom_d
+
         if top_n * bottom_d <= bottom_n * top_d:
             break
 
 
 @numba.njit(nogil=True, cache=True)
-def compute_fov_all_octants(
+def _compute_fov_all_octants_legacy(
     transparency: np.float32[:, :],
     visible_out: np.uint8[:, :],
     dist_out: np.int32[:, :],
@@ -183,13 +291,14 @@ def compute_fov_all_octants(
     cx: int,
     cy: int,
     radius: int,
-    opacity_threshold: float32 = 0.999999,
+    opacity_threshold: float32,
 ) -> None:
     """
     Top-level API: compute FOV for all 8 octants.
 
-    Precondition: visible_out, dist_out, side_bits_out are preallocated and C-contiguous.
-    dist_out should be initialized to -1 by the caller if desired; this routine will only
+    Precondition: visible_out, dist_out, side_bits_out are preallocated and
+    C-contiguous. dist_out should be initialized to -1 by the caller if desired;
+    this routine will only
     overwrite distances for discovered tiles.
     """
     h, w = transparency.shape
@@ -197,10 +306,12 @@ def compute_fov_all_octants(
     if 0 <= cx < w and 0 <= cy < h:
         visible_out[cy, cx] = 1
         dist_out[cy, cx] = 0
-        side_bits_out[cy, cx] |= uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
+        side_bits_out[cy, cx] |= uint8(
+            SIDE_N | SIDE_NE | SIDE_E | SIDE_SE | SIDE_S | SIDE_SW | SIDE_W | SIDE_NW
+        )
 
     for octant in range(8):
-        _compute_octant_core(
+        _compute_octant_core_legacy(
             transparency,
             visible_out,
             dist_out,
@@ -210,4 +321,290 @@ def compute_fov_all_octants(
             radius,
             octant,
             opacity_threshold,
+        )
+
+
+@numba.njit(nogil=True, cache=True)
+def _compute_fov_all_octants_ex(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    use_angle: int,
+    dir_x: float32,
+    dir_y: float32,
+    cos_half: float32,
+    visible_out: np.uint8[:, :],
+    dist_out: np.int32[:, :],
+    side_bits_out: np.uint8[:, :],
+    cx: int,
+    cy: int,
+    radius: int,
+    opacity_threshold: float32,
+) -> None:
+    h, w = transparency.shape
+    if 0 <= cx < w and 0 <= cy < h:
+        visible_out[cy, cx] = 1
+        dist_out[cy, cx] = 0
+        side_bits_out[cy, cx] |= uint8(
+            SIDE_N | SIDE_NE | SIDE_E | SIDE_SE | SIDE_S | SIDE_SW | SIDE_W | SIDE_NW
+        )
+
+    for octant in range(8):
+        _compute_octant_core_ex(
+            opaque,
+            transparency,
+            cell_mask,
+            use_mask,
+            light_channels,
+            use_angle,
+            dir_x,
+            dir_y,
+            cos_half,
+            visible_out,
+            dist_out,
+            side_bits_out,
+            cx,
+            cy,
+            radius,
+            octant,
+            opacity_threshold,
+        )
+
+
+@numba.njit(inline="always")
+def _opacity_for_visibility(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    x: int,
+    y: int,
+) -> float32:
+    if use_mask != 0 and (cell_mask[y, x] & light_channels) == uint32(0):
+        return float32(0.0)
+    if opaque[y, x] != uint8(0):
+        return float32(1.0)
+    t = transparency[y, x]
+    return float32(1.0) - float32(t)
+
+
+@numba.njit(nogil=True, cache=True)
+def _compute_visibility_subtractive_ex(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    visible: np.uint8[:, :],
+    visibility_out: np.float32[:, :],
+    cx: int,
+    cy: int,
+) -> None:
+    h, w = visible.shape
+
+    for ty in range(h):
+        for tx in range(w):
+            if visible[ty, tx] == uint8(0):
+                continue
+
+            if tx == cx and ty == cy:
+                visibility_out[ty, tx] = float32(1.0)
+                continue
+
+            x0 = cx
+            y0 = cy
+            x1 = tx
+            y1 = ty
+
+            dx = abs(x1 - x0)
+            dy = abs(y1 - y0)
+            sx = 1 if x0 < x1 else -1
+            sy = 1 if y0 < y1 else -1
+
+            cur_vis = float32(1.0)
+
+            if dy <= dx:
+                err = dx // 2
+                x = x0
+                y = y0
+                while True:
+                    if x == x1 and y == y1:
+                        break
+
+                    err -= dy
+                    if err < 0:
+                        y += sy
+                        err += dx
+                    x += sx
+
+                    if x == x1 and y == y1:
+                        break
+
+                    if x < 0 or y < 0 or x >= w or y >= h:
+                        cur_vis = float32(0.0)
+                        break
+
+                    cur_vis -= _opacity_for_visibility(
+                        opaque, transparency, cell_mask, use_mask, light_channels, x, y
+                    )
+                    if cur_vis <= float32(0.0):
+                        cur_vis = float32(0.0)
+                        break
+            else:
+                err = dy // 2
+                x = x0
+                y = y0
+                while True:
+                    if x == x1 and y == y1:
+                        break
+
+                    err -= dx
+                    if err < 0:
+                        x += sx
+                        err += dy
+                    y += sy
+
+                    if x == x1 and y == y1:
+                        break
+
+                    if x < 0 or y < 0 or x >= w or y >= h:
+                        cur_vis = float32(0.0)
+                        break
+
+                    cur_vis -= _opacity_for_visibility(
+                        opaque, transparency, cell_mask, use_mask, light_channels, x, y
+                    )
+                    if cur_vis <= float32(0.0):
+                        cur_vis = float32(0.0)
+                        break
+
+            visibility_out[ty, tx] = cur_vis
+
+
+def compute_fov_all_octants(*args: object) -> None:
+    if (
+        len(args) >= 7
+        and isinstance(args[0], np.ndarray)
+        and getattr(args[0], "dtype", None) == np.float32
+        and isinstance(args[1], np.ndarray)
+        and getattr(args[1], "dtype", None) == np.uint8
+    ):
+        transparency = args[0].astype(np.float32, copy=False)
+        visible_out = args[1].astype(np.uint8, copy=False)
+        dist_out = args[2].astype(np.int32, copy=False)
+        side_bits_out = args[3].astype(np.uint8, copy=False)
+        cx = int(args[4])
+        cy = int(args[5])
+        radius = int(args[6])
+        opacity_threshold = float(args[7]) if len(args) >= 8 else 0.999999
+        _compute_fov_all_octants_legacy(
+            transparency,
+            visible_out,
+            dist_out,
+            side_bits_out,
+            cx,
+            cy,
+            radius,
+            float32(opacity_threshold),
+        )
+        return
+
+    if len(args) < 8:
+        raise TypeError("compute_fov_all_octants: unsupported argument list.")
+
+    opaque = args[0]
+    transparency = args[1]
+    if not isinstance(opaque, np.ndarray) or not isinstance(transparency, np.ndarray):
+        raise TypeError(
+            "compute_fov_all_octants: opaque and transparency must be arrays."
+        )
+
+    opaque_u8 = opaque.astype(np.uint8, copy=False)
+    transparency_f32 = transparency.astype(np.float32, copy=False)
+
+    use_mask = 0
+    cell_mask = _DUMMY_CELL_MASK
+    light_channels_u32 = uint32(0)
+    idx = 2
+
+    if isinstance(args[2], np.ndarray) and (
+        getattr(args[2], "dtype", None) == np.uint32
+    ):
+        use_mask = 1
+        cell_mask = args[2].astype(np.uint32, copy=False)
+        light_channels_u32 = uint32(int(args[3]))
+        idx = 4
+
+    visible_out = args[idx].astype(np.uint8, copy=False)
+    dist_out = args[idx + 1].astype(np.int32, copy=False)
+    side_bits_out = args[idx + 2].astype(np.uint8, copy=False)
+    idx += 3
+
+    has_visibility = 0
+    visibility_out = np.zeros((1, 1), dtype=np.float32)
+    if isinstance(args[idx], np.ndarray) and (
+        getattr(args[idx], "dtype", None) == np.float32
+    ):
+        has_visibility = 1
+        visibility_out = args[idx].astype(np.float32, copy=False)
+        idx += 1
+
+    cx = int(args[idx])
+    cy = int(args[idx + 1])
+    radius = int(args[idx + 2])
+    idx += 3
+
+    use_angle = 0
+    dir_x = float32(0.0)
+    dir_y = float32(0.0)
+    cos_half = float32(-1.0)
+
+    if len(args) >= idx + 2:
+        start_angle = float(args[idx])
+        end_angle = float(args[idx + 1])
+        half = 0.5 * (end_angle - start_angle)
+        if half < 0.0:
+            half = -half
+        if half < math.pi:
+            use_angle = 1
+            direction = 0.5 * (start_angle + end_angle)
+            dir_x = float32(math.cos(direction))
+            dir_y = float32(math.sin(direction))
+            cos_half = float32(math.cos(half))
+
+    opacity_threshold = float32(0.999999)
+
+    _compute_fov_all_octants_ex(
+        opaque_u8,
+        transparency_f32,
+        cell_mask,
+        use_mask,
+        light_channels_u32,
+        use_angle,
+        dir_x,
+        dir_y,
+        cos_half,
+        visible_out,
+        dist_out,
+        side_bits_out,
+        cx,
+        cy,
+        radius,
+        opacity_threshold,
+    )
+
+    if has_visibility == 1:
+        _compute_visibility_subtractive_ex(
+            opaque_u8,
+            transparency_f32,
+            cell_mask,
+            use_mask,
+            light_channels_u32,
+            visible_out,
+            visibility_out,
+            cx,
+            cy,
         )
