@@ -15,14 +15,16 @@ import numpy as np
 from numba import boolean, float32, uint8, uint32
 
 # Side bit definitions
-SIDE_N: Final[int] = 1  # North
-SIDE_NE: Final[int] = 2  # Northeast
-SIDE_E: Final[int] = 4  # East
-SIDE_SE: Final[int] = 8  # Southeast
-SIDE_S: Final[int] = 16  # South
-SIDE_SW: Final[int] = 32  # Southwest
-SIDE_W: Final[int] = 64  # West
-SIDE_NW: Final[int] = 128  # Northwest
+# Must match lighting accumulator mapping:
+# 1:N, 2:E, 4:S, 8:W, 16:NE, 32:SE, 64:SW, 128:NW
+SIDE_N: Final[int] = 1 << 0  # North (bit 0)
+SIDE_E: Final[int] = 1 << 1  # East (bit 1)
+SIDE_S: Final[int] = 1 << 2  # South (bit 2)
+SIDE_W: Final[int] = 1 << 3  # West (bit 3)
+SIDE_NE: Final[int] = 1 << 4  # Northeast (bit 4)
+SIDE_SE: Final[int] = 1 << 5  # Southeast (bit 5)
+SIDE_SW: Final[int] = 1 << 6  # Southwest (bit 6)
+SIDE_NW: Final[int] = 1 << 7  # Northwest (bit 7)
 
 INT = numba.int64
 _DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros((1, 1), dtype=np.uint32)
@@ -202,6 +204,7 @@ def _compute_octant_core_legacy(
             break
 
 
+@numba.njit(nogil=True, cache=True)
 def _compute_octant_core_ex(
     opaque: np.uint8[:, :],
     transparency: np.float32[:, :],
