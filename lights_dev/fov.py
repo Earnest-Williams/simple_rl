@@ -204,6 +204,7 @@ def _compute_octant_core_legacy(
             break
 
 
+@numba.njit(nogil=True, cache=True)
 def _compute_octant_core_ex(
     opaque: np.uint8[:, :],
     transparency: np.float32[:, :],
