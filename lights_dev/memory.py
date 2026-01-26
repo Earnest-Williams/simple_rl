@@ -29,6 +29,7 @@ Usage:
     # Rendering:
     char_indices = memory_system.get_character_indices(tile_ids)
 """
+
 from __future__ import annotations
 
 import math
@@ -38,7 +39,6 @@ from typing import Final
 import numba
 import numpy as np
 from numpy.typing import NDArray
-
 
 # =============================================================================
 # Constants
@@ -202,7 +202,7 @@ class MemoryTraits:
 # =============================================================================
 
 
-@numba.jit(nopython=True, cache=True)
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _sigmoid_decay(elapsed: float, steepness: float, midpoint: float) -> float:
     """
     Compute sigmoid decay value for a single tile.
@@ -223,7 +223,7 @@ def _sigmoid_decay(elapsed: float, steepness: float, midpoint: float) -> float:
     return 1.0 / (1.0 + math.exp(exponent))
 
 
-@numba.jit(nopython=True, parallel=True, cache=True)
+@numba.jit(nopython=True, parallel=True, cache=True)  # type: ignore[untyped-decorator]
 def _update_memory_vectorized(
     current_time: np.float32,
     last_seen_time: NDArray[np.float32],
@@ -289,7 +289,7 @@ def _update_memory_vectorized(
     return updated_count
 
 
-@numba.jit(nopython=True, cache=True)
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _refresh_visible_tiles(
     current_time: np.float32,
     last_seen_time: NDArray[np.float32],
@@ -323,7 +323,7 @@ def _refresh_visible_tiles(
     return count
 
 
-@numba.jit(nopython=True, cache=True)
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _compute_character_indices(
     tile_ids: NDArray[np.int8],
     memory_intensity: NDArray[np.float32],
@@ -368,7 +368,7 @@ def _compute_character_indices(
     return result
 
 
-@numba.jit(nopython=True, cache=True)
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _count_active_memory_tiles(
     memory_intensity: NDArray[np.float32],
     min_threshold: np.float32,
@@ -394,7 +394,7 @@ def _count_active_memory_tiles(
     return count
 
 
-@numba.jit(nopython=True, cache=True)
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _batch_update_region(
     current_time: np.float32,
     last_seen_time: NDArray[np.float32],
@@ -502,12 +502,8 @@ class MemorySystem:
 
     def __post_init__(self) -> None:
         """Initialize arrays and cached values."""
-        self._memory_intensity = np.zeros(
-            (self.height, self.width), dtype=np.float32
-        )
-        self._last_seen_time = np.zeros(
-            (self.height, self.width), dtype=np.float32
-        )
+        self._memory_intensity = np.zeros((self.height, self.width), dtype=np.float32)
+        self._last_seen_time = np.zeros((self.height, self.width), dtype=np.float32)
         self._current_time = np.float32(0.0)
         self._time_since_update = 0.0
         self._current_batch = 0
@@ -718,9 +714,11 @@ class MemorySystem:
         Returns:
             Number of tiles being tracked
         """
-        return _count_active_memory_tiles(
-            self._memory_intensity,
-            np.float32(MIN_INTENSITY_THRESHOLD),
+        return int(
+            _count_active_memory_tiles(
+                self._memory_intensity,
+                np.float32(MIN_INTENSITY_THRESHOLD),
+            )
         )
 
     def reset(self) -> None:
