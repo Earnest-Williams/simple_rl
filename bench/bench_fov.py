@@ -15,13 +15,15 @@ def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> Non
     cy = w // 2
     # make some random walls
     rng = GameRNG(seed=1)
-    for _ in range(h * w // 10):
+    # make some random walls
+    rng = np.random.RandomState(1)
+    for _ in range(h * w // WALL_DENSITY_DIVISOR):
         y = rng.randint(0, h)
         x = rng.randint(0, w)
         opaque[y, x] = 1
         transparency[y, x] = 0.0
     # warm up
-    for _ in range(3):
+    for _ in range(WARMUP_RUNS):
         visible.fill(0)
         dist.fill(-1)
         fov.compute_fov_all_octants(
