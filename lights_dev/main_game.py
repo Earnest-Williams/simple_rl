@@ -26,7 +26,7 @@ import numpy as np
 # new integer-slope FOV
 try:
     from lights_dev.fov import compute_fov_all_octants
-except Exception:
+except ImportError:
     # best-effort import — existing code will continue to work if import fails
     compute_fov_all_octants = None
 
