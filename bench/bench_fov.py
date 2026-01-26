@@ -5,7 +5,7 @@ import numpy as np
 from lights_dev import fov
 
 
-def bench(h=200, w=200, radius=20, trials=50):
+def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> None:
     opaque = np.zeros((h, w), dtype=np.uint8)
     transparency = np.ones((h, w), dtype=np.float32)
     visible = np.zeros((h, w), dtype=np.uint8)
