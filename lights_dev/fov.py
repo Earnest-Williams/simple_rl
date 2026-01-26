@@ -100,7 +100,6 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
 
 @numba.njit(nogil=True, cache=True)
 def _compute_octant_core(
-    opaque: np.uint8[:, :],
     transparency: np.float32[:, :],
     visible: np.uint8[:, :],
     dist: np.int32[:, :],
@@ -115,7 +114,6 @@ def _compute_octant_core(
     Core integer-slope octant scan with side-bit accumulation.
 
     Parameters:
-    - opaque: 2D uint8 array (not strictly required; kept for shape)
     - transparency: 2D float32 0..1 (1 = fully transparent). Tiles with transparency <= opacity_threshold
       are treated as blocking for slope updates.
     - visible: output uint8 mask written in-place (1 = visible)
@@ -126,7 +124,7 @@ def _compute_octant_core(
     - octant: 0..7 octant index
     - opacity_threshold: float threshold
     """
-    h, w = opaque.shape
+    h, w = transparency.shape
     radius_sq = radius * radius
 
     # initial integer slope pairs
@@ -134,12 +132,6 @@ def _compute_octant_core(
     top_d = INT(1)
     bottom_n = INT(0)
     bottom_d = INT(1)
-
-    # mark origin visible and side bits (origin: all sides)
-    if 0 <= cx < w and 0 <= cy < h:
-        visible[cy, cx] = 1
-        dist[cy, cx] = 0
-        side_bits[cy, cx] |= uint8(SIDE_N | SIDE_E | SIDE_S | SIDE_W)
 
     # scan columns x = 1..radius
     for x in range(1, radius + 1):
@@ -173,7 +165,7 @@ def _compute_octant_core(
             if transparency[my, mx] <= opacity_threshold:
                 # update top: half-cell top boundary (2*y + 1) / (2*x - 1)
                 new_top_n = INT(2 * y + 1)
-                new_top_d = INT(2 * x - 1) if (2 * x - 1) != 0 else INT(1)
+                new_top_d = INT(2 * x - 1)
                 if _slope_ge(new_top_n, new_top_d, top_n, top_d):
                     top_n = new_top_n
                     top_d = new_top_d
@@ -191,7 +183,6 @@ def _compute_octant_core(
 
 @numba.njit(nogil=True, cache=True)
 def compute_fov_all_octants(
-    opaque: np.uint8[:, :],
     transparency: np.float32[:, :],
     visible_out: np.uint8[:, :],
     dist_out: np.int32[:, :],
@@ -208,8 +199,8 @@ def compute_fov_all_octants(
     dist_out should be initialized to -1 by the caller if desired; this routine will only
     overwrite distances for discovered tiles.
     """
-    h, w = opaque.shape
-    # mark the origin (again, in case caller didn't do it)
+    h, w = transparency.shape
+    # mark the origin
     if 0 <= cx < w and 0 <= cy < h:
         visible_out[cy, cx] = 1
         dist_out[cy, cx] = 0
@@ -217,7 +208,6 @@ def compute_fov_all_octants(
 
     for octant in range(8):
         _compute_octant_core(
-            opaque,
             transparency,
             visible_out,
             dist_out,
