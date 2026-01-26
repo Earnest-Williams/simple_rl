@@ -15,13 +15,15 @@ import numpy as np
 from numba import boolean, float32, uint8, uint32
 
 # Side bit definitions
+# Must match lighting accumulator mapping:
+# 1:N, 2:E, 4:S, 8:W, 16:NE, 32:SE, 64:SW, 128:NW
 SIDE_N: Final[int] = 1  # North
-SIDE_NE: Final[int] = 2  # Northeast
-SIDE_E: Final[int] = 4  # East
-SIDE_SE: Final[int] = 8  # Southeast
-SIDE_S: Final[int] = 16  # South
-SIDE_SW: Final[int] = 32  # Southwest
-SIDE_W: Final[int] = 64  # West
+SIDE_E: Final[int] = 2  # East
+SIDE_S: Final[int] = 4  # South
+SIDE_W: Final[int] = 8  # West
+SIDE_NE: Final[int] = 16  # Northeast
+SIDE_SE: Final[int] = 32  # Southeast
+SIDE_SW: Final[int] = 64  # Southwest
 SIDE_NW: Final[int] = 128  # Northwest
 
 INT = numba.int64
