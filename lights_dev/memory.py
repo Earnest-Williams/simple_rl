@@ -369,6 +369,35 @@ def _compute_character_indices(
     return result
 
 
+# --- fast scalar character index helper (Numba-jitted) ---------------------
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def _compute_character_index_scalar(
+    tile_id: int,
+    memory_intensity: float,
+    visible: bool,
+    level_count: int,
+) -> int:
+    """
+    Scalar variant of _compute_character_indices for a single tile.
+
+    Returns:
+      -1 : tile is currently visible
+      -2 : tile is unseen/forgotten (memory_intensity <= 0)
+      0..level_count-1 : memory decay level index
+    """
+    if visible:
+        return -1
+    if memory_intensity <= 0.0:
+        return -2
+
+    level = int((1.0 - memory_intensity) * level_count)
+    if level < 0:
+        level = 0
+    elif level >= level_count:
+        level = level_count - 1
+    return level
+
+
 @numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
 def _count_active_memory_tiles(
     memory_intensity: NDArray[np.float32],
@@ -927,22 +956,28 @@ def get_character_indices(
 
 
 def get_memory_character(tile_id: int, intensity: float) -> str:
-    tile_ids = np.array([[tile_id]], dtype=np.int8)
-    memory_values = np.array([[intensity]], dtype=np.float32)
-    visible = np.array([[False]], dtype=np.bool_)
-    index = int(get_character_indices(tile_ids, memory_values, visible)[0, 0])
-    if index == -2:
-        return constants.UNSEEN
-    if index < 0:
-        return constants.UNSEEN
-    level_index = min(constants.MEMORY_LEVEL_COUNT - 1, max(0, index))
-    if tile_id == constants.WALL_ID:
-        return constants.MEMORY_WALL_LEVELS[level_index]
-    if tile_id == constants.PILLAR_ID:
-        return constants.MEMORY_PILLAR_LEVELS[level_index]
-    if tile_id == constants.FLOOR_ID:
-        return constants.MEMORY_FLOOR_LEVELS[level_index]
-    return constants.UNSEEN
+    """
+    Return the memory-character for a single tile_id and memory intensity.
+
+    Uses a Numba scalar helper to avoid allocating temporary 1x1 arrays and calling
+    the full-array _compute_character_indices for single-tile lookups.
+    """
+    idx = int(
+        _compute_character_index_scalar(
+            tile_id, float(intensity), False, MEMORY_LEVEL_COUNT
+        )
+    )
+    if idx == -2:
+        return UNSEEN_CHAR
+
+    level_index = max(0, min(MEMORY_LEVEL_COUNT - 1, idx))
+    if tile_id == TILE_WALL:
+        return MEMORY_WALL_CHARS[level_index]
+    if tile_id == TILE_PILLAR:
+        return MEMORY_PILLAR_CHARS[level_index]
+    if tile_id == TILE_FLOOR:
+        return MEMORY_FLOOR_CHARS[level_index]
+    return UNSEEN_CHAR
 
 
 def precompile(height: int, width: int) -> None:
