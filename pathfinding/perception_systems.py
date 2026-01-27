@@ -736,7 +736,7 @@ def monster_perception(
                 chunk_index=index,
             )
             for index, (chunk, seeds) in enumerate(
-                zip(df_chunks, seeds_for_chunks, strict=False)
+                zip(df_chunks, seeds_for_chunks, strict=True)
             )
         ]
     else:
@@ -751,7 +751,7 @@ def monster_perception(
                 chunk_index=index,
             )
             for index, (chunk, seeds) in enumerate(
-                zip(df_chunks, seeds_for_chunks, strict=False)
+                zip(df_chunks, seeds_for_chunks, strict=True)
             )
         )
 
