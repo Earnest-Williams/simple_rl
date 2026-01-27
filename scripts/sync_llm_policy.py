@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Final, Tuple
+from typing import Final
 
 REPO_ROOT: Path = Path(__file__).resolve().parent.parent
 CANONICAL: Path = REPO_ROOT / "docs" / "LLM_CRITICAL_RULES.md"
