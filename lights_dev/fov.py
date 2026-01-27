@@ -14,6 +14,12 @@ import numba
 import numpy as np
 from numba import boolean, float32, uint8, uint32
 
+from lights_dev._numba_fov import (
+    Slope,
+    _compute_octant_for_boolean_array,
+)
+from lights_dev.dungeon_data import Dungeon
+
 # Side bit definitions
 # Must match lighting accumulator mapping:
 # 1:N, 2:E, 4:S, 8:W, 16:NE, 32:SE, 64:SW, 128:NW
@@ -611,3 +617,43 @@ def compute_fov_all_octants(*args: object) -> None:
             cx,
             cy,
         )
+
+
+def compute_los_into_boolean_array(
+    origin: tuple[int, int],
+    range_limit: int,
+    dungeon_instance: Dungeon,
+    target_los_array: np.ndarray,
+) -> None:
+    ox, oy = origin
+    if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
+        return
+    target_los_array[oy, ox] = True
+    start_top = Slope(1, 1)
+    start_bottom = Slope(0, 1)
+    for octant in range(8):
+        _compute_octant_for_boolean_array(
+            octant,
+            origin,
+            range_limit,
+            1,
+            start_top,
+            start_bottom,
+            dungeon_instance,
+            target_los_array,
+        )
+
+
+class FOVSystem:
+    @staticmethod
+    def compute_fov(
+        dungeon: Dungeon, origin: tuple[int, int], radius: int
+    ) -> np.ndarray:
+        visible = np.zeros((dungeon.height, dungeon.width), dtype=np.bool_)
+        compute_los_into_boolean_array(origin, radius, dungeon, visible)
+        return visible
+
+    @staticmethod
+    def precompile(dungeon: Dungeon, origin: tuple[int, int]) -> None:
+        dummy_visible = np.zeros((dungeon.height, dungeon.width), dtype=np.bool_)
+        compute_los_into_boolean_array(origin, 0, dungeon, dummy_visible)

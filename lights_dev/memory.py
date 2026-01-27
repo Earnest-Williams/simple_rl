@@ -40,6 +40,9 @@ import numba
 import numpy as np
 from numpy.typing import NDArray
 
+from lights_dev import constants
+from lights_dev._numba_fov import _update_memory_fade_internal
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -891,3 +894,64 @@ def get_memory_level_characters(tile_id: int) -> tuple[str, ...]:
         return MEMORY_FLOOR_CHARS
     else:
         return (UNSEEN_CHAR,) * MEMORY_LEVEL_COUNT
+
+
+def update_memory_fade(
+    current_time: np.float32,
+    last_seen_time: NDArray[np.float32],
+    memory_intensity: NDArray[np.float32],
+    visible: NDArray[np.bool_],
+) -> None:
+    height, width = memory_intensity.shape
+    _update_memory_fade_internal(
+        current_time,
+        last_seen_time,
+        memory_intensity,
+        visible,
+        height,
+        width,
+    )
+
+
+def get_character_indices(
+    tile_ids: NDArray[np.int8],
+    memory_intensity: NDArray[np.float32],
+    visible: NDArray[np.bool_],
+) -> NDArray[np.int8]:
+    return _compute_character_indices(
+        tile_ids,
+        memory_intensity,
+        visible,
+        constants.MEMORY_LEVEL_COUNT,
+    )
+
+
+def get_memory_character(tile_id: int, intensity: float) -> str:
+    tile_ids = np.array([[tile_id]], dtype=np.int8)
+    memory_values = np.array([[intensity]], dtype=np.float32)
+    visible = np.array([[False]], dtype=np.bool_)
+    index = int(get_character_indices(tile_ids, memory_values, visible)[0, 0])
+    if index == -2:
+        return constants.UNSEEN
+    if index < 0:
+        return constants.UNSEEN
+    level_index = min(constants.MEMORY_LEVEL_COUNT - 1, max(0, index))
+    if tile_id == constants.WALL_ID:
+        return constants.MEMORY_WALL_LEVELS[level_index]
+    if tile_id == constants.PILLAR_ID:
+        return constants.MEMORY_PILLAR_LEVELS[level_index]
+    if tile_id == constants.FLOOR_ID:
+        return constants.MEMORY_FLOOR_LEVELS[level_index]
+    return constants.UNSEEN
+
+
+def precompile(height: int, width: int) -> None:
+    dummy_last_seen = np.zeros((height, width), dtype=np.float32)
+    dummy_memory = np.zeros((height, width), dtype=np.float32)
+    dummy_visible = np.zeros((height, width), dtype=np.bool_)
+    update_memory_fade(
+        np.float32(0.0),
+        dummy_last_seen,
+        dummy_memory,
+        dummy_visible,
+    )

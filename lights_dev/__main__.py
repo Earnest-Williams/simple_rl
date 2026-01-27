@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-"""Compatibility entrypoint for lights_dev CLI."""
-
 from __future__ import annotations
 
 from lights_dev.cli import run_simulation

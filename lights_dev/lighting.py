@@ -69,6 +69,11 @@ import numba
 import numpy as np
 from numpy.typing import NDArray
 
+from lights_dev import constants
+from lights_dev._numba_fov import Slope, _compute_octant_for_color
+from lights_dev.dungeon_data import Dungeon
+from lights_dev.entities import Entity
+
 # import compute_fov_all_octants from lights_dev.fov (must be present)
 try:
     from lights_dev.fov import compute_fov_all_octants
@@ -1095,3 +1100,138 @@ def _accumulate_light_premult_rgba(
                 out_side_rgba[y, x, 7, 1] += rgb_add_g
                 out_side_rgba[y, x, 7, 2] += rgb_add_b
                 out_side_rgba[y, x, 7, 3] += a_add
+
+
+def compute_illumination_color_array(
+    origin: tuple[int, int],
+    range_limit: int,
+    dungeon_instance: Dungeon,
+    target_rgb_sum_array: np.ndarray,
+    base_color_rgb: tuple[int, int, int],
+) -> None:
+    ox, oy = origin
+    if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
+        return
+    if range_limit <= 0:
+        return
+    target_rgb_sum_array[oy, ox, 0] += float(base_color_rgb[0])
+    target_rgb_sum_array[oy, ox, 1] += float(base_color_rgb[1])
+    target_rgb_sum_array[oy, ox, 2] += float(base_color_rgb[2])
+    start_top = Slope(1, 1)
+    start_bottom = Slope(0, 1)
+    r, g, b = base_color_rgb
+    for octant in range(8):
+        _compute_octant_for_color(
+            octant,
+            origin,
+            range_limit,
+            1,
+            start_top,
+            start_bottom,
+            dungeon_instance,
+            target_rgb_sum_array,
+            r,
+            g,
+            b,
+        )
+
+
+def _interpolate_color(
+    factor: float, start_rgb: tuple[int, int, int], end_rgb: tuple[int, int, int]
+) -> tuple[int, int, int]:
+    factor = max(0.0, min(1.0, factor))
+    r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * factor)
+    g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * factor)
+    b = int(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * factor)
+    return (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
+
+
+def _get_brightness_from_rgb_sum(rgb_sum: np.ndarray) -> float:
+    max_comp = 0.0
+    if rgb_sum[0] > max_comp:
+        max_comp = rgb_sum[0]
+    if rgb_sum[1] > max_comp:
+        max_comp = rgb_sum[1]
+    if rgb_sum[2] > max_comp:
+        max_comp = rgb_sum[2]
+    return min(1.0, max_comp / 255.0)
+
+
+def _apply_lighting_to_base(
+    base_rgb: tuple[int, int, int],
+    rgb_sum: np.ndarray,
+    brightness: float,
+) -> tuple[int, int, int]:
+    max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
+    tint_scale_r = float(rgb_sum[0]) / max_comp
+    tint_scale_g = float(rgb_sum[1]) / max_comp
+    tint_scale_b = float(rgb_sum[2]) / max_comp
+    tinted_rgb = (
+        int(max(0, min(255, base_rgb[0] * tint_scale_r))),
+        int(max(0, min(255, base_rgb[1] * tint_scale_g))),
+        int(max(0, min(255, base_rgb[2] * tint_scale_b))),
+    )
+    return _interpolate_color(brightness, constants.AMBIENT_COLOR_RGB, tinted_rgb)
+
+
+class LightingSystem:
+    @staticmethod
+    def compute_illumination(
+        dungeon: Dungeon, sources: list[Entity], rgb_sum_array: np.ndarray
+    ) -> None:
+        rgb_sum_array.fill(0.0)
+        for source in sources:
+            if source.light_radius > 0:
+                compute_illumination_color_array(
+                    source.position,
+                    source.light_radius,
+                    dungeon,
+                    rgb_sum_array,
+                    source.base_color_rgb,
+                )
+
+    @staticmethod
+    def apply_lighting(
+        base_rgb: tuple[int, int, int],
+        rgb_sum: np.ndarray,
+        brightness: float,
+    ) -> tuple[int, int, int]:
+        return _apply_lighting_to_base(base_rgb, rgb_sum, brightness)
+
+    @staticmethod
+    def compute_final_rgb_map(
+        dungeon: Dungeon,
+        rgb_sum_array: np.ndarray,
+        base_color_map: np.ndarray,
+    ) -> np.ndarray:
+        height = dungeon.height
+        width = dungeon.width
+        result = np.zeros((height, width, 3), dtype=np.int32)
+        for y in range(height):
+            for x in range(width):
+                rgb_sum = rgb_sum_array[y, x]
+                brightness = _get_brightness_from_rgb_sum(rgb_sum)
+                base_rgb = (
+                    int(base_color_map[y, x, 0]),
+                    int(base_color_map[y, x, 1]),
+                    int(base_color_map[y, x, 2]),
+                )
+                result[y, x] = _apply_lighting_to_base(
+                    base_rgb,
+                    rgb_sum,
+                    brightness,
+                )
+        return result
+
+    @staticmethod
+    def precompile(dungeon: Dungeon, origin: tuple[int, int]) -> None:
+        dummy_rgb_sum_array = np.zeros(
+            (dungeon.height, dungeon.width, 3), dtype=np.float32
+        )
+        compute_illumination_color_array(
+            origin,
+            0,
+            dungeon,
+            dummy_rgb_sum_array,
+            constants.AMBIENT_COLOR_RGB,
+        )
