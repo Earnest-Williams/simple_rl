@@ -541,7 +541,7 @@ def skill_check(
     actor_skill: int,
     difficulty: int,
     target_skill: int,
-    rng: GameRNG | None = None,
+    rng_seed: int,
     *,
     min_threshold: int = 5,
     max_threshold: int = 95,
@@ -554,8 +554,7 @@ def skill_check(
         actor_skill: Skill value of the acting entity (e.g., monster perception).
         difficulty: Difficulty modifier (e.g., based on noise distance, stealth).
         target_skill: Skill value of the target resisting (e.g., player stealth).
-        rng_seed: Deterministic seed for the chunk-local GameRNG.
-        chunk_index: Stable ordering index for deterministic aggregation.
+        rng_seed: Deterministic seed for the GameRNG.
         min_threshold: Minimum success threshold clamp.
         max_threshold: Maximum success threshold clamp.
         skill_scale: Scaling factor for skill difference.
@@ -563,8 +562,7 @@ def skill_check(
     Returns:
         True if the check succeeds, False otherwise.
     """
-    if rng is None:
-        rng = GameRNG()
+    rng = GameRNG(seed=rng_seed)
     diff = actor_skill - target_skill
     threshold = 50 + (skill_scale * diff) - difficulty
     threshold = max(min_threshold, min(max_threshold, threshold))
@@ -625,9 +623,8 @@ def _process_monster_perception_chunk(
         perception: int = row["perception_stat"]
         # Add checks for flags like RF2_SHORT_SIGHTED if implemented
 
-        # Create per-entity GameRNG using the precomputed seed
+        # Use per-entity deterministic seed for the skill check.
         per_seed = rng_seeds[idx]
-        local_rng = GameRNG(seed=per_seed)
 
         # 1. Get Noise Distance
         noise_dist: int = get_noise_dist(
@@ -649,7 +646,7 @@ def _process_monster_perception_chunk(
             actor_skill=perception,
             difficulty=difficulty_mod,
             target_skill=player_stealth_skill,
-            rng=local_rng,
+            rng_seed=per_seed,
         ):
             # --- Perception Success ---
             alerted_monster_ids.append(monster_id)
