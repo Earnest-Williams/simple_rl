@@ -413,6 +413,34 @@ For each file, the following information is provided:
 
 ---
 
+## Project Metadata and Automation
+
+This section documents directories containing engineering guidelines, "Critical Rules", and automation configurations for LLM assistants, CI/CD workflows, and development tools. These directories define the repository's engineering standards referenced throughout documentation like `CLAUDE.md` and `AGENTS.md`.
+
+| Directory/File | Purpose | Contents |
+|----------------|---------|----------|
+| `.github/` | GitHub-specific configurations and workflows | Contains CI/CD workflows and Copilot instructions |
+| `.github/copilot-instructions.md` | GitHub Copilot LLM instructions | Comprehensive guidelines for GitHub Copilot including:<br>- Core principles (Performance, Determinism, Type Safety)<br>- Project structure overview<br>- Component directories documentation<br>- AI systems architecture<br>- Development workflow patterns<br>- Common coding patterns and examples<br>- Security best practices<br>**Critical Rules**: Python 3.11+, GameRNG for randomness, Polars (not Pandas), mypy --strict, pathlib.Path, explicit type annotations |
+| `.github/workflows/` | GitHub Actions CI/CD workflows | YAML workflow definitions for automated testing and deployment |
+| `.github/workflows/modernize.yml` | Code modernization workflow | Automates codebase updates to maintain modern Python standards |
+| `.codex/` | GitHub Codex/OpenAI LLM configuration | Contains engineering rules for OpenAI-based code assistants |
+| `.codex/AGENTS.md` | LLM Style Guide for code assistants | Defines repository-wide engineering constraints and LLM operating rules:<br>- Priority levels (Critical, Strong, Guideline)<br>- Critical engineering rules (Python target, determinism, formatting, typing)<br>- PEP 585 enforcement (built-in generics over typing module)<br>- Tool version pinning (mypy, black, ruff)<br>- Development workflow guidelines<br>- Migration plan for codebase modernization<br>**Critical Rules**: Python 3.11+, GameRNG, black 88-char, mypy --strict, PEP 604/585 types, Polars, Numba, pathlib.Path |
+| `.gemini/` | Google Gemini LLM configuration | Contains style guidelines for Gemini-based code assistants |
+| `.gemini/styleguide.md` | Gemini LLM Style Guide | Focused LLM operating rules for Gemini:<br>- Purpose: LLM-only engineering constraints<br>- Priority levels (Critical, Strong, Guideline)<br>- Critical engineering rules matching .codex/AGENTS.md<br>- Tooling and CI requirements<br>- Development workflow expectations<br>- Project context (simulation-heavy roguelike/RPG)<br>**Critical Rules**: Identical core rules as .codex/AGENTS.md for consistency |
+
+### Key Engineering Standards Defined in Automation Directories
+
+These directories collectively enforce:
+
+1. **Type Safety**: All code must have explicit type annotations, pass `mypy --strict`, use PEP 604 (`X | None`) and PEP 585 (built-in generics)
+2. **Determinism**: Use `utils.game_rng.GameRNG` for all randomness; never use Python's `random` or NumPy RNG
+3. **Performance**: Prefer Polars (Pandas prohibited), Numba for hot paths, vectorized operations
+4. **Code Quality**: Format with `black` (88-char), use `pathlib.Path`, explicit constants with `typing.Final`
+5. **Tool Consistency**: Pin mypy, black, ruff versions; CI must match local development environment
+6. **LLM Behavior**: Define minimal-diff approach, no API invention, stop when uncertain
+
+---
+
 ## Summary Statistics
 
 ### Total Files by Type
