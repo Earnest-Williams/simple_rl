@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Final, Tuple
 
 REPO_ROOT: Path = Path(__file__).resolve().parent.parent
 CANONICAL: Path = REPO_ROOT / "docs" / "LLM_CRITICAL_RULES.md"
@@ -24,12 +25,11 @@ HEADER: str = (
     "     Regenerate with: python scripts/sync_llm_policy.py -->\n\n"
 )
 
-TARGETS: Final[tuple[Path, ...]] = (
+TARGETS: Final[Tuple[Path, ...]] = (
     REPO_ROOT / ".codex" / "AGENTS.md",
     REPO_ROOT / ".gemini" / "styleguide.md",
     REPO_ROOT / "CLAUDE.md",
 )
-]
 
 
 def sync(*, check_only: bool = False) -> bool:
