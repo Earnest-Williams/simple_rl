@@ -673,6 +673,7 @@ def run_brainfuck(
     code: str,
     input_data: str = "",
     *,
+    deterministic: bool = False,
     tape_size: int = 30_000,
     max_steps: int = 10_000_000,
     wrap_pointer: bool = True,
@@ -688,8 +689,19 @@ def run_brainfuck(
 
     If use_numba is True we insist on trying numba; if False we skip it.
     If None we auto-decide based on availability and I/O presence.
+    deterministic=True forces single-process execution without wall-clock timeouts.
     """
     clean = sanitize(code)
+    if deterministic:
+        return _run_brainfuck_internal(
+            code,
+            input_data,
+            tape_size=tape_size,
+            max_steps=max_steps,
+            wrap_pointer=wrap_pointer,
+            clamp_pointer=clamp_pointer,
+            use_numba=use_numba,
+        )
     if _should_use_sandbox(clean, max_steps, sandbox_mode):
         return _run_brainfuck_sandboxed(
             code,

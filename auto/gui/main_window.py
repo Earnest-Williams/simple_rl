@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QStatusBar,
 )
 
+from utils.game_rng import GameRNG
+
 from ..simulation import GRID_SIZE, AgentAI, World  # Import simulation components
 from .gui_widgets import (
     ActionViewWidget,  # Import AsciiGridView instead
@@ -35,7 +37,9 @@ logging.basicConfig(
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    def __init__(self, parent=None):
+    def __init__(
+        self, parent: QMainWindow | None = None, *, seed: int | None = None
+    ) -> None:
         super().__init__(parent)
         logging.info("Initializing MainWindow...")
         self.setWindowTitle("GOAP Simulation Viewer")
@@ -43,8 +47,9 @@ class MainWindow(QMainWindow):
 
         # --- Simulation Objects ---
         # These hold the state, worker modifies them
-        self.world = World(size=GRID_SIZE)
-        self.agent_ai = AgentAI(self.world)
+        self.rng = GameRNG(seed=seed)
+        self.world = World(size=GRID_SIZE, rng=self.rng)
+        self.agent_ai = AgentAI(self.world, self.rng)
 
         # --- Simulation Thread Management ---
         self.simulation_thread: QThread | None = None
@@ -127,7 +132,7 @@ class MainWindow(QMainWindow):
             return
 
         logging.debug("Resetting world state for new run.")
-        self.world.reset()
+        self.world.reset(rng=self.rng)
         # Re-create AI or ensure its state is clean if needed. Re-using is fine for learning.
         # self.agent_ai = AgentAI(self.world) # If needed
 

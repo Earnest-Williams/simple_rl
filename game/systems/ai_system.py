@@ -8,13 +8,14 @@ can mix multiple decision making systems.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from multiprocessing.dummy import Pool as ThreadPool
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from game.ai import get_adapter, goap
+from utils.game_rng import GameRNG
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     import numpy as np
@@ -26,11 +27,13 @@ log = structlog.get_logger()
 
 
 def dispatch_ai(
-    entities,
+    entities: Mapping[str, Any] | Iterable[Mapping[str, Any]],
+    *,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: tuple[np.ndarray, np.ndarray, np.ndarray] | None,
     batch_size: int = 4,
+    deterministic: bool = True,
 ) -> None:
     """Execute AI adapters for a batch of entities in parallel."""
 
@@ -39,7 +42,12 @@ def dispatch_ai(
     else:
         entity_rows = list(entities)
 
-    def _invoke(row):
+    if deterministic:
+        entity_rows = sorted(
+            entity_rows, key=lambda row: int(row.get("entity_id", 0) or 0)
+        )
+
+    def _invoke(row: Mapping[str, Any], local_rng: GameRNG) -> None:
         species = row.get("species")
         intelligence = row.get("intelligence")
         species_map = game_state.ai_config.get("species_mapping", {})
@@ -73,13 +81,31 @@ def dispatch_ai(
         adapter(
             row,
             game_state,
-            rng,
+            local_rng,
             perception,
             species=species,
             intelligence=intelligence,
         )
 
+    def _invoke_with_rng(args: tuple[Mapping[str, Any], GameRNG]) -> None:
+        row, local_rng = args
+        _invoke(row, local_rng)
+
+    seeds = [rng.get_int(0, 2**32 - 1) for _ in range(len(entity_rows))]
+    if deterministic or batch_size <= 1:
+        for row, seed in zip(entity_rows, seeds, strict=False):
+            local_rng = GameRNG(seed=seed, metrics=False)
+            _invoke(row, local_rng)
+        return
+
     for i in range(0, len(entity_rows), batch_size):
         batch = entity_rows[i : i + batch_size]
+        batch_seeds = seeds[i : i + batch_size]
         with ThreadPool(len(batch)) as pool:
-            pool.map(_invoke, batch)
+            pool.map(
+                _invoke_with_rng,
+                [
+                    (row, GameRNG(seed=seed, metrics=False))
+                    for row, seed in zip(batch, batch_seeds, strict=False)
+                ],
+            )

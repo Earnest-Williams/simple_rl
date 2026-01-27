@@ -23,7 +23,6 @@ from __future__ import annotations
 import contextlib
 import json
 import math
-import random
 import threading
 import time
 import uuid
@@ -36,6 +35,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+
+# Deterministic default seed used when callers do not provide one.
+DEFAULT_SEED: int = 0
 
 # Detect whether the RNG integers(...) supports 'endpoint' kwarg.
 try:
@@ -189,7 +191,7 @@ class GameRNG:
         metrics: bool = False,
         noise_seed: int | None = None,
     ) -> None:
-        self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
+        self.initial_seed = seed if seed is not None else DEFAULT_SEED
         self.rng = np.random.default_rng(self.initial_seed)
         self._rng_lock = threading.RLock()
 
@@ -640,9 +642,8 @@ class GameRNG:
     # miscellaneous
     # ------------------------------------------------------------------
     def uuid(self, deterministic: bool = False) -> str:
-        """Generates a UUID, deterministic based on RNG state if requested."""
-        if not deterministic:
-            return str(uuid.uuid4())
+        """Generates a UUID derived from RNG state."""
+        _ = deterministic
 
         with self._rng_lock:
             if _NP_INTEGERS_SUPPORTS_ENDPOINT:
@@ -853,7 +854,7 @@ class GameRNG:
         self, seed: int | None = None, noise_seed: int | Literal["reset"] | None = None
     ) -> None:
         """Resets the engine with a new seed."""
-        self.initial_seed = seed if seed is not None else random.randint(0, 2**32 - 1)
+        self.initial_seed = seed if seed is not None else DEFAULT_SEED
         with self._rng_lock:
             self.rng = np.random.default_rng(self.initial_seed)
             if noise_seed == "reset" or noise_seed is None:
