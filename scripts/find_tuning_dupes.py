@@ -19,7 +19,7 @@ from typing import Final
 # ---------------------------------------------------------------------------
 # Known tuned values → name mapping
 # ---------------------------------------------------------------------------
-TUNED_VALUES: Final[dict[str, list[str]]] = {
+TUNED_VALUES: Final[Mapping[str, list[str]]] = MappingProxyType({
     # value pattern  → human-readable constant names
     "30_000": ["BF_TAPE_SIZE"],
     "30000": ["BF_TAPE_SIZE"],
@@ -28,7 +28,7 @@ TUNED_VALUES: Final[dict[str, list[str]]] = {
     "27": ["MAX_SKILL_LEVEL"],
     "128": ["DEFAULT_GRID_SIZE"],
     "5": ["MEMORY_LEVEL_COUNT"],
-}
+})
 
 # Directories / files to skip
 EXCLUDE_PARTS: Final[frozenset[str]] = frozenset(
