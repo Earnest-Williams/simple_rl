@@ -73,8 +73,8 @@ ActionResult = str | None
 Item = typing.ForwardRef("Item")  # If needed
 OptionalItem = Item | None
 
-_ID_NAMESPACE = uuid.UUID(int=0)
-_ID_COUNTER: itertools.count | None = None
+_ID_NAMESPACE: Final[uuid.UUID] = uuid.UUID(int=0)
+_ID_COUNTER: Final[itertools.count | None] = None
 
 
 def _next_deterministic_id(prefix: str) -> str:
