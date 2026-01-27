@@ -607,6 +607,14 @@ def _process_monster_perception_chunk(
     Returns:
         Tuple of (chunk_index, alerted monster IDs) for deterministic ordering.
     """
+    # Safety check: ensure rng_seeds matches the number of monsters
+    num_monsters = monster_df_chunk.height
+    if len(rng_seeds) != num_monsters:
+        raise ValueError(
+            f"Length mismatch: rng_seeds has {len(rng_seeds)} elements but "
+            f"monster_df_chunk has {num_monsters} rows"
+        )
+
     alerted_monster_ids: list[int] = []
 
     # Iterate through the rows of the DataFrame chunk with per-entity RNG
