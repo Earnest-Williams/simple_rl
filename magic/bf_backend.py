@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from common.tuning import BF_MAX_STEPS, BF_TAPE_SIZE
+
 
 @dataclass(frozen=True)
 class BFResult:
@@ -21,8 +23,8 @@ class BFBackend(ABC):
         input_data: str = "",
         *,
         deterministic: bool = False,
-        tape_size: int = 30_000,
-        max_steps: int = 10_000_000,
+        tape_size: int = BF_TAPE_SIZE,
+        max_steps: int = BF_MAX_STEPS,
         wrap_pointer: bool = True,
         clamp_pointer: bool = False,
     ) -> BFResult: ...
@@ -37,8 +39,8 @@ class _BaseBackend(BFBackend):
         input_data: str = "",
         *,
         deterministic: bool = False,
-        tape_size: int = 30_000,
-        max_steps: int = 10_000_000,
+        tape_size: int = BF_TAPE_SIZE,
+        max_steps: int = BF_MAX_STEPS,
         wrap_pointer: bool = True,
         clamp_pointer: bool = False,
     ) -> BFResult:
@@ -88,8 +90,8 @@ class JitBackend(BFBackend):
         input_data: str = "",
         *,
         deterministic: bool = False,
-        tape_size: int = 30_000,
-        max_steps: int = 10_000_000,
+        tape_size: int = BF_TAPE_SIZE,
+        max_steps: int = BF_MAX_STEPS,
         wrap_pointer: bool = True,
         clamp_pointer: bool = False,
     ) -> BFResult:

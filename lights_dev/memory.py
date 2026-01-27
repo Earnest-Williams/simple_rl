@@ -51,8 +51,8 @@ BASE_SIGMOID_MIDPOINT: Final[float] = BASE_MEMORY_DURATION / 2.0  # 45.0
 # Original steepness was 6.0/60.0 = 0.1; reduced for gentler curve
 BASE_SIGMOID_STEEPNESS: Final[float] = 5.0 / BASE_MEMORY_DURATION  # ~0.056
 
-# --- Memory Level Rendering ---
-MEMORY_LEVEL_COUNT: Final[int] = 5
+# --- Memory Level Rendering (imported from central tuning) ---
+from common.tuning import MEMORY_LEVEL_COUNT as MEMORY_LEVEL_COUNT  # noqa: E402
 
 # Character arrays for each tile type at each decay level
 # Index 0 = freshest memory, Index 4 = almost forgotten

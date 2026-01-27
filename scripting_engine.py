@@ -15,6 +15,7 @@ from typing import Literal, Protocol, TypedDict
 
 import structlog
 
+from common.tuning import BF_TAPE_SIZE
 from magic.bf_backend import (
     BFBackend,
     BFResult,
@@ -101,7 +102,7 @@ class BrainfuckRunner:
 
     def __init__(
         self,
-        tape_size: int = 30000,
+        tape_size: int = BF_TAPE_SIZE,
         backend: BFBackend | None = None,
     ) -> None:
         """

@@ -89,7 +89,7 @@ class TrainingState(IntEnum):
 
 
 # Constants
-MAX_SKILL_LEVEL: Final[int] = 27
+from common.tuning import MAX_SKILL_LEVEL as MAX_SKILL_LEVEL  # noqa: E402
 MIN_APTITUDE: Final[int] = -5
 MAX_APTITUDE: Final[int] = 11
 XP_FORMULA_CONSTANT: Final[int] = 25

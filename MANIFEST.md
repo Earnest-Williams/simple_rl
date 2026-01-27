@@ -66,6 +66,7 @@ For each file, the following information is provided:
 |------|---------|---------|------------------------|
 | `common/__init__.py` | Package initialization (empty) | None | None |
 | `common/constants.py` | Shared material and feature type enumerations | `enum.IntEnum` - Integer enumerations | `SOLID_ROCK` - 0 - Solid rock tile<br>`CAVE_FLOOR` - 1 - Cave floor tile<br>`SHAFT_OPENING` - 2 - Shaft opening tile<br>`CLIFF_EDGE` - 3 - Cliff edge tile<br>`DOOR_CLOSED` - 4 - Closed door<br>`DOOR_OPEN` - 5 - Open door<br>`FLOOR` - 0 - Floor feature<br>`WALL` - 1 - Wall feature<br>`CLOSED_DOOR` - 2 - Closed door feature<br>`OPEN_DOOR` - 3 - Open door feature<br>`SECRET_DOOR` - 4 - Secret door feature |
+| `common/tuning.py` | **Centralized tuning constants** shared across multiple subsystems. Single source of truth for cross-cutting numeric values. | `typing.Final` - Immutable constants | `MEMORY_LEVEL_COUNT` - 5 - Memory fade decay levels<br>`MAX_SKILL_LEVEL` - 27 - DCSS-inspired skill cap<br>`BF_TAPE_SIZE` - 30,000 - Brainfuck tape cells<br>`BF_MAX_STEPS` - 10,000,000 - BF safety limit<br>`GRID_SIZES` - (15,64,100,128,200) - Known grid dimensions<br>`DEFAULT_GRID_SIZE` - 128 - Default dungeon grid |
 | `common/types.py` | Type aliases for grid-based systems | `typing.TypeAlias` - Type aliasing | None (only type definitions) |
 
 ---
@@ -280,6 +281,8 @@ For each file, the following information is provided:
 | `scripts/generate_glyphs.py` | Parses markdown glyph chart, generates glyphs.yaml and glyphs_report.txt with metadata | `yaml`, `re`, `dataclasses`, `pathlib.Path`, `collections.abc.Sequence`, `typing.Final`<br>`glyph_utils.resolve_repo_root` | AMBIGUITY_TOKENS - ("best-effort", etc.)<br>USER_CLARIFIED_TOKENS - ("user clarified", etc.)<br>PLACEHOLDER_TOKENS - {"", "-", "—", "n/a", "na"}<br>PAREN_PATTERN & USER_LABEL_PATTERN - regex |
 | `scripts/glyph_utils.py` | Shared utility providing repo root resolution for glyph tooling | `pathlib.Path` | None |
 | `scripts/run_auto_regression.py` | Runs GOAP AI headless simulations, outputs JSON summary with stats | `argparse`, `json`, `time`, `collections.Counter`<br>`auto.main`, `auto.simulation`, `utils.game_rng.GameRNG` | num_runs default - 3<br>seed default - 1337<br>max int for seed - 2³²-1 |
+| `scripts/find_tuning_dupes.py` | Scans repo for numeric literals matching tuned constants, prints likely duplicates for review | `re`, `sys`, `pathlib.Path`, `typing.Final` | TUNED_VALUES - dict mapping literal patterns to constant names<br>EXCLUDE_PARTS - directories to skip<br>ALLOWED_FILES - source-of-truth files |
+| `scripts/sync_llm_policy.py` | Copies canonical `docs/LLM_CRITICAL_RULES.md` into agent-specific locations, supports `--check` for CI | `sys`, `pathlib.Path` | TARGETS - `.codex/AGENTS.md`, `.gemini/styleguide.md`, `CLAUDE.md` |
 
 ---
 
@@ -310,6 +313,7 @@ For each file, the following information is provided:
 |------|---------|---------|------------------------|
 | `tests/test_fov.py` | Unit tests for FOV computation verifying shadowing and visibility | `numpy`, `lights_dev.fov` | Grid sizes: 11, 21, 15<br>Radii: 3, 6, 10, 12<br>Coordinate offsets |
 | `tools/fix_fstring_newlines.py` | CLI tool removing newline breaks inside f-strings, reformatting to single lines | `difflib`, `pathlib`, `subprocess`, `sys` | PREFIX_CHARS - {'r','R','b','B','u','U','f','F'} |
+| `tools/style/format_and_lint.sh` | **Canonical formatting & linting script** — runs black, ruff, autopep8, isort in correct order. All sub-directory `fix.sh` scripts delegate to this. | bash | Uses pinned versions from `pyproject.toml` |
 | `tools/play_from_arrow.py` | Game player for Arrow format maps with CLI/GUI modes, viewport rendering, actions | `argparse`, `inspect`, `sys`, `tomllib`, `pathlib`, `typing`<br>`numpy`, `polars`, `yaml`<br>Game imports (GameState, GameMap, MainLoop, Material) | SPAWN_MIN_ROOM_SIZE - 20<br>SPAWN_SEARCH_RADIUS - 100<br>SPAWN_REQUIRE_DIAGONALS - True<br>Viewport: radius_x=12, radius_y=8<br>Lighting: ambient=0.2, falloff=1.0, min_fov=0.0 |
 | `tools/sample_variants.py` | CLI for generating/analyzing text variants from templates with RNG seed replay | `argparse`, `json`, `sys`, `pathlib`<br>`utils.core` (lexicon/RNG/metrics)<br>`utils.game_rng` | Default seed - 12345<br>Default count - 100<br>Default tone - "neutral"<br>4 tone types: terse/neutral/ornate/wry<br>Metrics separator - "=" * 70 |
 | `bench/bench_fov.py` | Performance benchmark for FOV computation with random wall obstacles | `time`, `numpy`, `lights_dev.fov`, `utils.game_rng` | WALL_DENSITY_DIVISOR - 10<br>WARMUP_RUNS - 3<br>Defaults: grid 200×200, radius 20, trials 50 |
@@ -347,6 +351,9 @@ For each file, the following information is provided:
 | `README.md` | Repository main documentation | Project overview, setup instructions, features, architecture notes |
 | `AGENTS.md` | LLM and contributor guidelines | Critical engineering rules, Python 3.11+ target, determinism requirements, formatting (black 88-char), static typing (mypy --strict), PEP 585 compliance, tool version pinning, performance primitives (Polars/Numba), constants placement rules, LLM operating rules |
 | `CLAUDE.md` | Project-specific LLM style guide | Purpose: LLM-only style rules; Critical rules: Python 3.11+, GameRNG for randomness, black formatting, static typing with PEP 604 unions, Polars (not Pandas), Numba for hot paths, pathlib.Path, pyparsing over regex, structural clarity over OOP, constants placement with Final/immutable types; Tooling: pinned mypy/black/ruff versions, CI consistency; Development workflow, performance guidelines |
+| `docs/ARCHITECTURE.md` | Architecture overview with module map, data flows, and documentation index | Cross-references to all module READMEs |
+| `docs/ENGINEERING.md` | Engineering rules hub — entry point for all standards, tooling, and tuning constants | Points to canonical files |
+| `docs/LLM_CRITICAL_RULES.md` | **Canonical source** for LLM/contributor critical rules — synced to `.codex/AGENTS.md`, `.gemini/styleguide.md`, `CLAUDE.md` via `scripts/sync_llm_policy.py` | Single source of truth for all LLM agent configs |
 | `docs/CHANGELOG.md` | Version history and changes | Release notes and feature additions |
 | `docs/COMPLIANCE_REPORT.md` | Code compliance and quality metrics | Static analysis results, type coverage, linting status |
 | `docs/PERFORMANCE_ANALYSIS.md` | Performance profiling and optimization notes | Benchmarks, bottlenecks, optimization strategies |
@@ -389,9 +396,10 @@ For each file, the following information is provided:
 |------|---------|----------|
 | `Dungeon/run.sh` | Runs dungeon generation standalone | Executes dungeon generator with default params |
 | `auto/run.sh` | Runs GOAP AI system (headless or GUI mode) | CLI wrapper for auto/main.py |
-| `auto/fix.sh` | Fixes code style issues in auto/ | Runs formatters and linters |
-| `pathfinding/fix.sh` | Fixes code style issues in pathfinding/ | Runs formatters and linters |
-| `scripts/fix.sh` | Fixes code style issues in scripts/ | Runs formatters and linters |
+| `auto/fix.sh` | Stub — delegates to `tools/style/format_and_lint.sh` | Single-line exec to canonical script |
+| `pathfinding/fix.sh` | Stub — delegates to `tools/style/format_and_lint.sh` | Single-line exec to canonical script |
+| `scripts/fix.sh` | Stub — delegates to `tools/style/format_and_lint.sh` | Single-line exec to canonical script |
+| `tools/style/format_and_lint.sh` | **Canonical** formatting & linting pipeline (black, ruff, autopep8, isort) | All sub-directory fix.sh scripts delegate here |
 | `scripts/modernize_all.sh` | Modernizes codebase to Python 3.11+ | Runs pyupgrade, cleanup scripts, formatters |
 | `scripts/run_cave_demo.sh` | Runs cave generation demo | Executes Dungeon generation pipeline |
 
@@ -423,9 +431,9 @@ This section documents directories containing engineering guidelines, "Critical 
 | `.github/workflows/` | GitHub Actions CI/CD workflows | YAML workflow definitions for automated testing and deployment |
 | `.github/workflows/modernize.yml` | Code modernization workflow | Automates codebase updates to maintain modern Python standards |
 | `.codex/` | GitHub Codex/OpenAI LLM configuration | Contains engineering rules for OpenAI-based code assistants |
-| `.codex/AGENTS.md` | LLM Style Guide for code assistants | Defines repository-wide engineering constraints and LLM operating rules:<br>- Priority levels (Critical, Strong, Guideline)<br>- Critical engineering rules (Python target, determinism, formatting, typing)<br>- PEP 585 enforcement (built-in generics over typing module)<br>- Tool version pinning (mypy, black, ruff)<br>- Development workflow guidelines<br>- Migration plan for codebase modernization<br>**Critical Rules**: Python 3.11+, GameRNG, black 88-char, mypy --strict, PEP 604/585 types, Polars, Numba, pathlib.Path |
+| `.codex/AGENTS.md` | **Auto-generated** copy of `docs/LLM_CRITICAL_RULES.md` for GitHub Codex. Regenerated by `scripts/sync_llm_policy.py`. | All critical engineering rules synced from canonical source |
 | `.gemini/` | Google Gemini LLM configuration | Contains style guidelines for Gemini-based code assistants |
-| `.gemini/styleguide.md` | Gemini LLM Style Guide | Focused LLM operating rules for Gemini:<br>- Purpose: LLM-only engineering constraints<br>- Priority levels (Critical, Strong, Guideline)<br>- Critical engineering rules matching .codex/AGENTS.md<br>- Tooling and CI requirements<br>- Development workflow expectations<br>- Project context (simulation-heavy roguelike/RPG)<br>**Critical Rules**: Identical core rules as .codex/AGENTS.md for consistency |
+| `.gemini/styleguide.md` | **Auto-generated** copy of `docs/LLM_CRITICAL_RULES.md` for Gemini. Regenerated by `scripts/sync_llm_policy.py`. | All critical engineering rules synced from canonical source |
 
 ### Key Engineering Standards Defined in Automation Directories
 
