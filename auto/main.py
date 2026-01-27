@@ -31,8 +31,9 @@ from .simulation import (
 
 # --- Configuration ---
 DEFAULT_NUM_RUNS = 5
-DEFAULT_NUM_WORKERS = max(1, cpu_count() // 2)
-DEFAULT_SEED = int(time.time() * 1000)  # Use time-based seed if none provided
+DEFAULT_NUM_WORKERS = max(1, cpu_count() // 2)  # KEEP auto default everywhere
+DEFAULT_SEED: int | None = None
+FALLBACK_SEED: int = 1
 
 
 # --- Headless Simulation Function ---
@@ -46,7 +47,7 @@ def run_single_headless(
     # Ensures each process has its own deterministic RNG state
     try:
         # Use a performant generator like xorshift for headless runs if desired
-        local_rng = GameRNG(seed=run_seed, generator="xorshift", metrics=False)
+        local_rng = GameRNG(seed=run_seed, metrics=False)
     except Exception as e:
         print(f"Error Run {run_id}: Failed to create GameRNG: {e}", file=sys.stderr)
         return 0, {}, "RNGCreationError"
@@ -180,10 +181,11 @@ if __name__ == "__main__":
         "--seed",
         type=int,
         default=DEFAULT_SEED,
-        help="Initial seed for generating run seeds (default: time-based)",
+        help=f"Initial seed for generating run seeds (default: {FALLBACK_SEED})",
     )
     parser.add_argument("--profile", action="store_true", help="Enable profiling")
     args = parser.parse_args()
+    resolved_seed = args.seed if args.seed is not None else FALLBACK_SEED
 
     # --- GUI Mode ---
     if args.mode == "gui":
@@ -209,7 +211,7 @@ if __name__ == "__main__":
             # GUI mode will likely use its own RNG instance internally or be passed one
             # For simplicity here, the GUI might instantiate its own based on args.seed
             # but it won't affect the headless runs.
-            main_win = MainWindow()  # MainWindow needs update to accept/create RNG
+            main_win = MainWindow(seed=resolved_seed)
             main_win.show()
             sys.exit(app.exec())
         except Exception as e:
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     elif args.mode == "headless":
         print(
             f"Starting Headless Mode: {args.num_runs} runs, {args.workers} workers, "
-            f"{args.learn} learning. Base Seed: {args.seed}"
+            f"{args.learn} learning. Base Seed: {resolved_seed}"
         )
         total_start_time = time.time()
         all_turns: list[int] = []
@@ -231,7 +233,7 @@ if __name__ == "__main__":
         initial_weights_arg = None
 
         # Create a master RNG to generate seeds for each run
-        master_rng = GameRNG(seed=args.seed)
+        master_rng = GameRNG(seed=resolved_seed)
         run_seeds = [master_rng.get_int(0, 2**32 - 1) for _ in range(args.num_runs)]
 
         if args.profile:
@@ -254,7 +256,7 @@ if __name__ == "__main__":
         ]
 
         results: list[tuple[int, dict[str, float], str]] = []
-        num_actual_workers = min(args.workers, args.num_runs)
+        num_actual_workers = max(1, min(args.workers, args.num_runs))
 
         try:
             if num_actual_workers > 1:

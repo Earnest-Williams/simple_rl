@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -32,12 +31,18 @@ from skills.utils import numba_warmup
 from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
 
-REPO_ROOT = Path(__file__).resolve().parent
+_repo_root_candidate = Path(__file__)
+REPO_ROOT = (
+    _repo_root_candidate.resolve().parent
+    if _repo_root_candidate.exists()
+    else _repo_root_candidate.parent
+)
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 os.environ.setdefault("PYTHONPATH", str(REPO_ROOT))
 
-DEFAULT_SEED = int(time.time() * 1000)
+DEFAULT_SEED: int | None = None
+FALLBACK_SEED: int = 1
 DEFAULT_MAX_NODES = 400
 DEFAULT_MAX_DEPTH = 50
 DEFAULT_CA_ITERATIONS = 8
@@ -120,7 +125,7 @@ def setup_lighting_context(rng: GameRNG) -> dict[str, object]:
 
 
 def run_pipeline(
-    seed: int = DEFAULT_SEED,
+    seed: int | None = DEFAULT_SEED,
     grid_size: int = DEFAULT_GRID_SIZE,
     max_nodes: int = DEFAULT_MAX_NODES,
     max_depth: int = DEFAULT_MAX_DEPTH,
@@ -130,7 +135,8 @@ def run_pipeline(
     max_turns: int = 200,
 ) -> dict[str, object]:
     """Run the dungeon + world pipeline using a single shared RNG."""
-    rng = GameRNG(seed=seed, metrics=False)
+    resolved_seed = seed if seed is not None else FALLBACK_SEED
+    rng = GameRNG(seed=resolved_seed, metrics=False)
 
     generator = core.CaveGenerator(
         max_nodes=max_nodes,
@@ -319,7 +325,12 @@ def main() -> None:
     numba_warmup()
 
     parser = argparse.ArgumentParser(description="Run the simple_rl orchestrator.")
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="RNG seed.")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_SEED,
+        help=f"RNG seed (default: {FALLBACK_SEED}).",
+    )
     parser.add_argument("--max-nodes", type=int, default=DEFAULT_MAX_NODES)
     parser.add_argument("--max-depth", type=int, default=DEFAULT_MAX_DEPTH)
     parser.add_argument("--ca-iterations", type=int, default=DEFAULT_CA_ITERATIONS)
@@ -329,8 +340,9 @@ def main() -> None:
     parser.add_argument("--max-turns", type=int, default=200)
     args = parser.parse_args()
 
+    resolved_seed = args.seed if args.seed is not None else FALLBACK_SEED
     results = run_pipeline(
-        seed=args.seed,
+        seed=resolved_seed,
         grid_size=args.grid_size,
         max_nodes=args.max_nodes,
         max_depth=args.max_depth,

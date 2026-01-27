@@ -20,6 +20,7 @@ class BFBackend(ABC):
         code: str,
         input_data: str = "",
         *,
+        deterministic: bool = False,
         tape_size: int = 30_000,
         max_steps: int = 10_000_000,
         wrap_pointer: bool = True,
@@ -35,6 +36,7 @@ class _BaseBackend(BFBackend):
         code: str,
         input_data: str = "",
         *,
+        deterministic: bool = False,
         tape_size: int = 30_000,
         max_steps: int = 10_000_000,
         wrap_pointer: bool = True,
@@ -45,6 +47,7 @@ class _BaseBackend(BFBackend):
         bf_result: bf_numba.BFResult = bf_numba.run_brainfuck(
             code,
             input_data=input_data,
+            deterministic=deterministic,
             tape_size=tape_size,
             max_steps=max_steps,
             wrap_pointer=wrap_pointer,
@@ -84,11 +87,13 @@ class JitBackend(BFBackend):
         code: str,
         input_data: str = "",
         *,
+        deterministic: bool = False,
         tape_size: int = 30_000,
         max_steps: int = 10_000_000,
         wrap_pointer: bool = True,
         clamp_pointer: bool = False,
     ) -> BFResult:
+        _ = deterministic
         if not self.supports_code(code):
             return BFResult(False, "", "jit_refuses_io", 0, False)
 

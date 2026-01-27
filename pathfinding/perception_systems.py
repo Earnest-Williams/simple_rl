@@ -10,7 +10,7 @@ Designed as a starting point for iteration with custom map data.
 """
 
 import logging
-import os  # For determining CPU count
+import os
 import time
 from collections import deque
 from enum import IntEnum
@@ -42,7 +42,9 @@ SCENT_RESET_AGE: int = 250  # Base age for scent reset cycle
 # Parallelism
 _cpu_count: int | None = os.cpu_count()
 _safe_cpu_count: int = _cpu_count if _cpu_count is not None else 1
-N_JOBS: int = max(1, _safe_cpu_count // 2)  # Use half the CPU cores for Joblib
+DEFAULT_NUM_JOBS: int = max(
+    1, _safe_cpu_count // 2
+)  # Use half the CPU cores for Joblib
 
 
 # --- Enums ---
@@ -539,7 +541,7 @@ def skill_check(
     actor_skill: int,
     difficulty: int,
     target_skill: int,
-    rng: GameRNG | None = None,
+    rng_seed: int,
     *,
     min_threshold: int = 5,
     max_threshold: int = 95,
@@ -552,7 +554,7 @@ def skill_check(
         actor_skill: Skill value of the acting entity (e.g., monster perception).
         difficulty: Difficulty modifier (e.g., based on noise distance, stealth).
         target_skill: Skill value of the target resisting (e.g., player stealth).
-        rng: Optional GameRNG instance for deterministic random generation.
+        rng_seed: Deterministic seed for the GameRNG.
         min_threshold: Minimum success threshold clamp.
         max_threshold: Maximum success threshold clamp.
         skill_scale: Scaling factor for skill difference.
@@ -560,8 +562,7 @@ def skill_check(
     Returns:
         True if the check succeeds, False otherwise.
     """
-    if rng is None:
-        rng = GameRNG()
+    rng = GameRNG(seed=rng_seed)
     diff = actor_skill - target_skill
     threshold = 50 + (skill_scale * diff) - difficulty
     threshold = max(min_threshold, min(max_threshold, threshold))
@@ -579,13 +580,15 @@ def warmup_perception_kernels() -> None:
 
 
 def _process_monster_perception_chunk(
-    monster_df_chunk: pl.DataFrame,  # Chunk of the monster DataFrame
-    cave_cost: np.ndarray,  # Full 3D noise cost map
-    flow_centers: np.ndarray,  # Noise flow centers
-    player_stealth_skill: int,  # Player's current stealth value
-    noise_flow_type: FlowType,  # Which noise map to use (e.g., REAL_NOISE)
-    rng: GameRNG | None = None,  # RNG instance for skill checks
-) -> list[int]:  # Return list of IDs of monsters that detected player
+    monster_df_chunk: pl.DataFrame,
+    *,
+    cave_cost: np.ndarray,
+    flow_centers: np.ndarray,
+    player_stealth_skill: int,
+    noise_flow_type: FlowType,
+    rng_seeds: list[int],
+    chunk_index: int,
+) -> tuple[int, list[int]]:
     """
     Processes perception checks for a chunk of monsters.
     Called by Joblib workers.
@@ -596,22 +599,32 @@ def _process_monster_perception_chunk(
         flow_centers: NumPy array of flow center coordinates.
         player_stealth_skill: The player's relevant skill (e.g., stealth).
         noise_flow_type: The FlowType to use for noise distance checks.
-        rng: Optional GameRNG instance for deterministic random generation.
+        rng_seeds: Per-entity deterministic seeds for each monster in the chunk.
+        chunk_index: Stable ordering index for deterministic aggregation.
 
     Returns:
-        A list of monster IDs from this chunk that successfully detected the player.
+        Tuple of (chunk_index, alerted monster IDs) for deterministic ordering.
     """
-    if rng is None:
-        rng = GameRNG()
+    # Safety check: ensure rng_seeds matches the number of monsters
+    num_monsters = monster_df_chunk.height
+    if len(rng_seeds) != num_monsters:
+        raise ValueError(
+            f"Length mismatch: rng_seeds has {len(rng_seeds)} elements but "
+            f"monster_df_chunk has {num_monsters} rows"
+        )
+
     alerted_monster_ids: list[int] = []
 
-    # Iterate through the rows of the DataFrame chunk
-    for row in monster_df_chunk.iter_rows(named=True):
+    # Iterate through the rows of the DataFrame chunk with per-entity RNG
+    for idx, row in enumerate(monster_df_chunk.iter_rows(named=True)):
         monster_id: int = row["id"]
         m_y: int = row["fy"]
         m_x: int = row["fx"]
         perception: int = row["perception_stat"]
         # Add checks for flags like RF2_SHORT_SIGHTED if implemented
+
+        # Use per-entity deterministic seed for the skill check.
+        per_seed = rng_seeds[idx]
 
         # 1. Get Noise Distance
         noise_dist: int = get_noise_dist(
@@ -633,7 +646,7 @@ def _process_monster_perception_chunk(
             actor_skill=perception,
             difficulty=difficulty_mod,
             target_skill=player_stealth_skill,
-            rng=rng,
+            rng_seed=per_seed,
         ):
             # --- Perception Success ---
             alerted_monster_ids.append(monster_id)
@@ -644,19 +657,20 @@ def _process_monster_perception_chunk(
             # print(f"  Monster {monster_id} heard player! (Noise Dist:
             # {noise_dist})") # DEBUG
 
-    return alerted_monster_ids
+    return chunk_index, alerted_monster_ids
 
 
 def monster_perception(
-    monster_df: pl.DataFrame,  # Full monster DataFrame
-    cave_cost: np.ndarray,  # Full 3D noise cost map
-    flow_centers: np.ndarray,  # Noise flow centers
+    monster_df: pl.DataFrame,
+    *,
+    cave_cost: np.ndarray,
+    flow_centers: np.ndarray,
     player_y: int,
-    player_x: int,  # Player position (needed?) - implicitly noise center
-    player_stealth_skill: int,  # Player's current stealth value
-    rng: GameRNG | None = None,  # RNG instance for perception checks
-    # Add other relevant params: player_attacked_recently?, main_roll?,
-    # difficulty?
+    player_x: int,
+    player_stealth_skill: int,
+    rng: GameRNG | None = None,
+    num_jobs: int | None = None,
+    deterministic: bool = True,
 ) -> list[int]:
     """
     Updates monster perception based on noise. Parallelized using Joblib.
@@ -667,6 +681,9 @@ def monster_perception(
         flow_centers: NumPy array of flow center coordinates.
         player_y, player_x: Current player coordinates (primarily for context).
         player_stealth_skill: Player's relevant skill value.
+        rng: Optional GameRNG instance for deterministic random generation.
+        num_jobs: Optional override for Joblib worker count.
+        deterministic: Force single-threaded deterministic processing.
 
     Returns:
         A list containing the IDs of all monsters that detected the player this turn.
@@ -684,9 +701,13 @@ def monster_perception(
 
     # --- Parallel Processing ---
     # Split the DataFrame into chunks for parallel processing
-    # Adjust n_chunks based on N_JOBS and number of monsters
+    resolved_jobs = num_jobs if num_jobs is not None else DEFAULT_NUM_JOBS
+    if deterministic:
+        resolved_jobs = 1
+
+    # Adjust n_chunks based on resolved_jobs and number of monsters
     # Heuristic: more chunks than jobs
-    n_chunks = min(num_monsters, N_JOBS * 4)
+    n_chunks = min(num_monsters, max(1, resolved_jobs) * 4)
     if n_chunks <= 0:
         n_chunks = 1
 
@@ -698,26 +719,52 @@ def monster_perception(
         active_monsters_df.slice(i * chunk_size, chunk_size) for i in range(n_chunks)
     ]
 
-    # Use Joblib to process chunks in parallel
-    # backend="loky" is default and generally robust
-    # backend="threading" might be suitable if skill_check involves I/O or GIL-releasing C code
-    # backend="multiprocessing" is another option
+    # Ensure master RNG
     if rng is None:
         rng = GameRNG()
-    results: list[list[int]] = Parallel(n_jobs=N_JOBS, backend="loky")(
-        delayed(_process_monster_perception_chunk)(
-            chunk,
-            cave_cost,
-            flow_centers,
-            player_stealth_skill,
-            FlowType.REAL_NOISE,
-            rng,
+
+    # Precompute per-entity seeds in the master process (stable)
+    seeds_for_chunks: list[list[int]] = []
+    for chunk in df_chunks:
+        ids_in_chunk = [int(row["id"]) for row in chunk.iter_rows(named=True)]
+        seeds_for_chunks.append([rng.derive_seed(mid) for mid in ids_in_chunk])
+
+    if resolved_jobs <= 1:
+        results = [
+            _process_monster_perception_chunk(
+                chunk,
+                cave_cost=cave_cost,
+                flow_centers=flow_centers,
+                player_stealth_skill=player_stealth_skill,
+                noise_flow_type=FlowType.REAL_NOISE,
+                rng_seeds=seeds,
+                chunk_index=index,
+            )
+            for index, (chunk, seeds) in enumerate(
+                zip(df_chunks, seeds_for_chunks, strict=True)
+            )
+        ]
+    else:
+        results = Parallel(n_jobs=resolved_jobs, backend="loky")(
+            delayed(_process_monster_perception_chunk)(
+                chunk,
+                cave_cost=cave_cost,
+                flow_centers=flow_centers,
+                player_stealth_skill=player_stealth_skill,
+                noise_flow_type=FlowType.REAL_NOISE,
+                rng_seeds=seeds,
+                chunk_index=index,
+            )
+            for index, (chunk, seeds) in enumerate(
+                zip(df_chunks, seeds_for_chunks, strict=True)
+            )
         )
-        for chunk in df_chunks
-    )
 
     # --- Aggregate Results ---
-    all_alerted_ids: list[int] = [item for sublist in results for item in sublist]
+    ordered_chunks = [chunk for _, chunk in sorted(results, key=lambda pair: pair[0])]
+    all_alerted_ids: list[int] = [
+        item for sublist in ordered_chunks for item in sublist
+    ]
 
     end_time = time.time()
     duration_s: float = end_time - start_time
@@ -725,7 +772,7 @@ def monster_perception(
         "Monster perception for %d monsters took %.4fs using %d jobs.",
         num_monsters,
         duration_s,
-        N_JOBS,
+        resolved_jobs,
     )
 
     # --- Update Monster State (Post-Parallel) ---
@@ -797,7 +844,7 @@ if __name__ == "__main__":
     print(
         f"Map: {MAP_HGT}x{MAP_WID}, Player: ({player_y}, {player_x}), Monsters: {num_monsters}"
     )
-    print(f"Using {N_JOBS} parallel jobs for perception.")
+    print(f"Using {DEFAULT_NUM_JOBS} parallel jobs for perception.")
 
     # --- Simulation Loop (Simplified Example) ---
     for turn in range(5):
@@ -837,11 +884,11 @@ if __name__ == "__main__":
         # 3. Monster Perception
         alerted_ids = monster_perception(
             monster_df,
-            cave_cost,
-            flow_centers,
-            player_y,
-            player_x,
-            player_stealth_skill,
+            cave_cost=cave_cost,
+            flow_centers=flow_centers,
+            player_y=player_y,
+            player_x=player_x,
+            player_stealth_skill=player_stealth_skill,
         )
         # Here you would typically update the state of alerted monsters in monster_df
         # or pass alerted_ids to an AI processing system.

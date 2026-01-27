@@ -449,7 +449,12 @@ class GameState:
             entity_id = row["entity_id"]
             if entity_id == self.player_id:
                 continue
-            dispatch_ai(row, self, self.rng_instance, None)
+            dispatch_ai(
+                row,
+                game_state=self,
+                rng=self.rng_instance,
+                perception=None,
+            )
 
     def advance_turn(self) -> None:
         """Advances the game turn counter and performs turn-based updates."""
@@ -503,7 +508,12 @@ class GameState:
                     continue
                 ai_rows.append(row)
             if ai_rows:
-                dispatch_ai(ai_rows, self, self.rng_instance, perception)
+                dispatch_ai(
+                    ai_rows,
+                    game_state=self,
+                    rng=self.rng_instance,
+                    perception=perception,
+                )
         else:
             log.debug("AI subsystem disabled; skipping AI processing")
 

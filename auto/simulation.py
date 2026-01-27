@@ -5,6 +5,7 @@ import heapq
 import sys
 
 # Removed 'random' import
+import itertools
 import typing  # Use typing instead of from typing import ...
 import uuid
 from collections import defaultdict, deque
@@ -72,18 +73,30 @@ ActionResult = str | None
 Item = typing.ForwardRef("Item")  # If needed
 OptionalItem = Item | None
 
+_ID_NAMESPACE: Final[uuid.UUID] = uuid.UUID(int=0)
+_ID_COUNTER: Final[itertools.count | None] = None
+
+
+def _next_deterministic_id(prefix: str) -> str:
+    global _ID_COUNTER
+    if _ID_COUNTER is None:
+        _ID_COUNTER = itertools.count()
+    counter = next(_ID_COUNTER)
+    name = f"{prefix}-{counter}"
+    return str(uuid.uuid5(_ID_NAMESPACE, name))
+
 
 # --- Item Definitions ---
 class Item:
     """Base class for all items."""
 
-    def __init__(self, name: str, kind: str, description: str = ""):
-        self.id: str = str(uuid.uuid4())  # Use standard uuid4 string
+    def __init__(self, name: str, kind: str, description: str = "") -> None:
+        self.id: str = _next_deterministic_id("item")
         self.name = name
         self.kind = kind
         self.description = description
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Item({self.name})"
 
 
@@ -193,7 +206,7 @@ class Entity:
         item: OptionalItem = None,  # Use alias
         max_inventory: int | None = None,  # Allow overriding default
     ) -> None:
-        self.id: EntityID = str(uuid.uuid4())
+        self.id: EntityID = _next_deterministic_id(kind)
         self.x: int = x
         self.y: int = y
         self.kind: str = kind
