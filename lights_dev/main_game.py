@@ -44,7 +44,7 @@ try:
     from lights_dev import demo_dungeon_generator as dungeon_generator
     from lights_dev.dungeon_data import Dungeon
     from utils.game_rng import GameRNG
-except Exception as e:
+except ImportError as e:
     raise ImportError(
         "Failed to import required project modules for lights_dev/main_game.py. "
         "Make sure you're running from the repository root or that PYTHONPATH "
