@@ -675,6 +675,15 @@ class GameRNG:
             seed = (seed * 6364136223846793005 + v + 1) & 0xFFFFFFFFFFFFFFFF
         return seed
 
+    def derive_seed(self, *vals: int) -> int:
+        """Deterministically derive a 32-bit seed from the RNG's noise seed and integer inputs.
+
+        Use: master_rng.derive_seed(entity_id) to get a stable per-entity seed that does not
+        depend on RNG consumption order.
+        """
+        # Reuse internal _hash_seed mixing; return 32-bit value suitable for seeding a GameRNG.
+        return self._hash_seed(*vals) & 0xFFFFFFFF
+
     @staticmethod
     def _splitmix64(x: int) -> int:
         """Internal 64-bit mixer for noise generation."""
