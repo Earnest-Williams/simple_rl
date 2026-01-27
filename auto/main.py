@@ -11,7 +11,7 @@ import sys
 import time
 import traceback  # Import traceback for error logging
 from collections import Counter
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 # --- Use relative imports ---
 from utils.game_rng import GameRNG  # Import GameRNG
@@ -31,7 +31,7 @@ from .simulation import (
 
 # --- Configuration ---
 DEFAULT_NUM_RUNS = 5
-DEFAULT_NUM_WORKERS = 1
+DEFAULT_NUM_WORKERS = max(1, cpu_count() // 2)  # KEEP auto default everywhere
 DEFAULT_SEED: int | None = None
 FALLBACK_SEED: int = 1
 

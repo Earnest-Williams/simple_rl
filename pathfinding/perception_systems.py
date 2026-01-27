@@ -10,6 +10,7 @@ Designed as a starting point for iteration with custom map data.
 """
 
 import logging
+import os
 import time
 from collections import deque
 from enum import IntEnum
@@ -39,7 +40,11 @@ NOISE_MAX_DIST: int = 200  # Clamping value for get_noise_dist
 SMELL_STRENGTH: int = 80  # Threshold for scent aging/reset
 SCENT_RESET_AGE: int = 250  # Base age for scent reset cycle
 # Parallelism
-DEFAULT_NUM_JOBS: int = 1
+_cpu_count: int | None = os.cpu_count()
+_safe_cpu_count: int = _cpu_count if _cpu_count is not None else 1
+DEFAULT_NUM_JOBS: int = max(
+    1, _safe_cpu_count // 2
+)  # Use half the CPU cores for Joblib
 
 
 # --- Enums ---
@@ -583,7 +588,7 @@ def _process_monster_perception_chunk(
     flow_centers: np.ndarray,
     player_stealth_skill: int,
     noise_flow_type: FlowType,
-    rng_seed: int,
+    rng_seeds: list[int],
     chunk_index: int,
 ) -> tuple[int, list[int]]:
     """
@@ -596,22 +601,25 @@ def _process_monster_perception_chunk(
         flow_centers: NumPy array of flow center coordinates.
         player_stealth_skill: The player's relevant skill (e.g., stealth).
         noise_flow_type: The FlowType to use for noise distance checks.
-        rng_seed: Deterministic seed for the chunk-local RNG.
+        rng_seeds: Per-entity deterministic seeds for each monster in the chunk.
         chunk_index: Stable ordering index for deterministic aggregation.
 
     Returns:
         Tuple of (chunk_index, alerted monster IDs) for deterministic ordering.
     """
-    rng = GameRNG(seed=rng_seed)
     alerted_monster_ids: list[int] = []
 
-    # Iterate through the rows of the DataFrame chunk
-    for row in monster_df_chunk.iter_rows(named=True):
+    # Iterate through the rows of the DataFrame chunk with per-entity RNG
+    for idx, row in enumerate(monster_df_chunk.iter_rows(named=True)):
         monster_id: int = row["id"]
         m_y: int = row["fy"]
         m_x: int = row["fx"]
         perception: int = row["perception_stat"]
         # Add checks for flags like RF2_SHORT_SIGHTED if implemented
+
+        # Create per-entity GameRNG using the precomputed seed
+        per_seed = rng_seeds[idx]
+        local_rng = GameRNG(seed=per_seed)
 
         # 1. Get Noise Distance
         noise_dist: int = get_noise_dist(
@@ -633,7 +641,7 @@ def _process_monster_perception_chunk(
             actor_skill=perception,
             difficulty=difficulty_mod,
             target_skill=player_stealth_skill,
-            rng=rng,
+            rng=local_rng,
         ):
             # --- Perception Success ---
             alerted_monster_ids.append(monster_id)
@@ -706,13 +714,15 @@ def monster_perception(
         active_monsters_df.slice(i * chunk_size, chunk_size) for i in range(n_chunks)
     ]
 
-    # Use Joblib to process chunks in parallel
-    # backend="loky" is default and generally robust
-    # backend="threading" might be suitable if skill_check involves I/O or GIL-releasing C code
-    # backend="multiprocessing" is another option
+    # Ensure master RNG
     if rng is None:
         rng = GameRNG()
-    chunk_seeds = [rng.get_int(0, 2**32 - 1) for _ in range(n_chunks)]
+
+    # Precompute per-entity seeds in the master process (stable)
+    seeds_for_chunks: list[list[int]] = []
+    for chunk in df_chunks:
+        ids_in_chunk = [int(row["id"]) for row in chunk.iter_rows(named=True)]
+        seeds_for_chunks.append([rng.derive_seed(mid) for mid in ids_in_chunk])
 
     if resolved_jobs <= 1:
         results = [
@@ -722,10 +732,12 @@ def monster_perception(
                 flow_centers=flow_centers,
                 player_stealth_skill=player_stealth_skill,
                 noise_flow_type=FlowType.REAL_NOISE,
-                rng_seed=chunk_seeds[index],
+                rng_seeds=seeds,
                 chunk_index=index,
             )
-            for index, chunk in enumerate(df_chunks)
+            for index, (chunk, seeds) in enumerate(
+                zip(df_chunks, seeds_for_chunks, strict=False)
+            )
         ]
     else:
         results = Parallel(n_jobs=resolved_jobs, backend="loky")(
@@ -735,10 +747,12 @@ def monster_perception(
                 flow_centers=flow_centers,
                 player_stealth_skill=player_stealth_skill,
                 noise_flow_type=FlowType.REAL_NOISE,
-                rng_seed=chunk_seeds[index],
+                rng_seeds=seeds,
                 chunk_index=index,
             )
-            for index, chunk in enumerate(df_chunks)
+            for index, (chunk, seeds) in enumerate(
+                zip(df_chunks, seeds_for_chunks, strict=False)
+            )
         )
 
     # --- Aggregate Results ---
