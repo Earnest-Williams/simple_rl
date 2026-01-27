@@ -5,6 +5,7 @@ from collections import deque
 
 import numba
 import numpy as np
+from numpy.typing import NDArray
 
 from lights_dev import constants
 from lights_dev import demo_dungeon_generator as dungeon_generator
@@ -24,7 +25,7 @@ def _update_dungeon_time(dungeon_instance: Dungeon, dt: np.float32) -> None:
 def find_path(
     start: tuple[int, int],
     end: tuple[int, int],
-    tiles: np.ndarray,
+    tiles: NDArray[np.int8],
     width: int,
     height: int,
 ) -> list[tuple[int, int]] | None:
@@ -87,10 +88,12 @@ class GameState:
         self.player: Player | None = None
         self.light_sources: list[LightSource] = []
         self.all_entities: list[Entity] = []
-        self.current_illumination_rgb_sum: np.ndarray = np.zeros(
+        self.current_illumination_rgb_sum: NDArray[np.float32] = np.zeros(
             (height, width, 3), dtype=np.float32
         )
-        self.current_player_los: np.ndarray = np.zeros((height, width), dtype=np.bool_)
+        self.current_player_los: NDArray[np.bool_] = np.zeros(
+            (height, width), dtype=np.bool_
+        )
 
     def initialize_map_and_entities(self) -> None:
         dungeon_generator.dungeon_generate_map_u_shape(self.dungeon, self.rng)
@@ -211,18 +214,11 @@ class GameState:
                             d, x, y, self.all_entities
                         )
                         level_str = str(approx_level)
-                        required_range = 0
-                        try:
-                            level_info = constants.LIGHT_LEVEL_DATA.get(level_str)
-                            if level_info:
-                                category_info = level_info.get(obj_category)
-                            if category_info:
-                                required_range = category_info.get(
-                                    "noticeable_range", 0
-                                )
-                        except Exception as exc:
-                            logging.error(f"Light lookup error: {exc}")
-                            required_range = 0
+                        required_range = (
+                            constants.LIGHT_LEVEL_DATA.get(level_str, {})
+                            .get(obj_category, {})
+                            .get("noticeable_range", 0)
+                        )
                         dist_sq_to_player = distance_sq(px, py, x, y)
                         if dist_sq_to_player <= required_range * required_range:
                             final_visible[y, x] = True

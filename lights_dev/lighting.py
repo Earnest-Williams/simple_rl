@@ -1107,7 +1107,7 @@ def compute_illumination_color_array(
     origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
-    target_rgb_sum_array: np.ndarray,
+    target_rgb_sum_array: NDArray[np.float32],
     base_color_rgb: tuple[int, int, int],
 ) -> None:
     ox, oy = origin
@@ -1147,20 +1147,14 @@ def _interpolate_color(
     return (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
 
 
-def _get_brightness_from_rgb_sum(rgb_sum: np.ndarray) -> float:
-    max_comp = 0.0
-    if rgb_sum[0] > max_comp:
-        max_comp = rgb_sum[0]
-    if rgb_sum[1] > max_comp:
-        max_comp = rgb_sum[1]
-    if rgb_sum[2] > max_comp:
-        max_comp = rgb_sum[2]
+def _get_brightness_from_rgb_sum(rgb_sum: NDArray[np.float32]) -> float:
+    max_comp = float(np.max(rgb_sum))
     return min(1.0, max_comp / 255.0)
 
 
 def _apply_lighting_to_base(
     base_rgb: tuple[int, int, int],
-    rgb_sum: np.ndarray,
+    rgb_sum: NDArray[np.float32],
     brightness: float,
 ) -> tuple[int, int, int]:
     max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
@@ -1178,7 +1172,7 @@ def _apply_lighting_to_base(
 class LightingSystem:
     @staticmethod
     def compute_illumination(
-        dungeon: Dungeon, sources: list[Entity], rgb_sum_array: np.ndarray
+        dungeon: Dungeon, sources: list[Entity], rgb_sum_array: NDArray[np.float32]
     ) -> None:
         rgb_sum_array.fill(0.0)
         for source in sources:
@@ -1194,7 +1188,7 @@ class LightingSystem:
     @staticmethod
     def apply_lighting(
         base_rgb: tuple[int, int, int],
-        rgb_sum: np.ndarray,
+        rgb_sum: NDArray[np.float32],
         brightness: float,
     ) -> tuple[int, int, int]:
         return _apply_lighting_to_base(base_rgb, rgb_sum, brightness)
@@ -1202,12 +1196,12 @@ class LightingSystem:
     @staticmethod
     def compute_final_rgb_map(
         dungeon: Dungeon,
-        rgb_sum_array: np.ndarray,
-        base_color_map: np.ndarray,
-    ) -> np.ndarray:
+        rgb_sum_array: NDArray[np.float32],
+        base_color_map: NDArray[np.int32],
+    ) -> NDArray[np.int32]:
         height = dungeon.height
         width = dungeon.width
-        result = np.zeros((height, width, 3), dtype=np.int32)
+        result: NDArray[np.int32] = np.zeros((height, width, 3), dtype=np.int32)
         for y in range(height):
             for x in range(width):
                 rgb_sum = rgb_sum_array[y, x]
