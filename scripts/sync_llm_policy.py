@@ -24,10 +24,11 @@ HEADER: str = (
     "     Regenerate with: python scripts/sync_llm_policy.py -->\n\n"
 )
 
-TARGETS: list[Path] = [
+TARGETS: Final[tuple[Path, ...]] = (
     REPO_ROOT / ".codex" / "AGENTS.md",
     REPO_ROOT / ".gemini" / "styleguide.md",
     REPO_ROOT / "CLAUDE.md",
+)
 ]
 
 
