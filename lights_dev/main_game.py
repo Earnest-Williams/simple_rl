@@ -27,83 +27,30 @@ import numpy as np
 try:
     from lights_dev.fov import compute_fov_all_octants
 except ImportError:
-    # best-effort import — existing code will continue to work if import fails
+    # optional separate fov module — fine if not present
     compute_fov_all_octants = None
 
-# --- Import Project Modules ---
-# Assuming these are in the same directory or accessible via PYTHONPATH
+# --- Import Project Modules (strict, no dummy fallbacks) ---
+# Ensure repository root is on sys.path so top-level project imports resolve
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_repo_root = os.path.abspath(os.path.join(_this_dir, ".."))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
 try:
-    import constants
-
-    # Assuming Dungeon is correctly imported from dungeon_data
-    import dungeon_generator
-    from dungeon_data import (
-        Dungeon,
-    )
-
-    # Import GameRNG
+    # Import core modules from the project explicitly so we never rely on dummies.
+    # Use explicit lights_dev.* imports to make intent clear.
+    from lights_dev import constants
+    from lights_dev import demo_dungeon_generator as dungeon_generator
+    from lights_dev.dungeon_data import Dungeon
     from utils.game_rng import GameRNG
 except ImportError as e:
-    print(f"Failed to import project modules or GameRNG: {e}", file=sys.stderr)
-    # Define dummies if needed for basic script parsing, but execution will fail
-    WALL_ID, FLOOR_ID, PILLAR_ID = 0, 1, 2
-
-    class Dungeon:  # type: ignore # noqa
-        def __init__(self, w, h):
-            self.width = w
-            self.height = h
-            self.tiles = np.zeros((h, w))
-
-    class GameRNG:  # type: ignore # noqa
-        def get_int(self, a, b):
-            return (a + b) // 2
-
-        def choice(self, seq):
-            return seq[0] if seq else None
-
-        def shuffle(self, seq):
-            pass
-
-        def get_float(self, a=0.0, b=1.0):
-            return (a + b) / 2.0
-
-        def weighted_choice(self, items, weights):
-            return items[0] if items else None
-
-    # Dummy dungeon generator
-    class dungeon_generator:  # type: ignore # noqa
-        @staticmethod
-        def dungeon_generate_map_u_shape(dungeon, rng):
-            pass
-
-    # Dummy constants
-    class constants:  # type: ignore # noqa
-        DEFAULT_ENTITY_CATEGORY = "medium"
-        TORCH_COLOR_RGB = (0, 0, 0)
-        ORB_COLOR_RGB = (0, 0, 0)
-        PLAYER_COLOR_RGB = (0, 0, 0)
-        WALL_COLOR_RGB = (0, 0, 0)
-        PILLAR_COLOR_RGB = (0, 0, 0)
-        FLOOR_COLOR_RGB = (0, 0, 0)
-        MAX_LOS_DISTANCE = 10
-        MAX_LIGHT_LEVEL_FOR_VIS_CHECK = 5
-        LIGHT_LEVEL_DATA = {}
-        AMBIENT_COLOR_RGB = (0, 0, 0)
-        MEMORY_COLOR = ""
-        COLOR = {"RESET": ""}
-        UNSEEN = "."
-        PLAYER_CHAR = "@"
-        LIGHT_CHAR = "*"
-        VISIBLE_WALL = "#"
-        VISIBLE_PILLAR = "O"
-        VISIBLE_FLOOR = "."
-        MEMORY_LEVEL_COUNT = 5
-        MEMORY_WALL_LEVELS = [" "] * 5
-        MEMORY_PILLAR_LEVELS = [" "] * 5
-        MEMORY_FLOOR_LEVELS = [" "] * 5
-        MEMORY_SIGMOID_STEEPNESS = 1.0
-        MEMORY_SIGMOID_MIDPOINT = 1.0
-        TILE_ID_TO_CATEGORY = {}
+    raise ImportError(
+        "Failed to import required project modules for lights_dev/main_game.py. "
+        "Make sure you're running from the repository root or that PYTHONPATH "
+        "includes the project. Missing/errored import: "
+        f"{e!s}"
+    ) from e
 
 
 # Configure logging
