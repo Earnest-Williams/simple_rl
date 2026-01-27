@@ -65,7 +65,7 @@ For each file, the following information is provided:
 
 | File | Purpose | Imports | Constants/Magic Numbers |
 |------|---------|---------|------------------------|
-| `common/__init__.py` | Package initialization (likely empty or minimal exports) | Unknown (needs viewing) | Unknown |
+| `common/__init__.py` | Package initialization (empty) | None | None |
 | `common/constants.py` | Shared material and feature type enumerations | `enum.IntEnum` - Integer enumerations | `SOLID_ROCK` - 0 - Solid rock tile<br>`CAVE_FLOOR` - 1 - Cave floor tile<br>`SHAFT_OPENING` - 2 - Shaft opening tile<br>`CLIFF_EDGE` - 3 - Cliff edge tile<br>`DOOR_CLOSED` - 4 - Closed door<br>`DOOR_OPEN` - 5 - Open door<br>`FLOOR` - 0 - Floor feature<br>`WALL` - 1 - Wall feature<br>`CLOSED_DOOR` - 2 - Closed door feature<br>`OPEN_DOOR` - 3 - Open door feature<br>`SECRET_DOOR` - 4 - Secret door feature |
 | `common/types.py` | Type aliases for grid-based systems | `typing.TypeAlias` - Type aliasing | None (only type definitions) |
 
@@ -85,7 +85,7 @@ For each file, the following information is provided:
 | `engine/renderer.py` | Main rendering orchestrator combining all layers into PIL Image | `dataclasses`, `numpy`, `polars`, `structlog`<br>`PIL.Image/ImageDraw`<br>Various render functions, `numba` | Memory fade color: [128,128,128]<br>Variance: 0.0<br>Noise: 0.0<br>Alpha: 255<br>Enable flags: True<br>Color bounds: [0,255]<br>Min dimensions: 1 pixel |
 | `engine/tileset_loader.py` | Loads PNG/SVG tiles, cleans backgrounds, rasterizes SVGs | `io`, `pathlib.Path`, `numpy`, `structlog`<br>`cairosvg.svg2png`, `PIL.Image` | PNG bg color: (21,21,21)<br>SVG error color: (255,0,255,255) magenta<br>Resampling: NEAREST |
 | `engine/window_manager.py` | Main GUI window with display, input, rendering, UI state (54KB file) | `json`, `math`, `time`, `pathlib.Path`, `numpy`, `orjson`<br>`PIL.Image`, `PySide6` (Qt), `threading`, `structlog`<br>Config classes, handler modules | `DEFAULT_MIN_TILE_SIZE` - 4<br>`SCROLL_SCALE_DEBOUNCE_MS` - 200<br>`RESIZE_DEBOUNCE_MS` - 100<br>`INITIAL_WINDOW_WIDTH` - 1024<br>`INITIAL_WINDOW_HEIGHT` - 768 |
-| `engine/window_manager_modules/__init__.py` | Module initialization (likely empty) | Unknown | Unknown |
+| `engine/window_manager_modules/` | Namespace package (no __init__.py). Contains: input_handler.py, tileset_manager.py, ui_overlay_manager.py | See module rows for imports | See module rows for constants |
 | `engine/window_manager_modules/input_handler.py` | Translates keyboard events to actions via keybindings config | `structlog`<br>`PySide6` (QtCore, QtGui, QtWidgets, Qt.Key)<br>`GameState`, `MainLoop`, `WindowManager` | Common key map: "up", "down", etc. to Qt.Key<br>Modifiers: Ctrl, Shift, Alt<br>Action types: move, action, ui |
 | `engine/window_manager_modules/tileset_manager.py` | Loads and manages tileset data as Numba-compatible NumPy arrays | `pathlib.Path`, `numpy`, `structlog`<br>`PIL.Image`, `numba`<br>`load_tiles`, `TILE_TYPES` | `SENTINEL_TILE_ARRAY_SHAPE` - (0,0,4)<br>Default FG: (255,255,255)<br>Default BG: (0,0,0)<br>Tile index: 0<br>Resampling: NEAREST |
 | `engine/window_manager_modules/ui_overlay_manager.py` | Renders UI overlays from TOML, manages inventory state | `contextlib`, `tomllib`, `pathlib.Path`, `polars`, `structlog`<br>`PIL.Image/ImageDraw/ImageFont`<br>`GameState`, `MainLoop`, `WindowManager` | Overlay types: debug, height_key, inventory, image<br>UI map: dict[int, tuple[int \| None, bool, bool]] |
@@ -188,7 +188,7 @@ For each file, the following information is provided:
 | File | Purpose | Imports | Constants/Magic Numbers |
 |------|---------|---------|------------------------|
 | `game/skills/effects.py` | Skill bonuses for combat, defense, magic (damage multipliers, accuracy, armor) | `game.skills.models` (Skill, SkillProgress) | 0.01 (1% dmg/Fighting), 0.02 (2% dmg/weapon, armor), 0.03 (3% armor/Armour), 0.015 (1.5% spell/Spellcasting), 1.5x (stealth), 0.5x (Invocations MP), level//2 & /3 |
-| `game/skills/models.py` | 23 skills in 4 categories, training modes, cross-training bonuses | `dataclasses`, `enum` (Enum, auto) | MAX_SKILL_LEVEL - 27<br>Aptitude: -5 to +11<br>Cross-training: 0.25 & 0.20<br>TrainingMode/State enums |
+| `game/skills/models.py` | 29 skills in 4 categories, training modes, cross-training bonuses | `dataclasses`, `enum` (Enum, auto) | MAX_SKILL_LEVEL - 27<br>Aptitude: -5 to +11<br>Cross-training: 0.25 & 0.20<br>TrainingMode/State enums |
 | `game/skills/progression.py` | DCSS-style quadratic scaling, 27-level cap, aptitude modifiers, XP tables | `math` | MAX_SKILL_LEVEL - 27<br>_BASE_XP_TABLE (0-27 → 0-18900)<br>Formula: 25×L×(L+1)<br>Aptitude: 2^(-apt/4) |
 | `game/skills/system.py` | High-level API for skill initialization, XP awards, training config | `structlog`<br>`game.skills` (models, training)<br>`typing.TYPE_CHECKING` | Uses functions from progression/training |
 | `game/skills/training.py` | XP distribution: manual/automatic modes, focus multipliers, cross-training, auto-disable | `structlog`<br>`game.skills` (models, progression) | 2.0 (focus multiplier)<br>0.1 (10% min share)<br>1.5x (50% focused bonus) |
@@ -482,4 +482,3 @@ These directories collectively enforce:
 ---
 
 *This manifest was automatically generated and documents all source files, configurations, and data in the Simple RL repository as of 2026-01-27.*
-
