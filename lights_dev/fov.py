@@ -13,6 +13,13 @@ from typing import Final
 import numba
 import numpy as np
 from numba import boolean, float32, uint8, uint32
+from numpy.typing import NDArray
+
+from lights_dev._numba_fov import (
+    Slope,
+    _compute_octant_for_boolean_array,
+)
+from lights_dev.dungeon_data import Dungeon
 
 # Side bit definitions
 # Must match lighting accumulator mapping:
@@ -27,7 +34,7 @@ SIDE_SW: Final[int] = 1 << 6  # Southwest (bit 6)
 SIDE_NW: Final[int] = 1 << 7  # Northwest (bit 7)
 
 INT = numba.int64
-_DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros((1, 1), dtype=np.uint32)
+DUMMY_CELL_MASK: Final[NDArray[np.uint32]] = np.zeros((1, 1), dtype=np.uint32)
 
 
 @numba.njit(inline="always")
@@ -529,7 +536,7 @@ def compute_fov_all_octants(*args: object) -> None:
     transparency_f32 = transparency.astype(np.float32, copy=False)
 
     use_mask = 0
-    cell_mask = _DUMMY_CELL_MASK
+    cell_mask = DUMMY_CELL_MASK
     light_channels_u32 = uint32(0)
     idx = 2
 
@@ -611,3 +618,47 @@ def compute_fov_all_octants(*args: object) -> None:
             cx,
             cy,
         )
+
+
+def compute_los_into_boolean_array(
+    origin: tuple[int, int],
+    range_limit: int,
+    dungeon_instance: Dungeon,
+    target_los_array: NDArray[np.bool_],
+) -> None:
+    ox, oy = origin
+    if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
+        return
+    target_los_array[oy, ox] = True
+    start_top = Slope(1, 1)
+    start_bottom = Slope(0, 1)
+    for octant in range(8):
+        _compute_octant_for_boolean_array(
+            octant,
+            origin,
+            range_limit,
+            1,
+            start_top,
+            start_bottom,
+            dungeon_instance,
+            target_los_array,
+        )
+
+
+class FOVSystem:
+    @staticmethod
+    def compute_fov(
+        dungeon: Dungeon, origin: tuple[int, int], radius: int
+    ) -> NDArray[np.bool_]:
+        visible: NDArray[np.bool_] = np.zeros(
+            (dungeon.height, dungeon.width), dtype=np.bool_
+        )
+        compute_los_into_boolean_array(origin, radius, dungeon, visible)
+        return visible
+
+    @staticmethod
+    def precompile(dungeon: Dungeon, origin: tuple[int, int]) -> None:
+        dummy_visible: NDArray[np.bool_] = np.zeros(
+            (dungeon.height, dungeon.width), dtype=np.bool_
+        )
+        compute_los_into_boolean_array(origin, 0, dungeon, dummy_visible)

@@ -40,6 +40,9 @@ import numba
 import numpy as np
 from numpy.typing import NDArray
 
+from lights_dev import constants
+from lights_dev._numba_fov import _update_memory_fade_internal
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -364,6 +367,35 @@ def _compute_character_indices(
                 result[y, x] = min(level_count - 1, max(0, level))
 
     return result
+
+
+# --- fast scalar character index helper (Numba-jitted) ---------------------
+@numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
+def _compute_character_index_scalar(
+    tile_id: int,
+    memory_intensity: float,
+    visible: bool,
+    level_count: int,
+) -> int:
+    """
+    Scalar variant of _compute_character_indices for a single tile.
+
+    Returns:
+      -1 : tile is currently visible
+      -2 : tile is unseen/forgotten (memory_intensity <= 0)
+      0..level_count-1 : memory decay level index
+    """
+    if visible:
+        return -1
+    if memory_intensity <= 0.0:
+        return -2
+
+    level = int((1.0 - memory_intensity) * level_count)
+    if level < 0:
+        level = 0
+    elif level >= level_count:
+        level = level_count - 1
+    return level
 
 
 @numba.jit(nopython=True, cache=True)  # type: ignore[untyped-decorator]
@@ -891,3 +923,70 @@ def get_memory_level_characters(tile_id: int) -> tuple[str, ...]:
         return MEMORY_FLOOR_CHARS
     else:
         return (UNSEEN_CHAR,) * MEMORY_LEVEL_COUNT
+
+
+def update_memory_fade(
+    current_time: np.float32,
+    last_seen_time: NDArray[np.float32],
+    memory_intensity: NDArray[np.float32],
+    visible: NDArray[np.bool_],
+) -> None:
+    height, width = memory_intensity.shape
+    _update_memory_fade_internal(
+        current_time,
+        last_seen_time,
+        memory_intensity,
+        visible,
+        height,
+        width,
+    )
+
+
+def get_character_indices(
+    tile_ids: NDArray[np.int8],
+    memory_intensity: NDArray[np.float32],
+    visible: NDArray[np.bool_],
+) -> NDArray[np.int8]:
+    return _compute_character_indices(
+        tile_ids,
+        memory_intensity,
+        visible,
+        constants.MEMORY_LEVEL_COUNT,
+    )
+
+
+def get_memory_character(tile_id: int, intensity: float) -> str:
+    """
+    Return the memory-character for a single tile_id and memory intensity.
+
+    Uses a Numba scalar helper to avoid allocating temporary 1x1 arrays and calling
+    the full-array _compute_character_indices for single-tile lookups.
+    """
+    idx = int(
+        _compute_character_index_scalar(
+            tile_id, float(intensity), False, MEMORY_LEVEL_COUNT
+        )
+    )
+    if idx == -2:
+        return UNSEEN_CHAR
+
+    level_index = max(0, min(MEMORY_LEVEL_COUNT - 1, idx))
+    if tile_id == TILE_WALL:
+        return MEMORY_WALL_CHARS[level_index]
+    if tile_id == TILE_PILLAR:
+        return MEMORY_PILLAR_CHARS[level_index]
+    if tile_id == TILE_FLOOR:
+        return MEMORY_FLOOR_CHARS[level_index]
+    return UNSEEN_CHAR
+
+
+def precompile(height: int, width: int) -> None:
+    dummy_last_seen = np.zeros((height, width), dtype=np.float32)
+    dummy_memory = np.zeros((height, width), dtype=np.float32)
+    dummy_visible = np.zeros((height, width), dtype=np.bool_)
+    update_memory_fade(
+        np.float32(0.0),
+        dummy_last_seen,
+        dummy_memory,
+        dummy_visible,
+    )
