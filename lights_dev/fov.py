@@ -34,7 +34,7 @@ SIDE_SW: Final[int] = 1 << 6  # Southwest (bit 6)
 SIDE_NW: Final[int] = 1 << 7  # Northwest (bit 7)
 
 INT = numba.int64
-_DUMMY_CELL_MASK: Final[NDArray[np.uint32]] = np.zeros((1, 1), dtype=np.uint32)
+DUMMY_CELL_MASK: Final[NDArray[np.uint32]] = np.zeros((1, 1), dtype=np.uint32)
 
 
 @numba.njit(inline="always")
@@ -536,7 +536,7 @@ def compute_fov_all_octants(*args: object) -> None:
     transparency_f32 = transparency.astype(np.float32, copy=False)
 
     use_mask = 0
-    cell_mask = _DUMMY_CELL_MASK
+    cell_mask = DUMMY_CELL_MASK
     light_channels_u32 = uint32(0)
     idx = 2
 

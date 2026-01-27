@@ -4,11 +4,12 @@ import math
 
 import numba
 import numpy as np
+from typing import Final
 
 from lights_dev import constants
 from lights_dev.dungeon_data import Dungeon
 
-slope_spec = [("y", numba.int64), ("x", numba.int64)]
+slope_spec: Final = [("y", numba.int64), ("x", numba.int64)]
 
 
 @numba.experimental.jitclass(slope_spec)
