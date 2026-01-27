@@ -6,6 +6,8 @@ from collections.abc import Iterable
 import numpy as np
 import structlog
 
+from common.tuning import MEMORY_LEVEL_COUNT
+
 try:
     from numba import float32, njit, uint8
 
@@ -64,7 +66,16 @@ NOISY_MEMORY_WALL_GLYPHS = np.array(
 NOISY_MEMORY_FLOOR_GLYPHS = np.array(
     [ord("#"), ord("~"), ord(":"), ord("."), ord(" ")], dtype=np.uint16
 )
-MEMORY_LEVEL_COUNT = MEMORY_WALL_GLYPHS.size
+
+# Validate that glyph arrays match the centralized MEMORY_LEVEL_COUNT
+assert MEMORY_WALL_GLYPHS.size == MEMORY_LEVEL_COUNT, (
+    f"MEMORY_WALL_GLYPHS size ({MEMORY_WALL_GLYPHS.size}) "
+    f"does not match MEMORY_LEVEL_COUNT ({MEMORY_LEVEL_COUNT})"
+)
+assert MEMORY_FLOOR_GLYPHS.size == MEMORY_LEVEL_COUNT, (
+    f"MEMORY_FLOOR_GLYPHS size ({MEMORY_FLOOR_GLYPHS.size}) "
+    f"does not match MEMORY_LEVEL_COUNT ({MEMORY_LEVEL_COUNT})"
+)
 
 
 @njit(
