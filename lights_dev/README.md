@@ -12,7 +12,10 @@ The components developed here are intended for eventual integration into the mai
 
 ## Core Components
 
-* **`main_game.py`:** The main simulation script for this testbed. It initializes the environment, manages the game loop, updates entity states (including light sources), calls the Numba-accelerated FOV/lighting/memory functions, and renders the output to the console using ANSI True Color codes. Includes optional `readchar` support for basic interaction or a profiling mode. Creates simple test maps programmatically for testing lighting and FOV algorithms.
+* **`runner.py`:** The primary embedding API (`GameRunner`) for front-ends. It manages initialization, precompile warm-up, stepping, and rendering without configuring logging.
+* **`renderer.py`:** Console renderer that turns a `GameState` into a text frame using ANSI True Color codes.
+* **`cli.py`:** Debug / profiling runner that wraps `GameRunner` for local smoke tests (optional `readchar`).
+* **`main_game.py`:** Compatibility entrypoint that forwards to the debug CLI.
 * **`dungeon_data.py`:** Defines the `Dungeon` **Numba jitclass**. This high-performance data structure holds the core grid arrays (`tiles`, `visible`, `memory_intensity`, `last_seen_time`) and is passed to Numba-accelerated functions.
 * **`constants.py`:** Contains constants specific to this R&D environment, including rendering characters, True Color RGB values, memory fade parameters, and the `LIGHT_LEVEL_DATA` structure mapping light intensity to gameplay visibility checks.
 
@@ -29,11 +32,24 @@ The components developed here are intended for eventual integration into the mai
 
 * **Python:** 3.x
 * **Core Libraries:** `numpy`, `numba`
-* **Optional:** `readchar` (for interactive mode in `main_game.py`)
+* **Optional:** `readchar` (for interactive mode in `cli.py`)
 
 ## Status & Integration
 
 This component is under active development and refinement. The core algorithms for FOV, lighting, and memory are functional but require testing in more complex environments and further iteration (e.g., light animation, trait integration for memory).
+
+## GameRunner Integration (example)
+
+```python
+runner = GameRunner(80, 30, seed=12345)
+runner.initialize()
+runner.precompile()
+runner.step(dt)
+frame = runner.render()
+```
+
+For a pygame/SDL loop, call `runner.step(dt)` each tick, then use
+`LightingSystem.compute_final_rgb_map(...)` to get an RGB buffer for blitting.
 
 **Current Status:**
 * ⚠️ **Active R&D**: Experimental systems being refined

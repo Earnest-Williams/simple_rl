@@ -4,15 +4,9 @@ import logging
 import os
 import time
 
-import numpy as np
-
 from lights_dev import constants
-from lights_dev.fov import FOVSystem
-from lights_dev.game_state import GameState, find_path
-from lights_dev.lighting import LightingSystem
-from lights_dev.memory import precompile as precompile_memory
-from lights_dev.renderer import Renderer
-from utils.game_rng import GameRNG
+from lights_dev.game_state import find_path
+from lights_dev.runner import GameRunner
 
 try:
     import readchar
@@ -36,12 +30,11 @@ def run_simulation() -> None:
     print(f"--- Debug Render Mode: {constants.DEBUG_RENDER_MODE} ---")
 
     main_seed = 12345 if is_profiling else int(time.time() * 1000)
-    rng_instance = GameRNG(seed=main_seed)
-    print(f"--- Using RNG Seed: {main_seed} ---")
+    runner = GameRunner(80, 30, seed=main_seed)
+    print(f"--- Using RNG Seed: {runner.get_seed()} ---")
 
-    game_state = GameState(80, 30, rng_instance)
     try:
-        game_state.initialize_map_and_entities()
+        runner.initialize()
     except Exception as exc:
         logging.exception("Map init failed!")
         print(f"\nERROR: {exc}")
@@ -49,16 +42,11 @@ def run_simulation() -> None:
         return
 
     print("Pre-compiling Numba functions...")
-    if game_state.dungeon and game_state.player:
-        try:
-            FOVSystem.precompile(game_state.dungeon, game_state.player.position)
-            LightingSystem.precompile(game_state.dungeon, game_state.player.position)
-            precompile_memory(game_state.dungeon.height, game_state.dungeon.width)
-        except Exception as exc:
-            logging.exception("Numba pre-compile error!")
-            print(f"\nWARNING: {exc}")
-    elif not game_state.player:
-        print("WARNING: Player missing, skipping pre-compile.")
+    try:
+        runner.precompile()
+    except Exception as exc:
+        logging.exception("Numba pre-compile error!")
+        print(f"\nWARNING: {exc}")
     print("Pre-compilation finished.")
 
     frame_count = 0
@@ -70,14 +58,13 @@ def run_simulation() -> None:
     profiler_path: list[tuple[int, int]] | None = None
     profiler_path_index = 0
     profiler_target_x = (
-        game_state.dungeon.width - 6
-        if game_state.player and game_state.player.x < game_state.dungeon.width // 2
+        runner.game_state.dungeon.width - 6
+        if runner.game_state.player
+        and runner.game_state.player.x < runner.game_state.dungeon.width // 2
         else 5
     )
     last_profiler_move_time = start_time
     profiler_move_delay = 0.01
-
-    renderer = Renderer(constants.DEBUG_RENDER_MODE)
 
     try:
         while time.time() - start_time < target_duration:
@@ -91,48 +78,53 @@ def run_simulation() -> None:
                 if current_frame_time - last_profiler_move_time >= profiler_move_delay:
                     if profiler_path and profiler_path_index < len(profiler_path):
                         next_pos = profiler_path[profiler_path_index]
-                        if game_state.player:
-                            game_state.player.x, game_state.player.y = next_pos
+                        if runner.game_state.player:
+                            runner.game_state.player.x, runner.game_state.player.y = (
+                                next_pos
+                            )
                         profiler_path_index += 1
                         player_moved = True
                         last_profiler_move_time = current_frame_time
-                    elif game_state.player:
-                        start_pos = game_state.player.position
+                    elif runner.game_state.player:
+                        start_pos = runner.game_state.player.position
                         target_pos = (profiler_target_x, start_pos[1])
                         if start_pos != target_pos:
                             profiler_path = find_path(
                                 start_pos,
                                 target_pos,
-                                game_state.dungeon.tiles,
-                                game_state.dungeon.width,
-                                game_state.dungeon.height,
+                                runner.game_state.dungeon.tiles,
+                                runner.game_state.dungeon.width,
+                                runner.game_state.dungeon.height,
                             )
                             if profiler_path and len(profiler_path) > 1:
                                 profiler_path_index = 1
                                 next_pos = profiler_path[profiler_path_index]
-                                game_state.player.x, game_state.player.y = next_pos
+                                runner.game_state.player.x, runner.game_state.player.y = (
+                                    next_pos
+                                )
                                 profiler_path_index += 1
                                 player_moved = True
                                 last_profiler_move_time = current_frame_time
                                 profiler_target_x = (
                                     5
                                     if profiler_target_x
-                                    > game_state.dungeon.width // 2
-                                    else game_state.dungeon.width - 6
+                                    > runner.game_state.dungeon.width // 2
+                                    else runner.game_state.dungeon.width - 6
                                 )
                             else:
                                 profiler_path = None
                                 profiler_target_x = (
                                     5
                                     if profiler_target_x
-                                    > game_state.dungeon.width // 2
-                                    else game_state.dungeon.width - 6
+                                    > runner.game_state.dungeon.width // 2
+                                    else runner.game_state.dungeon.width - 6
                                 )
                         else:
                             profiler_target_x = (
                                 5
-                                if profiler_target_x > game_state.dungeon.width // 2
-                                else game_state.dungeon.width - 6
+                                if profiler_target_x
+                                > runner.game_state.dungeon.width // 2
+                                else runner.game_state.dungeon.width - 6
                             )
                             profiler_path = None
             elif is_interactive and READCHAR_AVAILABLE:
@@ -163,17 +155,17 @@ def run_simulation() -> None:
                     dx, dy = 0, 0
                 if quit_flag:
                     break
-                if (dx != 0 or dy != 0) and game_state.player:
-                    target_x = game_state.player.x + dx
-                    target_y = game_state.player.y + dy
+                if (dx != 0 or dy != 0) and runner.game_state.player:
+                    target_x = runner.game_state.player.x + dx
+                    target_y = runner.game_state.player.y + dy
                     if (
-                        0 <= target_x < game_state.dungeon.width
-                        and 0 <= target_y < game_state.dungeon.height
-                        and game_state.dungeon.tiles[target_y, target_x]
+                        0 <= target_x < runner.game_state.dungeon.width
+                        and 0 <= target_y < runner.game_state.dungeon.height
+                        and runner.game_state.dungeon.tiles[target_y, target_x]
                         == constants.FLOOR_ID
                     ):
-                        game_state.player.x = target_x
-                        game_state.player.y = target_y
+                        runner.game_state.player.x = target_x
+                        runner.game_state.player.y = target_y
                         player_moved = True
                 elif not quit_flag:
                     player_moved = True
@@ -181,18 +173,11 @@ def run_simulation() -> None:
                 break
 
             update_start_time = time.perf_counter()
-            game_state.update(dt)
+            runner.step(dt)
             update_time = time.perf_counter() - update_start_time
-            if is_profiling or player_moved:
-                vis_start_time = time.perf_counter()
-                game_state.update_visibility()
-                vis_end_time = time.perf_counter()
-                frame_vis_time = vis_end_time - vis_start_time
-                total_update_vis_time += frame_vis_time
-            else:
-                frame_vis_time = 0
+            frame_vis_time = 0.0
             render_start_time = time.perf_counter()
-            rendered_map = renderer.render(game_state)
+            rendered_map = runner.render()
             render_end_time = time.perf_counter()
             render_time = render_end_time - render_start_time
             print("\033[H\033[J", end="")
@@ -209,23 +194,29 @@ def run_simulation() -> None:
                 else ""
             )
             print(
-                f"\nMode: {mode_str}{debug_str} | Sim Time: {game_state.dungeon.current_time:.1f}s / {target_duration:.0f}s | Frame: {frame_count + 1}"
+                f"\nMode: {mode_str}{debug_str} | Sim Time: "
+                f"{runner.game_state.dungeon.current_time:.1f}s / "
+                f"{target_duration:.0f}s | Frame: {frame_count + 1}"
             )
             print(
-                f"Frame Times (ms): Render={render_time * 1000:.1f}, VisUpdate={frame_vis_time * 1000:.2f}, StateUpdate={update_time * 1000:.2f} | Avg Vis: {avg_vis_time_ms:.3f}ms | DeltaT: {dt * 1000:.1f}ms"
+                f"Frame Times (ms): Render={render_time * 1000:.1f}, "
+                f"VisUpdate={frame_vis_time * 1000:.2f}, "
+                f"StateUpdate={update_time * 1000:.2f} | "
+                f"Avg Vis: {avg_vis_time_ms:.3f}ms | DeltaT: {dt * 1000:.1f}ms"
             )
-            if game_state.player:
+            if runner.game_state.player:
                 p_mem = 0.0
                 try:
-                    p_mem = game_state.dungeon.memory_intensity[
-                        game_state.player.y, game_state.player.x
+                    p_mem = runner.game_state.dungeon.memory_intensity[
+                        runner.game_state.player.y, runner.game_state.player.x
                     ]
                 except IndexError:
                     logging.warning("Player index error mem check.")
                     p_mem = -1.0
                 status_line = (
-                    f"Player @ {game_state.player.position} (Lvl:{game_state.player.light_level}, "
-                    f"R:{game_state.player.light_radius}) | Mem@P: {p_mem:.2f}"
+                    f"Player @ {runner.game_state.player.position} "
+                    f"(Lvl:{runner.game_state.player.light_level}, "
+                    f"R:{runner.game_state.player.light_radius}) | Mem@P: {p_mem:.2f}"
                 )
                 if is_interactive:
                     status_line += f" | Last key: '{last_key_pressed}'"

@@ -1103,6 +1103,7 @@ def _accumulate_light_premult_rgba(
 
 
 def compute_illumination_color_array(
+    *,
     origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
@@ -1183,11 +1184,11 @@ class LightingSystem:
         for source in sources:
             if source.light_radius > 0:
                 compute_illumination_color_array(
-                    source.position,
-                    source.light_radius,
-                    dungeon,
-                    rgb_sum_array,
-                    source.base_color_rgb,
+                    origin=source.position,
+                    range_limit=source.light_radius,
+                    dungeon_instance=dungeon,
+                    target_rgb_sum_array=rgb_sum_array,
+                    base_color_rgb=source.base_color_rgb,
                 )
 
     @staticmethod
@@ -1229,9 +1230,9 @@ class LightingSystem:
             (dungeon.height, dungeon.width, 3), dtype=np.float32
         )
         compute_illumination_color_array(
-            origin,
-            0,
-            dungeon,
-            dummy_rgb_sum_array,
-            constants.AMBIENT_COLOR_RGB,
+            origin=origin,
+            range_limit=0,
+            dungeon_instance=dungeon,
+            target_rgb_sum_array=dummy_rgb_sum_array,
+            base_color_rgb=constants.AMBIENT_COLOR_RGB,
         )
