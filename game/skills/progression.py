@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import math
 
-# Maximum skill level
-MAX_SKILL_LEVEL: int = 27
+# Maximum skill level (imported from central tuning)
+from common.tuning import MAX_SKILL_LEVEL as MAX_SKILL_LEVEL  # noqa: E402
 
 # XP required to reach each skill level (cumulative, at aptitude 0)
 # Based on DCSS formula: XP for level L = 25 * L * (L + 1)

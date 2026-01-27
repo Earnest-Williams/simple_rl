@@ -47,7 +47,7 @@ DEFAULT_MAX_NODES = 400
 DEFAULT_MAX_DEPTH = 50
 DEFAULT_CA_ITERATIONS = 8
 DEFAULT_OUTPUT_FILE = "generated_dungeon.arrow"
-DEFAULT_GRID_SIZE = 128
+from common.tuning import DEFAULT_GRID_SIZE as DEFAULT_GRID_SIZE  # noqa: E402
 
 log = logging.getLogger(__name__)
 

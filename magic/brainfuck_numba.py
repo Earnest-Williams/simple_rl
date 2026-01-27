@@ -4,6 +4,8 @@ from __future__ import annotations
 import resource
 import time
 from multiprocessing import Pipe, get_context
+
+from common.tuning import BF_MAX_STEPS, BF_TAPE_SIZE
 from multiprocessing.connection import Connection
 from typing import Literal
 
@@ -361,8 +363,8 @@ def _run_brainfuck_internal(
     code: str,
     input_data: str = "",
     *,
-    tape_size: int = 30_000,
-    max_steps: int = 10_000_000,
+    tape_size: int = BF_TAPE_SIZE,
+    max_steps: int = BF_MAX_STEPS,
     wrap_pointer: bool = True,
     clamp_pointer: bool = False,
     use_numba: bool | None = None,
@@ -462,8 +464,8 @@ def _run_numba_core_internal(
     code: str,
     input_data: str = "",
     *,
-    tape_size: int = 30_000,
-    max_steps: int = 10_000_000,
+    tape_size: int = BF_TAPE_SIZE,
+    max_steps: int = BF_MAX_STEPS,
     wrap_pointer: bool = True,
     clamp_pointer: bool = False,
 ) -> BFResult:
@@ -674,8 +676,8 @@ def run_brainfuck(
     input_data: str = "",
     *,
     deterministic: bool = False,
-    tape_size: int = 30_000,
-    max_steps: int = 10_000_000,
+    tape_size: int = BF_TAPE_SIZE,
+    max_steps: int = BF_MAX_STEPS,
     wrap_pointer: bool = True,
     clamp_pointer: bool = False,
     use_numba: bool | None = None,
