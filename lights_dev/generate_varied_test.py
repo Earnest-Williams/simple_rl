@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import time
 from pathlib import Path
-from typing import Iterator, List, Tuple, TypedDict
+from typing import Iterator, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
