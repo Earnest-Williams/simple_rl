@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import List, Tuple
+
 import numpy as np
 
 from lights_dev import constants
@@ -9,11 +11,11 @@ from lights_dev.lighting import LightingSystem, _get_brightness_from_rgb_sum
 from lights_dev.memory import get_memory_character
 
 
-def _format_true_color(rgb: tuple[int, int, int]) -> str:
+def _format_true_color(rgb: Tuple[int, int, int]) -> str:
     return f"\033[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
 
 
-def _get_base_rgb_for_tile(tile_id: int) -> tuple[int, int, int]:
+def _get_base_rgb_for_tile(tile_id: int) -> Tuple[int, int, int]:
     if tile_id == constants.WALL_ID:
         return constants.WALL_COLOR_RGB
     if tile_id == constants.PILLAR_ID:
@@ -22,8 +24,8 @@ def _get_base_rgb_for_tile(tile_id: int) -> tuple[int, int, int]:
 
 
 def _compute_faded_memory_rgb(
-    base_rgb: tuple[int, int, int], memory_intensity: float
-) -> tuple[int, int, int]:
+    base_rgb: Tuple[int, int, int], memory_intensity: float
+) -> Tuple[int, int, int]:
     factor = max(0.0, min(1.0, memory_intensity))
     amb = constants.AMBIENT_COLOR_RGB
     r_val = int(amb[0] + (base_rgb[0] - amb[0]) * factor)
@@ -39,6 +41,9 @@ def _compute_faded_memory_rgb(
 class Renderer:
     def __init__(self, render_mode: str) -> None:
         self.render_mode = render_mode
+
+    def set_renderer_mode(self, mode: str) -> None:
+        self.render_mode = mode
 
     def render(self, game_state: GameState) -> str:
         if not game_state.dungeon:
@@ -78,7 +83,7 @@ class Renderer:
         if self.render_mode == "level_color":
             result = ["--- Blended RGB True Color (DEBUG, Clamped Sum) ---"]
             for y in range(d.height):
-                row_chars: list[str] = []
+                row_chars: List[str] = []
                 for x in range(d.width):
                     rgb_sum = rgb_sum_array[y, x]
                     brightness = _get_brightness_from_rgb_sum(rgb_sum)
@@ -119,9 +124,9 @@ class Renderer:
                 result.append("".join(row_chars))
             return "\n".join(result) + "\n"
 
-        result: list[str] = []
+        result: List[str] = []
         for y in range(d.height):
-            row_chars: list[str] = []
+            row_chars: List[str] = []
             for x in range(d.width):
                 is_visible = d.visible[y, x]
                 memory_intensity = d.memory_intensity[y, x]

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
-from typing import Iterator, TypedDict
+import time
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,15 +15,7 @@ from lights_dev.game_state import GameState
 from lights_dev.runner import GameRunner
 
 
-class LeakInfo(TypedDict):
-    source: tuple[int, int]
-    target: tuple[int, int]
-    first_block: tuple[int, int]
-    rgb: tuple[float, float, float]
-
-
-# Bresenham helper (same idea as debug_illum)
-def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[tuple[int, int]]:
+def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[Tuple[int, int]]:
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
     sx = 1 if x0 < x1 else -1
@@ -53,172 +47,145 @@ def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[tuple[int, in
 
 def find_leaks(
     dungeon: Dungeon,
-    sources: list[Entity],
+    sources: List[Entity],
     rgb_sum: NDArray[np.float32],
-) -> list[LeakInfo]:
-    leaks: list[LeakInfo] = []
+) -> List[Dict[str, Any]]:
+    leaks: List[Dict[str, Any]] = []
     for source in sources:
-        lx, ly = source.x, source.y
+        sx, sy = source.position
+        lx, ly = int(sx), int(sy)
         for y in range(dungeon.height):
             for x in range(dungeon.width):
                 if np.any(rgb_sum[y, x] > 0.0):
-                    blocked_mid: tuple[int, int] | None = None
+                    blocked_mid = None
                     for bx, by in bresenham_line(lx, ly, x, y):
                         if dungeon.blocks_light(bx, by):
                             blocked_mid = (bx, by)
                             break
                     if blocked_mid is not None:
-                        rgb_values = tuple(float(v) for v in rgb_sum[y, x])
+                        leak_rgb = tuple(float(v) for v in rgb_sum[y, x])
                         leaks.append(
                             {
                                 "source": (lx, ly),
                                 "target": (x, y),
                                 "first_block": blocked_mid,
-                                "rgb": rgb_values,
+                                "rgb": leak_rgb,
                             }
                         )
     return leaks
 
 
 def pretty_map(dungeon: Dungeon, rgb_sum: NDArray[np.float32]) -> str:
-    ch = [[" " for _ in range(dungeon.width)] for _ in range(dungeon.height)]
+    chars = [[" " for _ in range(dungeon.width)] for _ in range(dungeon.height)]
     for y in range(dungeon.height):
         for x in range(dungeon.width):
             if dungeon.blocks_light(x, y):
-                ch[y][x] = "#"
+                chars[y][x] = "#"
             elif np.any(rgb_sum[y, x] > 0.0):
-                ch[y][x] = "*"
+                chars[y][x] = "*"
             else:
-                ch[y][x] = "."
-    return "\n".join("".join(row) for row in ch)
+                chars[y][x] = "."
+    return "\n".join("".join(row) for row in chars)
 
 
-def build_varied_layout(d: Dungeon) -> None:
-    """
-    Produce a larger more interesting test map in-place on a Dungeon `d`.
-    - perimeter walls
-    - central big room
-    - left and right side rooms
-    - partial walls (gaps/windows)
-    - pillars
-    """
-    h = d.height
-    w = d.width
+def build_varied_layout(dungeon: Dungeon) -> None:
+    height = dungeon.height
+    width = dungeon.width
+    dungeon.tiles[:, :] = constants.FLOOR_ID
+    dungeon.tiles[0, :] = constants.WALL_ID
+    dungeon.tiles[-1, :] = constants.WALL_ID
+    dungeon.tiles[:, 0] = constants.WALL_ID
+    dungeon.tiles[:, -1] = constants.WALL_ID
 
-    # floor everything first
-    d.tiles[:, :] = constants.FLOOR_ID
+    cx0, cy0 = width // 4, height // 4
+    cx1, cy1 = 3 * width // 4, 3 * height // 4
+    dungeon.tiles[cy0, cx0 : cx1 + 1] = constants.WALL_ID
+    dungeon.tiles[cy1, cx0 : cx1 + 1] = constants.WALL_ID
+    dungeon.tiles[cy0 : cy1 + 1, cx0] = constants.WALL_ID
+    dungeon.tiles[cy0 : cy1 + 1, cx1] = constants.WALL_ID
 
-    # outer perimeter
-    d.tiles[0, :] = constants.WALL_ID
-    d.tiles[-1, :] = constants.WALL_ID
-    d.tiles[:, 0] = constants.WALL_ID
-    d.tiles[:, -1] = constants.WALL_ID
+    dungeon.tiles[cy0, (cx0 + cx1) // 2] = constants.FLOOR_ID
+    dungeon.tiles[cy1, (cx0 + cx1) // 2] = constants.FLOOR_ID
+    dungeon.tiles[(cy0 + cy1) // 2, cx0] = constants.FLOOR_ID
+    dungeon.tiles[(cy0 + cy1) // 2, cx1] = constants.FLOOR_ID
 
-    # big central room (leave door openings)
-    cx0, cy0 = w // 4, h // 4
-    cx1, cy1 = 3 * w // 4, 3 * h // 4
-    d.tiles[cy0, cx0 : cx1 + 1] = constants.WALL_ID
-    d.tiles[cy1, cx0 : cx1 + 1] = constants.WALL_ID
-    d.tiles[cy0 : cy1 + 1, cx0] = constants.WALL_ID
-    d.tiles[cy0 : cy1 + 1, cx1] = constants.WALL_ID
-
-    # create door gaps
-    d.tiles[cy0, (cx0 + cx1) // 2] = constants.FLOOR_ID
-    d.tiles[cy1, (cx0 + cx1) // 2] = constants.FLOOR_ID
-    d.tiles[(cy0 + cy1) // 2, cx0] = constants.FLOOR_ID
-    d.tiles[(cy0 + cy1) // 2, cx1] = constants.FLOOR_ID
-
-    # left and right side rooms, with internal partial walls
     left_room_x = 2
-    left_room_w = w // 6
+    left_room_width = width // 6
     top = 2
-    bottom = h - 3
-    # vertical walls with gaps for partial wall tests
+    bottom = height - 3
     for y in range(top, bottom):
         if (y % 6) == 0:
-            continue  # gap/windows every 6 tiles
-        d.tiles[y, left_room_x + left_room_w] = constants.WALL_ID
+            continue
+        dungeon.tiles[y, left_room_x + left_room_width] = constants.WALL_ID
 
-    right_room_x = w - (left_room_x + left_room_w) - 1
+    right_room_x = width - (left_room_x + left_room_width) - 1
     for y in range(top, bottom):
         if (y % 7) == 1:
             continue
-        d.tiles[y, right_room_x] = constants.WALL_ID
+        dungeon.tiles[y, right_room_x] = constants.WALL_ID
 
-    # add pillars in a grid inside central room and side rooms
     for ry in range(cy0 + 2, cy1 - 1, 4):
         for rx in range(cx0 + 3, cx1 - 2, 6):
-            d.tiles[ry, rx] = constants.PILLAR_ID
+            dungeon.tiles[ry, rx] = constants.PILLAR_ID
 
-    # an internal zig-zag partial wall
     base_y = cy0 + 3
     base_x = cx0 + 2
     for i in range(14):
         sx = base_x + i
         sy = base_y + (i % 3)
         if i % 5 == 0:
-            # leave occasional hole
             continue
-        d.tiles[sy, sx] = constants.WALL_ID
+        dungeon.tiles[sy, sx] = constants.WALL_ID
 
-    # a 'thin' partial wall: floor on top half, wall on bottom (simulate half-height)
-    # We'll just use wall ids on some rows to make occlusion interesting.
     thin_wall_y = cy1 - 4
     for x in range(cx0 + 1, cx1):
         if (x % 4) in (1, 2):
-            d.tiles[thin_wall_y, x] = constants.WALL_ID
+            dungeon.tiles[thin_wall_y, x] = constants.WALL_ID
 
 
-def place_varied_lights(gs: GameState) -> None:
-    """Place multiple lights that exercise the code paths."""
-    rng = gs.rng
+def place_varied_lights(game_state: GameState) -> None:
+    rng = game_state.rng
+    lights: List[LightSource] = []
 
-    lights: list[LightSource] = []
+    px = game_state.dungeon.width // 2
+    py = game_state.dungeon.height // 2
+    player = Player(px, y=py, light_radius=3, light_level=3, height=1.0)
+    game_state.player = player
 
-    # Player at center: torch, low height
-    px = gs.dungeon.width // 2
-    py = gs.dungeon.height // 2
-    player = Player(px, py, light_radius=3, light_level=3, height=1.0)
-    gs.player = player
-
-    # Tall bluish orb (high up)
     orb1 = LightSource(
         10,
-        8,
-        rng,
+        y=8,
+        rng=rng,
         light_radius=20,
         light_level=5,
         flicker=False,
         base_color_rgb=constants.ORB_COLOR_RGB,
         height=3.0,
     )
-    # Low warm lantern
     lantern1 = LightSource(
         20,
-        12,
-        rng,
+        y=12,
+        rng=rng,
         light_radius=6,
         light_level=4,
         flicker=True,
         base_color_rgb=(255, 140, 40),
         height=0.7,
     )
-    # Overlapping warm orb
     orb2 = LightSource(
         px + 6,
-        py - 3,
-        rng,
+        y=py - 3,
+        rng=rng,
         light_radius=14,
         light_level=5,
         flicker=False,
         base_color_rgb=(255, 200, 120),
         height=2.0,
     )
-    # Low red lantern overlapping a pillar
     lantern2 = LightSource(
         px - 4,
-        py + 4,
-        rng,
+        y=py + 4,
+        rng=rng,
         light_radius=8,
         light_level=4,
         flicker=True,
@@ -226,30 +193,25 @@ def place_varied_lights(gs: GameState) -> None:
         height=0.6,
     )
 
-    # Directional spotlight: point from top towards central room
-    spot_x = gs.dungeon.width // 2
-    spot_y = 3
     dir_spot = LightSource(
-        spot_x,
-        spot_y,
-        rng,
+        px,
+        y=3,
+        rng=rng,
         light_radius=18,
         light_level=6,
         flicker=False,
         base_color_rgb=(255, 255, 220),
         height=4.0,
     )
-    # aim downward (towards center)
     dir_dx = px - dir_spot.x
     dir_dy = py - dir_spot.y
-    dir_spot.direction = math.atan2(dir_dy, dir_dx)  # radians
-    dir_spot.cone_angle = math.pi / 6  # ~30 degrees
+    dir_spot.direction = math.atan2(dir_dy, dir_dx)
+    dir_spot.cone_angle = math.pi / 6
 
-    # Partial-block light: right-side behind a partial wall
     partial_light = LightSource(
-        gs.dungeon.width - 12,
-        gs.dungeon.height // 2 + 2,
-        rng,
+        game_state.dungeon.width - 12,
+        y=game_state.dungeon.height // 2 + 2,
+        rng=rng,
         light_radius=12,
         light_level=5,
         base_color_rgb=(180, 220, 255),
@@ -257,15 +219,14 @@ def place_varied_lights(gs: GameState) -> None:
         flicker=False,
     )
 
-    # Add overlapping cluster of small lights
-    cluster: list[LightSource] = []
+    cluster: List[LightSource] = []
     for dx in (-2, 0, 2):
         for dy in (-1, 1):
             cluster.append(
                 LightSource(
                     px + dx + 12,
-                    py + dy + 2,
-                    rng,
+                    y=py + dy + 2,
+                    rng=rng,
                     light_radius=6,
                     light_level=3,
                     flicker=False,
@@ -275,62 +236,100 @@ def place_varied_lights(gs: GameState) -> None:
             )
 
     lights.extend([orb1, lantern1, orb2, lantern2, dir_spot, partial_light] + cluster)
-
-    # Assign to game state
-    gs.light_sources = lights
-    gs.all_entities = [gs.player] + lights
+    game_state.light_sources = lights
+    game_state.all_entities = ([game_state.player] if game_state.player else []) + lights
 
 
-def run_test() -> None:
-    # create runner and game_state
-    runner = GameRunner(80, 40, seed=12345)
-    # This creates a default demo map and player; we'll overwrite it.
-    runner.initialize()
-    gs = runner.game_state
-    d = gs.dungeon
-
-    # build our varied layout
-    build_varied_layout(d)
-
-    # place lights (replaces whatever runner.initialize placed)
-    place_varied_lights(gs)
-
-    # force precompile so numba warms up (safe)
-    runner.precompile()
-
-    # compute visibility and illumination
-    gs.update(0.01)  # updates time and memory fade
-    gs.update_visibility()  # computes FOV + lighting
-
-    # Print the text renderings
-    runner.set_renderer_mode("level")  # brightness numbers
-    print(runner.render())
-
-    runner.set_renderer_mode("level_color")  # blended true color (clamped)
-    print(runner.render())
-
-    # show ASCII wall/lighting map from debug perspective
-    print("--- ASCII (walls=#, lit=*) ---")
-    print(pretty_map(d, gs.current_illumination_rgb_sum))
-
-    # Run leak detection
-    sources = ([gs.player] if gs.player else []) + gs.light_sources
-    leaks = find_leaks(d, sources, gs.current_illumination_rgb_sum)
+def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
+    dungeon = game_state.dungeon
+    lines: List[str] = []
+    lines.append(f"VARIED TEST DUMP {time.asctime()}")
+    lines.append(f"Map size: {dungeon.width}x{dungeon.height}")
+    rng_seed = getattr(game_state.rng, "seed", "unknown")
+    lines.append(f"Seed: {rng_seed}")
+    lines.append("----- Dungeon ASCII -----")
+    lines.append(pretty_map(dungeon, game_state.current_illumination_rgb_sum))
+    lines.append("----- Tiles (counts) -----")
+    unique, counts = np.unique(dungeon.tiles, return_counts=True)
+    tile_counts = dict(zip(unique.tolist(), counts.tolist()))
+    lines.append(str(tile_counts))
+    lines.append("----- Lights -----")
+    for li, light in enumerate(game_state.light_sources):
+        light_height = getattr(light, "height", 1.0)
+        light_direction = getattr(light, "direction", None)
+        light_cone = getattr(light, "cone_angle", None)
+        lines.append(
+            f"{li}: pos=({light.x},{light.y}), radius={light.light_radius}, "
+            f"level={light.light_level}, height={light_height}, dir={light_direction}, "
+            f"cone={light_cone}, color={light.base_color_rgb}"
+        )
+    rgb = game_state.current_illumination_rgb_sum
+    lines.append("----- Numeric Brightness dump -----")
+    for y in range(dungeon.height):
+        row: List[str] = []
+        for x in range(dungeon.width):
+            if np.any(rgb[y, x] > 0.0):
+                row.append(f"{sum(rgb[y, x]):.2f}")
+            else:
+                row.append(" .  ")
+        lines.append(" ".join(row))
+    sources: List[Entity] = (
+        ([game_state.player] if game_state.player else []) + game_state.light_sources
+    )
+    leaks = find_leaks(dungeon, sources, rgb)
     if not leaks:
-        print("\nNo direct LOS leaks detected by Bresenham test.")
+        lines.append("\nNo direct LOS leaks detected.")
     else:
-        leak_count = len(leaks)
-        print(f"\nDetected {leak_count} leak(s):")
-        for leak in leaks[:40]:
-            source = leak["source"]
-            target = leak["target"]
-            first_block = leak["first_block"]
-            rgb = leak["rgb"]
-            print(
-                f" Source {source} -> Target {target} "
-                f"(first blocker {first_block}) rgb={rgb}"
+        lines.append(f"\nDetected {len(leaks)} leaks. Showing up to 100:")
+        for leak in leaks[:100]:
+            leak_source = leak["source"]
+            leak_target = leak["target"]
+            leak_blocker = leak["first_block"]
+            leak_rgb = leak["rgb"]
+            lines.append(
+                f" Source {leak_source} -> Target {leak_target} "
+                f"(first blocker {leak_blocker}) rgb={leak_rgb}"
             )
+            tx, ty = leak_target
+            minx = max(0, tx - 4)
+            maxx = min(dungeon.width - 1, tx + 4)
+            miny = max(0, ty - 4)
+            maxy = min(dungeon.height - 1, ty + 4)
+            lines.append("Context 9x9:")
+            for yy in range(miny, maxy + 1):
+                row: List[str] = []
+                for xx in range(minx, maxx + 1):
+                    if dungeon.blocks_light(xx, yy):
+                        ch = "# "
+                    elif np.any(rgb[yy, xx] > 0.0):
+                        ch = "* "
+                    else:
+                        ch = ". "
+                    if (xx, yy) == tuple(leak_source):
+                        ch = "S "
+                    if (xx, yy) == tuple(leak_blocker):
+                        ch = "B "
+                    if (xx, yy) == tuple(leak_target):
+                        ch = "T "
+                    row.append(ch)
+                lines.append("".join(row))
+    outpath.write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_test_and_write() -> None:
+    runner = GameRunner(80, 40, seed=12345)
+    runner.initialize()
+    game_state = runner.game_state
+    build_varied_layout(game_state.dungeon)
+    place_varied_lights(game_state)
+    runner.precompile()
+    game_state.update(0.01)
+    game_state.update_visibility()
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    outpath = Path.cwd() / f"varied_test_output_{ts}.log"
+    dump_state_to_file(game_state, outpath)
+    print(f"Wrote debug output to {outpath}")
 
 
 if __name__ == "__main__":
-    run_test()
+    run_test_and_write()

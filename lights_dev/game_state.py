@@ -125,7 +125,7 @@ class GameState:
         # Player torch radius: 3 tiles (option 1)
         self.player = Player(
             player_x,
-            player_y,
+            y=player_y,
             light_radius=3,
             light_level=3,
         )
@@ -146,8 +146,8 @@ class GameState:
         self.light_sources = [
             LightSource(
                 light1_x,
-                light1_y,
-                self.rng,
+                y=light1_y,
+                rng=self.rng,
                 light_radius=light_radius,
                 light_level=light_level,
                 flicker=False,
@@ -155,8 +155,8 @@ class GameState:
             ),
             LightSource(
                 light2_x,
-                light2_y,
-                self.rng,
+                y=light2_y,
+                rng=self.rng,
                 light_radius=light_radius,
                 light_level=light_level,
                 flicker=True,
