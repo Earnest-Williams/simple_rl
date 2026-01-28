@@ -1101,6 +1101,65 @@ def _accumulate_light_premult_rgba(
                 out_side_rgba[y, x, 7, 3] += a_add
 
 
+@numba.njit(cache=True)
+def _bresenham_product_transparency(
+    transparency: NDArray[np.float32], sx: int, sy: int, tx: int, ty: int
+) -> float:
+    """
+    Compute multiplicative transparency product along Bresenham line from (sx, sy) to (tx, ty).
+    
+    Excludes the target tile (tx, ty) from the product. Returns 0.0 if any cell
+    along the path is fully opaque.
+    
+    Args:
+        transparency: 2D array of transparency values (0.0 = opaque, 1.0 = transparent).
+        sx: Source x coordinate.
+        sy: Source y coordinate.
+        tx: Target x coordinate.
+        ty: Target y coordinate.
+    
+    Returns:
+        Product of transparency values along the path, or 0.0 if blocked.
+    """
+    dx = abs(tx - sx)
+    dy = abs(ty - sy)
+    sx_step = 1 if sx < tx else -1
+    sy_step = 1 if sy < ty else -1
+    x, y = sx, sy
+    prod = 1.0
+    if dx >= dy:
+        err = dx // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            x += sx_step
+            err -= dy
+            if err < 0:
+                y += sy_step
+                err += dx
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    else:
+        err = dy // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            y += sy_step
+            err -= dx
+            if err < 0:
+                x += sx_step
+                err += dy
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    return prod
+
+
 def compute_illumination_color_array(
     *,
     origin: tuple[int, int],
@@ -1142,46 +1201,6 @@ def compute_illumination_color_array(
         transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
     )
 
-    # Compute visibility per visible tile by multiplicative product along Bresenham path (excluding target tile).
-    def _bresenham_product_transparency(sx: int, sy: int, tx: int, ty: int) -> float:
-        dx = abs(tx - sx)
-        dy = abs(ty - sy)
-        sx_step = 1 if sx < tx else -1
-        sy_step = 1 if sy < ty else -1
-        x, y = sx, sy
-        prod = 1.0
-        if dx >= dy:
-            err = dx // 2
-            while True:
-                if x == tx and y == ty:
-                    break
-                x += sx_step
-                err -= dy
-                if err < 0:
-                    y += sy_step
-                    err += dx
-                if x == tx and y == ty:
-                    break
-                prod *= float(transparency[y, x])
-                if prod <= 0.0:
-                    return 0.0
-        else:
-            err = dy // 2
-            while True:
-                if x == tx and y == ty:
-                    break
-                y += sy_step
-                err -= dx
-                if err < 0:
-                    x += sx_step
-                    err += dy
-                if x == tx and y == ty:
-                    break
-                prod *= float(transparency[y, x])
-                if prod <= 0.0:
-                    return 0.0
-        return prod
-
     light_src_x = float(ox) + 0.5
     light_src_y = float(oy) + 0.5
     dz = float(source_height)
@@ -1195,7 +1214,7 @@ def compute_illumination_color_array(
             if visible[y, x] == 0:
                 continue
             # visibility as product of transparency along line (excludes target cell)
-            vis = _bresenham_product_transparency(int(ox), int(oy), x, y)
+            vis = _bresenham_product_transparency(transparency, int(ox), int(oy), x, y)
             if vis <= 0.0:
                 continue
 
