@@ -63,7 +63,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import inspect
 import math
-from typing import Iterable, List, Tuple
+from typing import Iterable
 
 import numba
 import numpy as np
