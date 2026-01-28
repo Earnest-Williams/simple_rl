@@ -104,20 +104,16 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
         elif dy < 0:
             mask |= SIDE_N
     else:
-        # Exact diagonal: mark the diagonal *and* the two adjacent cardinal faces.
-        # This avoids corner/diagonal-only exposure artifacts where the diagonal bit
-        # alone would allow light to incorrectly accumulate on a cardinal face.
+        # Exact diagonal: set the diagonal plus the two adjacent cardinal sides.
+        # This gives the lighting accumulator the information that the tile can be
+        # exposed on both adjacent cardinals as well as the diagonal.
         if dx > 0 and dy > 0:
-            # SE -> mark SE, E, and S
             mask |= SIDE_SE | SIDE_E | SIDE_S
         elif dx > 0 and dy < 0:
-            # NE -> mark NE, E, and N
             mask |= SIDE_NE | SIDE_E | SIDE_N
         elif dx < 0 and dy > 0:
-            # SW -> mark SW, W, and S
             mask |= SIDE_SW | SIDE_W | SIDE_S
         elif dx < 0 and dy < 0:
-            # NW -> mark NW, W, and N
             mask |= SIDE_NW | SIDE_W | SIDE_N
 
     return mask
@@ -200,6 +196,39 @@ def _compute_octant_core_legacy(
                 dx = mx - cx
                 dy = my - cy
                 mask = _compute_side_mask_from_vector(dx, dy)
+                # If we set diagonal+cardinals above, be conservative: if either of the
+                # adjacent cardinal cells is blocking (transparency <= opacity_threshold),
+                # then clear the corresponding cardinal bit so lighting won't treat that
+                # face as exposed.
+                # (Use 255 - SIDE_X as a safe uint8 mask complement.)
+                if mask & (SIDE_SE | SIDE_NE | SIDE_SW | SIDE_NW):
+                    # SE diagonal -> check E (mx+1,my) and S (mx,my+1)
+                    if mask & SIDE_SE:
+                        # E neighbor
+                        if mx + 1 >= w or transparency[my, mx + 1] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_E))
+                        # S neighbor
+                        if my + 1 >= h or transparency[my + 1, mx] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_S))
+                    # NE diagonal -> check E (mx+1,my) and N (mx,my-1)
+                    if mask & SIDE_NE:
+                        if mx + 1 >= w or transparency[my, mx + 1] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_E))
+                        if my - 1 < 0 or transparency[my - 1, mx] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_N))
+                    # SW diagonal -> check W (mx-1,my) and S (mx,my+1)
+                    if mask & SIDE_SW:
+                        if mx - 1 < 0 or transparency[my, mx - 1] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_W))
+                        if my + 1 >= h or transparency[my + 1, mx] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_S))
+                    # NW diagonal -> check W (mx-1,my) and N (mx,my-1)
+                    if mask & SIDE_NW:
+                        if mx - 1 < 0 or transparency[my, mx - 1] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_W))
+                        if my - 1 < 0 or transparency[my - 1, mx] <= opacity_threshold:
+                            mask = uint8(mask & uint8(255 - SIDE_N))
+
                 side_bits[my, mx] |= mask
 
             if transparency[my, mx] <= opacity_threshold:
@@ -275,6 +304,65 @@ def _compute_octant_core_ex(
                 dist[my, mx] = d
 
             mask = _compute_side_mask_from_vector(dx, dy)
+            # Same conservative refinement for the 'ex' octant core where we have both
+            # opaque and transparency available. For cardinal checks we consider a cell
+            # blocking if opaque != 0 OR transparency <= opacity_threshold.
+            if mask & (SIDE_SE | SIDE_NE | SIDE_SW | SIDE_NW):
+                if mask & SIDE_SE:
+                    # E neighbor
+                    if (
+                        mx + 1 >= w
+                        or opaque[my, mx + 1] != uint8(0)
+                        or transparency[my, mx + 1] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_E))
+                    # S neighbor
+                    if (
+                        my + 1 >= h
+                        or opaque[my + 1, mx] != uint8(0)
+                        or transparency[my + 1, mx] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_S))
+                if mask & SIDE_NE:
+                    if (
+                        mx + 1 >= w
+                        or opaque[my, mx + 1] != uint8(0)
+                        or transparency[my, mx + 1] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_E))
+                    if (
+                        my - 1 < 0
+                        or opaque[my - 1, mx] != uint8(0)
+                        or transparency[my - 1, mx] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_N))
+                if mask & SIDE_SW:
+                    if (
+                        mx - 1 < 0
+                        or opaque[my, mx - 1] != uint8(0)
+                        or transparency[my, mx - 1] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_W))
+                    if (
+                        my + 1 >= h
+                        or opaque[my + 1, mx] != uint8(0)
+                        or transparency[my + 1, mx] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_S))
+                if mask & SIDE_NW:
+                    if (
+                        mx - 1 < 0
+                        or opaque[my, mx - 1] != uint8(0)
+                        or transparency[my, mx - 1] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_W))
+                    if (
+                        my - 1 < 0
+                        or opaque[my - 1, mx] != uint8(0)
+                        or transparency[my - 1, mx] <= opacity_threshold
+                    ):
+                        mask = uint8(mask & uint8(255 - SIDE_N))
+
             side_bits[my, mx] |= mask
 
             if _is_masked_transparent_for_blocking(
