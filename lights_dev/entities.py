@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Final, List, Tuple
+from typing import Final
 
 from lights_dev import constants
 from utils.game_rng import GameRNG
