@@ -8,7 +8,7 @@ import numba
 import numpy as np
 
 # Import necessary constants (only WALL_ID needed directly by __init__)
-from constants import PILLAR_ID, WALL_ID
+from .constants import PILLAR_ID, WALL_ID
 
 # Jitclass specification remains the same
 dungeon_spec = [
