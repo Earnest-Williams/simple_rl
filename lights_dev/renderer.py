@@ -82,9 +82,26 @@ class Renderer:
                         memory_intensity = d.memory_intensity[y, x]
                         if memory_intensity > 0.0:
                             tile_id = d.tiles[y, x]
+                            if tile_id == constants.WALL_ID:
+                                base_rgb = constants.WALL_COLOR_RGB
+                            elif tile_id == constants.PILLAR_ID:
+                                base_rgb = constants.PILLAR_COLOR_RGB
+                            else:
+                                base_rgb = constants.FLOOR_COLOR_RGB
+                            factor = max(0.0, min(1.0, memory_intensity))
+                            amb = constants.AMBIENT_COLOR_RGB
+                            r_val = int(amb[0] + (base_rgb[0] - amb[0]) * factor)
+                            g_val = int(amb[1] + (base_rgb[1] - amb[1]) * factor)
+                            b_val = int(amb[2] + (base_rgb[2] - amb[2]) * factor)
+                            final_rgb = (
+                                max(0, min(255, r_val)),
+                                max(0, min(255, g_val)),
+                                max(0, min(255, b_val)),
+                            )
+                            color_code = _format_true_color(final_rgb)
                             char = get_memory_character(tile_id, memory_intensity)
                             row_chars.append(
-                                f"{constants.MEMORY_COLOR}{char}{constants.COLOR['RESET']}"
+                                f"{color_code}{char}{constants.COLOR['RESET']}"
                             )
                         else:
                             row_chars.append(constants.UNSEEN)
@@ -135,7 +152,28 @@ class Renderer:
                     else:
                         final_color_code = _format_true_color(constants.AMBIENT_COLOR_RGB)
                 elif memory_intensity > 0.0:
-                    final_color_code = constants.MEMORY_COLOR
+                    if is_player_tile:
+                        base_rgb = constants.PLAYER_COLOR_RGB
+                    elif light_source_at_tile is not None:
+                        base_rgb = light_source_at_tile.base_color_rgb
+                    else:
+                        if tile_id == constants.WALL_ID:
+                            base_rgb = constants.WALL_COLOR_RGB
+                        elif tile_id == constants.PILLAR_ID:
+                            base_rgb = constants.PILLAR_COLOR_RGB
+                        else:
+                            base_rgb = constants.FLOOR_COLOR_RGB
+                    factor = max(0.0, min(1.0, memory_intensity))
+                    amb = constants.AMBIENT_COLOR_RGB
+                    r_val = int(amb[0] + (base_rgb[0] - amb[0]) * factor)
+                    g_val = int(amb[1] + (base_rgb[1] - amb[1]) * factor)
+                    b_val = int(amb[2] + (base_rgb[2] - amb[2]) * factor)
+                    final_rgb = (
+                        max(0, min(255, r_val)),
+                        max(0, min(255, g_val)),
+                        max(0, min(255, b_val)),
+                    )
+                    final_color_code = _format_true_color(final_rgb)
                     if is_player_tile:
                         char = get_memory_character(constants.FLOOR_ID, memory_intensity)
                     elif light_source_at_tile is not None:

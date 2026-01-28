@@ -122,7 +122,8 @@ class GameState:
                         player_y = 5
                         break
                 break
-        self.player = Player(player_x, player_y, light_radius=10, light_level=3)
+        # Player torch radius: 3 tiles (option 1)
+        self.player = Player(player_x, player_y, light_radius=3, light_level=3)
 
         light_radius = 16
         light_level = 5

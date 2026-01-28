@@ -41,7 +41,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from lights_dev import constants
-from lights_dev._numba_fov import _update_memory_fade_internal
+# Use the local vectorized implementations in this module for fading.
+# (Removed the old helper import from _numba_fov; we keep that module for legacy code
+# but the public API should use this file's implementation.)
 
 # =============================================================================
 # Constants
@@ -931,14 +933,30 @@ def update_memory_fade(
     memory_intensity: NDArray[np.float32],
     visible: NDArray[np.bool_],
 ) -> None:
-    height, width = memory_intensity.shape
-    _update_memory_fade_internal(
-        current_time,
+    """
+    Update memory_intensity in-place using the local MemorySystem parameters.
+
+    Uses the module's vectorized Numba routines and the MemoryTraits default
+    so decays follow the configured sigmoid curve (smooth fade).
+    """
+    # Refresh currently visible tiles immediately (set intensity=1 and update last_seen)
+    _refresh_visible_tiles(
+        np.float32(current_time), last_seen_time, memory_intensity, visible
+    )
+
+    # Use default traits for effective sigmoid parameters (caller may adapt later)
+    traits = MemoryTraits()
+    steepness, midpoint = traits.get_effective_parameters()
+
+    # Run the vectorized decay update (in-place)
+    _update_memory_vectorized(
+        np.float32(current_time),
         last_seen_time,
         memory_intensity,
         visible,
-        height,
-        width,
+        np.float32(steepness),
+        np.float32(midpoint),
+        np.float32(MIN_INTENSITY_THRESHOLD),
     )
 
 

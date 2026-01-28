@@ -27,7 +27,8 @@ class Entity:
 
 
 class Player(Entity):
-    def __init__(self, x: int, y: int, light_radius: int = 10, light_level: int = 3):
+    # Default torch radius lowered to 3 to match the desired player torch behavior.
+    def __init__(self, x: int, y: int, light_radius: int = 3, light_level: int = 3):
         super().__init__(
             x, y, light_radius, light_level, "medium", constants.TORCH_COLOR_RGB
         )
