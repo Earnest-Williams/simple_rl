@@ -26,7 +26,7 @@ class Entity:
         light_radius: int = DEFAULT_LIGHT_RADIUS,
         light_level: int = DEFAULT_LIGHT_LEVEL,
         size_category: str = constants.DEFAULT_ENTITY_CATEGORY,
-        base_color_rgb: Tuple[int, int, int] = (0, 0, 0),
+        base_color_rgb: tuple[int, int, int] = (0, 0, 0),
         height: float = DEFAULT_ENTITY_HEIGHT,
     ) -> None:
         self.x = x
