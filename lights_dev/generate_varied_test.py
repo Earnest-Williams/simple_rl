@@ -328,13 +328,8 @@ def run_test() -> None:
             first_block = leak["first_block"]
             rgb = leak["rgb"]
             print(
-                " Source {source} -> Target {target} "
-                "(first blocker {first_block}) rgb={rgb}".format(
-                    source=source,
-                    target=target,
-                    first_block=first_block,
-                    rgb=rgb,
-                )
+                f" Source {source} -> Target {target} "
+                f"(first blocker {first_block}) rgb={rgb}"
             )
 
 
