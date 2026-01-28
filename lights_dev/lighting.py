@@ -61,7 +61,6 @@ Author: rewritten per review and requested changes, with fov.py compatibility fi
 from __future__ import annotations
 
 from dataclasses import dataclass
-import inspect
 import math
 from typing import Iterable
 
@@ -1102,13 +1101,72 @@ def _accumulate_light_premult_rgba(
                 out_side_rgba[y, x, 7, 3] += a_add
 
 
+@numba.njit(cache=True)
+def _bresenham_product_transparency(
+    transparency: NDArray[np.float32], sx: int, sy: int, tx: int, ty: int
+) -> float:
+    """
+    Compute multiplicative transparency product along Bresenham line from (sx, sy) to (tx, ty).
+    
+    Excludes the target tile (tx, ty) from the product. Returns 0.0 if any cell
+    along the path is fully opaque.
+    
+    Args:
+        transparency: 2D array of transparency values (0.0 = opaque, 1.0 = transparent).
+        sx: Source x coordinate.
+        sy: Source y coordinate.
+        tx: Target x coordinate.
+        ty: Target y coordinate.
+    
+    Returns:
+        Product of transparency values along the path, or 0.0 if blocked.
+    """
+    dx = abs(tx - sx)
+    dy = abs(ty - sy)
+    sx_step = 1 if sx < tx else -1
+    sy_step = 1 if sy < ty else -1
+    x, y = sx, sy
+    prod = 1.0
+    if dx >= dy:
+        err = dx // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            x += sx_step
+            err -= dy
+            if err < 0:
+                y += sy_step
+                err += dx
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    else:
+        err = dy // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            y += sy_step
+            err -= dx
+            if err < 0:
+                x += sx_step
+                err += dy
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    return prod
+
+
 def compute_illumination_color_array(
     *,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
     target_rgb_sum_array: NDArray[np.float32],
-    base_color_rgb: Tuple[int, int, int],
+    base_color_rgb: tuple[int, int, int],
     source_height: float = 1.0,
 ) -> None:
     ox, oy = origin
@@ -1137,84 +1195,11 @@ def compute_illumination_color_array(
     dist: NDArray[np.int32] = -np.ones((h, w), dtype=np.int32)
     side_bits: NDArray[np.uint8] = np.zeros((h, w), dtype=np.uint8)
 
-    # Try extended FOV call; if unavailable, call legacy.
-    param_count = 0
-    sig = getattr(compute_fov_all_octants, "__signature__", None)
-    if sig is None and getattr(compute_fov_all_octants, "__text_signature__", None):
-        try:
-            sig = inspect.signature(compute_fov_all_octants)
-        except (TypeError, ValueError):
-            sig = None
-    if sig is not None:
-        param_count = len(sig.parameters)
-
-    if param_count >= 16:
-        # Extended signature (opaque, transparency, cell_mask, use_mask, light_channels,
-        # use_angle, dir_x, dir_y, cos_half, visible, dist, side_bits, cx, cy, radius, opacity_threshold)
-        empty_mask = np.zeros((1, 1), dtype=np.uint32)
-        compute_fov_all_octants(
-            opaque,
-            transparency,
-            empty_mask,
-            0,
-            np.uint32(0xFFFFFFFF),
-            0,
-            np.float32(0.0),
-            np.float32(0.0),
-            np.float32(-1.0),
-            visible,
-            dist,
-            side_bits,
-            int(ox),
-            int(oy),
-            int(range_limit),
-            np.float32(0.0),
-        )
-    else:
-        # Legacy signature: (transparency, visible_out, dist_out, side_bits_out, cx, cy, radius)
-        compute_fov_all_octants(
-            transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
-        )
-
-    # Compute visibility per visible tile by multiplicative product along Bresenham path (excluding target tile).
-    def _bresenham_product_transparency(sx: int, sy: int, tx: int, ty: int) -> float:
-        dx = abs(tx - sx)
-        dy = abs(ty - sy)
-        sx_step = 1 if sx < tx else -1
-        sy_step = 1 if sy < ty else -1
-        x, y = sx, sy
-        prod = 1.0
-        if dx >= dy:
-            err = dx // 2
-            while True:
-                if x == tx and y == ty:
-                    break
-                x += sx_step
-                err -= dy
-                if err < 0:
-                    y += sy_step
-                    err += dx
-                if x == tx and y == ty:
-                    break
-                prod *= float(transparency[y, x])
-                if prod <= 0.0:
-                    return 0.0
-        else:
-            err = dy // 2
-            while True:
-                if x == tx and y == ty:
-                    break
-                y += sy_step
-                err -= dx
-                if err < 0:
-                    x += sx_step
-                    err += dy
-                if x == tx and y == ty:
-                    break
-                prod *= float(transparency[y, x])
-                if prod <= 0.0:
-                    return 0.0
-        return prod
+    # Call FOV with legacy signature - compute_fov_all_octants handles
+    # multiple signatures internally via varargs inspection.
+    compute_fov_all_octants(
+        transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
+    )
 
     light_src_x = float(ox) + 0.5
     light_src_y = float(oy) + 0.5
@@ -1229,7 +1214,7 @@ def compute_illumination_color_array(
             if visible[y, x] == 0:
                 continue
             # visibility as product of transparency along line (excludes target cell)
-            vis = _bresenham_product_transparency(int(ox), int(oy), x, y)
+            vis = _bresenham_product_transparency(transparency, int(ox), int(oy), x, y)
             if vis <= 0.0:
                 continue
 
@@ -1254,8 +1239,8 @@ def compute_illumination_color_array(
 
 
 def _interpolate_color(
-    factor: float, start_rgb: Tuple[int, int, int], end_rgb: Tuple[int, int, int]
-) -> Tuple[int, int, int]:
+    factor: float, start_rgb: tuple[int, int, int], end_rgb: tuple[int, int, int]
+) -> tuple[int, int, int]:
     factor = max(0.0, min(1.0, factor))
     r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * factor)
     g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * factor)
@@ -1269,10 +1254,10 @@ def _get_brightness_from_rgb_sum(rgb_sum: NDArray[np.float32]) -> float:
 
 
 def _apply_lighting_to_base(
-    base_rgb: Tuple[int, int, int],
+    base_rgb: tuple[int, int, int],
     rgb_sum: NDArray[np.float32],
     brightness: float,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
     tint_scale_r = float(rgb_sum[0]) / max_comp
     tint_scale_g = float(rgb_sum[1]) / max_comp
@@ -1288,7 +1273,7 @@ def _apply_lighting_to_base(
 class LightingSystem:
     @staticmethod
     def compute_illumination(
-        dungeon: Dungeon, sources: List[Entity], rgb_sum_array: NDArray[np.float32]
+        dungeon: Dungeon, sources: list[Entity], rgb_sum_array: NDArray[np.float32]
     ) -> None:
         rgb_sum_array.fill(0.0)
         for source in sources:
@@ -1305,10 +1290,10 @@ class LightingSystem:
 
     @staticmethod
     def apply_lighting(
-        base_rgb: Tuple[int, int, int],
+        base_rgb: tuple[int, int, int],
         rgb_sum: NDArray[np.float32],
         brightness: float,
-    ) -> Tuple[int, int, int]:
+    ) -> tuple[int, int, int]:
         return _apply_lighting_to_base(base_rgb, rgb_sum, brightness)
 
     @staticmethod
