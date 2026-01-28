@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 import math
+from typing import Final
 
 from lights_dev import constants
 from utils.game_rng import GameRNG
+
+
+DEFAULT_ENTITY_HEIGHT: Final[float] = 1.0
+DEFAULT_LIGHT_RADIUS: Final[int] = 0
+DEFAULT_LIGHT_LEVEL: Final[int] = 0
+DEFAULT_PLAYER_LIGHT_RADIUS: Final[int] = 3
+DEFAULT_PLAYER_LIGHT_LEVEL: Final[int] = 3
+DEFAULT_LIGHT_SOURCE_RADIUS: Final[int] = 16
+DEFAULT_LIGHT_SOURCE_LEVEL: Final[int] = 5
+OMNIDIRECTIONAL_CONE_ANGLE: Final[float] = math.tau
 
 
 class Entity:
@@ -12,11 +23,11 @@ class Entity:
         x: int,
         y: int,
         *,
-        light_radius: int = 0,
-        light_level: int = 0,
+        light_radius: int = DEFAULT_LIGHT_RADIUS,
+        light_level: int = DEFAULT_LIGHT_LEVEL,
         size_category: str = constants.DEFAULT_ENTITY_CATEGORY,
         base_color_rgb: tuple[int, int, int] = (0, 0, 0),
-        height: float = 1.0,
+        height: float = DEFAULT_ENTITY_HEIGHT,
     ) -> None:
         self.x = x
         self.y = y
@@ -37,9 +48,9 @@ class Player(Entity):
         x: int,
         y: int,
         *,
-        light_radius: int = 3,
-        light_level: int = 3,
-        height: float = 1.0,
+        light_radius: int = DEFAULT_PLAYER_LIGHT_RADIUS,
+        light_level: int = DEFAULT_PLAYER_LIGHT_LEVEL,
+        height: float = DEFAULT_ENTITY_HEIGHT,
     ) -> None:
         super().__init__(
             x,
@@ -72,13 +83,13 @@ class LightSource(Entity):
         y: int,
         rng: GameRNG,
         *,
-        light_radius: int = 16,
-        light_level: int = 5,
+        light_radius: int = DEFAULT_LIGHT_SOURCE_RADIUS,
+        light_level: int = DEFAULT_LIGHT_SOURCE_LEVEL,
         flicker: bool = False,
         base_color_rgb: tuple[int, int, int] = constants.ORB_COLOR_RGB,
-        height: float = 1.0,
+        height: float = DEFAULT_ENTITY_HEIGHT,
         direction: float | None = None,  # radians, None = omni
-        cone_angle: float = 2 * math.pi,  # default: full 360
+        cone_angle: float = OMNIDIRECTIONAL_CONE_ANGLE,  # default: full 360
     ) -> None:
         super().__init__(
             x,
