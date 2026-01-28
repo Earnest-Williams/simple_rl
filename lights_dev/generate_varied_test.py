@@ -16,13 +16,13 @@ from lights_dev.runner import GameRunner
 
 
 class LeakInfo(TypedDict):
-    source: Tuple[int, int]
-    target: Tuple[int, int]
-    first_block: Tuple[int, int]
-    rgb: Tuple[float, float, float]
+    source: tuple[int, int]
+    target: tuple[int, int]
+    first_block: tuple[int, int]
+    rgb: tuple[float, float, float]
 
 
-def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[Tuple[int, int]]:
+def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[tuple[int, int]]:
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
     sx = 1 if x0 < x1 else -1
@@ -54,10 +54,10 @@ def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[Tuple[int, in
 
 def find_leaks(
     dungeon: Dungeon,
-    sources: List[Entity],
+    sources: list[Entity],
     rgb_sum: NDArray[np.float32],
-) -> List[LeakInfo]:
-    leaks: List[LeakInfo] = []
+) -> list[LeakInfo]:
+    leaks: list[LeakInfo] = []
     for source in sources:
         lx, ly = source.position
         for y in range(dungeon.height):
@@ -151,7 +151,7 @@ def build_varied_layout(dungeon: Dungeon) -> None:
 
 def place_varied_lights(game_state: GameState) -> None:
     rng = game_state.rng
-    lights: List[LightSource] = []
+    lights: list[LightSource] = []
 
     px = game_state.dungeon.width // 2
     py = game_state.dungeon.height // 2
@@ -225,7 +225,7 @@ def place_varied_lights(game_state: GameState) -> None:
         flicker=False,
     )
 
-    cluster: List[LightSource] = []
+    cluster: list[LightSource] = []
     for dx in (-2, 0, 2):
         for dy in (-1, 1):
             cluster.append(
@@ -248,7 +248,7 @@ def place_varied_lights(game_state: GameState) -> None:
 
 def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
     dungeon = game_state.dungeon
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"VARIED TEST DUMP {time.asctime()}")
     lines.append(f"Map size: {dungeon.width}x{dungeon.height}")
     rng_seed = getattr(game_state.rng, "seed", "unknown")
@@ -272,14 +272,14 @@ def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
     rgb = game_state.current_illumination_rgb_sum
     lines.append("----- Numeric Brightness dump -----")
     for y in range(dungeon.height):
-        row: List[str] = []
+        row: list[str] = []
         for x in range(dungeon.width):
             if np.any(rgb[y, x] > 0.0):
                 row.append(f"{sum(rgb[y, x]):.2f}")
             else:
                 row.append(" .  ")
         lines.append(" ".join(row))
-    sources: List[Entity] = (
+    sources: list[Entity] = (
         ([game_state.player] if game_state.player else []) + game_state.light_sources
     )
     leaks = find_leaks(dungeon, sources, rgb)
@@ -303,7 +303,7 @@ def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
             maxy = min(dungeon.height - 1, ty + 4)
             lines.append("Context 9x9:")
             for yy in range(miny, maxy + 1):
-                row: List[str] = []
+                row: list[str] = []
                 for xx in range(minx, maxx + 1):
                     if dungeon.blocks_light(xx, yy):
                         ch = "# "
