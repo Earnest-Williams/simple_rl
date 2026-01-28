@@ -303,12 +303,11 @@ def run_test() -> None:
     gs.update_visibility()  # computes FOV + lighting
 
     # Print the text renderings
-    renderer = runner.renderer
-    renderer.set_renderer_mode("level")  # brightness numbers
-    print(renderer.render(gs))
+    runner.set_renderer_mode("level")  # brightness numbers
+    print(runner.render())
 
-    renderer.set_renderer_mode("level_color")  # blended true color (clamped)
-    print(renderer.render(gs))
+    runner.set_renderer_mode("level_color")  # blended true color (clamped)
+    print(runner.render())
 
     # show ASCII wall/lighting map from debug perspective
     print("--- ASCII (walls=#, lit=*) ---")
