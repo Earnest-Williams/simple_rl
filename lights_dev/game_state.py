@@ -123,7 +123,12 @@ class GameState:
                         break
                 break
         # Player torch radius: 3 tiles (option 1)
-        self.player = Player(player_x, player_y, light_radius=3, light_level=3)
+        self.player = Player(
+            player_x,
+            player_y,
+            light_radius=3,
+            light_level=3,
+        )
 
         light_radius = 16
         light_level = 5
@@ -143,8 +148,8 @@ class GameState:
                 light1_x,
                 light1_y,
                 self.rng,
-                light_radius,
-                light_level,
+                light_radius=light_radius,
+                light_level=light_level,
                 flicker=False,
                 base_color_rgb=constants.ORB_COLOR_RGB,
             ),
@@ -152,8 +157,8 @@ class GameState:
                 light2_x,
                 light2_y,
                 self.rng,
-                light_radius,
-                light_level,
+                light_radius=light_radius,
+                light_level=light_level,
                 flicker=True,
                 base_color_rgb=(255, 100, 100),
             ),
