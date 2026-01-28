@@ -61,7 +61,6 @@ Author: rewritten per review and requested changes, with fov.py compatibility fi
 from __future__ import annotations
 
 from dataclasses import dataclass
-import inspect
 import math
 from typing import Iterable
 
@@ -1104,11 +1103,11 @@ def _accumulate_light_premult_rgba(
 
 def compute_illumination_color_array(
     *,
-    origin: Tuple[int, int],
+    origin: tuple[int, int],
     range_limit: int,
     dungeon_instance: Dungeon,
     target_rgb_sum_array: NDArray[np.float32],
-    base_color_rgb: Tuple[int, int, int],
+    base_color_rgb: tuple[int, int, int],
     source_height: float = 1.0,
 ) -> None:
     ox, oy = origin
@@ -1137,44 +1136,11 @@ def compute_illumination_color_array(
     dist: NDArray[np.int32] = -np.ones((h, w), dtype=np.int32)
     side_bits: NDArray[np.uint8] = np.zeros((h, w), dtype=np.uint8)
 
-    # Try extended FOV call; if unavailable, call legacy.
-    param_count = 0
-    sig = getattr(compute_fov_all_octants, "__signature__", None)
-    if sig is None and getattr(compute_fov_all_octants, "__text_signature__", None):
-        try:
-            sig = inspect.signature(compute_fov_all_octants)
-        except (TypeError, ValueError):
-            sig = None
-    if sig is not None:
-        param_count = len(sig.parameters)
-
-    if param_count >= 16:
-        # Extended signature (opaque, transparency, cell_mask, use_mask, light_channels,
-        # use_angle, dir_x, dir_y, cos_half, visible, dist, side_bits, cx, cy, radius, opacity_threshold)
-        empty_mask = np.zeros((1, 1), dtype=np.uint32)
-        compute_fov_all_octants(
-            opaque,
-            transparency,
-            empty_mask,
-            0,
-            np.uint32(0xFFFFFFFF),
-            0,
-            np.float32(0.0),
-            np.float32(0.0),
-            np.float32(-1.0),
-            visible,
-            dist,
-            side_bits,
-            int(ox),
-            int(oy),
-            int(range_limit),
-            np.float32(0.0),
-        )
-    else:
-        # Legacy signature: (transparency, visible_out, dist_out, side_bits_out, cx, cy, radius)
-        compute_fov_all_octants(
-            transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
-        )
+    # Call FOV with legacy signature - compute_fov_all_octants handles
+    # multiple signatures internally via varargs inspection.
+    compute_fov_all_octants(
+        transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
+    )
 
     # Compute visibility per visible tile by multiplicative product along Bresenham path (excluding target tile).
     def _bresenham_product_transparency(sx: int, sy: int, tx: int, ty: int) -> float:
@@ -1254,8 +1220,8 @@ def compute_illumination_color_array(
 
 
 def _interpolate_color(
-    factor: float, start_rgb: Tuple[int, int, int], end_rgb: Tuple[int, int, int]
-) -> Tuple[int, int, int]:
+    factor: float, start_rgb: tuple[int, int, int], end_rgb: tuple[int, int, int]
+) -> tuple[int, int, int]:
     factor = max(0.0, min(1.0, factor))
     r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * factor)
     g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * factor)
@@ -1269,10 +1235,10 @@ def _get_brightness_from_rgb_sum(rgb_sum: NDArray[np.float32]) -> float:
 
 
 def _apply_lighting_to_base(
-    base_rgb: Tuple[int, int, int],
+    base_rgb: tuple[int, int, int],
     rgb_sum: NDArray[np.float32],
     brightness: float,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
     tint_scale_r = float(rgb_sum[0]) / max_comp
     tint_scale_g = float(rgb_sum[1]) / max_comp
