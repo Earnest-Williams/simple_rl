@@ -1115,26 +1115,66 @@ def compute_illumination_color_array(
         return
     if range_limit <= 0:
         return
+
+    # Always add the source tile itself.
     target_rgb_sum_array[oy, ox, 0] += float(base_color_rgb[0])
     target_rgb_sum_array[oy, ox, 1] += float(base_color_rgb[1])
     target_rgb_sum_array[oy, ox, 2] += float(base_color_rgb[2])
-    start_top = Slope(1, 1)
-    start_bottom = Slope(0, 1)
+
+    # Build a transparency array compatible with the legacy compute_fov_all_octants
+    # signature: transparency is float32 with 1.0 => fully transparent, 0.0 =>
+    # opaque.
+    h = dungeon_instance.height
+    w = dungeon_instance.width
+    transparency = np.ones((h, w), dtype=np.float32)
+    for yy in range(h):
+        for xx in range(w):
+            # blocks_light True => opaque => transparency 0.0
+            transparency[yy, xx] = 0.0 if dungeon_instance.blocks_light(xx, yy) else 1.0
+
+    visible = np.zeros((h, w), dtype=np.uint8)
+    dist = -np.ones((h, w), dtype=np.int32)
+    side_bits = np.zeros((h, w), dtype=np.uint8)
+
+    if compute_fov_all_octants is None:
+        # Fall back: nothing to do (should not happen in normal testbed)
+        return
+
+    # Call legacy transparency-based FOV (the wrapper in lights_dev.fov
+    # will select the correct compiled code path).
+    compute_fov_all_octants(
+        transparency,
+        visible,
+        dist,
+        side_bits,
+        int(ox),
+        int(oy),
+        int(range_limit),
+    )
+
+    # Accumulate weighted color for visible tiles.
     r, g, b = base_color_rgb
-    for octant in range(8):
-        _compute_octant_for_color(
-            octant,
-            origin,
-            range_limit,
-            1,
-            start_top,
-            start_bottom,
-            dungeon_instance,
-            target_rgb_sum_array,
-            r,
-            g,
-            b,
-        )
+    effective_range = float(max(1.0, range_limit))
+    effective_range_sq = effective_range * effective_range
+
+    # dist[] stores squared distance (d = x*x + y*y in octant coords).
+    # Use the same falloff as the original: intensity = max(
+    #     0, 1 - (distance_sq / effective_range_sq)
+    # )
+    for yy in range(h):
+        for xx in range(w):
+            if visible[yy, xx] == 0:
+                continue
+            d_sq = int(dist[yy, xx])
+            if d_sq < 0:
+                # if distance was not set, skip
+                continue
+            intensity = max(0.0, 1.0 - (float(d_sq) / effective_range_sq))
+            if intensity <= 0.0:
+                continue
+            target_rgb_sum_array[yy, xx, 0] += float(r) * intensity
+            target_rgb_sum_array[yy, xx, 1] += float(g) * intensity
+            target_rgb_sum_array[yy, xx, 2] += float(b) * intensity
 
 
 def _interpolate_color(
