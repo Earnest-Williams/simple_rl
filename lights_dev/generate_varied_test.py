@@ -95,14 +95,34 @@ def pretty_map(dungeon: Dungeon, rgb_sum: NDArray[np.float32]) -> str:
 
 
 def build_varied_layout(dungeon: Dungeon) -> None:
+    """
+    Build a varied dungeon layout for lighting tests and debugging.
+    
+    Creates a complex map with multiple features to test lighting behavior:
+    - Perimeter walls around the entire map boundary
+    - Central rectangular room with doors in the middle of each wall
+    - Left and right side rooms with partially permeable vertical walls
+    - Grid of pillars in the central room
+    - Diagonal/staggered wall segments for testing LOS edge cases
+    - Thin horizontal wall with gaps to test transparency accumulation
+    
+    The layout is designed to expose potential lighting leaks, FOV issues,
+    and transparency calculation bugs.
+    
+    Args:
+        dungeon: Dungeon instance to modify. Tiles array is overwritten.
+    """
     height = dungeon.height
     width = dungeon.width
+    # Fill entire map with floor tiles
     dungeon.tiles[:, :] = constants.FLOOR_ID
+    # Create perimeter walls
     dungeon.tiles[0, :] = constants.WALL_ID
     dungeon.tiles[-1, :] = constants.WALL_ID
     dungeon.tiles[:, 0] = constants.WALL_ID
     dungeon.tiles[:, -1] = constants.WALL_ID
 
+    # Create central rectangular room
     cx0, cy0 = width // 4, height // 4
     cx1, cy1 = 3 * width // 4, 3 * height // 4
     dungeon.tiles[cy0, cx0 : cx1 + 1] = constants.WALL_ID
@@ -110,11 +130,13 @@ def build_varied_layout(dungeon: Dungeon) -> None:
     dungeon.tiles[cy0 : cy1 + 1, cx0] = constants.WALL_ID
     dungeon.tiles[cy0 : cy1 + 1, cx1] = constants.WALL_ID
 
+    # Create doors in the middle of each wall
     dungeon.tiles[cy0, (cx0 + cx1) // 2] = constants.FLOOR_ID
     dungeon.tiles[cy1, (cx0 + cx1) // 2] = constants.FLOOR_ID
     dungeon.tiles[(cy0 + cy1) // 2, cx0] = constants.FLOOR_ID
     dungeon.tiles[(cy0 + cy1) // 2, cx1] = constants.FLOOR_ID
 
+    # Create left side room with gaps every 6 rows
     left_room_x = 2
     left_room_width = width // 6
     top = 2
@@ -124,16 +146,19 @@ def build_varied_layout(dungeon: Dungeon) -> None:
             continue
         dungeon.tiles[y, left_room_x + left_room_width] = constants.WALL_ID
 
+    # Create right side room with gaps every 7 rows (offset pattern)
     right_room_x = width - (left_room_x + left_room_width) - 1
     for y in range(top, bottom):
         if (y % 7) == 1:
             continue
         dungeon.tiles[y, right_room_x] = constants.WALL_ID
 
+    # Add grid of pillars in central room
     for ry in range(cy0 + 2, cy1 - 1, 4):
         for rx in range(cx0 + 3, cx1 - 2, 6):
             dungeon.tiles[ry, rx] = constants.PILLAR_ID
 
+    # Add diagonal/staggered wall segment to test LOS edge cases
     base_y = cy0 + 3
     base_x = cx0 + 2
     for i in range(14):
@@ -143,6 +168,7 @@ def build_varied_layout(dungeon: Dungeon) -> None:
             continue
         dungeon.tiles[sy, sx] = constants.WALL_ID
 
+    # Add thin horizontal wall with gaps
     thin_wall_y = cy1 - 4
     for x in range(cx0 + 1, cx1):
         if (x % 4) in (1, 2):
@@ -150,6 +176,15 @@ def build_varied_layout(dungeon: Dungeon) -> None:
 
 
 def place_varied_lights(game_state: GameState) -> None:
+    """
+    Place diverse light sources for testing lighting behavior.
+    
+    Creates a test configuration with various light types, heights, and colors
+    to exercise different lighting code paths.
+    
+    Args:
+        game_state: GameState instance to populate with lights.
+    """
     rng = game_state.rng
     lights: list[LightSource] = []
 
@@ -158,6 +193,7 @@ def place_varied_lights(game_state: GameState) -> None:
     player = Player(px, y=py, light_radius=3, light_level=3, height=1.0)
     game_state.player = player
 
+    # Tall bluish orb in left area - tests high elevation light with large radius
     orb1 = LightSource(
         10,
         y=8,
@@ -168,6 +204,8 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=constants.ORB_COLOR_RGB,
         height=3.0,
     )
+    
+    # Flickering orange lantern near orb1 - tests flicker and low elevation
     lantern1 = LightSource(
         20,
         y=12,
@@ -178,6 +216,8 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=(255, 140, 40),
         height=0.7,
     )
+    
+    # Warm yellowish orb near center - tests medium height and overlapping radii
     orb2 = LightSource(
         px + 6,
         y=py - 3,
@@ -188,6 +228,8 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=(255, 200, 120),
         height=2.0,
     )
+    
+    # Flickering red lantern near player - tests flicker overlap with player light
     lantern2 = LightSource(
         px - 4,
         y=py + 4,
@@ -199,6 +241,7 @@ def place_varied_lights(game_state: GameState) -> None:
         height=0.6,
     )
 
+    # Directional spotlight from top - tests cone angle and high elevation
     dir_spot = LightSource(
         px,
         y=3,
@@ -214,6 +257,7 @@ def place_varied_lights(game_state: GameState) -> None:
     dir_spot.direction = math.atan2(dir_dy, dir_dx)
     dir_spot.cone_angle = math.pi / 6
 
+    # Cool blue light in right area - tests partial room illumination
     partial_light = LightSource(
         game_state.dungeon.width - 12,
         y=game_state.dungeon.height // 2 + 2,
@@ -225,6 +269,7 @@ def place_varied_lights(game_state: GameState) -> None:
         flicker=False,
     )
 
+    # Cluster of small green lights - tests multiple overlapping sources
     cluster: list[LightSource] = []
     for dx in (-2, 0, 2):
         for dy in (-1, 1):
