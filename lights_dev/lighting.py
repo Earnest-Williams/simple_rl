@@ -1273,7 +1273,7 @@ def _apply_lighting_to_base(
 class LightingSystem:
     @staticmethod
     def compute_illumination(
-        dungeon: Dungeon, sources: List[Entity], rgb_sum_array: NDArray[np.float32]
+        dungeon: Dungeon, sources: list[Entity], rgb_sum_array: NDArray[np.float32]
     ) -> None:
         rgb_sum_array.fill(0.0)
         for source in sources:
@@ -1290,10 +1290,10 @@ class LightingSystem:
 
     @staticmethod
     def apply_lighting(
-        base_rgb: Tuple[int, int, int],
+        base_rgb: tuple[int, int, int],
         rgb_sum: NDArray[np.float32],
         brightness: float,
-    ) -> Tuple[int, int, int]:
+    ) -> tuple[int, int, int]:
         return _apply_lighting_to_base(base_rgb, rgb_sum, brightness)
 
     @staticmethod
