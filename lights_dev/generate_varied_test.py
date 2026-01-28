@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Iterator, List, Tuple, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -13,6 +13,13 @@ from lights_dev.dungeon_data import Dungeon
 from lights_dev.entities import Entity, LightSource, Player
 from lights_dev.game_state import GameState
 from lights_dev.runner import GameRunner
+
+
+class LeakInfo(TypedDict):
+    source: Tuple[int, int]
+    target: Tuple[int, int]
+    first_block: Tuple[int, int]
+    rgb: Tuple[float, float, float]
 
 
 def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[Tuple[int, int]]:
@@ -49,11 +56,10 @@ def find_leaks(
     dungeon: Dungeon,
     sources: List[Entity],
     rgb_sum: NDArray[np.float32],
-) -> List[Dict[str, Any]]:
-    leaks: List[Dict[str, Any]] = []
+) -> List[LeakInfo]:
+    leaks: List[LeakInfo] = []
     for source in sources:
-        sx, sy = source.position
-        lx, ly = int(sx), int(sy)
+        lx, ly = source.position
         for y in range(dungeon.height):
             for x in range(dungeon.width):
                 if np.any(rgb_sum[y, x] > 0.0):
@@ -305,11 +311,11 @@ def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
                         ch = "* "
                     else:
                         ch = ". "
-                    if (xx, yy) == tuple(leak_source):
+                    if (xx, yy) == leak_source:
                         ch = "S "
-                    if (xx, yy) == tuple(leak_blocker):
+                    if (xx, yy) == leak_blocker:
                         ch = "B "
-                    if (xx, yy) == tuple(leak_target):
+                    if (xx, yy) == leak_target:
                         ch = "T "
                     row.append(ch)
                 lines.append("".join(row))

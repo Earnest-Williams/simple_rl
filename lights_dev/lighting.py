@@ -61,9 +61,9 @@ Author: rewritten per review and requested changes, with fov.py compatibility fi
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Tuple
-
+import inspect
 import math
+from typing import Iterable, List, Tuple
 
 import numba
 import numpy as np
@@ -1111,8 +1111,6 @@ def compute_illumination_color_array(
     base_color_rgb: Tuple[int, int, int],
     source_height: float = 1.0,
 ) -> None:
-    import math
-    import inspect
     ox, oy = origin
     if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
         return
@@ -1256,8 +1254,8 @@ def compute_illumination_color_array(
 
 
 def _interpolate_color(
-    factor: float, start_rgb: tuple[int, int, int], end_rgb: tuple[int, int, int]
-) -> tuple[int, int, int]:
+    factor: float, start_rgb: Tuple[int, int, int], end_rgb: Tuple[int, int, int]
+) -> Tuple[int, int, int]:
     factor = max(0.0, min(1.0, factor))
     r = int(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * factor)
     g = int(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * factor)
@@ -1271,10 +1269,10 @@ def _get_brightness_from_rgb_sum(rgb_sum: NDArray[np.float32]) -> float:
 
 
 def _apply_lighting_to_base(
-    base_rgb: tuple[int, int, int],
+    base_rgb: Tuple[int, int, int],
     rgb_sum: NDArray[np.float32],
     brightness: float,
-) -> tuple[int, int, int]:
+) -> Tuple[int, int, int]:
     max_comp = max(float(rgb_sum[0]), float(rgb_sum[1]), float(rgb_sum[2]), 1.0)
     tint_scale_r = float(rgb_sum[0]) / max_comp
     tint_scale_g = float(rgb_sum[1]) / max_comp
@@ -1307,10 +1305,10 @@ class LightingSystem:
 
     @staticmethod
     def apply_lighting(
-        base_rgb: tuple[int, int, int],
+        base_rgb: Tuple[int, int, int],
         rgb_sum: NDArray[np.float32],
         brightness: float,
-    ) -> tuple[int, int, int]:
+    ) -> Tuple[int, int, int]:
         return _apply_lighting_to_base(base_rgb, rgb_sum, brightness)
 
     @staticmethod
