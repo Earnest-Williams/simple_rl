@@ -61,9 +61,8 @@ Author: rewritten per review and requested changes, with fov.py compatibility fi
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
-
 import math
+from typing import Iterable
 
 import numba
 import numpy as np
@@ -1102,6 +1101,65 @@ def _accumulate_light_premult_rgba(
                 out_side_rgba[y, x, 7, 3] += a_add
 
 
+@numba.njit(cache=True)
+def _bresenham_product_transparency(
+    transparency: NDArray[np.float32], sx: int, sy: int, tx: int, ty: int
+) -> float:
+    """
+    Compute multiplicative transparency product along Bresenham line from (sx, sy) to (tx, ty).
+    
+    Excludes the target tile (tx, ty) from the product. Returns 0.0 if any cell
+    along the path is fully opaque.
+    
+    Args:
+        transparency: 2D array of transparency values (0.0 = opaque, 1.0 = transparent).
+        sx: Source x coordinate.
+        sy: Source y coordinate.
+        tx: Target x coordinate.
+        ty: Target y coordinate.
+    
+    Returns:
+        Product of transparency values along the path, or 0.0 if blocked.
+    """
+    dx = abs(tx - sx)
+    dy = abs(ty - sy)
+    sx_step = 1 if sx < tx else -1
+    sy_step = 1 if sy < ty else -1
+    x, y = sx, sy
+    prod = 1.0
+    if dx >= dy:
+        err = dx // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            x += sx_step
+            err -= dy
+            if err < 0:
+                y += sy_step
+                err += dx
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    else:
+        err = dy // 2
+        while True:
+            if x == tx and y == ty:
+                break
+            y += sy_step
+            err -= dx
+            if err < 0:
+                x += sx_step
+                err += dy
+            if x == tx and y == ty:
+                break
+            prod *= transparency[y, x]
+            if prod <= 0.0:
+                return 0.0
+    return prod
+
+
 def compute_illumination_color_array(
     *,
     origin: tuple[int, int],
@@ -1109,32 +1167,75 @@ def compute_illumination_color_array(
     dungeon_instance: Dungeon,
     target_rgb_sum_array: NDArray[np.float32],
     base_color_rgb: tuple[int, int, int],
+    source_height: float = 1.0,
 ) -> None:
     ox, oy = origin
     if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
         return
     if range_limit <= 0:
         return
+
     target_rgb_sum_array[oy, ox, 0] += float(base_color_rgb[0])
     target_rgb_sum_array[oy, ox, 1] += float(base_color_rgb[1])
     target_rgb_sum_array[oy, ox, 2] += float(base_color_rgb[2])
-    start_top = Slope(1, 1)
-    start_bottom = Slope(0, 1)
-    r, g, b = base_color_rgb
-    for octant in range(8):
-        _compute_octant_for_color(
-            octant,
-            origin,
-            range_limit,
-            1,
-            start_top,
-            start_bottom,
-            dungeon_instance,
-            target_rgb_sum_array,
-            r,
-            g,
-            b,
-        )
+
+    h = dungeon_instance.height
+    w = dungeon_instance.width
+
+    opaque: NDArray[np.uint8] = np.zeros((h, w), dtype=np.uint8)
+    transparency: NDArray[np.float32] = np.zeros((h, w), dtype=np.float32)
+
+    for y in range(h):
+        for x in range(w):
+            blocks = dungeon_instance.blocks_light(x, y)
+            opaque[y, x] = np.uint8(1) if blocks else np.uint8(0)
+            transparency[y, x] = np.float32(0.0) if blocks else np.float32(1.0)
+
+    visible: NDArray[np.uint8] = np.zeros((h, w), dtype=np.uint8)
+    dist: NDArray[np.int32] = -np.ones((h, w), dtype=np.int32)
+    side_bits: NDArray[np.uint8] = np.zeros((h, w), dtype=np.uint8)
+
+    # Call FOV with legacy signature - compute_fov_all_octants handles
+    # multiple signatures internally via varargs inspection.
+    compute_fov_all_octants(
+        transparency, visible, dist, side_bits, int(ox), int(oy), int(range_limit)
+    )
+
+    light_src_x = float(ox) + 0.5
+    light_src_y = float(oy) + 0.5
+    dz = float(source_height)
+
+    br = float(base_color_rgb[0])
+    bg = float(base_color_rgb[1])
+    bb = float(base_color_rgb[2])
+
+    for y in range(h):
+        for x in range(w):
+            if visible[y, x] == 0:
+                continue
+            # visibility as product of transparency along line (excludes target cell)
+            vis = _bresenham_product_transparency(transparency, int(ox), int(oy), x, y)
+            if vis <= 0.0:
+                continue
+
+            dx = float((x + 0.5) - light_src_x)
+            dy = float((y + 0.5) - light_src_y)
+            len3_sq = dx * dx + dy * dy + dz * dz
+            if len3_sq <= 1e-9:
+                incidence = 1.0
+            else:
+                len3 = math.sqrt(len3_sq)
+                incidence = dz / len3
+                if incidence < 0.0:
+                    incidence = 0.0
+
+            intensity_ratio = vis * incidence
+            if intensity_ratio <= 0.0:
+                continue
+
+            target_rgb_sum_array[y, x, 0] += br * intensity_ratio
+            target_rgb_sum_array[y, x, 1] += bg * intensity_ratio
+            target_rgb_sum_array[y, x, 2] += bb * intensity_ratio
 
 
 def _interpolate_color(
@@ -1177,12 +1278,14 @@ class LightingSystem:
         rgb_sum_array.fill(0.0)
         for source in sources:
             if source.light_radius > 0:
+                source_height = float(getattr(source, "height", 1.0))
                 compute_illumination_color_array(
                     origin=source.position,
                     range_limit=source.light_radius,
                     dungeon_instance=dungeon,
                     target_rgb_sum_array=rgb_sum_array,
                     base_color_rgb=source.base_color_rgb,
+                    source_height=source_height,
                 )
 
     @staticmethod
@@ -1229,4 +1332,5 @@ class LightingSystem:
             dungeon_instance=dungeon,
             target_rgb_sum_array=dummy_rgb_sum_array,
             base_color_rgb=constants.AMBIENT_COLOR_RGB,
+            source_height=1.0,
         )

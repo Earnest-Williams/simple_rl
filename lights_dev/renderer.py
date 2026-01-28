@@ -40,6 +40,9 @@ class Renderer:
     def __init__(self, render_mode: str) -> None:
         self.render_mode = render_mode
 
+    def set_renderer_mode(self, mode: str) -> None:
+        self.render_mode = mode
+
     def render(self, game_state: GameState) -> str:
         if not game_state.dungeon:
             return "Error: Dungeon not initialized."

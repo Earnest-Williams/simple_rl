@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from pathlib import Path
 
 from lights_dev import constants
 from lights_dev.game_state import find_path
@@ -153,6 +154,33 @@ def run_simulation() -> None:
                     dx, dy = 1, 1
                 elif key == "5" or key == readchar.key.CLEAR or key == ".":
                     dx, dy = 0, 0
+                elif key.lower() == "v":
+                    try:
+                        from lights_dev.generate_varied_test import (
+                            build_varied_layout,
+                            place_varied_lights,
+                        )
+
+                        build_varied_layout(runner.game_state.dungeon)
+                        place_varied_lights(runner.game_state)
+                        runner.precompile()
+                        runner.game_state.update_visibility()
+                        print("Generated varied layout and placed lights.")
+                        player_moved = True
+                    except (ImportError, AttributeError, ValueError, OSError) as exc:
+                        logging.exception("Varied layout generation failed.")
+                        print(f"Failed to generate layout: {exc}")
+                elif key.lower() == "p":
+                    try:
+                        from lights_dev.generate_varied_test import dump_state_to_file
+
+                        ts = time.strftime("%Y%m%d_%H%M%S")
+                        outpath = Path.cwd() / f"interactive_debug_{ts}.log"
+                        dump_state_to_file(runner.game_state, outpath)
+                        print(f"Wrote interactive debug to {outpath}")
+                    except (ImportError, OSError, PermissionError) as exc:
+                        logging.exception("Failed to write debug output.")
+                        print(f"Failed to write debug: {exc}")
                 if quit_flag:
                     break
                 if (dx != 0 or dy != 0) and runner.game_state.player:
