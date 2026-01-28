@@ -104,14 +104,21 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
         elif dy < 0:
             mask |= SIDE_N
     else:
+        # Exact diagonal: mark the diagonal *and* the two adjacent cardinal faces.
+        # This avoids corner/diagonal-only exposure artifacts where the diagonal bit
+        # alone would allow light to incorrectly accumulate on a cardinal face.
         if dx > 0 and dy > 0:
-            mask |= SIDE_SE
+            # SE -> mark SE, E, and S
+            mask |= SIDE_SE | SIDE_E | SIDE_S
         elif dx > 0 and dy < 0:
-            mask |= SIDE_NE
+            # NE -> mark NE, E, and N
+            mask |= SIDE_NE | SIDE_E | SIDE_N
         elif dx < 0 and dy > 0:
-            mask |= SIDE_SW
+            # SW -> mark SW, W, and S
+            mask |= SIDE_SW | SIDE_W | SIDE_S
         elif dx < 0 and dy < 0:
-            mask |= SIDE_NW
+            # NW -> mark NW, W, and N
+            mask |= SIDE_NW | SIDE_W | SIDE_N
 
     return mask
 

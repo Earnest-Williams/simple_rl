@@ -13,6 +13,29 @@ def _format_true_color(rgb: tuple[int, int, int]) -> str:
     return f"\033[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
 
 
+def _get_base_rgb_for_tile(tile_id: int) -> tuple[int, int, int]:
+    if tile_id == constants.WALL_ID:
+        return constants.WALL_COLOR_RGB
+    if tile_id == constants.PILLAR_ID:
+        return constants.PILLAR_COLOR_RGB
+    return constants.FLOOR_COLOR_RGB
+
+
+def _compute_faded_memory_rgb(
+    base_rgb: tuple[int, int, int], memory_intensity: float
+) -> tuple[int, int, int]:
+    factor = max(0.0, min(1.0, memory_intensity))
+    amb = constants.AMBIENT_COLOR_RGB
+    r_val = int(amb[0] + (base_rgb[0] - amb[0]) * factor)
+    g_val = int(amb[1] + (base_rgb[1] - amb[1]) * factor)
+    b_val = int(amb[2] + (base_rgb[2] - amb[2]) * factor)
+    return (
+        max(0, min(255, r_val)),
+        max(0, min(255, g_val)),
+        max(0, min(255, b_val)),
+    )
+
+
 class Renderer:
     def __init__(self, render_mode: str) -> None:
         self.render_mode = render_mode
@@ -82,9 +105,14 @@ class Renderer:
                         memory_intensity = d.memory_intensity[y, x]
                         if memory_intensity > 0.0:
                             tile_id = d.tiles[y, x]
+                            base_rgb = _get_base_rgb_for_tile(tile_id)
+                            final_rgb = _compute_faded_memory_rgb(
+                                base_rgb, memory_intensity
+                            )
+                            color_code = _format_true_color(final_rgb)
                             char = get_memory_character(tile_id, memory_intensity)
                             row_chars.append(
-                                f"{constants.MEMORY_COLOR}{char}{constants.COLOR['RESET']}"
+                                f"{color_code}{char}{constants.COLOR['RESET']}"
                             )
                         else:
                             row_chars.append(constants.UNSEEN)
@@ -135,7 +163,14 @@ class Renderer:
                     else:
                         final_color_code = _format_true_color(constants.AMBIENT_COLOR_RGB)
                 elif memory_intensity > 0.0:
-                    final_color_code = constants.MEMORY_COLOR
+                    if is_player_tile:
+                        base_rgb = constants.PLAYER_COLOR_RGB
+                    elif light_source_at_tile is not None:
+                        base_rgb = light_source_at_tile.base_color_rgb
+                    else:
+                        base_rgb = _get_base_rgb_for_tile(tile_id)
+                    final_rgb = _compute_faded_memory_rgb(base_rgb, memory_intensity)
+                    final_color_code = _format_true_color(final_rgb)
                     if is_player_tile:
                         char = get_memory_character(constants.FLOOR_ID, memory_intensity)
                     elif light_source_at_tile is not None:
