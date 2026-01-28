@@ -61,7 +61,7 @@ class Player(Entity):
             base_color_rgb=constants.TORCH_COLOR_RGB,
             height=height,
         )
-        self.path: List[Tuple[int, int]] = []
+        self.path: list[tuple[int, int]] = []
         self.path_index = 0
 
     def set_path(self, path: List[Tuple[int, int]]) -> None:
