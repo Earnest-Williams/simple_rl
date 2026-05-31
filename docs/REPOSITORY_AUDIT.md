@@ -63,9 +63,9 @@ Commands used during the audit:
 
 ### Notes while reading by area
 
-- Root documentation and agent-policy files are numerous: `README.md`,
-  `MANIFEST.md`, `AGENTS.md`, `CLAUDE.md`, `.codex/AGENTS.md`,
-  `.gemini/styleguide.md`, `.github/copilot-instructions.md`, and several
+- Root documentation and agent-policy files are numerous: [README.md](../README.md),
+  [MANIFEST.md](../MANIFEST.md), [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [.codex/AGENTS.md](../.codex/AGENTS.md),
+  [.gemini/styleguide.md](../.gemini/styleguide.md), [.github/copilot-instructions.md](../.github/copilot-instructions.md), and several
   policy/check workflow files. The generated LLM-policy copies are internally
   synchronized, but some human-facing overview docs are stale.
 - The `fonts/` tree dominates the repository by file count. It contains source
@@ -160,8 +160,8 @@ these are the files most likely to contain stale or orphaned code.
 
 ### Accurate or mostly accurate documentation
 
-- `AGENTS.md` matches the repository-level engineering intent and current
-  `pyproject.toml` target of Python 3.11+.
+- [AGENTS.md](../AGENTS.md) matches the repository-level engineering intent and current
+  [pyproject.toml](../pyproject.toml) target of Python 3.11+.
 - `docs/LLM_CRITICAL_RULES.md`, `CLAUDE.md`, `.codex/AGENTS.md`, and
   `.gemini/styleguide.md` are synchronized; `python scripts/sync_llm_policy.py
   --check` passed.
@@ -277,8 +277,8 @@ Safe recovery options, in preferred order:
 2. If no history is available, split the two apparent module bodies into a scratch
    branch and manually keep only the coherent implementation after reviewing it
    against `pathfinding/perception_systems.py`.
-3. If the production path is already covered by `pathfinding/perception_systems.py`
-   and `game/systems/sound.py`, delete `lights_dev/scent_and_sound_flow.py` and
+3. If the production path is already covered by [pathfinding/perception_systems.py](../pathfinding/perception_systems.py)
+   and [game/systems/sound.py](../game/systems/sound.py), delete `lights_dev/scent_and_sound_flow.py` and
    record that decision in a deprecation or R&D-status document.
 
 ## Verification results from this audit
