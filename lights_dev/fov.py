@@ -512,6 +512,7 @@ def _filter_occluded_legacy(
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
+    # Only cells within the radius can be visible; clamp to map bounds.
     y_min = max(0, cy - radius)
     y_max = min(h - 1, cy + radius)
     x_min = max(0, cx - radius)
@@ -542,6 +543,7 @@ def _filter_occluded_extended(
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
+    # Only cells within the radius can be visible; clamp to map bounds.
     y_min = max(0, cy - radius)
     y_max = min(h - 1, cy + radius)
     x_min = max(0, cx - radius)
