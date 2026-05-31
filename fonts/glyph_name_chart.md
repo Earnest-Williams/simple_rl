@@ -1,6 +1,13 @@
 # Glyph name chart
 Mapping of classic_roguelike sliced glyphs to proposed snake_case names.
 
+
+## Asset notes
+
+- `classic_roguelike_preview.png` is the authored preview/contact-sheet image for
+  the classic roguelike tile set. Keep it with the glyph chart so contributors
+  can visually inspect the sliced PNG/SVG outputs against the source preview.
+
 png filename | svg filename | proposed_name | alternate_proposed_name | notes
 --- | --- | --- | --- | ---
 

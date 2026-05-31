@@ -44,19 +44,17 @@ Simple RL is a simulation-heavy roguelike/RPG research project focused on comple
 - **`Dungeon/`**: Procedural cave generation using multi-stage pipeline (Core Graph → Processing → Shaping). Outputs Polars DataFrames
 - **`ai/`**: Community-based NPC AI with social behaviors, needs, traits, and habit learning
 - **`auto/`**: Combat/survival AI using Goal-Oriented Action Planning (GOAP) for adventurers and monsters
-  - Contains reusable planner in `auto/goap_engine.py`
-  - Main game integration via `game/ai/goap_adapter.py`
+  - Contains the simulation harness and tuning GUI
+  - Main game integration via `game/ai/goap.py`
 - **`lights_dev/`**: R&D for lighting, FOV, and memory fade mechanics using Numba
 - **`pathfinding/`**: Perception systems (noise propagation, scent tracking) for AI input
 - **`game/`**: Main game engine and systems
 - **`utils/`**: Shared utilities including `GameRNG` (deterministic RNG)
 - **`scripting_engine.py`**: Macro expansion and Brainfuck interpreter for spell system
 
-### Vestigial Components
-- **`simple_rl.py`**: Legacy PySide6 GUI, superseded by newer components
-- **`dungeon_generator.py`**: Simple room-and-corridor generator for legacy GUI
-
-These are maintained primarily for development of `scripting_engine.py`.
+### Legacy status
+- There is no root-level `simple_rl.py` or `dungeon_generator.py` in the current tree.
+- There is no `legacy/` directory in the current tree. Use the component entrypoints below and keep stale legacy references out of new docs.
 
 ## Development Workflow
 
@@ -65,12 +63,12 @@ These are maintained primarily for development of `scripting_engine.py`.
 - GOAP AI (headless): `cd auto && ./run.sh --mode headless`
 - GOAP AI (GUI): `cd auto && ./run.sh --mode gui`
 - Lighting/FOV development: `cd lights_dev && python main_game.py`
-- Legacy GUI: `python simple_rl.py` or `python main.py` (via orchestrator)
+- Main orchestrator: `python main.py`
 
 ### Dependencies
 - Python 3.11+ required
-- Core dependencies in `pyproject.toml`: numpy, polars, numba, scipy, scikit-image, joblib, PySide6, pygame
-- Install with: `pip install -e .` or `pip install -r requirements.txt`
+- Core dependencies in `pyproject.toml`: numpy, polars, numba, scipy, scikit-image, joblib, PySide6, PySDL2, pysdl2-dll
+- Install with: `pip install -e .`; use `pip install -e ".[dev]"` for development tooling
 - Dev dependencies: mypy, black, ruff
 
 ## AI Systems

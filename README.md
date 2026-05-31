@@ -15,7 +15,7 @@ This project is structured into several key component directories, each with its
 * **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
 * **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Contains experimental features for future integration with the main rendering pipeline. ([See README](./lights_dev/README.md))
 * **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. ([See README](./pathfinding/README.md))
-* **`game_rng.py`** & **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. The main implementation is at the root level, with a thin wrapper in utils/ for convenient importing. ([See README](./utils/README.md))
+* **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. `worldgen/game_rng.py` re-exports the same class for world-generation compatibility. ([See README](./utils/README.md))
 * **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, designed as a foundation for the **game's spell system**. Currently in development; basic effect system is functional.
 * **`game/`**: Main game engine integrating all production systems including combat, movement, equipment, AI, effects, entities, and world management.
 
@@ -51,29 +51,16 @@ This project is **under active development**. The core game systems are integrat
 * Advanced memory fade influenced by agent traits
 * Community and settlement management systems
 
-## Vestigial Components
+## Legacy status
 
-* **`legacy/simple_rl.py`**: An older PySide6 GUI application implementing a basic roguelike loop. Largely superseded by newer components but maintained for testing purposes.
-* **`legacy/dungeon_generator.py`**: A simpler room-and-corridor generator used by `legacy/simple_rl.py`.
+The repository no longer contains a `legacy/` directory or the historical
+`simple_rl.py` / `dungeon_generator.py` entrypoints. New development should use
+the canonical component entrypoints documented in the directory READMEs:
 
-These files are currently maintained primarily for testing `scripting_engine.py` and may be deprecated in future releases.
-
----
-
-### Archived / legacy files
-
-The following legacy/test files have been archived under the `legacy/` directory to
-keep the repository root clean. They are retained for historical reference and for
-manual testing, but are **not** part of the canonical entrypoint or production
-pipeline.
-
-- `legacy/simple_rl.py` — Legacy PySide6 GUI (archived).
-- `legacy/dungeon_generator.py` — Legacy room-and-corridor BSP generator (archived).
-- `legacy/lights_dev/dungeon_generator.py` — Legacy copy used by the lighting/FOV
-  testbed (archived).
-
-If you need to run these for debugging or legacy testing, you can run them from the
-`legacy/` path (for example, `python legacy/simple_rl.py`).
+- `Dungeon/` for procedural cave generation.
+- `game/` for integrated production game systems.
+- `lights_dev/` for lighting/FOV research and demos.
+- `auto/` for GOAP simulation and tuning.
 
 ## Getting Started
 
@@ -89,10 +76,10 @@ If you need to run these for debugging or legacy testing, you can run them from 
    ```bash
    pip install -e .
    # OR for development:
-   pip install -r requirements.txt
+   pip install -e ".[dev]"
    ```
    
-   Python 3.11+ is required. Core dependencies include Polars, NumPy, Numba, SciPy, scikit-image, PySide6, and Pygame.
+   Python 3.11+ is required. Core dependencies include Polars, NumPy, Numba, SciPy, scikit-image, PySide6, PySDL2, and pysdl2-dll.
    The glyph metadata generator (`scripts/generate_glyphs.py`) requires PyYAML.
 
 3. **Run the main game:**
@@ -113,7 +100,6 @@ Different components have dedicated development harnesses:
 * **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
 * **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
-* **Legacy GUI:** `python legacy/simple_rl.py` (maintained for scripting_engine.py development)
 
 Refer to individual component READMEs for specific requirements and usage details.
 

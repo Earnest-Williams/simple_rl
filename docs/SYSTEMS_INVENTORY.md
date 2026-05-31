@@ -120,7 +120,7 @@ The most important and sophisticated component - generates 3D cave networks and 
 
 ### 3. GameRNG System ⭐⭐⭐⭐⭐
 
-**Location:** `game_rng.py`
+**Location:** `utils/game_rng.py`
 
 **Sophistication Level:** Very High
 
@@ -337,21 +337,8 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 1. ✅ **KEEP:** `Dungeon/core.py` + `Dungeon/processor.py` + `Dungeon/shaper.py`
    - **Reason:** Most sophisticated, 3D properties, complete pipeline
 
-2. ✅ **MOVED (archived):** `legacy/dungeon_generator.py`
-   - **Type:** Simple BSP with room placement (archived; moved to legacy/)
-   - **Reason:** Less sophisticated than 3D variant
-
-3. ✅ **MOVED (archived):** `legacy/lights_dev/dungeon_generator.py`
-   - **Type:** Copy of BSP variant (archived; moved to legacy/)
-   - **Reason:** Duplicate of #2
-
-4. ❌ **REMOVE:** `prototypes/lights_dev/dungeon_generator.py`
-   - **Type:** Prototype/experimental
-   - **Reason:** Old prototype
-
-5. ❌ **REMOVE:** `prototypes/Dungeon/core.py` and `prototypes/Dungeon/shaper.py`
-   - **Type:** Old prototype of main system
-   - **Reason:** Superseded by production version
+2. ✅ **CURRENT:** No duplicate `legacy/` or `prototypes/` dungeon generator files are present in the current tree.
+   - **Reason:** `Dungeon/core.py`, `Dungeon/processor.py`, and `Dungeon/shaper.py` are the canonical pipeline.
 
 ---
 
@@ -509,7 +496,7 @@ Game State (game/game_state.py)
 
 #### 4. GameRNG Integration (Central Randomness)
 ```
-GameRNG (game_rng.py)
+GameRNG (utils/game_rng.py)
   ↓
   ├→ Dungeon Generation (Dungeon/core.py, shaper.py)
   ├→ Perception Systems (pathfinding/perception_systems.py)
@@ -568,9 +555,9 @@ Spell Definition (magic/work parser)
 **Standard:** `from utils.game_rng import GameRNG`
 
 **Notes:**
-- The utils wrapper remains the canonical import location.
-- Root implementation: `/home/user/simple_rl/game_rng.py` (18K, full implementation)
-- Wrapper: `/home/user/simple_rl/utils/game_rng.py` (314 bytes, thin wrapper)
+- `utils/game_rng.py` is the canonical implementation and import location.
+- `worldgen/game_rng.py` is a compatibility re-export for world-generation modules.
+- There is no root-level `game_rng.py` in the current tree.
 
 #### 2. lights_dev/ Development Environment is Non-Deterministic ⚠️
 
@@ -722,37 +709,32 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ### Production Systems (Integrated)
 
 ```
-/home/user/simple_rl/
+Repository root
 ├── game/                    # Main game systems (INTEGRATED)
 │   ├── ai/                  # Production AI (GOAP, Strategy, ML, behaviors)
 │   ├── effects/             # Magic effects system
 │   ├── entities/            # Entity/component system
 │   ├── items/               # Item management
-│   ├── systems/             # Core mechanics (combat, movement, equipment, etc.)
+│   ├── systems/             # Core mechanics, including pathfinding/flowfield.py
 │   └── world/               # Game map, FOV, visibility, LOS
 ├── engine/                  # Rendering engine (INTEGRATED)
 │   ├── renderer.py          # Main renderer
 │   ├── render_*.py          # Layer rendering
-│   ├── window_manager.py    # SDL2/Pygame
+│   ├── window_manager.py    # SDL2 window management
 │   └── window_manager_modules/
-├── pathfinding/             # Perception & pathfinding (INTEGRATED)
-│   ├── perception_systems.py  # Sound/smell flow fields
-│   └── flowfield.py           # Flow field pathfinding
+├── pathfinding/             # Perception systems (INTEGRATED)
+│   └── perception_systems.py  # Sound/smell flow fields
 ├── Dungeon/                 # 3D dungeon generator (INTEGRATED)
 │   ├── core.py              # CaveGenerator
 │   ├── processor.py         # Geometry processing
 │   └── shaper.py            # Rasterization & CA smoothing
 ├── magic/                   # Magic system (INTEGRATED)
 ├── simulation/              # Zone manager (INTEGRATED)
-│   └── zone_manager.py
-├── legacy/                  # Archived legacy files
-├── utils/                   # Utilities
-│   ├── game_rng.py          # Thin wrapper for GameRNG
-│   └── helpers.py
-├── common/                  # Common utilities
+├── utils/                   # Utilities, including canonical GameRNG
+├── worldgen/                # World generation utilities and GameRNG re-export
+├── common/                  # Common constants/utilities
 ├── config/                  # Configuration files
-├── data/                    # Game data
-└── game_rng.py              # Central RNG (root level)
+└── data/                    # Game data
 ```
 
 ### Development/R&D Systems (NOT Integrated)
@@ -785,8 +767,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 ### Cleanup Status
 
 **Moved (archived) (2026-01-16):**
-- ✅ `legacy/dungeon_generator.py` (root) - Duplicate, less sophisticated
-- ✅ `legacy/lights_dev/dungeon_generator.py` - Duplicate
+- ✅ No `legacy/dungeon_generator.py` or `legacy/lights_dev/dungeon_generator.py` files are present in the current tree.
 - ✅ `prototypes/` - Entire directory (old prototypes, superseded implementations)
   - Contained: lights_dev/, Dungeon/, ai/, pathfinding/, auto/ variants
 

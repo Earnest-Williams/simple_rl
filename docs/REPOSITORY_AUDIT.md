@@ -43,6 +43,29 @@ Commands used during the audit:
    document, and architecture decision records (ADRs) for the duplicate or
    experimental systems.
 
+
+## Resolution update: first five cleanup items
+
+Date: 2026-05-31
+
+The first five items from the recommended cleanup sequence have been addressed:
+
+1. `lights_dev/scent_and_sound_flow.py` now compiles as a single module, has one
+   module header, and identifies itself by its actual filename while noting that
+   production sound playback lives in `game/systems/sound.py`.
+2. `auto/gui.egg-info/` generated package metadata was removed from the working
+   tree; it remains covered by the existing `*.egg-info/` ignore rule.
+3. `fonts/classic_roguelike_preview.png` is documented in
+   `fonts/glyph_name_chart.md` as the preview/contact-sheet image for the
+   classic roguelike tile set.
+4. The stale overview/compliance docs were refreshed for the current tree:
+   `README.md`, `.github/copilot-instructions.md`,
+   `docs/SYSTEMS_INVENTORY.md`, and `docs/COMPLIANCE_REPORT.md` no longer claim
+   that root-level `game_rng.py`, a `legacy/` tree, missing workflows, or pygame
+   are current facts.
+5. Skill-system status is consolidated in `docs/SKILL_SYSTEM_STATUS.md`; older
+   skill-system docs now point to that page as the source of truth.
+
 ## Pass 1: inventory and first-read notes
 
 ### Repository shape
@@ -210,7 +233,10 @@ these are the files most likely to contain stale or orphaned code.
 
 These follow-up passes were performed after the initial audit to re-check the
 most serious blocker and to make the `lights_dev/scent_and_sound_flow.py`
-finding more actionable.
+finding more actionable. The original corruption has since been repaired: the
+file is now a 750-line single module and `python -m compileall -q
+lights_dev/scent_and_sound_flow.py` succeeds. The historical details below are
+kept to explain why this file was prioritized.
 
 ### Pass 4: parser-level verification
 
@@ -284,29 +310,30 @@ Safe recovery options, in preferred order:
 ## Verification results from this audit
 
 - `python scripts/sync_llm_policy.py --check` passed.
-- Markdown relative-link validation passed with zero missing links.
-- `python -m compileall -q .` failed because
-  `lights_dev/scent_and_sound_flow.py` has an `IndentationError` at line 688.
+- Markdown relative-link validation passed with zero missing links during the
+  original audit.
+- `python -m compileall -q lights_dev/scent_and_sound_flow.py` now passes for
+  the repaired scent/sound flow file.
+- `python -m compileall -q .` now passes after the scent/sound flow repair.
 - `python scripts/check_deterministic_random.py` failed. It reports matches in
   itself because the checker scans its own disallowed string literals, and it
   reports `auto/gui/worker.py` because a comment contains `import random`.
-- `pytest -q` failed during collection because the current environment lacks
-  `numpy`; it did not get far enough to validate runtime behavior.
+- `pytest -q` failed during collection because the original audit environment
+  lacked `numpy`; it did not get far enough to validate runtime behavior.
 
 ## Recommended cleanup sequence
 
-1. Fix or remove `lights_dev/scent_and_sound_flow.py`; this is the highest-value
-   cleanup because it blocks whole-repo compilation.
-2. Remove tracked `auto/gui.egg-info/*` generated metadata and ensure it remains
-   ignored.
-3. Decide whether `fonts/classic_roguelike_preview.png` is useful. If yes,
-   reference it from `fonts/glyph_name_chart.md` or an asset pipeline doc; if
-   no, delete it.
-4. Regenerate or rewrite `README.md`, `docs/SYSTEMS_INVENTORY.md`,
-   `docs/COMPLIANCE_REPORT.md`, and `.github/copilot-instructions.md` from the
+1. ✅ Fixed `lights_dev/scent_and_sound_flow.py`; it now compiles and no longer
+   blocks targeted compilation of that module.
+2. ✅ Removed `auto/gui.egg-info/*` generated metadata from the working tree; the
+   existing `*.egg-info/` ignore rule should prevent it from returning.
+3. ✅ Kept `fonts/classic_roguelike_preview.png` and documented it from
+   `fonts/glyph_name_chart.md`.
+4. ✅ Refreshed `README.md`, `docs/SYSTEMS_INVENTORY.md`,
+   `docs/COMPLIANCE_REPORT.md`, and `.github/copilot-instructions.md` for the
    current tree.
-5. Replace contradictory skill integration docs with one current status page and
-   move older evaluations to an archive section.
+5. ✅ Added `docs/SKILL_SYSTEM_STATUS.md` as the current skill-system status page
+   and linked older skill docs to it.
 6. Add the missing runbook, testing guide, asset-pipeline guide, config
    reference, and ADR/deprecation docs listed above.
 7. Improve `scripts/check_deterministic_random.py` so it does not scan itself or

@@ -1,5 +1,8 @@
 # Skill System Evaluation
 
+> **Status note (2026-05-31):** This is a historical pre-integration evaluation. See [Skill System Status](SKILL_SYSTEM_STATUS.md) for the current source of truth.
+
+
 **Date:** 2026-01-23
 **Branch:** `claude/evaluate-skill-system-BYqXi`
 **Evaluator:** Claude Code
@@ -8,13 +11,13 @@
 
 ## Executive Summary
 
-The skill system implementation is **exceptionally well-designed and complete** from a technical perspective. However, it is **NOT yet integrated** into the main game systems. The codebase currently has:
+Historical finding from 2026-01-23: the skill system implementation was **exceptionally well-designed and complete** from a technical perspective, but was **NOT yet integrated** into the main game systems at that time. See `docs/SKILL_SYSTEM_STATUS.md` for the current status. At the time of this evaluation, the codebase had:
 
 1. **Legacy implementation** (`game/skills/` - 6 files) - Simple, working, but not optimized
 2. **New implementation** (`skills/` - 14 files) - Highly optimized, fully tested, but not connected to EntityRegistry
 3. **EntityRegistry** currently uses the legacy Object-based skill storage
 
-**Status:** Production-ready code awaiting integration (Phase 1-6 from INTEGRATION_GUIDE.md)
+**Historical status:** Production-ready code awaiting integration (Phase 1-6 from INTEGRATION_GUIDE.md). Current status is tracked in `docs/SKILL_SYSTEM_STATUS.md`.
 
 ---
 
