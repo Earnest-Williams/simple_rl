@@ -314,7 +314,10 @@ def _propagate_noise_kernel(
             # Relaxation: if the new path produces a lower cost, update and enqueue
             if new_cost < cost_grid[ny, nx]:
                 cost_grid[ny, nx] = new_cost
-                if not in_queue[ny, nx]:
+                if (
+                    new_cost - start_cost < max_dist_prop
+                    and not in_queue[ny, nx]
+                ):
                     qy[tail] = ny
                     qx[tail] = nx
                     tail = (tail + 1) % max_q
