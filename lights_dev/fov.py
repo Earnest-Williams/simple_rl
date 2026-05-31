@@ -393,7 +393,7 @@ def _legacy_cell_blocks_los(
     opacity_threshold: float32,
     x: int,
     y: int,
-) -> boolean:
+) -> bool:
     return transparency[y, x] <= opacity_threshold
 
 
@@ -407,7 +407,7 @@ def _extended_cell_blocks_los(
     x: int,
     y: int,
     opacity_threshold: float32,
-) -> boolean:
+) -> bool:
     if _is_masked_transparent_for_blocking(cell_mask, use_mask, light_channels, x, y):
         return False
     return opaque[y, x] != uint8(0) or transparency[y, x] <= opacity_threshold
@@ -421,7 +421,7 @@ def _has_clear_legacy_los(
     y0: int,
     x1: int,
     y1: int,
-) -> boolean:
+) -> bool:
     h, w = transparency.shape
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
@@ -462,7 +462,7 @@ def _has_clear_extended_los(
     y0: int,
     x1: int,
     y1: int,
-) -> boolean:
+) -> bool:
     h, w = transparency.shape
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
@@ -508,11 +508,16 @@ def _filter_occluded_legacy(
     side_bits_out: np.uint8[:, :],
     cx: int,
     cy: int,
+    radius: int,
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
-    for y in range(h):
-        for x in range(w):
+    y_min = max(0, cy - radius)
+    y_max = min(h - 1, cy + radius)
+    x_min = max(0, cx - radius)
+    x_max = min(w - 1, cx + radius)
+    for y in range(y_min, y_max + 1):
+        for x in range(x_min, x_max + 1):
             if visible_out[y, x] == uint8(0) or (x == cx and y == cy):
                 continue
             if not _has_clear_legacy_los(transparency, opacity_threshold, cx, cy, x, y):
@@ -533,11 +538,16 @@ def _filter_occluded_extended(
     side_bits_out: np.uint8[:, :],
     cx: int,
     cy: int,
+    radius: int,
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
-    for y in range(h):
-        for x in range(w):
+    y_min = max(0, cy - radius)
+    y_max = min(h - 1, cy + radius)
+    x_min = max(0, cx - radius)
+    x_max = min(w - 1, cx + radius)
+    for y in range(y_min, y_max + 1):
+        for x in range(x_min, x_max + 1):
             if visible_out[y, x] == uint8(0) or (x == cx and y == cy):
                 continue
             if not _has_clear_extended_los(
@@ -605,6 +615,7 @@ def _compute_fov_all_octants_legacy(
         side_bits_out,
         cx,
         cy,
+        radius,
         opacity_threshold,
     )
 
@@ -668,6 +679,7 @@ def _compute_fov_all_octants_ex(
         side_bits_out,
         cx,
         cy,
+        radius,
         opacity_threshold,
     )
 
