@@ -387,6 +387,188 @@ def _compute_octant_core_ex(
             break
 
 
+@numba.njit(inline="always")
+def _legacy_cell_blocks_los(
+    transparency: np.float32[:, :],
+    opacity_threshold: float32,
+    x: int,
+    y: int,
+) -> bool:
+    return transparency[y, x] <= opacity_threshold
+
+
+@numba.njit(inline="always")
+def _extended_cell_blocks_los(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    x: int,
+    y: int,
+    opacity_threshold: float32,
+) -> bool:
+    if _is_masked_transparent_for_blocking(cell_mask, use_mask, light_channels, x, y):
+        return False
+    return opaque[y, x] != uint8(0) or transparency[y, x] <= opacity_threshold
+
+
+@numba.njit(inline="always")
+def _has_clear_legacy_los(
+    transparency: np.float32[:, :],
+    opacity_threshold: float32,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+) -> bool:
+    h, w = transparency.shape
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+    x = x0
+    y = y0
+
+    while x != x1 or y != y1:
+        twice_err = 2 * err
+        if twice_err > -dy:
+            err -= dy
+            x += sx
+        if twice_err < dx:
+            err += dx
+            y += sy
+
+        if x == x1 and y == y1:
+            return True
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return False
+        if _legacy_cell_blocks_los(transparency, opacity_threshold, x, y):
+            return False
+
+    return True
+
+
+@numba.njit(inline="always")
+def _has_clear_extended_los(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    opacity_threshold: float32,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+) -> bool:
+    h, w = transparency.shape
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+    x = x0
+    y = y0
+
+    while x != x1 or y != y1:
+        twice_err = 2 * err
+        if twice_err > -dy:
+            err -= dy
+            x += sx
+        if twice_err < dx:
+            err += dx
+            y += sy
+
+        if x == x1 and y == y1:
+            return True
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return False
+        if _extended_cell_blocks_los(
+            opaque,
+            transparency,
+            cell_mask,
+            use_mask,
+            light_channels,
+            x,
+            y,
+            opacity_threshold,
+        ):
+            return False
+
+    return True
+
+
+@numba.njit(nogil=True, cache=True)
+def _filter_occluded_legacy(
+    transparency: np.float32[:, :],
+    visible_out: np.uint8[:, :],
+    dist_out: np.int32[:, :],
+    side_bits_out: np.uint8[:, :],
+    cx: int,
+    cy: int,
+    radius: int,
+    opacity_threshold: float32,
+) -> None:
+    h, w = transparency.shape
+    # Only cells within the radius can be visible; clamp to map bounds.
+    y_min = max(0, cy - radius)
+    y_max = min(h - 1, cy + radius)
+    x_min = max(0, cx - radius)
+    x_max = min(w - 1, cx + radius)
+    for y in range(y_min, y_max + 1):
+        for x in range(x_min, x_max + 1):
+            if visible_out[y, x] == uint8(0) or (x == cx and y == cy):
+                continue
+            if not _has_clear_legacy_los(transparency, opacity_threshold, cx, cy, x, y):
+                visible_out[y, x] = uint8(0)
+                dist_out[y, x] = -1
+                side_bits_out[y, x] = uint8(0)
+
+
+@numba.njit(nogil=True, cache=True)
+def _filter_occluded_extended(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    visible_out: np.uint8[:, :],
+    dist_out: np.int32[:, :],
+    side_bits_out: np.uint8[:, :],
+    cx: int,
+    cy: int,
+    radius: int,
+    opacity_threshold: float32,
+) -> None:
+    h, w = transparency.shape
+    # Only cells within the radius can be visible; clamp to map bounds.
+    y_min = max(0, cy - radius)
+    y_max = min(h - 1, cy + radius)
+    x_min = max(0, cx - radius)
+    x_max = min(w - 1, cx + radius)
+    for y in range(y_min, y_max + 1):
+        for x in range(x_min, x_max + 1):
+            if visible_out[y, x] == uint8(0) or (x == cx and y == cy):
+                continue
+            if not _has_clear_extended_los(
+                opaque,
+                transparency,
+                cell_mask,
+                use_mask,
+                light_channels,
+                opacity_threshold,
+                cx,
+                cy,
+                x,
+                y,
+            ):
+                visible_out[y, x] = uint8(0)
+                dist_out[y, x] = -1
+                side_bits_out[y, x] = uint8(0)
+
+
 @numba.njit(nogil=True, cache=True)
 def _compute_fov_all_octants_legacy(
     transparency: np.float32[:, :],
@@ -427,6 +609,17 @@ def _compute_fov_all_octants_legacy(
             octant,
             opacity_threshold,
         )
+
+    _filter_occluded_legacy(
+        transparency,
+        visible_out,
+        dist_out,
+        side_bits_out,
+        cx,
+        cy,
+        radius,
+        opacity_threshold,
+    )
 
 
 @numba.njit(nogil=True, cache=True)
@@ -476,6 +669,21 @@ def _compute_fov_all_octants_ex(
             octant,
             opacity_threshold,
         )
+
+    _filter_occluded_extended(
+        opaque,
+        transparency,
+        cell_mask,
+        use_mask,
+        light_channels,
+        visible_out,
+        dist_out,
+        side_bits_out,
+        cx,
+        cy,
+        radius,
+        opacity_threshold,
+    )
 
 
 @numba.njit(inline="always")
