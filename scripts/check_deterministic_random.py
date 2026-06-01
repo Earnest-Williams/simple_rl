@@ -4,9 +4,12 @@ import ast
 from pathlib import Path
 from typing import Final
 
+# Checker configuration and banned patterns.
 CHECKER_RELATIVE_PATH: Final[Path] = Path("scripts") / "check_deterministic_random.py"
 
+# Modules that cannot be imported directly.
 BANNED_IMPORT_MODULES: Final[frozenset[str]] = frozenset({"random", "secrets"})
+# Specific attributes or submodules that are banned.
 BANNED_ATTRIBUTE_NAMES: Final[frozenset[str]] = frozenset(
     {
         "random",
@@ -17,6 +20,7 @@ BANNED_ATTRIBUTE_NAMES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Directories to skip during scanning.
 EXCLUDED_DIRECTORIES: Final[frozenset[str]] = frozenset(
     {
         ".git",
@@ -26,6 +30,7 @@ EXCLUDED_DIRECTORIES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Files exempted from the deterministic randomness check.
 ALLOWED_FILES: Final[frozenset[Path]] = frozenset(
     {
         Path("utils") / "game_rng.py",
@@ -51,11 +56,11 @@ class RandomnessVisitor(ast.NodeVisitor):
             self.generic_visit(node)
             return
 
-        module_name = node.module
-        module_root = module_name.split(".", maxsplit=1)[0]
+        module_name: str = node.module
+        module_root: str = module_name.split(".", maxsplit=1)[0]
         for alias in node.names:
-            imported_name = alias.asname or alias.name
-            qualified_name = f"{module_name}.{alias.name}"
+            imported_name: str = alias.asname or alias.name
+            qualified_name: str = f"{module_name}.{alias.name}"
             self._module_aliases[imported_name] = qualified_name
             if module_root in BANNED_IMPORT_MODULES:
                 self.violations.append(f"from {module_root}")
@@ -84,18 +89,23 @@ class RandomnessVisitor(ast.NodeVisitor):
             self.violations.append(violation)
 
     def _record_import_alias(self, alias: ast.alias) -> None:
-        module_name = alias.name
-        module_root = module_name.split(".", maxsplit=1)[0]
-        imported_name = alias.asname or module_root
-        self._module_aliases[imported_name] = module_name
+        module_name: str = alias.name
+        module_root: str = module_name.split(".", maxsplit=1)[0]
+        if alias.asname is not None:
+            self._module_aliases[alias.asname] = module_name
+        else:
+            self._module_aliases[module_root] = module_root
         if module_root in BANNED_IMPORT_MODULES:
             self.violations.append(f"import {module_root}")
         elif module_name.startswith("numpy.random"):
             self.violations.append("import numpy.random")
 
     def _expand_alias(self, qualified_name: str) -> str:
+        first_name: str
+        separator: str
+        rest: str
         first_name, separator, rest = qualified_name.partition(".")
-        mapped_name = self._module_aliases.get(first_name)
+        mapped_name: str | None = self._module_aliases.get(first_name)
         if mapped_name is None:
             return qualified_name
         if separator == "":
@@ -107,7 +117,7 @@ def _qualified_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
-        parent_name = _qualified_name(node.value)
+        parent_name: str | None = _qualified_name(node.value)
         if parent_name is None:
             return None
         return f"{parent_name}.{node.attr}"
@@ -132,14 +142,14 @@ def _should_skip(path: Path) -> bool:
 
 
 def _scan_source(source: str, filename: str) -> list[str]:
-    tree = ast.parse(source, filename=filename)
-    visitor = RandomnessVisitor()
+    tree: ast.AST = ast.parse(source, filename=filename)
+    visitor: RandomnessVisitor = RandomnessVisitor()
     visitor.visit(tree)
     return visitor.violations
 
 
 def _scan_file(path: Path) -> list[str]:
-    contents = path.read_text(encoding="utf-8")
+    contents: str = path.read_text(encoding="utf-8")
     return _scan_source(contents, str(path))
 
 

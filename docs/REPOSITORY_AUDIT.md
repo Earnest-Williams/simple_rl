@@ -61,7 +61,12 @@ The deterministic-random checker follow-up is now partially addressed:
 3. Focused regression tests in `tests/test_check_deterministic_random.py` cover
    ignored comments/strings, aliased imports, NumPy randomness, `os.urandom`,
    and `uuid.uuid4`.
-4. `python scripts/check_deterministic_random.py` now passes locally. Wiring this
+4. Import alias expansion now keeps non-aliased root module names stable, which
+   prevents `import numpy.random` from incorrectly rewriting unrelated
+   `numpy.*` attribute usage.
+5. The checker and focused tests now use explicit local type annotations and
+   grouped constant documentation consistent with the repository style guide.
+6. `python scripts/check_deterministic_random.py` now passes locally. Wiring this
    reliable checker into CI is still a follow-up task.
 
 ## Resolution update: first five cleanup items

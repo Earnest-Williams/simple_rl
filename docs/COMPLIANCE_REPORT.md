@@ -24,7 +24,10 @@ The canonical rule remains: game logic must import `GameRNG` from
 `utils.game_rng`. The current implementation file does not import Python's
 `random` module. `scripts/check_deterministic_random.py` now parses Python AST
 structure, skips its own source file, and ignores comments, docstrings, and
-ordinary string literals.
+ordinary string literals. Alias expansion now preserves non-aliased root module
+names for submodule imports, avoiding false positives from unrelated
+`numpy.*` attribute calls, and checker/test locals are explicitly typed per the
+repository style guide.
 
 ## Remaining compliance risks
 
@@ -41,5 +44,6 @@ ordinary string literals.
    `ruff check .`, and `mypy .`.
 2. Wire `scripts/check_deterministic_random.py` into CI now that it parses
    Python syntax instead of scanning raw text.
-3. Keep this report regenerated when tool versions, workflows, or canonical RNG
+3. Keep this report regenerated when tool versions, workflows, checker behavior,
+   or canonical RNG
    locations change.
