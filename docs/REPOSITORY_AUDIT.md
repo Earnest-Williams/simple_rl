@@ -41,11 +41,40 @@ Commands used during the audit:
    absence of the legacy tree, active workflow files, and SDL/Qt dependencies.
 5. Skill-system status has been consolidated in `docs/SKILL_SYSTEM_STATUS.md`;
    older skill-system docs now point readers to that current source of truth.
-6. The most useful remaining missing documents would be a current runbook, a
-   current module ownership/status matrix, a generated-assets policy, a
-   testing/CI status document, and architecture decision records (ADRs) for the
-   duplicate or experimental systems.
+6. The most useful missing documents identified by the audit are now partly
+   addressed: `docs/RUNBOOK.md`, `docs/CURRENT_STATUS.md`,
+   `docs/ASSET_PIPELINE.md`, `docs/TESTING.md`, and
+   `docs/CONFIG_REFERENCE.md` exist. Remaining documentation gaps are ADRs for
+   duplicate or experimental systems and a deprecation policy for scratch or
+   historical material.
 
+
+
+## Resolution update: runbook, testing, config, and status docs
+
+Date: 2026-06-01
+
+The next documentation follow-up is now partially addressed:
+
+1. Added `docs/RUNBOOK.md` as the canonical quick-start runbook for environment
+   setup, main entrypoints, subsystem harnesses, asset generation, and standard
+   repository checks.
+2. Added `docs/TESTING.md` to collect required local checks, their purpose,
+   current CI coverage gaps, and troubleshooting notes for dependency or
+   headless-GUI limitations.
+3. Added `docs/CONFIG_REFERENCE.md` to document checked-in configuration and
+   data files, current consumers, high-level schema shapes, generated metadata,
+   and change guidelines.
+4. Added `docs/CURRENT_STATUS.md` as a concise module ownership/status matrix
+   covering maturity, runnable commands, integration state, and follow-up
+   decisions for integrated and R&D subsystems.
+5. Local verification for this documentation pass now shows Markdown links,
+   compileall, policy sync, deterministic-random checks, and `pytest -q` passing
+   after installing `.[dev]`; Black/Ruff formatting, Ruff lint, and mypy still
+   expose pre-existing codebase issues outside this documentation change.
+6. Remaining documentation-policy follow-ups are now narrower: add ADRs for
+   canonical subsystem decisions and a deprecation policy for experiments,
+   historical notes, generated metadata, and removal candidates.
 
 ## Resolution update: asset pipeline and dependency-source documentation
 
@@ -238,8 +267,9 @@ these are the files most likely to contain stale or orphaned code.
   --check` passed.
 - Component docs such as `Dungeon/README.md`, `auto/README.md`,
   `lights_dev/README.md`, `pathfinding/README.md`, `utils/README.md`, and many
-  skill-system docs broadly describe real code areas, but some integration-state
-  claims should be reviewed against current code.
+  skill-system docs broadly describe real code areas. `docs/CURRENT_STATUS.md`
+  now gives readers a concise source-of-truth status matrix while deeper
+  integration-state claims continue to be reviewed.
 - Markdown relative links validated successfully: no broken markdown links were
   found by the link checker used in this audit.
 
@@ -259,19 +289,19 @@ these are the files most likely to contain stale or orphaned code.
 
 ### Documentation that does not exist but would be helpful
 
-1. `docs/RUNBOOK.md`: one canonical file explaining how to install, run the main
-   game, run each testbed, generate a dungeon, run lighting/FOV demos, and run
-   worldgen.
-2. `docs/CURRENT_STATUS.md`: a short source-of-truth status matrix with columns
-   for system, owner, maturity, runnable command, integration state, and known
-   blockers.
+1. ✅ `docs/RUNBOOK.md`: added as the canonical file explaining environment
+   setup, main entrypoints, subsystem testbeds, asset generation, and standard
+   checks.
+2. ✅ `docs/CURRENT_STATUS.md`: added as a short source-of-truth status matrix
+   with system, primary paths, maturity, runnable command, integration state, and
+   known follow-ups.
 3. ✅ `docs/ASSET_PIPELINE.md`: added as the source of truth for `fonts/`,
    generated glyph YAML, sliced PNG/SVG tiles, reports, and which files are
    generated versus authored.
-4. `docs/TESTING.md`: exact test/lint/typecheck commands, expected current
-   failures, dependency requirements, and CI coverage gaps.
-5. `docs/CONFIG_REFERENCE.md`: schema-like documentation for `config/*.yaml`,
-   `config/*.toml`, and `data/*.json` files.
+4. ✅ `docs/TESTING.md`: added with exact test/lint/typecheck commands, CI
+   coverage gaps, dependency expectations, and troubleshooting notes.
+5. ✅ `docs/CONFIG_REFERENCE.md`: added with schema-like documentation for
+   `config/*.yaml`, `config/*.toml`, and `data/*.json` files.
 6. `docs/ADR/` decision records: especially for canonical RNG location,
    production AI vs R&D AI, `skills/` vs `game/skills/`, and which perception/FOV
    implementation is canonical.
@@ -371,8 +401,12 @@ playback ownership with `game/systems/sound.py`.
 - `python scripts/check_deterministic_random.py` now passes after the checker
   was changed to parse Python syntax, skip itself, and ignore comments and
   string literals.
-- `pytest -q` failed during collection because the original audit environment
-  lacked `numpy`; it did not get far enough to validate runtime behavior.
+- `pytest -q` failed during original audit collection because that environment
+  lacked `numpy`; after installing `.[dev]` during the 2026-06-01 documentation
+  follow-up, `pytest -q` passed with 8 tests.
+- `black --check .`, `ruff format --check .`, `ruff check .`, and `mypy .` still
+  report pre-existing codebase formatting, lint, and package-mapping issues that
+  are outside this documentation-only follow-up.
 
 ## Recommended cleanup sequence
 
@@ -387,8 +421,9 @@ playback ownership with `game/systems/sound.py`.
    current tree.
 5. ✅ Added `docs/SKILL_SYSTEM_STATUS.md` as the current skill-system status page
    and linked older skill docs to it.
-6. Add the missing runbook, testing guide, config reference, and
-   ADR/deprecation docs listed above. The asset-pipeline guide is now present.
+6. ✅ Added the missing runbook, status matrix, testing guide, and config
+   reference. ADR/deprecation docs remain open follow-ups; the asset-pipeline
+   guide is also present.
 7. ✅ Improved `scripts/check_deterministic_random.py` so it parses Python
    syntax, skips its own checker module, ignores comments and string literals,
    and passes focused regression tests. CI wiring remains a separate follow-up.
