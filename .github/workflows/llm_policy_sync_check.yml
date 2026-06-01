@@ -30,3 +30,8 @@ jobs:
         run: |
           # Fail if generated copies are out of date
           python scripts/sync_llm_policy.py --check
+
+      - name: Run deterministic randomness check
+        run: |
+          # Fail on direct nondeterministic randomness outside approved boundaries
+          python scripts/check_deterministic_random.py

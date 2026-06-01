@@ -28,18 +28,17 @@ pip install -e ".[dev]"
 
 ## CI coverage
 
-The repository currently has workflows for LLM policy synchronization and the
-modernization pipeline. Local contributors should still run the required local
-checks above because not every local quality gate is represented by CI yet.
+The repository currently has workflows for LLM policy synchronization,
+deterministic-randomness checking, and the modernization pipeline. Local
+contributors should still run the required local checks above because not every
+local quality gate is represented by CI yet.
 
 Known CI follow-up items:
 
-1. Wire `python scripts/check_deterministic_random.py` into CI now that it parses
-   Python AST and has focused regression tests.
-2. Ensure CI runs the same pinned `black`, `ruff`, and `mypy` versions declared
+1. Ensure CI runs the same pinned `black`, `ruff`, and `mypy` versions declared
    in `pyproject.toml`.
-3. Add a test job that installs `.[dev]` and runs `pytest -q`.
-4. Keep any modernization job aligned with `pyupgrade --py311-plus`, Ruff fixes,
+2. Add a test job that installs `.[dev]` and runs `pytest -q`.
+3. Keep any modernization job aligned with `pyupgrade --py311-plus`, Ruff fixes,
    and Black formatting.
 
 ## Current verification notes
@@ -56,8 +55,9 @@ fully provisioned editable `.[dev]` environment:
   documentation changes.
 - `ruff check .` still reports pre-existing lint issues, including undefined
   typing names and unused imports in R&D modules.
-- `mypy .` still stops on a pre-existing duplicate-module mapping for
-  `lights_dev/fov.py` before checking the rest of the tree.
+- `mypy .` no longer stops on duplicate-module mappings for
+  `lights_dev/fov.py`; remaining failures are pre-existing missing stubs,
+  import resolution issues, and downstream type-checking issues.
 
 ## Troubleshooting
 
