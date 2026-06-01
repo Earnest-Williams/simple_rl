@@ -20,10 +20,13 @@ Thank you for your interest in improving Simple RL. This document describes how 
    ```bash
    pip install -e .
    # OR for development with additional tools:
-   pip install -r requirements.txt
+   pip install -e ".[dev]"
    ```
-   
-   An `environment.yml` is also provided for Conda/Mamba users:
+
+   `pyproject.toml` is the canonical pip dependency source. `requirements.txt`
+   is retained only as an archival marker because the previous export contained
+   machine-specific Conda build paths. An `environment.yml` is also provided for
+   Conda/Mamba users:
    ```bash
    conda env create -f environment.yml
    conda activate simple_rl
