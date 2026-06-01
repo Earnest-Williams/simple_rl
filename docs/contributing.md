@@ -23,9 +23,9 @@ Thank you for your interest in improving Simple RL. This document describes how 
    pip install -e ".[dev]"
    ```
 
-   `pyproject.toml` is the canonical pip dependency source. `requirements.txt`
-   is retained only as an archival marker because the previous export contained
-   machine-specific Conda build paths. An `environment.yml` is also provided for
+   `pyproject.toml` is the canonical pip dependency source. The obsolete
+   `requirements.txt` placeholder was removed after downstream setup guidance
+   moved to editable installs. An `environment.yml` is also provided for
    Conda/Mamba users:
    ```bash
    conda env create -f environment.yml

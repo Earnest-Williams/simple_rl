@@ -63,5 +63,5 @@ Before submitting asset changes:
 3. Inspect `fonts/glyphs_report.txt` for missing PNG/SVG warnings.
 4. Update this document when ownership, generation commands, or retention policy
    changes.
-5. Prefer `pyproject.toml` and `environment.yml` for dependency setup; do not add
-   asset-pipeline-only dependencies to `requirements.txt`.
+5. Prefer `pyproject.toml` and `environment.yml` for dependency setup; do not
+   reintroduce `requirements.txt` for asset-pipeline-only dependencies.

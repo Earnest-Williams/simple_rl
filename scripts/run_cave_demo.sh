@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Install dependencies before running:
-#   pip install -r requirements.txt
+#   pip install -e .
 
 set -euo pipefail
 
