@@ -82,6 +82,7 @@ Use Black as the formatter and Ruff for linting checks.
 
 ```bash
 black .
+ruff format .
 ruff check .
 mypy .
 python scripts/check_deterministic_random.py
