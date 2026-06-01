@@ -429,7 +429,14 @@ class GameState:
             x = row.get("x")
             y = row.get("y")
             if isinstance(x, int) and isinstance(y, int):
-                kind_value = row.get("species") or row.get("ai_type") or "entity"
+                species = row.get("species")
+                ai_type = row.get("ai_type")
+                if species == "enemy" or ai_type in {"goap", "combat"}:
+                    kind_value = "enemy"
+                elif species == "slime":
+                    kind_value = "slime"
+                else:
+                    kind_value = species or ai_type or "entity"
                 self.spatial_index.insert(entity_id, x, y, str(kind_value))
             self._process_status_effects_for_entity(entity_id)
             self._process_resources_for_entity(entity_id)
