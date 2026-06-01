@@ -28,20 +28,23 @@ Commands used during the audit:
 
 ## Executive summary
 
-1. The repository is not cleanly runnable as a whole today. The most severe
-   immediate defect is a syntax error in `lights_dev/scent_and_sound_flow.py`,
-   where a second module appears to have been concatenated after an incomplete
-   `if len(results) == 0:` statement.
-2. Some files are clearly generated or stale and have no practical source value
-   in version control, especially `auto/gui.egg-info/*` and likely
-   `fonts/classic_roguelike_preview.png`.
-3. The documentation is mixed: the LLM policy copies are synchronized, but major
-   overview documents contain stale claims about a root-level `game_rng.py`, a
-   `legacy/` tree, old absolute paths, and CI/workflow state.
-4. The most useful missing documents would be a current runbook, a current module
-   ownership/status matrix, a generated-assets policy, a testing/CI status
-   document, and architecture decision records (ADRs) for the duplicate or
-   experimental systems.
+1. The repository was not cleanly runnable during the original audit because
+   `lights_dev/scent_and_sound_flow.py` contained a concatenated duplicate module
+   body. That blocker has been repaired and targeted compilation now succeeds.
+2. The highest-confidence generated-file cleanup item, `auto/gui.egg-info/*`, has
+   been removed from the working tree and remains covered by the repository
+   `*.egg-info/` ignore rule.
+3. `fonts/classic_roguelike_preview.png` is retained intentionally and is now
+   documented as the classic roguelike tile-set preview/contact sheet.
+4. The stale overview/compliance documentation findings from the first audit
+   have been refreshed for the current tree, including canonical RNG location,
+   absence of the legacy tree, active workflow files, and SDL/Qt dependencies.
+5. Skill-system status has been consolidated in `docs/SKILL_SYSTEM_STATUS.md`;
+   older skill-system docs now point readers to that current source of truth.
+6. The most useful remaining missing documents would be a current runbook, a
+   current module ownership/status matrix, a generated-assets policy, a
+   testing/CI status document, and architecture decision records (ADRs) for the
+   duplicate or experimental systems.
 
 
 ## Resolution update: first five cleanup items
@@ -90,7 +93,8 @@ The first five items from the recommended cleanup sequence have been addressed:
   [MANIFEST.md](../MANIFEST.md), [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [.codex/AGENTS.md](../.codex/AGENTS.md),
   [.gemini/styleguide.md](../.gemini/styleguide.md), [.github/copilot-instructions.md](../.github/copilot-instructions.md), and several
   policy/check workflow files. The generated LLM-policy copies are internally
-  synchronized, but some human-facing overview docs are stale.
+  synchronized; the original pass found stale human-facing overview docs, which
+  were refreshed as part of the first-five cleanup pass.
 - The `fonts/` tree dominates the repository by file count. It contains source
   charts/reports plus generated sliced PNG/SVG tiles. The runtime references the
   sliced directories, not each individual file by name.
@@ -101,9 +105,9 @@ The first five items from the recommended cleanup sequence have been addressed:
 - `notes/` contains planning/draft material rather than current executable or
   user-facing documentation. It should be treated as historical notes unless
   promoted into curated docs.
-- `auto/gui.egg-info/` is generated packaging metadata. It is also covered by
-  the repository `.gitignore` pattern `*.egg-info/`, so its tracked presence is
-  suspicious.
+- `auto/gui.egg-info/` was generated packaging metadata covered by the
+  repository `.gitignore` pattern `*.egg-info/`; it has been removed from the
+  working tree as part of the first-five cleanup pass.
 
 ## Pass 2: no-use and low-use files
 
@@ -115,20 +119,20 @@ cleanup tickets.
 
 ### High-confidence no-use or cleanup candidates
 
-| File or group | Finding | Recommendation |
+| File or group | Original finding | Current status |
 | --- | --- | --- |
-| `auto/gui.egg-info/PKG-INFO`, `auto/gui.egg-info/SOURCES.txt`, `auto/gui.egg-info/dependency_links.txt`, `auto/gui.egg-info/top_level.txt` | Generated package metadata, appears to describe a local package named `gui`, and is ignored by the repo pattern `*.egg-info/`. | Remove from version control unless there is a reproducibility reason to keep generated build metadata. |
-| `fonts/classic_roguelike_preview.png` | The only PNG asset not referenced by file path or filename in repository text scans. | Either document it as a preview/source asset or remove it. |
-| `.github/copilot-instructions.md` vestigial component section | Mentions `simple_rl.py` and `dungeon_generator.py` as maintained files, but those files do not exist in the current tree. | Update or regenerate from canonical repo state. |
-| `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | Keep only if explicitly treated as archival notes; otherwise migrate relevant items into tracked issues or curated docs and delete the scratch file. |
-| `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | Archive or summarize into current docs if still useful. |
-| `notes/code_basicrl.txt` | Six-line historical note file. | Remove or fold into an archive note. |
+| `auto/gui.egg-info/PKG-INFO`, `auto/gui.egg-info/SOURCES.txt`, `auto/gui.egg-info/dependency_links.txt`, `auto/gui.egg-info/top_level.txt` | Generated package metadata, appears to describe a local package named `gui`, and is ignored by the repo pattern `*.egg-info/`. | ✅ Addressed: removed from the working tree; the existing `*.egg-info/` ignore rule should prevent it from returning. |
+| `fonts/classic_roguelike_preview.png` | The only PNG asset not referenced by file path or filename in repository text scans. | ✅ Addressed: retained as an intentional preview/contact-sheet asset and documented in `fonts/glyph_name_chart.md`. |
+| `.github/copilot-instructions.md` vestigial component section | Mentioned `simple_rl.py` and `dungeon_generator.py` as maintained files, but those files do not exist in the current tree. | ✅ Addressed: refreshed to point contributors at current component entrypoints and to keep stale legacy references out of new docs. |
+| `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | Open: keep only if explicitly treated as archival notes; otherwise migrate relevant items into tracked issues or curated docs and delete the scratch file. |
+| `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | Open: archive or summarize into current docs if still useful. |
+| `notes/code_basicrl.txt` | Six-line historical note file. | Open: remove or fold into an archive note. |
 
-### Currently unusable until repaired
+### Originally unusable until repaired
 
-| File | Finding | Recommendation |
+| File | Original finding | Current status |
 | --- | --- | --- |
-| `lights_dev/scent_and_sound_flow.py` | Fails Python compilation with `IndentationError`: line 687 has `if len(results) == 0:` immediately followed by a shebang/docstring for what appears to be another copy of a module. | Split/recover the intended file or remove it if superseded by `pathfinding/perception_systems.py` and `game/systems/sound.py`. |
+| `lights_dev/scent_and_sound_flow.py` | Failed Python compilation with `IndentationError`: line 687 had `if len(results) == 0:` immediately followed by a shebang/docstring for what appeared to be another copy of a module. | ✅ Addressed: restored to a single compiling module; `python -m compileall -q lights_dev/scent_and_sound_flow.py` succeeds. |
 
 ### Unreferenced Python files from AST import graph
 
@@ -161,9 +165,10 @@ these are the files most likely to contain stale or orphaned code.
   `skills/prerequisites.py`, `skills/shapeshifting.py`,
   `skills/synergies.py`, `utils/logging_utils.py`, `utils/savegame.py`,
   `worldgen/chunk_cache.py`, `worldgen/game_rng.py`.
-- Strongest candidates for either integration, explicit R&D labeling, or removal:
-  `lights_dev/scent_and_sound_flow.py`, `ai/v9.py`, `notes/*`,
-  `auto/gui.egg-info/*`, and `fonts/classic_roguelike_preview.png`.
+- Strongest remaining candidates for either integration, explicit R&D labeling,
+  or removal: `ai/v9.py` and `notes/*`. `lights_dev/scent_and_sound_flow.py`
+  has been repaired, `auto/gui.egg-info/*` has been removed, and
+  `fonts/classic_roguelike_preview.png` has been documented as intentional.
 
 ### Generated and derivative assets
 
@@ -197,17 +202,17 @@ these are the files most likely to contain stale or orphaned code.
 
 ### Stale or inaccurate documentation findings
 
-| Document | Inaccuracy | Correction needed |
+| Document | Original inaccuracy | Current status |
 | --- | --- | --- |
-| `README.md` | Says `game_rng.py` is the main root-level implementation and `utils/game_rng.py` is a thin wrapper. The current tree has no root-level `game_rng.py`; `utils/game_rng.py` contains the implementation. | Rewrite RNG section around `utils/game_rng.py` as canonical implementation and `worldgen/game_rng.py` as the small re-export. |
-| `README.md` | Mentions `legacy/simple_rl.py`, `legacy/dungeon_generator.py`, and `legacy/lights_dev/dungeon_generator.py`; no `legacy/` directory exists. | Remove legacy run instructions or restore/archive the files intentionally. |
-| `.github/copilot-instructions.md` | Mentions missing `simple_rl.py` and `dungeon_generator.py`, and lists `pygame` even though `pyproject.toml` uses PySDL2/PySide6 rather than a direct `pygame` dependency. | Update from current repo state or generate from canonical docs. |
-| `docs/SYSTEMS_INVENTORY.md` | Contains stale absolute path `/home/user/simple_rl/`, stale root-level `game_rng.py` claims, stale `legacy/` structure, and a misplaced `flowfield.py` under `pathfinding/` instead of `game/systems/pathfinding/flowfield.py`. | Refresh the inventory from the actual file tree. |
-| `docs/COMPLIANCE_REPORT.md` | Claims `.github/workflows/` does not exist, but the repo now has `llm_policy_sync_check.yml` and `modernize.yml`. | Regenerate compliance report. |
-| `docs/COMPLIANCE_REPORT.md` | Claims `utils/game_rng.py` imports `random`; current `utils/game_rng.py` does not import Python `random`. | Remove stale caveat and replace with current deterministic-random check results. |
-| `docs/COMPLIANCE_REPORT.md` | Cites a missing `dungeon_generator.py` for PEP 604 violations. | Re-run typing modernization checks against current files. |
-| `docs/SKILL_SYSTEM_EVALUATION.md` vs `docs/SKILL_SYSTEM_INTEGRATION.md` / `docs/SKILL_ADVANCED_FEATURES.md` | The evaluation doc says the skill system is not fully integrated, while later docs claim it is fully integrated or production-ready. | Add a current skill-system status page or consolidate contradictory docs. |
-| `requirements.txt` | Looks like an environment export with local conda build paths rather than a portable dependency specification. | Prefer `pyproject.toml` and `environment.yml`; either regenerate `requirements.txt` portably or mark it archival. |
+| `README.md` | Said `game_rng.py` was the main root-level implementation and `utils/game_rng.py` was a thin wrapper, even though the current tree has no root-level `game_rng.py`. | ✅ Addressed: the RNG section now identifies `utils/game_rng.py` as canonical and `worldgen/game_rng.py` as the compatibility re-export. |
+| `README.md` | Mentioned `legacy/simple_rl.py`, `legacy/dungeon_generator.py`, and `legacy/lights_dev/dungeon_generator.py`, but no `legacy/` directory exists. | ✅ Addressed: legacy run instructions were removed and the README notes that those historical entrypoints are absent from the current tree. |
+| `.github/copilot-instructions.md` | Mentioned missing `simple_rl.py` and `dungeon_generator.py`, and listed `pygame` even though `pyproject.toml` uses PySDL2/PySide6 rather than a direct `pygame` dependency. | ✅ Addressed: refreshed for the current repository state and dependency set. |
+| `docs/SYSTEMS_INVENTORY.md` | Contained stale absolute path `/home/user/simple_rl/`, stale root-level `game_rng.py` claims, stale `legacy/` structure, and a misplaced `flowfield.py` under `pathfinding/` instead of `game/systems/pathfinding/flowfield.py`. | ✅ Addressed: refreshed against the actual tree, including current RNG location, absent legacy tree, and the real flow-field module path. |
+| `docs/COMPLIANCE_REPORT.md` | Claimed `.github/workflows/` did not exist, but the repo has `llm_policy_sync_check.yml` and `modernize.yml`. | ✅ Addressed: regenerated to reflect the current workflow files. |
+| `docs/COMPLIANCE_REPORT.md` | Claimed `utils/game_rng.py` imports `random`; current `utils/game_rng.py` does not import Python `random`. | ✅ Addressed: stale caveat removed and replaced with current deterministic-random check status. |
+| `docs/COMPLIANCE_REPORT.md` | Cited a missing `dungeon_generator.py` for PEP 604 violations. | ✅ Addressed: stale missing-file citation removed. |
+| `docs/SKILL_SYSTEM_EVALUATION.md` vs `docs/SKILL_SYSTEM_INTEGRATION.md` / `docs/SKILL_ADVANCED_FEATURES.md` | The evaluation doc said the skill system was not fully integrated, while later docs claimed it was fully integrated or production-ready. | ✅ Addressed: added `docs/SKILL_SYSTEM_STATUS.md` and linked older docs to it as the current source of truth. |
+| `requirements.txt` | Looks like an environment export with local conda build paths rather than a portable dependency specification. | Open: prefer `pyproject.toml` and `environment.yml`; either regenerate `requirements.txt` portably or mark it archival. |
 
 ### Documentation that does not exist but would be helpful
 
@@ -234,7 +239,7 @@ these are the files most likely to contain stale or orphaned code.
 These follow-up passes were performed after the initial audit to re-check the
 most serious blocker and to make the `lights_dev/scent_and_sound_flow.py`
 finding more actionable. The original corruption has since been repaired: the
-file is now a 750-line single module and `python -m compileall -q
+file is now a 748-line single module and `python -m compileall -q
 lights_dev/scent_and_sound_flow.py` succeeds. The historical details below are
 kept to explain why this file was prioritized.
 
@@ -276,8 +281,8 @@ missing one `return` line:
 
 ### Pass 6: impact and recovery assessment
 
-`lights_dev/scent_and_sound_flow.py` is currently unusable for four separate
-reasons:
+At the time of the original audit, `lights_dev/scent_and_sound_flow.py` was
+unusable for four separate reasons:
 
 1. **It cannot be imported or compiled.** Any direct import, compile step, or
    whole-repo compile check stops at the line-688 `IndentationError`.
@@ -296,7 +301,7 @@ reasons:
    whether this file is an experimental fork worth salvaging or an accidental
    duplicate that should be deleted.
 
-Safe recovery options, in preferred order:
+The safe recovery options considered during repair, in preferred order, were:
 
 1. Compare the file against version-control history or the source that generated
    it, then restore the intended single module body.
@@ -306,6 +311,10 @@ Safe recovery options, in preferred order:
 3. If the production path is already covered by [pathfinding/perception_systems.py](../pathfinding/perception_systems.py)
    and [game/systems/sound.py](../game/systems/sound.py), delete `lights_dev/scent_and_sound_flow.py` and
    record that decision in a deprecation or R&D-status document.
+
+The chosen resolution was option 2: keep a coherent single experimental module
+body, update the header to match the actual filename, and leave production sound
+playback ownership with `game/systems/sound.py`.
 
 ## Verification results from this audit
 
