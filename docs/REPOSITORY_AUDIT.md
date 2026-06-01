@@ -41,14 +41,50 @@ Commands used during the audit:
    absence of the legacy tree, active workflow files, and SDL/Qt dependencies.
 5. Skill-system status has been consolidated in `docs/SKILL_SYSTEM_STATUS.md`;
    older skill-system docs now point readers to that current source of truth.
-6. The most useful missing documents identified by the audit are now partly
-   addressed: `docs/RUNBOOK.md`, `docs/CURRENT_STATUS.md`,
-   `docs/ASSET_PIPELINE.md`, `docs/TESTING.md`, and
-   `docs/CONFIG_REFERENCE.md` exist. Remaining documentation gaps are ADRs for
-   duplicate or experimental systems and a deprecation policy for scratch or
-   historical material.
+6. The most useful missing documents identified by the audit are now addressed:
+   `docs/RUNBOOK.md`, `docs/CURRENT_STATUS.md`, `docs/ASSET_PIPELINE.md`,
+   `docs/TESTING.md`, `docs/CONFIG_REFERENCE.md`, `docs/ADR/`, and
+   `docs/DEPRECATION_POLICY.md` exist. Remaining work is implementation cleanup
+   and enforcing all quality gates in CI.
+7. The deterministic-random checker is now wired into the existing policy-sync
+   workflow so CI catches direct nondeterministic randomness outside approved
+   boundaries.
 
+## Resolution update: mypy package mapping blockers
 
+Date: 2026-06-01
+
+The `lights_dev/fov.py` duplicate-module mapping blocker is now addressed:
+
+1. Added `lights_dev/__init__.py` so editable installs and tests can import the
+   experimental lighting package consistently.
+2. Enabled mypy's `explicit_package_bases` option in `pyproject.toml` so files
+   below the repository root are mapped from an explicit base instead of being
+   inferred both as top-level modules and package modules.
+3. Verified that `mypy .` now progresses past `lights_dev/fov.py` and the same
+   namespace-package ambiguity in `tools/` and `Dungeon/`. The remaining mypy
+   failures are pre-existing missing third-party stubs, import resolution
+   problems, and downstream typing issues.
+
+## Resolution update: ADRs, deprecation policy, and CI RNG gate
+
+Date: 2026-06-01
+
+The remaining documentation-policy gap from this audit is now addressed:
+
+1. Added `docs/ADR/` with accepted decisions for canonical RNG ownership,
+   production AI versus R&D AI boundaries, skill-system ownership boundaries,
+   and perception/FOV/lighting boundaries.
+2. Added `docs/DEPRECATION_POLICY.md` to classify production files, R&D
+   experiments, historical notes, generated artifacts, and removal candidates.
+3. Classified `notes/basicrl_project.txt`, `notes/to implement.txt`, and
+   `notes/code_basicrl.txt` as retained historical notes with explicit deletion
+   conditions instead of unresolved scratch files.
+4. Updated `docs/CURRENT_STATUS.md` to link the new ADRs and deprecation policy
+   from the subsystem status matrix.
+5. Wired `python scripts/check_deterministic_random.py` into
+   `.github/workflows/llm_policy_sync_check.yml`, closing the CI follow-up for
+   deterministic-randomness enforcement.
 
 ## Resolution update: runbook, testing, config, and status docs
 
@@ -72,9 +108,8 @@ The next documentation follow-up is now partially addressed:
    compileall, policy sync, deterministic-random checks, and `pytest -q` passing
    after installing `.[dev]`; Black/Ruff formatting, Ruff lint, and mypy still
    expose pre-existing codebase issues outside this documentation change.
-6. Remaining documentation-policy follow-ups are now narrower: add ADRs for
-   canonical subsystem decisions and a deprecation policy for experiments,
-   historical notes, generated metadata, and removal candidates.
+6. The ADR and deprecation-policy follow-ups were closed in the later
+   documentation-policy pass recorded above.
 
 ## Resolution update: asset pipeline and dependency-source documentation
 
@@ -100,7 +135,7 @@ The first documentation-policy follow-up is now partially addressed:
 
 Date: 2026-06-01
 
-The deterministic-random checker follow-up is now partially addressed:
+The deterministic-random checker follow-up is now addressed:
 
 1. `scripts/check_deterministic_random.py` now scans Python AST structure instead
    of raw file text, so comments, docstrings, and ordinary string literals no
@@ -115,8 +150,8 @@ The deterministic-random checker follow-up is now partially addressed:
    `numpy.*` attribute usage.
 5. The checker and focused tests now use explicit local type annotations and
    grouped constant documentation consistent with the repository style guide.
-6. `python scripts/check_deterministic_random.py` now passes locally. Wiring this
-   reliable checker into CI is still a follow-up task.
+6. `python scripts/check_deterministic_random.py` now passes locally and runs in
+   `.github/workflows/llm_policy_sync_check.yml`.
 
 ## Resolution update: first five cleanup items
 
@@ -197,9 +232,9 @@ cleanup tickets.
 | `auto/gui.egg-info/PKG-INFO`, `auto/gui.egg-info/SOURCES.txt`, `auto/gui.egg-info/dependency_links.txt`, `auto/gui.egg-info/top_level.txt` | Generated package metadata, appears to describe a local package named `gui`, and is ignored by the repo pattern `*.egg-info/`. | ✅ Addressed: removed from the working tree; the existing `*.egg-info/` ignore rule should prevent it from returning. |
 | `fonts/classic_roguelike_preview.png` | The only PNG asset not referenced by file path or filename in repository text scans. | ✅ Addressed: retained as an intentional preview/contact-sheet asset; `fonts/glyph_name_chart.md` now defines owner scope, local regeneration policy, and retention/update criteria. |
 | `.github/copilot-instructions.md` vestigial component section | Mentioned `simple_rl.py` and `dungeon_generator.py` as maintained files, but those files do not exist in the current tree. | ✅ Addressed: refreshed to point contributors at current component entrypoints and to keep stale legacy references out of new docs. |
-| `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | Open: keep only if explicitly treated as archival notes; otherwise migrate relevant items into tracked issues or curated docs and delete the scratch file. |
-| `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | Open: archive or summarize into current docs if still useful. |
-| `notes/code_basicrl.txt` | Six-line historical note file. | Open: remove or fold into an archive note. |
+| `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | ✅ Addressed: retained as a historical AI sketch under `docs/DEPRECATION_POLICY.md` with a deletion condition tied to promoting useful ideas into curated docs or issues. |
+| `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | ✅ Addressed: classified as a historical roadmap snapshot under `docs/DEPRECATION_POLICY.md`; it is not current implementation guidance. |
+| `notes/code_basicrl.txt` | Six-line historical note file. | ✅ Addressed: classified as a temporary historical index under `docs/DEPRECATION_POLICY.md`, with deletion tied to the broader notes cleanup. |
 
 ### Originally unusable until repaired
 
@@ -302,11 +337,12 @@ these are the files most likely to contain stale or orphaned code.
    coverage gaps, dependency expectations, and troubleshooting notes.
 5. ✅ `docs/CONFIG_REFERENCE.md`: added with schema-like documentation for
    `config/*.yaml`, `config/*.toml`, and `data/*.json` files.
-6. `docs/ADR/` decision records: especially for canonical RNG location,
-   production AI vs R&D AI, `skills/` vs `game/skills/`, and which perception/FOV
-   implementation is canonical.
-7. `docs/DEPRECATION_POLICY.md`: how to mark experiments, historical notes,
-   generated metadata, and removal candidates so stale files do not accumulate.
+6. ✅ `docs/ADR/`: added accepted decision records for canonical RNG location,
+   production AI vs R&D AI, `skills/` vs `game/skills/`, and perception/FOV
+   implementation boundaries.
+7. ✅ `docs/DEPRECATION_POLICY.md`: added the policy for marking experiments,
+   historical notes, generated metadata, and removal candidates so stale files do
+   not accumulate.
 
 ## Follow-up passes 4-6: deeper unusable-file review
 
@@ -404,9 +440,11 @@ playback ownership with `game/systems/sound.py`.
 - `pytest -q` failed during original audit collection because that environment
   lacked `numpy`; after installing `.[dev]` during the 2026-06-01 documentation
   follow-up, `pytest -q` passed with 8 tests.
+- `python scripts/check_deterministic_random.py` is now wired into
+  `.github/workflows/llm_policy_sync_check.yml`.
 - `black --check .`, `ruff check .`, and `mypy .` still report pre-existing
-  codebase formatting, lint, and package-mapping issues that are outside this
-  documentation-only follow-up.
+  codebase formatting, lint, missing-stub, import-resolution, and typing issues
+  that are outside this package-mapping follow-up.
 
 ## Recommended cleanup sequence
 
@@ -421,9 +459,8 @@ playback ownership with `game/systems/sound.py`.
    current tree.
 5. ✅ Added `docs/SKILL_SYSTEM_STATUS.md` as the current skill-system status page
    and linked older skill docs to it.
-6. ✅ Added the missing runbook, status matrix, testing guide, and config
-   reference. ADR/deprecation docs remain open follow-ups; the asset-pipeline
-   guide is also present.
+6. ✅ Added the missing runbook, status matrix, testing guide, config
+   reference, ADRs, deprecation policy, and asset-pipeline guide.
 7. ✅ Improved `scripts/check_deterministic_random.py` so it parses Python
    syntax, skips its own checker module, ignores comments and string literals,
-   and passes focused regression tests. CI wiring remains a separate follow-up.
+   passes focused regression tests, and runs in CI.
