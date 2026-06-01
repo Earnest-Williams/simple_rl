@@ -22,9 +22,12 @@ directory, a root-level `game_rng.py`, or a missing `dungeon_generator.py`.
 
 The canonical rule remains: game logic must import `GameRNG` from
 `utils.game_rng`. The current implementation file does not import Python's
-`random` module. The deterministic-random checker itself still needs a follow-up
-hardening pass so it does not flag its own disallowed examples or comments in
-unrelated files.
+`random` module. `scripts/check_deterministic_random.py` now parses Python AST
+structure, skips its own source file, and ignores comments, docstrings, and
+ordinary string literals. Alias expansion now preserves non-aliased root module
+names for submodule imports, avoiding false positives from unrelated
+`numpy.*` attribute calls, and checker/test locals are explicitly typed per the
+repository style guide.
 
 ## Remaining compliance risks
 
@@ -32,14 +35,15 @@ unrelated files.
   code changes land.
 - Regex-based parsing remains present in a few utility/parser paths and should be
   reviewed case-by-case before broad rewrites.
-- The deterministic-random checker should ignore comments, documentation strings,
-  and its own test literals before being treated as a merge-blocking signal.
+- The deterministic-random checker is now reliable enough for local use, but it
+  still needs CI wiring before it becomes a merge-blocking signal.
 
 ## Recommended follow-up
 
 1. Run the repository-standard checks before PRs: `black .`, `ruff format .`,
    `ruff check .`, and `mypy .`.
-2. Improve `scripts/check_deterministic_random.py` to parse Python syntax instead
-   of scanning raw text.
-3. Keep this report regenerated when tool versions, workflows, or canonical RNG
+2. Wire `scripts/check_deterministic_random.py` into CI now that it parses
+   Python syntax instead of scanning raw text.
+3. Keep this report regenerated when tool versions, workflows, checker behavior,
+   or canonical RNG
    locations change.

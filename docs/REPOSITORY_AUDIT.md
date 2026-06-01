@@ -47,6 +47,28 @@ Commands used during the audit:
    duplicate or experimental systems.
 
 
+## Resolution update: deterministic-random checker hardening
+
+Date: 2026-06-01
+
+The deterministic-random checker follow-up is now partially addressed:
+
+1. `scripts/check_deterministic_random.py` now scans Python AST structure instead
+   of raw file text, so comments, docstrings, and ordinary string literals no
+   longer create false positives.
+2. The checker skips its own source file while retaining the canonical exemption
+   for `utils/game_rng.py`.
+3. Focused regression tests in `tests/test_check_deterministic_random.py` cover
+   ignored comments/strings, aliased imports, NumPy randomness, `os.urandom`,
+   and `uuid.uuid4`.
+4. Import alias expansion now keeps non-aliased root module names stable, which
+   prevents `import numpy.random` from incorrectly rewriting unrelated
+   `numpy.*` attribute usage.
+5. The checker and focused tests now use explicit local type annotations and
+   grouped constant documentation consistent with the repository style guide.
+6. `python scripts/check_deterministic_random.py` now passes locally. Wiring this
+   reliable checker into CI is still a follow-up task.
+
 ## Resolution update: first five cleanup items
 
 Date: 2026-05-31
@@ -326,9 +348,9 @@ playback ownership with `game/systems/sound.py`.
 - `python -m compileall -q lights_dev/scent_and_sound_flow.py` now passes for
   the repaired scent/sound flow file.
 - `python -m compileall -q .` now passes after the scent/sound flow repair.
-- `python scripts/check_deterministic_random.py` failed. It reports matches in
-  itself because the checker scans its own disallowed string literals, and it
-  reports `auto/gui/worker.py` because a comment contains `import random`.
+- `python scripts/check_deterministic_random.py` now passes after the checker
+  was changed to parse Python syntax, skip itself, and ignore comments and
+  string literals.
 - `pytest -q` failed during collection because the original audit environment
   lacked `numpy`; it did not get far enough to validate runtime behavior.
 
@@ -347,5 +369,6 @@ playback ownership with `game/systems/sound.py`.
    and linked older skill docs to it.
 6. Add the missing runbook, testing guide, asset-pipeline guide, config
    reference, and ADR/deprecation docs listed above.
-7. Improve `scripts/check_deterministic_random.py` so it does not scan itself or
-   comments, then wire it into CI once it is reliable.
+7. ✅ Improved `scripts/check_deterministic_random.py` so it parses Python
+   syntax, skips its own checker module, ignores comments and string literals,
+   and passes focused regression tests. CI wiring remains a separate follow-up.
