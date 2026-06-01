@@ -78,6 +78,8 @@ under `engine/` and `game/world/`.
 
 Run these before submitting code changes:
 
+Use Black as the formatter and Ruff for linting checks.
+
 ```bash
 black .
 ruff check .
