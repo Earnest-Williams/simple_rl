@@ -37,13 +37,15 @@ or implementation documentation. Contributors should not add new planning notes
 there by default. Promote useful content into `docs/`, `README.md`, tracked
 issues, or ADRs instead.
 
-Current retained notes:
+Current retained notes are summarized in `notes/README.md`:
 
 | File | Classification | Retention reason | Deletion condition |
 | --- | --- | --- | --- |
 | `notes/basicrl_project.txt` | Historical note | Captures an older BasicRL roadmap and terminology snapshot. | Delete after useful roadmap items are represented in current issues or docs. |
 | `notes/to implement.txt` | Historical note | Preserves an early cave-species AI sketch that may inform future R&D triage. | Delete after relevant AI ideas are promoted to `docs/ADR/`, `docs/CURRENT_STATUS.md`, or issues. |
-| `notes/code_basicrl.txt` | Historical note | Tiny index pointing at the historical note files. | Delete with the other historical notes or replace with a local `notes/README.md`. |
+
+The former `notes/code_basicrl.txt` index was removed after being replaced by
+`notes/README.md`.
 
 ## Generated metadata policy
 

@@ -1,6 +1,0 @@
-├── notes
-│   ├── basicrl_project.txt
-│   ├── code_basicrl.txt
-│   └── to implement.txt
-`notes/basicrl_project.txt`:
-`notes/to implement.txt`:

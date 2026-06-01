@@ -68,6 +68,25 @@ addressed:
 4. Updated `MANIFEST.md` so the root-file inventory and summary no longer list
    the removed placeholder.
 
+## Resolution update: remaining R&D and historical-note candidates
+
+Date: 2026-06-01
+
+The strongest remaining cleanup candidates from the unreferenced-file review are
+now partially addressed:
+
+1. Replaced the obsolete six-line `notes/code_basicrl.txt` index with
+   `notes/README.md`, which records the retained historical-note files, their
+   archival purpose, and deletion conditions.
+2. Updated `docs/DEPRECATION_POLICY.md` and `docs/CURRENT_STATUS.md` so the
+   notes directory no longer depends on the removed index file for context.
+3. Clarified `ai/v9.py` ownership in `ai/README.md`: it is retained as an R&D
+   prototype and source material for future community-AI extraction, not as a
+   production gameplay import target.
+4. Updated the current-status matrix to state that production gameplay should
+   continue to use `game/ai/` and the integrated GOAP APIs until specific
+   community-AI concepts are promoted through focused, tested patches.
+
 ## Resolution update: mypy package mapping blockers
 
 Date: 2026-06-01
@@ -95,9 +114,9 @@ The remaining documentation-policy gap from this audit is now addressed:
    and perception/FOV/lighting boundaries.
 2. Added `docs/DEPRECATION_POLICY.md` to classify production files, R&D
    experiments, historical notes, generated artifacts, and removal candidates.
-3. Classified `notes/basicrl_project.txt`, `notes/to implement.txt`, and
-   `notes/code_basicrl.txt` as retained historical notes with explicit deletion
-   conditions instead of unresolved scratch files.
+3. Classified `notes/basicrl_project.txt`, `notes/to implement.txt`, and the
+   now-removed `notes/code_basicrl.txt` index as historical-note material with
+   explicit deletion conditions instead of unresolved scratch files.
 4. Updated `docs/CURRENT_STATUS.md` to link the new ADRs and deprecation policy
    from the subsystem status matrix.
 5. Wired `python scripts/check_deterministic_random.py` into
@@ -205,8 +224,8 @@ The first five items from the recommended cleanup sequence have been addressed:
   - 198 `.png` files.
   - 195 `.svg` files.
   - 183 `.py` files.
-  - 41 `.md` files.
-  - 10 `.txt` files.
+  - 42 `.md` files.
+  - 9 `.txt` files.
   - 9 `.yaml` files.
   - 8 `.sh` files.
   - 6 `.json` files.
@@ -253,7 +272,7 @@ cleanup tickets.
 | `.github/copilot-instructions.md` vestigial component section | Mentioned `simple_rl.py` and `dungeon_generator.py` as maintained files, but those files do not exist in the current tree. | ✅ Addressed: refreshed to point contributors at current component entrypoints and to keep stale legacy references out of new docs. |
 | `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | ✅ Addressed: retained as a historical AI sketch under `docs/DEPRECATION_POLICY.md` with a deletion condition tied to promoting useful ideas into curated docs or issues. |
 | `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | ✅ Addressed: classified as a historical roadmap snapshot under `docs/DEPRECATION_POLICY.md`; it is not current implementation guidance. |
-| `notes/code_basicrl.txt` | Six-line historical note file. | ✅ Addressed: classified as a temporary historical index under `docs/DEPRECATION_POLICY.md`, with deletion tied to the broader notes cleanup. |
+| `notes/code_basicrl.txt` | Six-line historical note file. | ✅ Addressed: removed after replacement by `notes/README.md`, which documents retained historical notes and their deletion conditions. |
 
 ### Originally unusable until repaired
 
@@ -293,9 +312,45 @@ these are the files most likely to contain stale or orphaned code.
   `skills/synergies.py`, `utils/logging_utils.py`, `utils/savegame.py`,
   `worldgen/chunk_cache.py`, `worldgen/game_rng.py`.
 - Strongest remaining candidates for either integration, explicit R&D labeling,
-  or removal: `ai/v9.py` and `notes/*`. `lights_dev/scent_and_sound_flow.py`
-  has been repaired, `auto/gui.egg-info/*` has been removed, and
+  or removal were `ai/v9.py` and `notes/*`. This is now partially addressed:
+  `ai/v9.py` is explicitly retained as an R&D prototype in `ai/README.md`,
+  `notes/code_basicrl.txt` has been removed, and `notes/README.md` records the
+  retained historical-note files and deletion conditions.
+  `lights_dev/scent_and_sound_flow.py` has been repaired,
+  `auto/gui.egg-info/*` has been removed, and
   `fonts/classic_roguelike_preview.png` has been documented as intentional.
+
+Suggested next triage for this AST-only list:
+
+1. Re-run or refine the import-graph review before treating every remaining file
+   as orphaned. Several listed modules are intentionally reached through package
+   registries, optional imports, or compatibility shims rather than direct leaf
+   imports: `game/ai/__init__.py` imports the species/community/strategy/ML
+   adapters and `game/systems/ai_system.py` dispatches them by `ai_type`;
+   `engine/main_loop.py` imports `engine/action_handler.py`;
+   `engine/action_handler.py` optional-imports
+   `game/systems/equipment_system.py`; and ADR 0001 defines
+   `worldgen/game_rng.py` as a compatibility re-export.
+2. Move the confirmed integrated or compatibility-owned files out of the
+   orphan/removal bucket in the next audit pass. The clearest examples are
+   `engine/action_handler.py`, `game/ai/bird.py`, `game/ai/community.py`,
+   `game/ai/goap_adapter.py`, `game/ai/insect.py`, `game/ai/mammal.py`,
+   `game/ai/ml_policy.py`, `game/ai/plant.py`, `game/ai/reptile.py`,
+   `game/ai/simple.py`, `game/ai/strategy.py`, `game/systems/equipment_system.py`,
+   and `worldgen/game_rng.py`.
+3. Keep `scripting_engine.py`, `magic/work_parser.py`, and
+   `worldgen/chunk_cache.py` in an in-development/R&D bucket rather than a
+   deletion bucket for now. Current docs still describe them as spell-system or
+   worldgen foundation work, but they need an explicit integration owner,
+   runnable harness, or focused tests before they should claim production
+   maturity.
+4. Prioritize the smallest, highest-confidence ownership decisions on files that
+   still have no obvious inbound-import evidence in repository scans:
+   `game/perception.py`, `game/planning/cache.py`, and
+   `game/planning/spatial_hash.py`. Each should either gain a documented caller
+   or test, be folded into the current canonical implementation, or be removed.
+   Review `game/constants.py` in the same follow-up; current repository scans
+   only show `lights_dev/scent_and_sound_flow.py` consuming it.
 
 ### Generated and derivative assets
 
