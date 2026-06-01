@@ -64,6 +64,8 @@ The first documentation-policy follow-up is now partially addressed:
 4. Replaced the non-portable `requirements.txt` Conda export with an archival
    note pointing to `pyproject.toml` and `environment.yml`, and updated
    contributor setup instructions to use `pip install -e ".[dev]"`.
+5. Added an explicit follow-up that `requirements.txt` should be removed once
+   downstream tooling no longer expects the placeholder file.
 
 ## Resolution update: deterministic-random checker hardening
 
@@ -253,7 +255,7 @@ these are the files most likely to contain stale or orphaned code.
 | `docs/COMPLIANCE_REPORT.md` | Claimed `utils/game_rng.py` imports `random`; current `utils/game_rng.py` does not import Python `random`. | ✅ Addressed: stale caveat removed and replaced with current deterministic-random check status. |
 | `docs/COMPLIANCE_REPORT.md` | Cited a missing `dungeon_generator.py` for PEP 604 violations. | ✅ Addressed: stale missing-file citation removed. |
 | `docs/SKILL_SYSTEM_EVALUATION.md` vs `docs/SKILL_SYSTEM_INTEGRATION.md` / `docs/SKILL_ADVANCED_FEATURES.md` | The evaluation doc said the skill system was not fully integrated, while later docs claimed it was fully integrated or production-ready. | ✅ Addressed: added `docs/SKILL_SYSTEM_STATUS.md` and linked older docs to it as the current source of truth. |
-| `requirements.txt` | Looked like an environment export with local conda build paths rather than a portable dependency specification. | ✅ Addressed: replaced with an archival note that points contributors to `pyproject.toml` and `environment.yml` as canonical dependency sources. |
+| `requirements.txt` | Looked like an environment export with local conda build paths rather than a portable dependency specification. | ✅ Addressed: replaced with an archival note that points contributors to `pyproject.toml` and `environment.yml` as canonical dependency sources. Follow-up: remove `requirements.txt` entirely once no repository or external tooling depends on the placeholder. |
 
 ### Documentation that does not exist but would be helpful
 
