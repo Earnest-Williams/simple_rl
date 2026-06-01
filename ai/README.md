@@ -24,9 +24,18 @@ Future plans include potentially allowing the player character to be managed by 
     * **Identity & Dissonance (`SelfConcept`):** Agent identity influences habit utility. Executing actions misaligned with identity can cause dissonance, incurring penalties (e.g., energy cost), mitigated by the Will trait.
 * **Experience Memory (`ExperienceMemory`):** Records outcomes of actions linked to preceding states, enabling prediction and potentially faster learning (influenced by Ingenuity).
 
-## Key Files
+## Key files and ownership
 
-* **`v9.py`**: Contains the current implementation of the `AgentF` class, `Habit` system, `TraitProfile`, and associated subsystems (`FatigueSystem`, `IllnessSystem`, `ExperienceMemory`, `SelfConcept`). (Note: `v8.py` is considered obsolete).
+* **`v9.py`**: Retained R&D prototype for the `AgentF` class, `Habit` system,
+  `TraitProfile`, and associated subsystems (`FatigueSystem`, `IllnessSystem`,
+  `ExperienceMemory`, `SelfConcept`). It is not imported by the production game
+  loop and should be treated as source material for future focused integrations.
+* **Production AI boundary**: Production gameplay AI lives under `game/ai/` and
+  the integrated GOAP path. New production behavior should graduate from this
+  prototype through reviewed, tested patches rather than importing `ai/v9.py`
+  directly.
+* **Removal condition**: Delete or split `v9.py` after the useful community-AI
+  concepts are promoted into production modules, ADRs, or tracked issues.
 
 ## Dependencies
 
@@ -38,13 +47,18 @@ Future plans include potentially allowing the player character to be managed by 
 
 ## Status & Integration
 
-This AI system is under active development and represents a sophisticated approach to simulating community-based NPC behaviors distinct from the combat-oriented GOAP AI integrated into the main game.
+This AI system is retained as an R&D prototype for community-based NPC
+behaviors distinct from the combat-oriented GOAP AI integrated into the main
+game.
 
 **Current Status:**
-* ⚠️ **Under Active Development**: Core systems implemented but undergoing refinement
-* ❌ **Not Yet Integrated**: Not connected to the main game engine
-* 🔄 **Planned Integration**: Will drive NPCs within community environments
-* 🔄 **Future Features**: NPCs transitioning between adventuring and community life may switch between this AI and the combat GOAP AI
+* ⚠️ **R&D prototype**: Core concepts exist but need focused extraction and tests.
+* ❌ **Not imported by production gameplay**: The main game should continue to use
+  `game/ai/` and integrated GOAP APIs until specific concepts are promoted.
+* 🔄 **Planned integration path**: Community NPC behavior should be extracted into
+  typed, tested modules under `game/ai/` or another documented production owner.
+* 🔄 **Future features**: NPCs transitioning between adventuring and community life
+  may switch between this AI and the combat GOAP AI after that boundary is tested.
 
 **Integration Roadmap:**
 1. Normalize trait systems between this AI and the player/adventurer trait system

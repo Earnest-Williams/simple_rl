@@ -29,7 +29,7 @@ For each file, the following information is provided:
 | File | Purpose | Imports | Constants/Magic Numbers |
 |------|---------|---------|------------------------|
 | `ai/__init__.py` | Empty AI package initialization file | None | None |
-| `ai/v9.py` | Agent-based farming simulation core with trait-driven agents, habit system, fatigue/illness/memory management, skill progression, and adaptive planning | `collections` (defaultdict, deque)<br>`collections.abc.Callable`<br>`typing.Any`<br>`numpy as np`<br>`utils.game_rng.GameRNG` | `PLOT_STATUS_MAP` - {"growing": 1, "ready": 2, "empty": 0}<br>`CROPS` - Dict with peas, mushrooms specs (energy: 3.0, nutrients)<br>`WATER_CONTAINERS` - {"pot": {"size": 2.0}}<br>`16.0` - Initial energy<br>`100.0` - Max health<br>`24.0` - Day length<br>`0.5` - Trait variance<br>`0.2` - Habit prune threshold<br>`250` - Behavior memory maxlen<br>`2.0` - Endurance base<br>`3.0` - Critical nutrients<br>Many trait multipliers and thresholds |
+| `ai/v9.py` | R&D prototype for an agent-based farming/community simulation core with trait-driven agents, habit system, fatigue/illness/memory management, skill progression, and adaptive planning | `collections` (defaultdict, deque)<br>`collections.abc.Callable`<br>`typing.Any`<br>`numpy as np`<br>`utils.game_rng.GameRNG` | `PLOT_STATUS_MAP` - {"growing": 1, "ready": 2, "empty": 0}<br>`CROPS` - Dict with peas, mushrooms specs (energy: 3.0, nutrients)<br>`WATER_CONTAINERS` - {"pot": {"size": 2.0}}<br>`16.0` - Initial energy<br>`100.0` - Max health<br>`24.0` - Day length<br>`0.5` - Trait variance<br>`0.2` - Habit prune threshold<br>`250` - Behavior memory maxlen<br>`2.0` - Endurance base<br>`3.0` - Critical nutrients<br>Many trait multipliers and thresholds |
 
 ---
 
@@ -392,7 +392,7 @@ For each file, the following information is provided:
 | `skills/INTEGRATION_GUIDE.md` | Skill system integration guide | Step-by-step integration instructions |
 | `skills/skill_system_design.md` | Skill system design document | Architecture and design decisions |
 | `notes/basicrl_project.txt` | Basic RL project notes | Development notes and ideas |
-| `notes/code_basicrl.txt` | Code notes for basic RL | Implementation details |
+| `notes/README.md` | Historical notes directory policy | Retained note list, archival purpose, and deletion conditions |
 | `notes/to implement.txt` | Future implementation todos | Feature wishlist and TODOs |
 
 ---
