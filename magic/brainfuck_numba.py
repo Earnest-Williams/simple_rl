@@ -4,13 +4,12 @@ from __future__ import annotations
 import resource
 import time
 from multiprocessing import Pipe, get_context
-
-from common.tuning import BF_MAX_STEPS, BF_TAPE_SIZE
 from multiprocessing.connection import Connection
 from typing import Literal
 
 import numpy as np
 
+from common.tuning import BF_MAX_STEPS, BF_TAPE_SIZE
 from magic.bf_backend import BFResult
 
 # Try to import numba explicitly; if missing we'll fall back.

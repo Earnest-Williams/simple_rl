@@ -615,8 +615,10 @@ class AgentAI:
                 Action(
                     "EquipWeapon",
                     cost_equip,
-                    lambda s: s.get("has_weapon_in_inv", False)
-                    and not s.get("weapon_equipped", True),
+                    lambda s: (
+                        s.get("has_weapon_in_inv", False)
+                        and not s.get("weapon_equipped", True)
+                    ),
                     effect_equip_weapon,
                     execute_equip_weapon,
                 ),

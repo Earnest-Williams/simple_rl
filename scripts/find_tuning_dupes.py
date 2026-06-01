@@ -13,22 +13,26 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 # ---------------------------------------------------------------------------
 # Known tuned values → name mapping
 # ---------------------------------------------------------------------------
-TUNED_VALUES: Final[Mapping[str, list[str]]] = MappingProxyType({
-    # value pattern  → human-readable constant names
-    "30_000": ["BF_TAPE_SIZE"],
-    "30000": ["BF_TAPE_SIZE"],
-    "10_000_000": ["BF_MAX_STEPS"],
-    "10000000": ["BF_MAX_STEPS"],
-    "27": ["MAX_SKILL_LEVEL"],
-    "128": ["DEFAULT_GRID_SIZE"],
-    "5": ["MEMORY_LEVEL_COUNT"],
-})
+TUNED_VALUES: Final[Mapping[str, list[str]]] = MappingProxyType(
+    {
+        # value pattern  → human-readable constant names
+        "30_000": ["BF_TAPE_SIZE"],
+        "30000": ["BF_TAPE_SIZE"],
+        "10_000_000": ["BF_MAX_STEPS"],
+        "10000000": ["BF_MAX_STEPS"],
+        "27": ["MAX_SKILL_LEVEL"],
+        "128": ["DEFAULT_GRID_SIZE"],
+        "5": ["MEMORY_LEVEL_COUNT"],
+    }
+)
 
 # Directories / files to skip
 EXCLUDE_PARTS: Final[frozenset[str]] = frozenset(

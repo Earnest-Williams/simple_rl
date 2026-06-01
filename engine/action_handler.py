@@ -11,6 +11,7 @@ imported a stub object is used and the related actions become no-ops. Player
 turns may still be consumed, but equipment changes and melee attacks will have
 no effect. Import failures are logged once during module initialisation.
 """
+
 import importlib
 from typing import Any
 

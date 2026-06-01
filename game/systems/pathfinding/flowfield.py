@@ -309,7 +309,6 @@ class FlowFieldPathfinder:
 
 # --- Example Usage (Updated) ---
 if __name__ == "__main__":
-
     # 1. Create Map Data (Includes height map now)
     map_h, map_w = 50, 70
     passable = np.ones((map_h, map_w), dtype=bool)

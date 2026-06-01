@@ -3,6 +3,7 @@
 Handles processing of raw keyboard inputs, mapping them to game actions
 or UI commands based on keybindings and game state.
 """
+
 from __future__ import annotations
 
 # Standard Imports
@@ -196,7 +197,9 @@ class InputHandler:
                 key_handled = True
             else:
                 quit_action = self._get_action_for_key(
-                    key, mods, ["common"]  # Only check common for quit on Esc
+                    key,
+                    mods,
+                    ["common"],  # Only check common for quit on Esc
                 )
                 if quit_action and quit_action.get("ui_action") == "quit_game_alt":
                     log.info("Quit key (Escape) pressed in PLAYER_TURN.")

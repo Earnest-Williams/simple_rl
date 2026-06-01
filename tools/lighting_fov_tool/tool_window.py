@@ -36,14 +36,13 @@ from tools.lighting_fov_tool.exporter import (
 )
 from tools.lighting_fov_tool.scene import (
     ElementType,
-    SceneLayout,
     create_fixed_scene,
     get_element_name,
 )
 from tools.lighting_fov_tool.tile_config import TileConfigState
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    pass
 
 log = structlog.get_logger(__name__)
 
@@ -53,7 +52,9 @@ MIN_TILE_SIZE: Final[int] = 8
 MAX_TILE_SIZE: Final[int] = 32
 
 # Lighting constants
-LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = 0.0  # Light factor for tiles outside player's field of view
+LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = (
+    0.0  # Light factor for tiles outside player's field of view
+)
 
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
@@ -331,7 +332,7 @@ class LightingFovToolWindow(QMainWindow):
         # Initial render
         QTimer.singleShot(100, self._render_scene)
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         """Handle keyboard input for camera movement."""
         key = event.key()
 
@@ -499,7 +500,8 @@ class LightingFovToolWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         # Dark style
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             QMainWindow, QWidget {
                 background-color: #1a1a1a;
                 color: #ffffff;
@@ -543,7 +545,8 @@ class LightingFovToolWindow(QMainWindow):
             QScrollArea {
                 border: none;
             }
-            """)
+            """
+        )
 
     def _on_tile_size_changed(self, size: int) -> None:
         """Handle tile size change."""
@@ -629,8 +632,12 @@ class LightingFovToolWindow(QMainWindow):
                     light_rgb = np.zeros(3, dtype=np.float32)
 
                 # Apply lighting: (base_color * intensity) + colored_light
-                fg_lit = (fg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
-                bg_lit = (bg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
+                fg_lit = (
+                    (fg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
+                )
+                bg_lit = (
+                    (bg_color * intensity + light_rgb).clip(0, 255).astype(np.uint8)
+                )
 
                 # Get tile image
                 tile_img = self._tiles.get(tile_id)
@@ -680,10 +687,8 @@ class LightingFovToolWindow(QMainWindow):
                 dx = x - ox
                 dy = y - oy
                 dist_sq = dx * dx + dy * dy
-                if dist_sq <= radius * radius:
-                    # Simple line of sight check
-                    if self._has_los(ox, oy, x, y):
-                        visible[y, x] = True
+                if dist_sq <= radius * radius and self._has_los(ox, oy, x, y):
+                    visible[y, x] = True
 
         return visible
 
@@ -714,9 +719,7 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(
-        self, visible: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _compute_lighting(self, visible: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Compute base intensity and RGB colored lighting for each tile.
 
         Light sources illuminate all tiles they can reach, independent of player FOV.
@@ -731,14 +734,10 @@ class LightingFovToolWindow(QMainWindow):
         config = self._config_state
 
         # Base ambient lighting intensity
-        base_intensity = np.full(
-            (scene.height, scene.width), 0.15, dtype=np.float32
-        )
+        base_intensity = np.full((scene.height, scene.width), 0.15, dtype=np.float32)
 
         # RGB colored light contributions (additive)
-        colored_light = np.zeros(
-            (scene.height, scene.width, 3), dtype=np.float32
-        )
+        colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
         # Create opaque grid for FOV computation (walls and pillars block light)
         opaque_grid = np.zeros((scene.height, scene.width), dtype=bool)

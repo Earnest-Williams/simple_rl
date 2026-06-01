@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import math
+from typing import Final
 
 import numba
 import numpy as np
-from typing import Final
 
 from lights_dev import constants
 from lights_dev.dungeon_data import Dungeon
@@ -203,7 +203,9 @@ def _compute_octant_for_color(
                 )
                 if is_visible_in_los:
                     distance_sq = distance * distance
-                    intensity_at_tile = max(0.0, 1.0 - (distance_sq / effective_range_sq))
+                    intensity_at_tile = max(
+                        0.0, 1.0 - (distance_sq / effective_range_sq)
+                    )
                     if intensity_at_tile > 0.0:
                         weighted_r = f_base_r * intensity_at_tile
                         weighted_g = f_base_g * intensity_at_tile

@@ -100,6 +100,19 @@ class _GameStateWorldAdapter:
                     best_id = row.get("item_id")
             return best_id, best_dist
 
+        spatial_index = getattr(self.game_state, "spatial_index", None)
+        if spatial_index is not None and hasattr(spatial_index, "query_radius"):
+            nearby = spatial_index.query_radius((ax, ay), radius=50, kind=kind)
+            for entity_id, x, y in nearby:
+                if entity_id == agent.entity_id:
+                    continue
+                dist = abs(x - ax) + abs(y - ay)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_id = entity_id
+            if best_id is not None:
+                return best_id, best_dist
+
         entity_df = self.entity_df
         if entity_df.is_empty():
             return None, float("inf")

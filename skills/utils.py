@@ -290,7 +290,7 @@ def benchmark_serialization(n_entities: int = 10000) -> None:
         _ = serialize_skills(test_df)
 
     serialize_time: float = timeit.timeit(run_serialize, number=10) / 10
-    print(f"Serialization: {serialize_time*1000:.1f}ms for {n_entities} entities")
+    print(f"Serialization: {serialize_time * 1000:.1f}ms for {n_entities} entities")
 
     # Benchmark deserialization
     packed = serialize_skills(test_df)
@@ -299,7 +299,7 @@ def benchmark_serialization(n_entities: int = 10000) -> None:
         _ = deserialize_skills(packed)
 
     deserialize_time: float = timeit.timeit(run_deserialize, number=10) / 10
-    print(f"Deserialization: {deserialize_time*1000:.1f}ms for {n_entities} entities")
+    print(f"Deserialization: {deserialize_time * 1000:.1f}ms for {n_entities} entities")
 
     # Size
     size_mb: float = len(packed) / (1024 * 1024)

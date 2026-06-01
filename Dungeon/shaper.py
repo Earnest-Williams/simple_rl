@@ -375,9 +375,10 @@ def _rasterize_noisy_ellipse_cavern(  # Added rng parameter
             st, ct = np.sin(t), np.cos(t)
             base_c_raw = c_center + rx * ct
             base_r_raw = r_center + ry * st
-            base_r_int, base_c_int = np.round(base_r_raw).astype(int), np.round(
-                base_c_raw
-            ).astype(int)
+            base_r_int, base_c_int = (
+                np.round(base_r_raw).astype(int),
+                np.round(base_c_raw).astype(int),
+            )
             # Filter points within bounds
             valid = (
                 (base_r_int >= 0)
@@ -787,7 +788,7 @@ def _rasterize_segment(  # Added rng parameter
     except Exception as e:
         print(
             f"Error rasterizing segment {segment_index} "
-            f"({parent_data.get('id','?')}- >{child_node_data.get('id','?')})"
+            f"({parent_data.get('id', '?')}- >{child_node_data.get('id', '?')})"
             f": {e}"
         )
         # traceback.print_exc() # Uncomment for full traceback during debugging
@@ -947,7 +948,7 @@ def run_cellular_automata(  # Unchanged logic
             try:
                 grid = ca_step_func(grid)
             except Exception as e:
-                print(f"Error CA step {i+1}: {e}")
+                print(f"Error CA step {i + 1}: {e}")
                 traceback.print_exc()  # Show full traceback
                 return grid  # Return current state on error
     print("CA finished.")

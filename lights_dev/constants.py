@@ -4,7 +4,6 @@ Global constants for the FOV/Light/Memory Simulation Game.
 Includes base colors for light sources.
 """
 
-
 # --- Core Gameplay ---
 MAX_LOS_DISTANCE = 500
 
@@ -32,7 +31,7 @@ FLOOR_COLOR_RGB: tuple[int, int, int] = (90, 90, 110)  # Cool slate
 MEMORY_DURATION = 60.0
 MEMORY_SIGMOID_MIDPOINT = MEMORY_DURATION / 2.0
 MEMORY_SIGMOID_STEEPNESS = 6.0 / MEMORY_DURATION
-from common.tuning import MEMORY_LEVEL_COUNT  # noqa: E402
+
 MEMORY_WALL_LEVELS = ["▓", "▒", "░", "⋅", " "]
 MEMORY_PILLAR_LEVELS = ["▤", "▥", "▫", "◦", " "]
 MEMORY_FLOOR_LEVELS = [".", "·", "⋅", " ", " "]

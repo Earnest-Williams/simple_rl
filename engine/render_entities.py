@@ -379,9 +379,7 @@ def _validate_render_arrays(xs, ys, glyphs, colors):
     if glyphs.dtype != np.int32:
         return False
 
-    return (
-        colors.dtype == np.uint8 and colors.ndim == 2 and colors.shape[1] == 4
-    )
+    return colors.dtype == np.uint8 and colors.ndim == 2 and colors.shape[1] == 4
 
 
 def render_ground_items_py(

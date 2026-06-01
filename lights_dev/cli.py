@@ -72,7 +72,6 @@ def run_simulation() -> None:
             current_frame_time = time.time()
             dt = min(current_frame_time - last_frame_time, 0.1)
             last_frame_time = current_frame_time
-            player_moved = False
             quit_flag = False
 
             if is_profiling:
@@ -80,11 +79,11 @@ def run_simulation() -> None:
                     if profiler_path and profiler_path_index < len(profiler_path):
                         next_pos = profiler_path[profiler_path_index]
                         if runner.game_state.player:
-                            runner.game_state.player.x, runner.game_state.player.y = (
-                                next_pos
-                            )
+                            (
+                                runner.game_state.player.x,
+                                runner.game_state.player.y,
+                            ) = next_pos
                         profiler_path_index += 1
-                        player_moved = True
                         last_profiler_move_time = current_frame_time
                     elif runner.game_state.player:
                         start_pos = runner.game_state.player.position
@@ -100,11 +99,11 @@ def run_simulation() -> None:
                             if profiler_path and len(profiler_path) > 1:
                                 profiler_path_index = 1
                                 next_pos = profiler_path[profiler_path_index]
-                                runner.game_state.player.x, runner.game_state.player.y = (
-                                    next_pos
-                                )
+                                (
+                                    runner.game_state.player.x,
+                                    runner.game_state.player.y,
+                                ) = next_pos
                                 profiler_path_index += 1
-                                player_moved = True
                                 last_profiler_move_time = current_frame_time
                                 profiler_target_x = (
                                     5
@@ -166,7 +165,6 @@ def run_simulation() -> None:
                         runner.precompile()
                         runner.game_state.update_visibility()
                         print("Generated varied layout and placed lights.")
-                        player_moved = True
                     except (ImportError, AttributeError, ValueError, OSError) as exc:
                         logging.exception("Varied layout generation failed.")
                         print(f"Failed to generate layout: {exc}")
@@ -194,9 +192,6 @@ def run_simulation() -> None:
                     ):
                         runner.game_state.player.x = target_x
                         runner.game_state.player.y = target_y
-                        player_moved = True
-                elif not quit_flag:
-                    player_moved = True
             if quit_flag:
                 break
 

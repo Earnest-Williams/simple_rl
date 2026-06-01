@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     # No longer need ItemRegistry specific import here, accessed via GameState
     # from ..game.items.registry import ItemRegistry
     # Add EntityRegistry import for type hinting if needed, though accessed via gs
-    from ..game.entities.registry import EntityRegistry
+    from ..entities.registry import EntityRegistry
     from ..game_state import GameState
 
 log = structlog.get_logger()
@@ -163,7 +163,7 @@ def _check_and_deduct_costs(effect_definition: dict, context: dict[str, Any]) ->
             current_value = entity_registry.get_entity_component(source_id, cost_type)
             if current_value is None or current_value < amount:
                 log.error(
-                    f"{cost_type.capitalize( )} deduction failed: value changed between check and deduct",
+                    f"{cost_type.capitalize()} deduction failed: value changed between check and deduct",
                     source=source_id,
                 )
                 deduction_failed = True

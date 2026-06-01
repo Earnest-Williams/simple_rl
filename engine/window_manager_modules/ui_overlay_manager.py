@@ -20,6 +20,7 @@ type = "debug"        # Built-in overlay types: debug, height_key, inventory, im
 Mods can add or replace overlay definitions in this file and supply their own
 tile graphics by referencing image paths.
 """
+
 from __future__ import annotations
 
 # Standard Imports

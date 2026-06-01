@@ -107,7 +107,7 @@ def generate_variants(args) -> None:
 
         # Print if requested
         if args.print:
-            print(f"{i+1:4d}. {text}")
+            print(f"{i + 1:4d}. {text}")
 
     # Compute metrics if requested
     if args.metrics:
@@ -167,7 +167,7 @@ def replay_from_file(args) -> None:
         # Replay specific index
         if args.index >= len(records):
             print(
-                f"Error: Index {args.index} out of range (0-{len(records)-1})",
+                f"Error: Index {args.index} out of range (0-{len(records) - 1})",
                 file=sys.stderr,
             )
             sys.exit(1)

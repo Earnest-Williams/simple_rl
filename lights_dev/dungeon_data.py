@@ -2,6 +2,7 @@
 """
 Defines the Dungeon jitclass data structure.
 """
+
 import math  # Required for get_distance method
 
 import numba
