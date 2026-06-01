@@ -1,6 +1,6 @@
 """Configuration exporter for the lighting/FOV tool."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from tools.lighting_fov_tool.scene import ElementType, get_element_name
@@ -92,7 +92,7 @@ def export_configuration(config_state: TileConfigState, output_path: Path) -> No
     lines: list[str] = []
 
     # Header
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     lines.append("# Lighting/FOV Tool Configuration Export")
     lines.append(f"# Generated: {timestamp}")
     lines.append("")

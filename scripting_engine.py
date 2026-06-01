@@ -487,7 +487,6 @@ class MacroManager:
                         "is_error": True,
                     }
             except Exception as exc:
-
                 # print(
                 #     f"Error processing Brainfuck line: {e}\n{traceback.format_exc()}"
                 # )

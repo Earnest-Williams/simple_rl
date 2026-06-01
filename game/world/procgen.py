@@ -420,11 +420,13 @@ def _connect_rooms(node: BSPNode, game_map: GameMap, rng: GameRNG) -> None:
 
     if left_room and right_room:
         # Pick random points within each room to connect
-        lx, ly = rng.get_int(left_room.x1, left_room.x2), rng.get_int(
-            left_room.y1, left_room.y2
+        lx, ly = (
+            rng.get_int(left_room.x1, left_room.x2),
+            rng.get_int(left_room.y1, left_room.y2),
         )
-        rx, ry = rng.get_int(right_room.x1, right_room.x2), rng.get_int(
-            right_room.y1, right_room.y2
+        rx, ry = (
+            rng.get_int(right_room.x1, right_room.x2),
+            rng.get_int(right_room.y1, right_room.y2),
         )
 
         # Get Base Floor Heights

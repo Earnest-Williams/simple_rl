@@ -4,6 +4,7 @@
 Drops carried and equipped items, removes the entity from registries and
 other systems, and logs the death if visible to the player.
 """
+
 from __future__ import annotations
 
 import structlog

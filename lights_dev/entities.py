@@ -6,7 +6,6 @@ from typing import Final
 from lights_dev import constants
 from utils.game_rng import GameRNG
 
-
 DEFAULT_ENTITY_HEIGHT: Final[float] = 1.0
 DEFAULT_LIGHT_RADIUS: Final[int] = 0
 DEFAULT_LIGHT_LEVEL: Final[int] = 0
@@ -34,11 +33,11 @@ class Entity:
         self.light_radius = max(0, light_radius)
         self.light_level = light_level
         self.size_category = size_category
-        self.base_color_rgb: Tuple[int, int, int] = base_color_rgb
+        self.base_color_rgb: tuple[int, int, int] = base_color_rgb
         self.height: float = float(height)
 
     @property
-    def position(self) -> Tuple[int, int]:
+    def position(self) -> tuple[int, int]:
         return (self.x, self.y)
 
 
@@ -64,7 +63,7 @@ class Player(Entity):
         self.path: list[tuple[int, int]] = []
         self.path_index = 0
 
-    def set_path(self, path: List[Tuple[int, int]]) -> None:
+    def set_path(self, path: list[tuple[int, int]]) -> None:
         self.path = path
         self.path_index = 0
 
@@ -86,7 +85,7 @@ class LightSource(Entity):
         light_radius: int = DEFAULT_LIGHT_SOURCE_RADIUS,
         light_level: int = DEFAULT_LIGHT_SOURCE_LEVEL,
         flicker: bool = False,
-        base_color_rgb: Tuple[int, int, int] = constants.ORB_COLOR_RGB,
+        base_color_rgb: tuple[int, int, int] = constants.ORB_COLOR_RGB,
         height: float = DEFAULT_ENTITY_HEIGHT,
         direction: float | None = None,
         cone_angle: float = OMNIDIRECTIONAL_CONE_ANGLE,

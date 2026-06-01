@@ -12,6 +12,7 @@ from game.ai.perception import gather_perception
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
+from game.planning.spatial_hash import SpatialHashTable
 from game.systems.ai_system import dispatch_ai
 
 # Assuming these imports are correct relative to game_state.py
@@ -111,7 +112,7 @@ class GameState:
         tile_modifiers_cfg = mf_config.get("tile_modifiers", {})
         self.game_map.apply_memory_modifier_overrides(tile_modifiers_cfg)
         log.debug("ItemRegistry initialized", templates=len(item_templates))
-        log.debug("Effect definitions stored", effects=len(effect_definitions))
+        log.debug("Effect definitions stored", effects=len(self.effect_definitions))
 
         player_start_x, player_start_y = player_start_pos
         # Ensure all necessary components are passed during creation if defaults changed
@@ -143,6 +144,7 @@ class GameState:
         # Perception event queues processed by gather_perception
         self.noise_events: list[tuple[int, int, float]] = []
         self.scent_events: list[tuple[int, int, float]] = []
+        self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)
         self.light_sources: list[LightSource] = self.game_map.light_sources
         self.light_sources.append(
@@ -183,7 +185,7 @@ class GameState:
             map_size=f"{self._map_width}x{self._map_height}",
             player_id=self.player_id,
             item_templates_loaded=len(item_templates),
-            effect_definitions_loaded=len(effect_definitions),
+            effect_definitions_loaded=len(self.effect_definitions),
             rng_seed=self.rng_instance.initial_seed,
         )
 
@@ -419,10 +421,16 @@ class GameState:
 
         active_rows: list[dict[str, object]] = []
         ai_entities: list[dict[str, object]] = []
+        self.spatial_index.clear()
         for row in self.entity_registry.entities_df.iter_rows(named=True):
             if not row.get("is_active", False):
                 continue
             entity_id = int(row["entity_id"])
+            x = row.get("x")
+            y = row.get("y")
+            if isinstance(x, int) and isinstance(y, int):
+                kind_value = row.get("species") or row.get("ai_type") or "entity"
+                self.spatial_index.insert(entity_id, x, y, str(kind_value))
             self._process_status_effects_for_entity(entity_id)
             self._process_resources_for_entity(entity_id)
             active_rows.append(row)

@@ -164,7 +164,9 @@ class Renderer:
                         )
                         final_color_code = _format_true_color(final_rgb)
                     else:
-                        final_color_code = _format_true_color(constants.AMBIENT_COLOR_RGB)
+                        final_color_code = _format_true_color(
+                            constants.AMBIENT_COLOR_RGB
+                        )
                 elif memory_intensity > 0.0:
                     if is_player_tile:
                         base_rgb = constants.PLAYER_COLOR_RGB
@@ -175,12 +177,16 @@ class Renderer:
                     final_rgb = _compute_faded_memory_rgb(base_rgb, memory_intensity)
                     final_color_code = _format_true_color(final_rgb)
                     if is_player_tile:
-                        char = get_memory_character(constants.FLOOR_ID, memory_intensity)
+                        char = get_memory_character(
+                            constants.FLOOR_ID, memory_intensity
+                        )
                     elif light_source_at_tile is not None:
                         char = (
                             constants.MEMORY_LIGHT
                             if memory_intensity > 0.3
-                            else get_memory_character(constants.FLOOR_ID, memory_intensity)
+                            else get_memory_character(
+                                constants.FLOOR_ID, memory_intensity
+                            )
                         )
                     else:
                         char = get_memory_character(tile_id, memory_intensity)

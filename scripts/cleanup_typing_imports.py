@@ -6,6 +6,7 @@ and replace 'typing.X' references with builtin forms where possible.
 This script runs after pyupgrade and is conservative: it only edits
 lines that begin with 'from typing import'.
 """
+
 import re
 from pathlib import Path
 from typing import Final

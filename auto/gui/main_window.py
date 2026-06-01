@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QStatusBar,
 )
-
 from utils.game_rng import GameRNG
 
 from ..simulation import GRID_SIZE, AgentAI, World  # Import simulation components

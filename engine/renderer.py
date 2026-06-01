@@ -3,6 +3,7 @@
 Handles rendering the game state to a PIL Image, using
 pre-calculated data and optimized techniques.
 """
+
 # Standard Library Imports
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING

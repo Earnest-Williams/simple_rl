@@ -60,16 +60,15 @@ Author: rewritten per review and requested changes, with fov.py compatibility fi
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 import numba
 import numpy as np
 from numpy.typing import NDArray
 
 from lights_dev import constants
-from lights_dev._numba_fov import Slope, _compute_octant_for_color
 from lights_dev.dungeon_data import Dungeon
 from lights_dev.entities import Entity
 
@@ -111,7 +110,7 @@ _CORE_NO_ATTEN_RADIUS_SQ: float = CORE_NO_ATTEN_RADIUS * CORE_NO_ATTEN_RADIUS
 class Light:
     """
     Light source with optional directionality, channels, and height.
-    
+
     INCIDENCE MODEL:
     ===============
     Lighting attenuation includes an incidence factor based on light height:
@@ -119,16 +118,16 @@ class Light:
       where:
         dz = light.height (tile height, z-up)
         len3 = sqrt(dx² + dy² + dz²) (3D distance)
-    
+
     Current behavior for height <= 0:
       - Lights are SKIPPED entirely in update_all_lights
       - Rationale: incidence = 0/len3 = 0 would zero all lighting anyway
-    
+
     Design intent:
       - Height > 0: Full 3D lighting with incidence factor
       - Height = 0: Skipped (no 2D fallback mode implemented)
       - Height < 0: Skipped (negative heights unsupported)
-    
+
     To enable pure 2D lighting (height=0 with incidence=1.0):
       1. Remove the height <= 0 short-circuit in update_all_lights
       2. Modify incidence calculation in _accumulate_light_premult_rgba:
@@ -137,6 +136,7 @@ class Light:
          else:
              # existing 3D calculation
     """
+
     x: int
     y: int
     radius: int
@@ -193,8 +193,12 @@ class LightContext:
         # Shared FOV temporaries (reused for per-light recomputes).
         self._visible_tmp: U8Grid = np.zeros((self.height, self.width), dtype=np.uint8)
         self._dist_tmp: I32Grid = -np.ones((self.height, self.width), dtype=np.int32)
-        self._side_bits_tmp: U8Grid = np.zeros((self.height, self.width), dtype=np.uint8)
-        self._visibility_tmp: F32Grid = np.zeros((self.height, self.width), dtype=np.float32)
+        self._side_bits_tmp: U8Grid = np.zeros(
+            (self.height, self.width), dtype=np.uint8
+        )
+        self._visibility_tmp: F32Grid = np.zeros(
+            (self.height, self.width), dtype=np.float32
+        )
 
         # Incremental caches (per-light contribution buffer and parameter key).
         self._light_rgba_cache: dict[int, NDArray[np.float32]] = {}
@@ -442,7 +446,7 @@ class LightContext:
         # but we must exclude them from *lighting*. Zero out visible, side_bits,
         # and visibility for all cells where (light.channels & cell_mask) == 0.
         if cell_mask is not None:
-            masked = ((int(light.channels) & cell_mask) == 0)
+            masked = (int(light.channels) & cell_mask) == 0
             if np.any(masked):
                 visible[masked] = 0
                 side_bits[masked] = 0
@@ -607,7 +611,7 @@ class LightContext:
                 )
 
             # Copy fallback: emulate masked transparency for blocking by copying arrays.
-            masked = ((int(light_channels) & cell_mask) == 0)
+            masked = (int(light_channels) & cell_mask) == 0
             if np.any(masked):
                 opq2 = opq.copy()
                 trn2 = trn.copy()
@@ -736,7 +740,7 @@ class LightContext:
         if np.any(oversaturated):
             scale = 255.0 / light_a[oversaturated]
             light_rgb[oversaturated] *= scale[:, None]
-        
+
         # Clamp alpha to 0..255.
         np.clip(light_a, 0.0, 255.0, out=light_a)
 
@@ -1107,17 +1111,17 @@ def _bresenham_product_transparency(
 ) -> float:
     """
     Compute multiplicative transparency product along Bresenham line from (sx, sy) to (tx, ty).
-    
+
     Excludes the target tile (tx, ty) from the product. Returns 0.0 if any cell
     along the path is fully opaque.
-    
+
     Args:
         transparency: 2D array of transparency values (0.0 = opaque, 1.0 = transparent).
         sx: Source x coordinate.
         sy: Source y coordinate.
         tx: Target x coordinate.
         ty: Target y coordinate.
-    
+
     Returns:
         Product of transparency values along the path, or 0.0 if blocked.
     """

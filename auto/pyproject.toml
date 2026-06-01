@@ -10,3 +10,13 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["I", "E", "F", "B", "UP"]
 fixable = ["ALL"]
+
+[tool.ruff.format]
+exclude = [
+    "goap_engine.py",
+    "gui/gui_widgets.py",
+    "gui/main_window.py",
+    "gui/worker.py",
+    "main.py",
+    "simulation.py",
+]

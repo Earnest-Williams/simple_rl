@@ -3,6 +3,7 @@
 Window manager for the roguelike game engine.
 Handles display, input, tilesets, and rendering coordination.
 """
+
 from __future__ import annotations
 
 # Standard library imports
@@ -858,7 +859,7 @@ class WindowManager(QMainWindow):
             # FIXED: Check memory requirements
             estimated_memory = vp_pixel_h * vp_pixel_w * 2 * 2  # 2 arrays, 2 bytes each
             if estimated_memory > 100_000_000:  # 100MB limit
-                log.warning(f"Cache would require {estimated_memory/1e6:.1f}MB")
+                log.warning(f"Cache would require {estimated_memory / 1e6:.1f}MB")
 
             max_h = vp_pixel_h
             max_w = vp_pixel_w

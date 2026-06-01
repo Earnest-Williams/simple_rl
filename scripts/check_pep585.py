@@ -3,6 +3,7 @@
 Fail if code uses list / dict / tuple or imports them
 from typing. Excludes common venv/build dirs.
 """
+
 import re
 import sys
 from pathlib import Path

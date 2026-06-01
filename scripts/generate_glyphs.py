@@ -8,18 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-try:
-    import yaml
-except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover - runtime guard
-    raise SystemExit(
-        "Missing dependency 'PyYAML'. Install with `pip install PyYAML` or add "
-        "it to your test/dev requirements."
-    ) from exc
+import yaml
 
-try:
-    from scripts.glyph_utils import resolve_repo_root
-except ModuleNotFoundError:  # pragma: no cover - script execution path
-    from glyph_utils import resolve_repo_root
+from scripts.glyph_utils import resolve_repo_root
 
 # Parsing tokens
 AMBIGUITY_TOKENS: Final[tuple[str, ...]] = (

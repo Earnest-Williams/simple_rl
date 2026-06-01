@@ -8,6 +8,7 @@ import numpy as np
 import polars as pl
 import structlog
 
+from game.perception import apply_radius_perception
 from game.world.los import line_of_sight
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -16,21 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover - type checking only
     from game.game_state import GameState
 
 log = structlog.get_logger()
-
-
-def _apply_event(
-    map_arr: np.ndarray, x: int, y: int, intensity: float, radius: int, game_map
-) -> None:
-    """Helper to add an event with radial falloff to a map."""
-    for dx in range(-radius, radius + 1):
-        for dy in range(-radius, radius + 1):
-            tx, ty = x + dx, y + dy
-            if not game_map.in_bounds(tx, ty):
-                continue
-            dist = abs(dx) + abs(dy)
-            value = max(intensity - dist, 0)
-            if value > 0:
-                map_arr[ty, tx] += value
 
 
 def gather_perception(
@@ -53,11 +39,25 @@ def gather_perception(
 
     # Apply queued noise events
     for x, y, intensity in getattr(game_state, "noise_events", []):
-        _apply_event(game_map.noise_map, x, y, intensity, radius=2, game_map=game_map)
+        apply_radius_perception(
+            map_arr=game_map.noise_map,
+            x=x,
+            y=y,
+            r=2,
+            base_intensity=intensity,
+            game_map=game_map,
+        )
 
     # Apply queued scent events
     for x, y, intensity in getattr(game_state, "scent_events", []):
-        _apply_event(game_map.scent_map, x, y, intensity, radius=4, game_map=game_map)
+        apply_radius_perception(
+            map_arr=game_map.scent_map,
+            x=x,
+            y=y,
+            r=4,
+            base_intensity=intensity,
+            game_map=game_map,
+        )
 
     # Clear processed events
     if hasattr(game_state, "noise_events"):

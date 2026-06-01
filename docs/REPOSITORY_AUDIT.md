@@ -44,14 +44,44 @@ Commands used during the audit:
 6. The most useful missing documents identified by the audit are now addressed:
    `docs/RUNBOOK.md`, `docs/CURRENT_STATUS.md`, `docs/ASSET_PIPELINE.md`,
    `docs/TESTING.md`, `docs/CONFIG_REFERENCE.md`, `docs/ADR/`, and
-   `docs/DEPRECATION_POLICY.md` exist. Remaining work is implementation cleanup
-   and enforcing all quality gates in CI.
+   `docs/DEPRECATION_POLICY.md` exist.
 7. The deterministic-random checker is now wired into the existing policy-sync
    workflow so CI catches direct nondeterministic randomness outside approved
    boundaries.
 8. The obsolete `requirements.txt` placeholder has been removed after
    updating repository setup guidance to use `pyproject.toml` editable installs
    and `environment.yml`.
+9. The outstanding implementation triage items from this audit are now closed:
+   `game/perception.py` and `game/planning/spatial_hash.py` have production
+   callers and focused regression tests; `magic/work_parser.py` and
+   `worldgen/chunk_cache.py` have focused regression tests; and
+   `game/constants.py` remains intentionally owned by the repaired lighting/FOV
+   R&D module.
+
+## Resolution update: outstanding implementation triage
+
+Date: 2026-06-01
+
+The remaining implementation cleanup items called out by this audit are now
+addressed:
+
+1. `game/ai/perception.py` now uses the shared
+   `game.perception.apply_radius_perception` helper for queued noise and scent
+   events, moving `game/perception.py` from an orphan candidate to an integrated
+   production helper.
+2. `GameState.process_turn()` now maintains a `SpatialHashTable` on
+   `GameState.spatial_index`; `game/ai/perception.find_visible_enemies()` and
+   the GOAP world adapter can use that index for nearby-entity lookups, moving
+   `game/planning/spatial_hash.py` into the integrated planning path.
+3. The GOAP adapter still falls back to the existing Polars scan when no spatial
+   index result is available, preserving compatibility with callers that do not
+   populate `GameState.spatial_index`.
+4. Added focused regression tests for perception helper integration, spatial
+   index population, GOAP spatial-index lookup, `magic/work_parser.py`, and
+   `worldgen/chunk_cache.py`.
+5. `game/constants.py` remains intentionally retained as the compatibility owner
+   for `FlowType`/`MAX_FLOWS` consumed by the repaired
+   `lights_dev/scent_and_sound_flow.py`; no deletion is recommended.
 
 ## Resolution update: obsolete requirements placeholder removal
 
@@ -312,45 +342,36 @@ these are the files most likely to contain stale or orphaned code.
   `skills/synergies.py`, `utils/logging_utils.py`, `utils/savegame.py`,
   `worldgen/chunk_cache.py`, `worldgen/game_rng.py`.
 - Strongest remaining candidates for either integration, explicit R&D labeling,
-  or removal were `ai/v9.py` and `notes/*`. This is now partially addressed:
+  or removal were `ai/v9.py` and `notes/*`. This is addressed:
   `ai/v9.py` is explicitly retained as an R&D prototype in `ai/README.md`,
   `notes/code_basicrl.txt` has been removed, and `notes/README.md` records the
   retained historical-note files and deletion conditions.
   `lights_dev/scent_and_sound_flow.py` has been repaired,
   `auto/gui.egg-info/*` has been removed, and
   `fonts/classic_roguelike_preview.png` has been documented as intentional.
-
-Suggested next triage for this AST-only list:
-
-1. Re-run or refine the import-graph review before treating every remaining file
-   as orphaned. Several listed modules are intentionally reached through package
-   registries, optional imports, or compatibility shims rather than direct leaf
-   imports: `game/ai/__init__.py` imports the species/community/strategy/ML
-   adapters and `game/systems/ai_system.py` dispatches them by `ai_type`;
-   `engine/main_loop.py` imports `engine/action_handler.py`;
-   `engine/action_handler.py` optional-imports
-   `game/systems/equipment_system.py`; and ADR 0001 defines
-   `worldgen/game_rng.py` as a compatibility re-export.
-2. Move the confirmed integrated or compatibility-owned files out of the
-   orphan/removal bucket in the next audit pass. The clearest examples are
-   `engine/action_handler.py`, `game/ai/bird.py`, `game/ai/community.py`,
-   `game/ai/goap_adapter.py`, `game/ai/insect.py`, `game/ai/mammal.py`,
-   `game/ai/ml_policy.py`, `game/ai/plant.py`, `game/ai/reptile.py`,
-   `game/ai/simple.py`, `game/ai/strategy.py`, `game/systems/equipment_system.py`,
-   and `worldgen/game_rng.py`.
-3. Keep `scripting_engine.py`, `magic/work_parser.py`, and
-   `worldgen/chunk_cache.py` in an in-development/R&D bucket rather than a
-   deletion bucket for now. Current docs still describe them as spell-system or
-   worldgen foundation work, but they need an explicit integration owner,
-   runnable harness, or focused tests before they should claim production
-   maturity.
-4. Prioritize the smallest, highest-confidence ownership decisions on files that
-   still have no obvious inbound-import evidence in repository scans:
-   `game/perception.py`, `game/planning/cache.py`, and
-   `game/planning/spatial_hash.py`. Each should either gain a documented caller
-   or test, be folded into the current canonical implementation, or be removed.
-   Review `game/constants.py` in the same follow-up; current repository scans
-   only show `lights_dev/scent_and_sound_flow.py` consuming it.
+- The AST-only unreferenced list has now been triaged for the outstanding
+  high-confidence items. Several modules are intentionally reached through
+  package registries, optional imports, compatibility shims, runtime dispatch,
+  or focused tests rather than direct leaf imports: `game/ai/__init__.py` imports
+  the species/community/strategy/ML adapters and `game/systems/ai_system.py`
+  dispatches them by `ai_type`; `engine/main_loop.py` imports
+  `engine/action_handler.py`; `engine/action_handler.py` optional-imports
+  `game/systems/equipment_system.py`; ADR 0001 defines `worldgen/game_rng.py` as
+  a compatibility re-export; `game/ai/perception.py` imports
+  `game/perception.py`; `GameState` owns `game/planning/spatial_hash.py`; and
+  focused tests now cover `magic/work_parser.py` and `worldgen/chunk_cache.py`.
+- `scripting_engine.py`, `magic/work_parser.py`, and `worldgen/chunk_cache.py`
+  remain in the in-development/R&D bucket rather than the deletion bucket.
+  `magic/work_parser.py` and `worldgen/chunk_cache.py` now have focused tests;
+  `scripting_engine.py` remains documented as spell-system foundation work and
+  should get deeper integration tests when the spell runtime is promoted.
+- `game/planning/cache.py` remains an explicit extension hook for future
+  caller-supplied GOAP planners. Because it deliberately raises
+  `NotImplementedError` until a caller provides the planner implementation, no
+  production dispatch path should call it yet.
+- `game/constants.py` is intentionally retained because
+  `lights_dev/scent_and_sound_flow.py` imports its `FlowType` and `MAX_FLOWS`
+  compatibility definitions.
 
 ### Generated and derivative assets
 
@@ -516,10 +537,12 @@ playback ownership with `game/systems/sound.py`.
   follow-up, `pytest -q` passed with 8 tests.
 - `python scripts/check_deterministic_random.py` is now wired into
   `.github/workflows/llm_policy_sync_check.yml`.
-- `black --check .`, `ruff format --check .`, `ruff check .`, and `mypy .`
-  still report pre-existing codebase formatting, lint, missing-stub,
-  import-resolution, and typing issues that are outside the documentation and
-  dependency-source follow-ups.
+- Focused regression tests now cover the audit follow-ups for perception,
+  spatial-index planning, magic work parsing, and worldgen chunk-cache helpers.
+- `black --check .`, `ruff format --check .`, and `ruff check .` now pass
+  after applying the repository formatters and updating the Ruff formatter pin.
+- `mypy .` still reports the broader pre-existing strict-typing backlog across
+  legacy/R&D modules; the latest run reports 1,695 errors in 110 files.
 - A focused `rg` scan for `pip install -r requirements` and
   `requirements.txt` now shows only historical/audit mentions and explicit
   guidance not to reintroduce the file.
@@ -545,3 +568,12 @@ playback ownership with `game/systems/sound.py`.
 8. ✅ Removed the obsolete `requirements.txt` placeholder and updated setup
    guidance, asset-pipeline guidance, and the file manifest to rely on
    `pyproject.toml` plus `environment.yml`.
+9. ✅ Closed the outstanding implementation triage items: integrated the shared
+   radius-perception helper, populated the planning spatial index from
+   `GameState.process_turn()`, connected GOAP nearest-entity lookup to that
+   index with a compatibility fallback, added focused tests for magic work
+   parsing and worldgen chunk-cache helpers, and documented the retained
+   `game/constants.py` ownership.
+10. ✅ Cleared the Black/Ruff formatting and Ruff lint backlog for this audit
+   pass; `mypy .` remains a separately documented strict-typing backlog rather
+   than a cleanup-ticket ambiguity in this repository audit.

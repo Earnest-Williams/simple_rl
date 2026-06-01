@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from lights_dev import constants
 from lights_dev.fov import FOVSystem
@@ -39,8 +39,8 @@ class GameRunner:
         self.seed: int = seed if seed is not None else int(time.time() * 1000)
         self.rng: GameRNG = GameRNG(seed=self.seed)
         self.game_state: GameState = GameState(width, height, self.rng)
-        self.renderer: Renderer = renderer if renderer is not None else Renderer(
-            constants.DEBUG_RENDER_MODE
+        self.renderer: Renderer = (
+            renderer if renderer is not None else Renderer(constants.DEBUG_RENDER_MODE)
         )
         self._last_frame_time: float = time.time()
 

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, TypedDict
+from typing import TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -97,7 +98,7 @@ def pretty_map(dungeon: Dungeon, rgb_sum: NDArray[np.float32]) -> str:
 def build_varied_layout(dungeon: Dungeon) -> None:
     """
     Build a varied dungeon layout for lighting tests and debugging.
-    
+
     Creates a complex map with multiple features to test lighting behavior:
     - Perimeter walls around the entire map boundary
     - Central rectangular room with doors in the middle of each wall
@@ -105,10 +106,10 @@ def build_varied_layout(dungeon: Dungeon) -> None:
     - Grid of pillars in the central room
     - Diagonal/staggered wall segments for testing LOS edge cases
     - Thin horizontal wall with gaps to test transparency accumulation
-    
+
     The layout is designed to expose potential lighting leaks, FOV issues,
     and transparency calculation bugs.
-    
+
     Args:
         dungeon: Dungeon instance to modify. Tiles array is overwritten.
     """
@@ -178,10 +179,10 @@ def build_varied_layout(dungeon: Dungeon) -> None:
 def place_varied_lights(game_state: GameState) -> None:
     """
     Place diverse light sources for testing lighting behavior.
-    
+
     Creates a test configuration with various light types, heights, and colors
     to exercise different lighting code paths.
-    
+
     Args:
         game_state: GameState instance to populate with lights.
     """
@@ -204,7 +205,7 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=constants.ORB_COLOR_RGB,
         height=3.0,
     )
-    
+
     # Flickering orange lantern near orb1 - tests flicker and low elevation
     lantern1 = LightSource(
         20,
@@ -216,7 +217,7 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=(255, 140, 40),
         height=0.7,
     )
-    
+
     # Warm yellowish orb near center - tests medium height and overlapping radii
     orb2 = LightSource(
         px + 6,
@@ -228,7 +229,7 @@ def place_varied_lights(game_state: GameState) -> None:
         base_color_rgb=(255, 200, 120),
         height=2.0,
     )
-    
+
     # Flickering red lantern near player - tests flicker overlap with player light
     lantern2 = LightSource(
         px - 4,
@@ -288,7 +289,9 @@ def place_varied_lights(game_state: GameState) -> None:
 
     lights.extend([orb1, lantern1, orb2, lantern2, dir_spot, partial_light] + cluster)
     game_state.light_sources = lights
-    game_state.all_entities = ([game_state.player] if game_state.player else []) + lights
+    game_state.all_entities = (
+        [game_state.player] if game_state.player else []
+    ) + lights
 
 
 def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
@@ -302,7 +305,7 @@ def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
     lines.append(pretty_map(dungeon, game_state.current_illumination_rgb_sum))
     lines.append("----- Tiles (counts) -----")
     unique, counts = np.unique(dungeon.tiles, return_counts=True)
-    tile_counts = dict(zip(unique.tolist(), counts.tolist()))
+    tile_counts = dict(zip(unique.tolist(), counts.tolist(), strict=False))
     lines.append(str(tile_counts))
     lines.append("----- Lights -----")
     for li, light in enumerate(game_state.light_sources):
@@ -325,8 +328,8 @@ def dump_state_to_file(game_state: GameState, outpath: Path) -> None:
                 row.append(" .  ")
         lines.append(" ".join(row))
     sources: list[Entity] = (
-        ([game_state.player] if game_state.player else []) + game_state.light_sources
-    )
+        [game_state.player] if game_state.player else []
+    ) + game_state.light_sources
     leaks = find_leaks(dungeon, sources, rgb)
     if not leaks:
         lines.append("\nNo direct LOS leaks detected.")

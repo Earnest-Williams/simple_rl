@@ -2,6 +2,7 @@
 """
 Handles combat calculations and actions between entities.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -150,7 +151,6 @@ def handle_melee_attack(
     # Find equipped weapon(s)
     equipped_ids = entity_reg.get_equipped_ids(attacker_id)
     if equipped_ids:
-
         equipped_items = item_reg.get_entity_equipped(attacker_id).filter(
             pl.col("item_id").is_in(equipped_ids)
         )

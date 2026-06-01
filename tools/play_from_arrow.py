@@ -10,6 +10,7 @@ Usage:
     # GUI (requires PySide6 and engine assets)
     python tools/play_from_arrow.py --arrow generated_dungeon.arrow --mode gui
 """
+
 from __future__ import annotations
 
 import argparse

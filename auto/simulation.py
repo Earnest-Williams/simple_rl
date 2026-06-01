@@ -2,13 +2,14 @@
 # Updated to use GameRNG instance
 
 import heapq
-import sys
 
 # Removed 'random' import
 import itertools
+import sys
 import typing  # Use typing instead of from typing import ...
 import uuid
 from collections import defaultdict, deque
+from typing import Final
 
 # --- Use relative imports for project modules ---
 try:
