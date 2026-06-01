@@ -19,7 +19,6 @@ pip install -e ".[dev]"
 | Check | Command | Purpose |
 | --- | --- | --- |
 | Black formatting | `black .` | Applies the repository's 88-column formatting policy. |
-| Ruff formatting | `ruff format .` | Keeps Ruff's formatter output synchronized with local edits. |
 | Ruff linting | `ruff check .` | Runs pycodestyle, pyflakes, isort, pyupgrade, bugbear, and simplify rules configured in `pyproject.toml`. |
 | Strict typing | `mypy .` | Enforces the repository's strict typing configuration. |
 | Deterministic randomness | `python scripts/check_deterministic_random.py` | Fails on direct nondeterministic randomness in game logic. |
@@ -53,8 +52,8 @@ fully provisioned editable `.[dev]` environment:
 - `python scripts/sync_llm_policy.py --check` passed.
 - `python scripts/check_deterministic_random.py` passed.
 - `pytest -q` passed with 8 tests.
-- `black --check .` and `ruff format --check .` still report pre-existing
-  formatting drift outside these documentation changes.
+- `black --check .` still reports pre-existing formatting drift outside these
+  documentation changes.
 - `ruff check .` still reports pre-existing lint issues, including undefined
   typing names and unused imports in R&D modules.
 - `mypy .` still stops on a pre-existing duplicate-module mapping for

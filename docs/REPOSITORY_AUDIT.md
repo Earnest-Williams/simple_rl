@@ -404,9 +404,9 @@ playback ownership with `game/systems/sound.py`.
 - `pytest -q` failed during original audit collection because that environment
   lacked `numpy`; after installing `.[dev]` during the 2026-06-01 documentation
   follow-up, `pytest -q` passed with 8 tests.
-- `black --check .`, `ruff format --check .`, `ruff check .`, and `mypy .` still
-  report pre-existing codebase formatting, lint, and package-mapping issues that
-  are outside this documentation-only follow-up.
+- `black --check .`, `ruff check .`, and `mypy .` still report pre-existing
+  codebase formatting, lint, and package-mapping issues that are outside this
+  documentation-only follow-up.
 
 ## Recommended cleanup sequence
 
