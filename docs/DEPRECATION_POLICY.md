@@ -25,10 +25,10 @@ When keeping non-production material, record the reason in one of these places:
 
 A retained R&D or historical file should state at least one of the following:
 
-- the current owner subsystem;
-- a runnable command or validation command;
-- what production path supersedes it;
-- what condition would allow deletion.
+- The current owner subsystem;
+- A runnable command or validation command;
+- What production path supersedes it;
+- What condition would allow deletion.
 
 ## Notes directory policy
 
