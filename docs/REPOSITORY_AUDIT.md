@@ -59,8 +59,10 @@ The first five items from the recommended cleanup sequence have been addressed:
 2. `auto/gui.egg-info/` generated package metadata was removed from the working
    tree; it remains covered by the existing `*.egg-info/` ignore rule.
 3. `fonts/classic_roguelike_preview.png` is documented in
-   `fonts/glyph_name_chart.md` as the preview/contact-sheet image for the
-   classic roguelike tile set.
+   `fonts/glyph_name_chart.md` with explicit ownership (atlas/chart maintainers),
+   regeneration guidance (local nearest-neighbor 10x scale from
+   `fonts/classic_roguelike_white.png`), and retention criteria (kept as a stable
+   checked-in review artifact, updated only with atlas/glyph-map changes).
 4. The stale overview/compliance docs were refreshed for the current tree:
    `README.md`, `.github/copilot-instructions.md`,
    `docs/SYSTEMS_INVENTORY.md`, and `docs/COMPLIANCE_REPORT.md` no longer claim
@@ -122,7 +124,7 @@ cleanup tickets.
 | File or group | Original finding | Current status |
 | --- | --- | --- |
 | `auto/gui.egg-info/PKG-INFO`, `auto/gui.egg-info/SOURCES.txt`, `auto/gui.egg-info/dependency_links.txt`, `auto/gui.egg-info/top_level.txt` | Generated package metadata, appears to describe a local package named `gui`, and is ignored by the repo pattern `*.egg-info/`. | ✅ Addressed: removed from the working tree; the existing `*.egg-info/` ignore rule should prevent it from returning. |
-| `fonts/classic_roguelike_preview.png` | The only PNG asset not referenced by file path or filename in repository text scans. | ✅ Addressed: retained as an intentional preview/contact-sheet asset and documented in `fonts/glyph_name_chart.md`. |
+| `fonts/classic_roguelike_preview.png` | The only PNG asset not referenced by file path or filename in repository text scans. | ✅ Addressed: retained as an intentional preview/contact-sheet asset; `fonts/glyph_name_chart.md` now defines owner scope, local regeneration policy, and retention/update criteria. |
 | `.github/copilot-instructions.md` vestigial component section | Mentioned `simple_rl.py` and `dungeon_generator.py` as maintained files, but those files do not exist in the current tree. | ✅ Addressed: refreshed to point contributors at current component entrypoints and to keep stale legacy references out of new docs. |
 | `notes/to implement.txt` | Historical TODO scratchpad with code fragments, old typing style, TODOs, and `pass` placeholders. | Open: keep only if explicitly treated as archival notes; otherwise migrate relevant items into tracked issues or curated docs and delete the scratch file. |
 | `notes/basicrl_project.txt` | Historical project synthesis for `basicrl`, not current `simple_rl` implementation docs. | Open: archive or summarize into current docs if still useful. |
