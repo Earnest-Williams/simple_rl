@@ -320,6 +320,38 @@ these are the files most likely to contain stale or orphaned code.
   `auto/gui.egg-info/*` has been removed, and
   `fonts/classic_roguelike_preview.png` has been documented as intentional.
 
+Suggested next triage for this AST-only list:
+
+1. Re-run or refine the import-graph review before treating every remaining file
+   as orphaned. Several listed modules are intentionally reached through package
+   registries, optional imports, or compatibility shims rather than direct leaf
+   imports: `game/ai/__init__.py` imports the species/community/strategy/ML
+   adapters and `game/systems/ai_system.py` dispatches them by `ai_type`;
+   `engine/main_loop.py` imports `engine/action_handler.py`;
+   `engine/action_handler.py` optional-imports
+   `game/systems/equipment_system.py`; and ADR 0001 defines
+   `worldgen/game_rng.py` as a compatibility re-export.
+2. Move the confirmed integrated or compatibility-owned files out of the
+   orphan/removal bucket in the next audit pass. The clearest examples are
+   `engine/action_handler.py`, `game/ai/bird.py`, `game/ai/community.py`,
+   `game/ai/goap_adapter.py`, `game/ai/insect.py`, `game/ai/mammal.py`,
+   `game/ai/ml_policy.py`, `game/ai/plant.py`, `game/ai/reptile.py`,
+   `game/ai/simple.py`, `game/ai/strategy.py`, `game/systems/equipment_system.py`,
+   and `worldgen/game_rng.py`.
+3. Keep `scripting_engine.py`, `magic/work_parser.py`, and
+   `worldgen/chunk_cache.py` in an in-development/R&D bucket rather than a
+   deletion bucket for now. Current docs still describe them as spell-system or
+   worldgen foundation work, but they need an explicit integration owner,
+   runnable harness, or focused tests before they should claim production
+   maturity.
+4. Prioritize the smallest, highest-confidence ownership decisions on files that
+   still have no obvious inbound-import evidence in repository scans:
+   `game/perception.py`, `game/planning/cache.py`, and
+   `game/planning/spatial_hash.py`. Each should either gain a documented caller
+   or test, be folded into the current canonical implementation, or be removed.
+   Review `game/constants.py` in the same follow-up; current repository scans
+   only show `lights_dev/scent_and_sound_flow.py` consuming it.
+
 ### Generated and derivative assets
 
 - `fonts/classic_roguelike_sliced/` and
