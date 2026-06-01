@@ -49,6 +49,24 @@ Commands used during the audit:
 7. The deterministic-random checker is now wired into the existing policy-sync
    workflow so CI catches direct nondeterministic randomness outside approved
    boundaries.
+8. The obsolete `requirements.txt` placeholder has been removed after
+   updating repository setup guidance to use `pyproject.toml` editable installs
+   and `environment.yml`.
+
+## Resolution update: obsolete requirements placeholder removal
+
+Date: 2026-06-01
+
+The `requirements.txt` removal follow-up from the dependency-source audit is now
+addressed:
+
+1. Removed the obsolete root-level `requirements.txt` archival placeholder.
+2. Updated `scripts/run_cave_demo.sh` and `docs/contributing.md` to direct pip
+   users to editable installs from `pyproject.toml`.
+3. Updated `docs/ASSET_PIPELINE.md` to prevent reintroducing `requirements.txt`
+   for asset-pipeline-only dependencies.
+4. Updated `MANIFEST.md` so the root-file inventory and summary no longer list
+   the removed placeholder.
 
 ## Resolution update: mypy package mapping blockers
 
@@ -128,8 +146,9 @@ The first documentation-policy follow-up is now partially addressed:
 4. Replaced the non-portable `requirements.txt` Conda export with an archival
    note pointing to `pyproject.toml` and `environment.yml`, and updated
    contributor setup instructions to use `pip install -e ".[dev]"`.
-5. Added an explicit follow-up that `requirements.txt` should be removed once
-   downstream tooling no longer expects the placeholder file.
+5. Removed the obsolete `requirements.txt` placeholder after updating
+   downstream setup guidance to use `pyproject.toml` editable installs and
+   `environment.yml` for Conda/Mamba environments.
 
 ## Resolution update: deterministic-random checker hardening
 
@@ -320,7 +339,7 @@ these are the files most likely to contain stale or orphaned code.
 | `docs/COMPLIANCE_REPORT.md` | Claimed `utils/game_rng.py` imports `random`; current `utils/game_rng.py` does not import Python `random`. | ✅ Addressed: stale caveat removed and replaced with current deterministic-random check status. |
 | `docs/COMPLIANCE_REPORT.md` | Cited a missing `dungeon_generator.py` for PEP 604 violations. | ✅ Addressed: stale missing-file citation removed. |
 | `docs/SKILL_SYSTEM_EVALUATION.md` vs `docs/SKILL_SYSTEM_INTEGRATION.md` / `docs/SKILL_ADVANCED_FEATURES.md` | The evaluation doc said the skill system was not fully integrated, while later docs claimed it was fully integrated or production-ready. | ✅ Addressed: added `docs/SKILL_SYSTEM_STATUS.md` and linked older docs to it as the current source of truth. |
-| `requirements.txt` | Looked like an environment export with local conda build paths rather than a portable dependency specification. | ✅ Addressed: replaced with an archival note that points contributors to `pyproject.toml` and `environment.yml` as canonical dependency sources. Follow-up: remove `requirements.txt` entirely once no repository or external tooling depends on the placeholder. |
+| `requirements.txt` | Looked like an environment export with local conda build paths rather than a portable dependency specification. | ✅ Addressed: removed the obsolete placeholder after updating setup guidance to point to `pyproject.toml` editable installs and `environment.yml`. |
 
 ### Documentation that does not exist but would be helpful
 
@@ -442,9 +461,13 @@ playback ownership with `game/systems/sound.py`.
   follow-up, `pytest -q` passed with 8 tests.
 - `python scripts/check_deterministic_random.py` is now wired into
   `.github/workflows/llm_policy_sync_check.yml`.
-- `black --check .`, `ruff check .`, and `mypy .` still report pre-existing
-  codebase formatting, lint, missing-stub, import-resolution, and typing issues
-  that are outside this package-mapping follow-up.
+- `black --check .`, `ruff format --check .`, `ruff check .`, and `mypy .`
+  still report pre-existing codebase formatting, lint, missing-stub,
+  import-resolution, and typing issues that are outside the documentation and
+  dependency-source follow-ups.
+- A focused `rg` scan for `pip install -r requirements` and
+  `requirements.txt` now shows only historical/audit mentions and explicit
+  guidance not to reintroduce the file.
 
 ## Recommended cleanup sequence
 
@@ -464,3 +487,6 @@ playback ownership with `game/systems/sound.py`.
 7. ✅ Improved `scripts/check_deterministic_random.py` so it parses Python
    syntax, skips its own checker module, ignores comments and string literals,
    passes focused regression tests, and runs in CI.
+8. ✅ Removed the obsolete `requirements.txt` placeholder and updated setup
+   guidance, asset-pipeline guidance, and the file manifest to rely on
+   `pyproject.toml` plus `environment.yml`.
