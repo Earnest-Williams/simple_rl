@@ -1,5 +1,8 @@
 # Skill System Integration - Complete
 
+> **Status note (2026-05-31):** See [Skill System Status](SKILL_SYSTEM_STATUS.md) for the current source of truth.
+
+
 **Date:** 2026-01-23
 **Branch:** `claude/evaluate-skill-system-BYqXi`
 **Status:** ✅ **INTEGRATED**

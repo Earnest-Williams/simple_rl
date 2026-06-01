@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-perception_systems.py
+scent_and_sound_flow.py
 
-Functional (non-OO) perception systems for simple_rl.
+Functional (non-OO) scent and sound flow helpers for simple_rl.
 
 This module implements three related systems used by simple_rl's AI and world
-simulation:
+simulation. It is the lights_dev R&D copy; production sound emission and
+audio playback live in `game/systems/sound.py`:
 
   1. Noise propagation (flow fields).  Flow fields are multi-layer integer
      cost maps which monsters consult to move toward a sound source or a
@@ -314,10 +315,7 @@ def _propagate_noise_kernel(
             # Relaxation: if the new path produces a lower cost, update and enqueue
             if new_cost < cost_grid[ny, nx]:
                 cost_grid[ny, nx] = new_cost
-                if (
-                    new_cost - start_cost < max_dist_prop
-                    and not in_queue[ny, nx]
-                ):
+                if new_cost - start_cost < max_dist_prop and not in_queue[ny, nx]:
                     qy[tail] = ny
                     qx[tail] = nx
                     tail = (tail + 1) % max_q
