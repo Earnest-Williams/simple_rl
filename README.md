@@ -102,6 +102,8 @@ Different components have dedicated development harnesses:
 * **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
 
 Refer to individual component READMEs for specific requirements and usage details.
+Generated font assets and glyph metadata are documented in
+[`docs/ASSET_PIPELINE.md`](./docs/ASSET_PIPELINE.md).
 
 ## Performance & Known Issues
 
