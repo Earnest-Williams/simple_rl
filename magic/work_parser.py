@@ -76,7 +76,7 @@ def tokenize(source: str) -> list[Token]:
 
     parser = create_work_grammar(keywords)
     try:
-        parsed = parser.parseString(source, parseAll=True)
+        parsed = parser.parse_string(source, parse_all=True)
     except ParseException as exc:
         raise ValueError("Failed to tokenize work declaration") from exc
 
