@@ -1,8 +1,12 @@
 # game/world/memory.py
 """Persistent map-memory update algorithms."""
 
+from typing import Final
+
 import numpy as np
 import numpy.typing as npt
+
+MIN_SCALE: Final[float] = 1e-5  # lower bound to avoid divide-by-zero decay rates
 
 
 def update_memory_fade(
@@ -52,7 +56,7 @@ def update_memory_fade(
     strength: npt.NDArray[np.float32] = memory_strength[ys, xs]
     modifiers: npt.NDArray[np.float32] = tile_modifiers[ys, xs]
     scale: npt.NDArray[np.float32] = (1.0 + strength) * modifiers
-    safe_scale: npt.NDArray[np.float32] = np.maximum(scale, 1e-5)
+    safe_scale: npt.NDArray[np.float32] = np.maximum(scale, MIN_SCALE)
     decay_rate: npt.NDArray[np.float32] = steepness / safe_scale
     midpoint_scaled: npt.NDArray[np.float32] = midpoint * scale
     exponent: npt.NDArray[np.float32] = decay_rate * (elapsed_time - midpoint_scaled)
@@ -61,6 +65,7 @@ def update_memory_fade(
     mask: npt.NDArray[np.bool_] = exponent < 70.0
     safe_exp: npt.NDArray[np.float32] = np.exp(np.minimum(exponent[mask], 70.0))
     denom: npt.NDArray[np.float32] = 1.0 + safe_exp
+    # denom is always >= 1.0 because safe_exp is exp(x) for finite x.
     new_intensity[mask] = 1.0 / denom
 
     memory_intensity[ys, xs] = np.maximum(0.0, new_intensity)
