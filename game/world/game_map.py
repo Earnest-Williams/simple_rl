@@ -8,10 +8,8 @@ import numpy as np
 import structlog
 import yaml
 
-# Ensure correct import for the memory helper and visibility class
 from engine.glyphs import tile_id_for
-from game.world.fov import update_memory_fade
-from game.world.visibility import MyVisibility
+from game.world.fov import compute_visibility_into, update_memory_fade
 
 log = structlog.get_logger()
 
@@ -278,28 +276,32 @@ class GameMap:
             self.visible.fill(False)
             return
 
-        def blocks_light(tx: int, ty: int) -> bool:
-            return not self.in_bounds(tx, ty) or not self.transparent[ty, tx]
+        def blocks_light(tile_y: int, tile_x: int) -> bool:
+            return not self.transparent[tile_y, tile_x]
 
-        def set_visible(tx: int, ty: int) -> None:
-            if self.in_bounds(tx, ty):
-                self.visible[ty, tx] = True
-                self.explored[ty, tx] = True
-                self.memory_strength[ty, tx] = np.minimum(
-                    self.memory_strength[ty, tx] + 1.0, MAX_MEMORY_STRENGTH
-                )
+        def set_visible(tile_y: int, tile_x: int) -> None:
+            self.visible[tile_y, tile_x] = True
+            self.explored[tile_y, tile_x] = True
+            self.memory_strength[tile_y, tile_x] = np.minimum(
+                self.memory_strength[tile_y, tile_x] + 1.0, MAX_MEMORY_STRENGTH
+            )
 
-        def get_distance(dx: int, dy: int) -> float:
-            return math.hypot(dx, dy)
-
-        visibility = MyVisibility(
-            blocks_light=blocks_light,
-            set_visible=set_visible,
-            get_distance=get_distance,
-        )
+        def get_distance(
+            origin_y: int, origin_x: int, target_y: int, target_x: int
+        ) -> float:
+            return math.hypot(target_x - origin_x, target_y - origin_y)
 
         self.visible.fill(False)
-        visibility.compute(x, y, radius)
+        compute_visibility_into(
+            self.height,
+            self.width,
+            origin_y=y,
+            origin_x=x,
+            radius=radius,
+            is_opaque=blocks_light,
+            mark_visible=set_visible,
+            distance=get_distance,
+        )
 
         # Decrement memory strength for tiles not currently visible and
         # ensure values stay within the valid range.

@@ -57,7 +57,7 @@ For a pygame/SDL loop, call `runner.step(dt)` each tick, then use
 * 🔄 **Planned Integration**: Systems will merge with main game rendering pipeline
 
 **Integration Roadmap:**
-1. Merge FOV algorithms with `game/world/fov.py` and `game/world/visibility.py`
+1. Merge FOV algorithms into `game/world/fov.py`
 2. Integrate lighting system with `engine/render_lighting.py`
 3. Add memory fade to main rendering pipeline
 4. Connect memory system to agent traits
