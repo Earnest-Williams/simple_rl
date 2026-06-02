@@ -25,8 +25,9 @@ from .render_entities import (
     render_map_tiles,
 )
 from .render_lighting import (
+    LightingRenderer,
+    apply_colored_lighting,
     apply_height_visualization,
-    apply_light_sources,
     apply_memory_fade,
     calculate_lighting,
 )
@@ -75,6 +76,7 @@ class RenderConfig:
     )
     memory_fade_variance: np.float32 = np.float32(0.0)
     memory_noise_level: np.float32 = np.float32(0.0)
+    lighting_renderer: LightingRenderer = field(default_factory=LightingRenderer)
 
 
 @dataclass
@@ -335,17 +337,20 @@ def render_viewport(
         render_config.vis_blend_factor,
     )
 
-    # Apply colored lights from the map
+    # Apply colored lights from the map via the cached colored-light renderer.
     if render_config.enable_colored_lights and gm.light_sources:
-        final_fg, final_bg, _ = apply_light_sources(
+        scene_seq = getattr(gm, "scene_geometry_version", None)
+        final_fg, final_bg, _ = apply_colored_lighting(
             final_fg,
             final_bg,
             gm.light_sources,
             gm,
-            viewport_x,
-            viewport_y,
-            vp_h,
-            vp_w,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            vp_h=vp_h,
+            vp_w=vp_w,
+            scene_seq=scene_seq,
+            lighting_renderer=render_config.lighting_renderer,
         )
 
     # Apply memory fade

@@ -141,7 +141,7 @@ class GameMap:
         width: int,
         height: int,
         tile_memory_modifiers: dict[str | int, float] | None = None,
-    ):
+    ) -> None:
         """Initializes the game map with dimensions and default tile arrays."""
         if width <= 0 or height <= 0:
             log.error("Invalid map dimensions", width=width, height=height)
@@ -192,6 +192,7 @@ class GameMap:
             (height, width), dtype=np.float32, order="C"
         )
         self.light_sources: list[LightSource] = []
+        self._scene_geometry_version: int = 0
         # Vertical transitions like stairs or shafts
         self.vertical_transitions: list[dict[str, int | str]] = []
         # Environmental storytelling hooks (annotations on the map)
@@ -208,6 +209,7 @@ class GameMap:
         self.tile_memory_modifiers = get_memory_modifier_map(
             self.tiles, self._tile_modifier_overrides
         )
+        self._scene_geometry_version += 1
         transparent_count = np.sum(self.transparent)
         log.info("Transparency map updated", transparent_count=transparent_count)
 
@@ -227,6 +229,11 @@ class GameMap:
     @property
     def height(self) -> int:
         return self._height
+
+    @property
+    def scene_geometry_version(self) -> int:
+        """Monotone version for tile, opacity, height, and ceiling changes."""
+        return self._scene_geometry_version
 
     def in_bounds(self, x: int, y: int) -> bool:
         """Checks if the given coordinates are within the map boundaries."""
