@@ -1,6 +1,7 @@
 """Lighting and visual effect helpers for rendering."""
 
 import math
+import threading
 from collections.abc import Iterable
 from typing import Any
 
@@ -230,10 +231,11 @@ def _compute_single_light_contribution(
     if radius <= 0:
         return contribution
 
+    intensity_f: float = float(intensity)
     scaled_color: tuple[int, int, int] = (
-        int(color_rgb[0] * float(intensity)),
-        int(color_rgb[1] * float(intensity)),
-        int(color_rgb[2] * float(intensity)),
+        int(color_rgb[0] * intensity_f),
+        int(color_rgb[1] * intensity_f),
+        int(color_rgb[2] * intensity_f),
     )
     has_geometry: bool = height_map is not None and ceiling_map is not None
     if compute_light_color_array is not None and has_geometry:
@@ -555,7 +557,15 @@ def apply_colored_lighting(
     )
 
 
-_LEGACY_LIGHTING_RENDERER: LightingRenderer = LightingRenderer()
+_LEGACY_LIGHTING_RENDERER_LOCAL: threading.local = threading.local()
+
+
+def _get_legacy_lighting_renderer() -> LightingRenderer:
+    renderer = getattr(_LEGACY_LIGHTING_RENDERER_LOCAL, "renderer", None)
+    if not isinstance(renderer, LightingRenderer):
+        renderer = LightingRenderer()
+        _LEGACY_LIGHTING_RENDERER_LOCAL.renderer = renderer
+    return renderer
 
 
 MEMORY_WALL_GLYPHS = np.array(
@@ -690,7 +700,7 @@ def apply_light_sources(
         vp_h=vp_h,
         vp_w=vp_w,
         scene_seq=scene_seq,
-        lighting_renderer=_LEGACY_LIGHTING_RENDERER,
+        lighting_renderer=_get_legacy_lighting_renderer(),
     )
 
 
