@@ -64,6 +64,9 @@ def test_compute_visibility_into_supports_custom_distance_and_blockers() -> None
     ) -> float:
         return float(max(abs(target_y - origin_y), abs(target_x - origin_x)))
 
+    def mark_visible(y: int, x: int) -> None:
+        visible_grid[y, x] = True
+
     compute_visibility_into(
         5,
         5,
@@ -71,7 +74,7 @@ def test_compute_visibility_into_supports_custom_distance_and_blockers() -> None
         origin_x=2,
         radius=1,
         is_opaque=lambda y, x: (y, x) in blockers,
-        mark_visible=lambda y, x: visible_grid.__setitem__((y, x), True),
+        mark_visible=mark_visible,
         distance=chessboard_distance,
     )
 
