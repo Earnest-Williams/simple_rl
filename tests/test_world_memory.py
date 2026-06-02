@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from game.world.game_map import GameMap
 from game.world.memory import update_memory_fade
 
 
 def test_game_map_owns_tile_shaped_memory_arrays() -> None:
-    game_map = GameMap(4, 3)
-    expected_shape = (3, 4)
+    game_map: GameMap = GameMap(4, 3)
+    expected_shape: tuple[int, int] = (3, 4)
 
     assert game_map.memory_intensity.shape == expected_shape
     assert game_map.memory_strength.shape == expected_shape
@@ -19,13 +20,13 @@ def test_game_map_owns_tile_shaped_memory_arrays() -> None:
 
 
 def test_update_memory_fade_tracks_newly_hidden_tiles() -> None:
-    last_seen_time = np.zeros((2, 2), dtype=np.int32)
-    memory_intensity = np.zeros((2, 2), dtype=np.float32)
-    visible = np.zeros((2, 2), dtype=np.bool_)
-    needs_update_mask = np.zeros((2, 2), dtype=np.bool_)
-    prev_visible = np.zeros((2, 2), dtype=np.bool_)
-    memory_strength = np.zeros((2, 2), dtype=np.float32)
-    tile_modifiers = np.ones((2, 2), dtype=np.float32)
+    last_seen_time: npt.NDArray[np.int32] = np.zeros((2, 2), dtype=np.int32)
+    memory_intensity: npt.NDArray[np.float32] = np.zeros((2, 2), dtype=np.float32)
+    visible: npt.NDArray[np.bool_] = np.zeros((2, 2), dtype=np.bool_)
+    needs_update_mask: npt.NDArray[np.bool_] = np.zeros((2, 2), dtype=np.bool_)
+    prev_visible: npt.NDArray[np.bool_] = np.zeros((2, 2), dtype=np.bool_)
+    memory_strength: npt.NDArray[np.float32] = np.zeros((2, 2), dtype=np.float32)
+    tile_modifiers: npt.NDArray[np.float32] = np.ones((2, 2), dtype=np.float32)
 
     memory_intensity[0, 0] = 1.0
     last_seen_time[0, 0] = 0

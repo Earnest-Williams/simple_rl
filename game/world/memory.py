@@ -31,7 +31,9 @@ def update_memory_fade(
     needs_update_mask[memory_intensity <= 0.0] = False
 
     # Add tiles that have just become invisible with non-zero intensity.
-    became_invisible = prev_visible & (~visible) & (memory_intensity > 0.0)
+    became_invisible: npt.NDArray[np.bool_] = (
+        prev_visible & (~visible) & (memory_intensity > 0.0)
+    )
     needs_update_mask |= became_invisible
 
     # Prepare for next call.
@@ -40,22 +42,26 @@ def update_memory_fade(
     if not np.any(needs_update_mask):
         return
 
+    ys: npt.NDArray[np.intp]
+    xs: npt.NDArray[np.intp]
     ys, xs = np.where(needs_update_mask)
-    elapsed_time = current_time - last_seen_time[ys, xs]
-    elapsed_time = np.maximum(elapsed_time, 0.0)
+    elapsed_time: npt.NDArray[np.float32] = np.maximum(
+        current_time - last_seen_time[ys, xs], 0.0
+    ).astype(np.float32, copy=False)
 
-    strength = memory_strength[ys, xs]
-    modifiers = tile_modifiers[ys, xs]
-    scale = (1.0 + strength) * modifiers
-    decay_rate = steepness / scale
-    midpoint_scaled = midpoint * scale
-    exponent = decay_rate * (elapsed_time - midpoint_scaled)
+    strength: npt.NDArray[np.float32] = memory_strength[ys, xs]
+    modifiers: npt.NDArray[np.float32] = tile_modifiers[ys, xs]
+    scale: npt.NDArray[np.float32] = (1.0 + strength) * modifiers
+    safe_scale: npt.NDArray[np.float32] = np.maximum(scale, 1e-5)
+    decay_rate: npt.NDArray[np.float32] = steepness / safe_scale
+    midpoint_scaled: npt.NDArray[np.float32] = midpoint * scale
+    exponent: npt.NDArray[np.float32] = decay_rate * (elapsed_time - midpoint_scaled)
 
-    new_intensity = np.zeros_like(elapsed_time, dtype=np.float32)
-    mask = exponent < 70.0
-    safe_exp = np.exp(np.minimum(exponent[mask], 70.0))
-    denom = 1.0 + safe_exp
-    new_intensity[mask] = np.where(denom > 1e-9, 1.0 / denom, 0.0)
+    new_intensity: npt.NDArray[np.float32] = np.zeros_like(elapsed_time, dtype=np.float32)
+    mask: npt.NDArray[np.bool_] = exponent < 70.0
+    safe_exp: npt.NDArray[np.float32] = np.exp(np.minimum(exponent[mask], 70.0))
+    denom: npt.NDArray[np.float32] = 1.0 + safe_exp
+    new_intensity[mask] = 1.0 / denom
 
     memory_intensity[ys, xs] = np.maximum(0.0, new_intensity)
 
