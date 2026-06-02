@@ -133,14 +133,24 @@ def _update_production_perception_fields(game_state: GameState) -> None:
         game_state, game_map.height, game_map.width
     )
 
-    for x, y, _intensity in getattr(game_state, "noise_events", []):
+    noise_events = game_state.noise_events
+    if noise_events:
+        loudest_x, loudest_y, _intensity = max(noise_events, key=lambda event: event[2])
         update_noise(
-            cave_cost, flow_centers, terrain_map, y, x, FlowType.REAL_NOISE, {}
+            cave_cost,
+            flow_centers,
+            terrain_map,
+            loudest_y,
+            loudest_x,
+            FlowType.REAL_NOISE,
+            {},
         )
 
-    for x, y, _intensity in getattr(game_state, "scent_events", []):
+    scent_events = game_state.scent_events
+    if scent_events:
+        scent_x, scent_y, _intensity = scent_events[-1]
         global_scent_when = update_smell(
-            cave_when, terrain_map, y, x, global_scent_when
+            cave_when, terrain_map, scent_y, scent_x, global_scent_when
         )
 
     game_state.perception_global_scent_when = global_scent_when

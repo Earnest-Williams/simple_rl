@@ -222,6 +222,66 @@ def test_game_perception_uses_production_scent_noise_and_monster_alerts() -> Non
     assert game_state.perception_alerted_monster_ids == [monster_id]
 
 
+def test_game_perception_uses_loudest_noise_event_for_real_noise_flow() -> None:
+    game_map = GameMap(width=7, height=7)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=11,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    game_state.noise_events.extend(
+        [
+            (1, 1, 1.0),
+            (5, 5, 20.0),
+            (3, 3, 3.0),
+        ]
+    )
+
+    gather_perception(game_state)
+
+    flow_idx = int(FlowType.REAL_NOISE)
+    assert tuple(game_state.perception_flow_centers[flow_idx]) == (5, 5)
+    assert game_state.perception_cave_cost[flow_idx, 5, 5] == BASE_FLOW_CENTER
+
+
+def test_game_perception_ages_production_scent_once_for_multiple_events() -> None:
+    game_map = GameMap(width=7, height=7)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=12,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    game_state.scent_events.extend(
+        [
+            (1, 1, 5.0),
+            (2, 2, 5.0),
+            (4, 4, 5.0),
+        ]
+    )
+
+    gather_perception(game_state)
+
+    assert game_state.perception_global_scent_when == SCENT_RESET_AGE - 1
+    assert get_scent(game_state.perception_cave_when, 4, 4) == SCENT_RESET_AGE - 1
+    assert get_scent(game_state.perception_cave_when, 1, 1) == 0
+
+
 def test_production_code_does_not_import_lights_dev() -> None:
     production_roots = [
         Path("pathfinding"),

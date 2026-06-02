@@ -179,6 +179,7 @@ def _count_closed_doors_on_line(
 
 def scent_path_penalty(
     terrain_map: NDArray[np.int32],
+    transparency_map: NDArray[np.bool_],
     py: int,
     px: int,
     target_y: int,
@@ -203,7 +204,6 @@ def scent_path_penalty(
     if target_feature in (FEATURE_WALL, FEATURE_SECRET_DOOR):
         return None
 
-    transparency_map = terrain_transparency_map(terrain_map)
     if not los_line_of_sight(px, py, target_x, target_y, transparency_map):
         return None
 
@@ -387,6 +387,7 @@ def get_noise_dist(
 def _lay_scent_stamp(
     cave_when: NDArray[np.int32],
     terrain_map: NDArray[np.int32],
+    transparency_map: NDArray[np.bool_],
     py: int,
     px: int,
     current_scent_when: int,
@@ -408,7 +409,9 @@ def _lay_scent_stamp(
             if adjustment == 250:
                 continue
 
-            path_penalty = scent_path_penalty(terrain_map, py, px, y, x)
+            path_penalty = scent_path_penalty(
+                terrain_map, transparency_map, py, px, y, x
+            )
             if path_penalty is None:
                 continue
 
@@ -435,9 +438,11 @@ def update_smell(
         cave_when[is_recent_scent] = reset_offset + cave_when[is_recent_scent]
         global_scent_when = reset_offset
 
+    transparency_map = terrain_transparency_map(terrain_map)
     _lay_scent_stamp(
         cave_when,
         terrain_map,
+        transparency_map,
         py,
         px,
         global_scent_when,
@@ -680,7 +685,15 @@ def warmup_perception_kernels() -> None:
     transparency_map = terrain_transparency_map(terrain_map)
     los_line_of_sight(1, 1, 2, 2, transparency_map)
     cave_when = np.zeros((4, 4), dtype=np.int32)
-    _lay_scent_stamp(cave_when, terrain_map, 1, 1, SCENT_RESET_AGE, SCENT_ADJUST_TABLE)
+    _lay_scent_stamp(
+        cave_when,
+        terrain_map,
+        transparency_map,
+        1,
+        1,
+        SCENT_RESET_AGE,
+        SCENT_ADJUST_TABLE,
+    )
 
 
 if __name__ == "__main__":
