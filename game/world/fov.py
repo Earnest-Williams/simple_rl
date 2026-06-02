@@ -229,8 +229,8 @@ def compute_visibility(
 def iter_visible_cells(visible_grid: np.ndarray) -> Iterator[tuple[int, int]]:
     """Yield ``(y, x)`` coordinates for true cells in a visibility grid."""
     ys, xs = np.nonzero(visible_grid)
-    for index in range(len(ys)):
-        yield int(ys[index]), int(xs[index])
+    for y, x in zip(ys, xs):
+        yield int(y), int(x)
 
 
 def is_visible(visible_grid: np.ndarray, y: int, x: int) -> bool:
