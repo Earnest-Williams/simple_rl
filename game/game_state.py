@@ -205,9 +205,7 @@ class GameState:
                 # Clear visibility if player is OOB
                 self.game_map.visible[:] = False
                 return
-            self.game_map.compute_fov(
-                px, py, self.fov_radius
-            )  # compute_fov handles explored and origin height internally
+            self.game_map.compute_fov(px, py, self.fov_radius)
             # Post-check: Ensure origin is always visible if FOV somehow clears it
             if not self.game_map.visible[py, px]:
                 log.warning(
@@ -216,12 +214,10 @@ class GameState:
                 )
                 self.game_map.visible[py, px] = True
                 self.game_map.explored[py, px] = True  # Ensure explored too
-            # Update memory and last seen time for visible tiles
-            self.game_map.memory_intensity[self.game_map.visible] = 1.0
-            self.game_map.last_seen_time[self.game_map.visible] = self.turn_count
+            self.game_map.refresh_visible_memory(self.turn_count)
             # Fade memory for tiles no longer visible
             if self.memory_fade_enabled:
-                self.game_map.update_memory_fade(
+                self.game_map.fade_memory(
                     self.turn_count,
                     self.memory_fade_steepness,
                     self.memory_fade_midpoint,
