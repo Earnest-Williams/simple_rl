@@ -6,7 +6,9 @@ import heapq
 from collections.abc import Callable
 from typing import Any, Literal
 
+import numpy as np
 import structlog
+from numpy.typing import NDArray
 
 from game.ai.perception import gather_perception
 from game.entities.components import Position
@@ -17,6 +19,7 @@ from game.systems.ai_system import dispatch_ai
 
 # Assuming these imports are correct relative to game_state.py
 from game.world.game_map import GameMap, LightSource
+from pathfinding.perception_systems import MAX_FLOWS, SCENT_RESET_AGE
 from simulation.zone_manager import ZoneManager
 from utils.game_rng import GameRNG  # Assuming this path is correct
 
@@ -141,9 +144,24 @@ class GameState:
         # Messages generated while their subjects are outside FOV are stored here.
         self.message_queue: list[tuple[int, str, tuple[int, int, int]]] = []
         self.turn_count: int = 0
-        # Perception event queues processed by gather_perception
+        # Perception event queues processed by gather_perception.
         self.noise_events: list[tuple[int, int, float]] = []
         self.scent_events: list[tuple[int, int, float]] = []
+        # Production pathfinding perception fields mirrored from queued events.
+        perception_infinity = np.iinfo(np.int32).max // 2
+        self.perception_cave_cost: NDArray[np.int32] = np.full(
+            (MAX_FLOWS, self._map_height, self._map_width),
+            perception_infinity,
+            dtype=np.int32,
+        )
+        self.perception_flow_centers: NDArray[np.int32] = np.zeros(
+            (MAX_FLOWS, 2), dtype=np.int32
+        )
+        self.perception_cave_when: NDArray[np.int32] = np.zeros(
+            (self._map_height, self._map_width), dtype=np.int32
+        )
+        self.perception_global_scent_when: int = SCENT_RESET_AGE
+        self.perception_alerted_monster_ids: list[int] = []
         self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)
         self.light_sources: list[LightSource] = self.game_map.light_sources
