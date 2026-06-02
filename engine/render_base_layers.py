@@ -14,6 +14,13 @@ except ImportError:
 log = structlog.get_logger()
 
 
+def _read_only_view(array: np.ndarray) -> np.ndarray:
+    """Return a non-writeable view over renderer input map state."""
+    view = array.view()
+    view.setflags(write=False)
+    return view
+
+
 def prepare_base_layers(
     game_map: GameMap,
     viewport_x: int,
@@ -86,11 +93,13 @@ def prepare_base_layers(
             dummy_shape,
         )
 
-    map_visible_vp = game_map.visible[safe_y_slice, safe_x_slice]
-    map_explored_vp = game_map.explored[safe_y_slice, safe_x_slice]
-    map_tiles_vp = game_map.tiles[safe_y_slice, safe_x_slice]
-    map_height_vp = game_map.height_map[safe_y_slice, safe_x_slice]
-    map_memory_vp = game_map.memory_intensity[safe_y_slice, safe_x_slice]
+    map_visible_vp = _read_only_view(game_map.visible[safe_y_slice, safe_x_slice])
+    map_explored_vp = _read_only_view(game_map.explored[safe_y_slice, safe_x_slice])
+    map_tiles_vp = _read_only_view(game_map.tiles[safe_y_slice, safe_x_slice])
+    map_height_vp = _read_only_view(game_map.height_map[safe_y_slice, safe_x_slice])
+    map_memory_vp = _read_only_view(
+        game_map.memory_intensity[safe_y_slice, safe_x_slice]
+    )
     vp_h, vp_w = map_visible_vp.shape
 
     visible_mask = map_visible_vp
