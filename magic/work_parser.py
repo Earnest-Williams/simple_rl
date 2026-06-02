@@ -30,6 +30,19 @@ from .models import (
 # Token is a pair ("KEYWORD" | "VALUE", text)
 Token = tuple[str, str]
 
+# All clause keywords recognised by the ledger grammar.
+WORK_KEYWORDS: list[str] = [
+    "ART",
+    "BOUNDS",
+    "BALANCES",
+    "FLOW",
+    "SEALS",
+    "PROVISIONS",
+    "INTENT",
+    "SEAT",
+    "TENDING",
+]
+
 
 def create_work_grammar(keywords: list[str]) -> ParserElement:
     """
@@ -62,19 +75,7 @@ def tokenize(source: str) -> list[Token]:
     tokens. If parsing fails, a ValueError is raised so callers receive a
     clear error.
     """
-    keywords = [
-        "ART",
-        "BOUNDS",
-        "BALANCES",
-        "FLOW",
-        "SEALS",
-        "PROVISIONS",
-        "INTENT",
-        "SEAT",
-        "TENDING",
-    ]
-
-    parser = create_work_grammar(keywords)
+    parser = create_work_grammar(WORK_KEYWORDS)
     try:
         parsed = parser.parse_string(source, parse_all=True)
     except ParseException as exc:
@@ -115,28 +116,29 @@ def parse(source: str) -> Work:
     Work
         Executable representation of the work compiled from the declaration.
     """
+    parser = create_work_grammar(WORK_KEYWORDS)
+    try:
+        parsed = parser.parse_string(source, parse_all=True)
+    except ParseException as exc:
+        raise ValueError("Failed to parse work declaration") from exc
 
-    tokens = tokenize(source)
-
-    # Convert token stream to a dictionary mapping clause names to values
+    # Build a clauses dict directly from the structured pyparsing parse result,
+    # avoiding the intermediate flat Token list produced by tokenize().
     clauses: dict[str, str] = {}
-    i = 0
-    while i < len(tokens):
-        token_type, token_value = tokens[i]
-        if token_type != "KEYWORD":
-            raise ValueError(f"Expected KEYWORD, got {token_type}: {token_value}")
-
-        # Check for duplicate clauses
-        if token_value in clauses:
-            raise ValueError(f"Duplicate {token_value} clause")
-
-        # Read the value following the keyword
-        i += 1
-        if i >= len(tokens) or tokens[i][0] != "VALUE":
-            raise ValueError(f"Expected value following {token_value} clause keyword")
-
-        clauses[token_value] = tokens[i][1]
-        i += 1
+    for entry in parsed:
+        kw = entry.get("keyword")
+        if not kw:
+            continue
+        kw_upper = kw.upper()
+        if kw_upper in clauses:
+            raise ValueError(f"Duplicate {kw_upper} clause")
+        # value may be None or empty string when pyparsing matches a keyword
+        # with no trailing text; treat both as a missing value.
+        val = entry.get("value")
+        val = val.strip() if val is not None else ""
+        if not val:
+            raise ValueError(f"Expected value following {kw_upper} clause keyword")
+        clauses[kw_upper] = val
 
     # Check that all required clauses are present
     required = ["ART", "BOUNDS", "BALANCES", "FLOW", "SEALS", "PROVISIONS", "INTENT"]

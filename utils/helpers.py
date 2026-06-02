@@ -97,11 +97,6 @@ class DiceRoll(BaseModel):
         Returns:
             Total roll result including modifier
         """
-        if self.sides <= 0:
-            return self.modifier
-        if self.num_dice <= 0:
-            return self.modifier
-
         total = 0
         for _ in range(self.num_dice):
             total += rng.get_int(1, self.sides)
