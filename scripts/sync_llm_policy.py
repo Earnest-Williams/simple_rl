@@ -25,7 +25,9 @@ HEADER: Final[str] = (
     "     Regenerate with: python scripts/sync_llm_policy.py -->\n\n"
 )
 
-CODEX_EXECUTION_REMINDER: Final[str] = """## Codex execution reminder
+CODEX_EXECUTION_REMINDER: Final[
+    str
+] = """## Codex execution reminder
 
 Before editing code, read the repository instruction file that applies to the edited path.
 
