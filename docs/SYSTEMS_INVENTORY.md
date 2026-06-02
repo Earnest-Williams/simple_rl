@@ -409,7 +409,7 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 2. ✅ Duplicate dungeon generators removed (kept `Dungeon/` production version)
 3. ✅ Core GOAP integrated successfully
 4. 🔄 Complete Community NPC AI integration when ready
-5. 🔄 Integrate lights_dev/ systems with main rendering pipeline
+5. 🔒 `lights_dev/` is frozen — migrate selected algorithms to production owners (see DEV MIGRATION issue)
 
 ### Priority 2: Documentation & Consistency
 1. ✅ Document integration status clearly (completed in this update)
@@ -612,11 +612,21 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ---
 
-### 2. Lighting/FOV/Memory R&D Environment ❌ NOT INTEGRATED
+### 2. Lighting/FOV/Memory R&D Environment 🔒 FROZEN — PENDING RETIREMENT
 
 **Location:** `lights_dev/` directory
 
-**Purpose:** R&D environment for advanced visual and memory systems
+> **`lights_dev` is frozen R&D pending retirement.** Do not add production imports from it.
+> Migrate selected algorithms into production owners (`engine/render_lighting.py`,
+> `game/world/fov.py`), then delete or archive the folder. See the DEV MIGRATION issue
+> for the full phase-by-phase migration plan.
+>
+> **Ownership boundaries:**
+> - `engine/render_lighting.py` — production lighting owner
+> - `game/world/fov.py` — production FOV/LOS owner
+> - Memory simulation belongs in a production state/system module, not the renderer
+
+**Purpose:** R&D environment for advanced visual and memory systems (historical)
 
 **Sophistication:** High
 - Octant-based shadowcasting FOV (Numba-accelerated)
@@ -626,22 +636,20 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - Memory influenced by traits/conditions (planned)
 
 **Status:**
-- ⚠️ **Active R&D** - refinement ongoing
+- 🔒 **Frozen** — no new production imports allowed
 - ❌ **Not integrated** into main game engine
-- 🔄 **Planned for integration** with main rendering pipeline
-- 🔄 **May combine** with pathfinding/perception systems
+- 🗑️ **Planned for deletion** after migrations and tests pass
 
-**Files:**
-- `main_game.py` - Standalone development environment with FOV/lighting algorithms
-- `dungeon_data.py` - Numba jitclass for high-performance grids
-- `constants.py` - R&D-specific constants
+**Migration Map:**
 
-**Integration Steps Needed:**
-1. Merge FOV algorithms into game/world/fov.py
-2. Integrate lighting system with engine/render_lighting.py
-3. Add memory fade to main rendering pipeline
-4. Connect memory system to agent traits
-5. Remove or archive standalone main_game.py after integration
+| lights_dev source | Production target | Status |
+|---|---|---|
+| `lighting.py::LightContext` cache | `engine/render_lighting.py::LightContributionCache` | In progress |
+| `lighting.py` RGB blending policy | `engine/render_lighting.py` blend abstraction | In progress |
+| `generate_varied_test.py` fixtures | `tests/fixtures/fov_scenarios.py`, `tests/fixtures/lighting_scenarios.py` | In progress |
+| `memory.py::MemorySystem` | `game/world/memory.py` (if accepted) | Deferred |
+| `fov.py` side-bit FOV | `game/world/fov.py` (if needed) | Deferred |
+| R&D runner/CLI/`GameState`/entities | — | Discard |
 
 ---
 
@@ -772,7 +780,7 @@ Repository root
 
 **Kept:**
 - ✅ `Dungeon/` (root) - Most sophisticated 3D generator
-- ✅ `lights_dev/` - Active R&D, planned for integration
+- 🔒 `lights_dev/` - Frozen R&D, pending retirement after algorithm migration
 - ✅ `auto/` - AI testing environment, core already integrated
 - ✅ `ai/` - Community NPC AI under development
 

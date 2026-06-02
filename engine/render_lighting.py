@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import structlog
@@ -15,13 +16,27 @@ try:
 except ImportError:
     _NUMBA_AVAILABLE = False
 
-    def njit(func=None, **options):  # type: ignore
-        if func:
-            return func
+    def njit(*args, **options):  # type: ignore
+        """No-op jit; returns the decorated function unchanged."""
+        for a in args:
+            if callable(a):
+                return a
         return lambda f: f
 
-    uint8 = np.uint8  # type: ignore
-    float32 = np.float32  # type: ignore
+    def float32(*args):  # type: ignore
+        """Fallback float32: casts a single value; multi-arg calls are numba
+        type-signature expressions (e.g. ``float32(float32, …)`` in ``@njit``
+        decorators) and intentionally return ``None`` so the surrounding
+        ``njit(None, …)`` call still yields a pass-through decorator."""
+        if len(args) == 1:
+            return np.float32(args[0])
+        return None  # numba signature sentinel — see njit fallback above
+
+    def uint8(*args):  # type: ignore
+        """Fallback uint8: same convention as float32 above."""
+        if len(args) == 1:
+            return np.uint8(args[0])
+        return None  # numba signature sentinel — see njit fallback above
 
 try:
     from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
@@ -45,14 +60,337 @@ except ImportError:
     )
 
 try:
-    from game.world.fov import compute_light_color_array
+    from game.world.fov import compute_light_color_array, compute_visibility
 except ImportError:
     compute_light_color_array = None  # type: ignore
-    structlog.get_logger().error(
-        "CRITICAL: Failed to import compute_light_color_array in render_lighting."
+
+    def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
+        return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
+
+    def compute_visibility(  # type: ignore[misc]  # conditional redefinition
+        height: int,
+        width: int,
+        *,
+        origin_y: int,
+        origin_x: int,
+        radius: int,
+        is_opaque: Any,
+        distance: Any = None,
+    ) -> set[tuple[int, int]]:
+        """Pure-Python shadowcasting FOV fallback (used when numba is absent)."""
+        dist_fn = distance if distance is not None else _fov_euclidean
+        visible: set[tuple[int, int]] = set()
+
+        def blocks(cy: int, cx: int) -> bool:
+            return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
+
+        def mark(cy: int, cx: int) -> None:
+            if 0 <= cy < height and 0 <= cx < width:
+                visible.add((cy, cx))
+
+        def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
+            row: int, start: float, end: float,
+            xx: int, xy: int, yx: int, yy: int,
+        ) -> None:
+            """Sweep one octant row by row, pruning by slope boundaries.
+
+            ``start``/``end`` define the visible slope window.  Opaque cells
+            split the window (recursive call) or terminate the current sweep
+            (``blocked`` flag).  Octant transform ``(xx,xy,yx,yy)`` maps the
+            canonical (+x,+y) octant to each of the 8 real-space octants.
+            """
+            if start < end:
+                return
+            nstart = start
+            for d in range(row, radius + 1):
+                dx, dy = -d, -d
+                blocked = False
+                while dx <= 0:
+                    dx += 1
+                    cx = origin_x + dx * xx + dy * xy
+                    cy = origin_y + dx * yx + dy * yy
+                    ls = (dx - 0.5) / (dy + 0.5)
+                    rs = (dx + 0.5) / (dy - 0.5)
+                    if start < rs:
+                        continue
+                    if end > ls:
+                        break
+                    if dist_fn(origin_y, origin_x, cy, cx) <= radius:
+                        mark(cy, cx)
+                    cell_blocks = blocks(cy, cx)
+                    if blocked:
+                        if cell_blocks:
+                            nstart = rs
+                            continue
+                        blocked = False
+                        start = nstart
+                    elif cell_blocks and d < radius:
+                        blocked = True
+                        cast(d + 1, start, ls, xx, xy, yx, yy)
+                        nstart = rs
+                if blocked:
+                    break
+
+        mark(origin_y, origin_x)
+        for xx, xy, yx, yy in (
+            (1, 0, 0, 1), (0, 1, 1, 0), (0, -1, 1, 0), (-1, 0, 0, 1),
+            (-1, 0, 0, -1), (0, -1, -1, 0), (0, 1, -1, 0), (1, 0, 0, -1),
+        ):
+            cast(1, 1.0, 0.0, xx, xy, yx, yy)
+        return visible
+
+    structlog.get_logger().warning(
+        "numba not available: using pure-Python FOV fallback in render_lighting."
     )
 
 log = structlog.get_logger()
+
+# ---------------------------------------------------------------------------
+# Phase 4: RGB blend policy abstraction
+# ---------------------------------------------------------------------------
+
+
+class RGBBlendPolicy:
+    """Deterministic, additive RGB light blending with channel clamping.
+
+    Provides a stable policy for accumulating per-light color contributions
+    into a scene buffer.  The default strategy is additive accumulation,
+    where each light's contribution is added to the buffer and the result
+    is clamped to ``[0, 255]`` only on final composite.  This matches the
+    behavior of the pre-existing ``apply_light_sources`` function so that
+    existing renderer output is unchanged.
+
+    Subclass or replace to experiment with premultiplied RGBA or other
+    policies without touching the cache or renderer.
+    """
+
+    def accumulate(
+        self,
+        target: np.ndarray,
+        contribution: np.ndarray,
+    ) -> None:
+        """Add *contribution* (h × w × 3, float32) into *target* in-place."""
+        target += contribution
+
+    def subtract(
+        self,
+        target: np.ndarray,
+        contribution: np.ndarray,
+    ) -> None:
+        """Subtract *contribution* (h × w × 3, float32) from *target* in-place."""
+        target -= contribution
+
+    def composite(self, accumulated: np.ndarray) -> np.ndarray:
+        """Return the final float32 buffer clamped to ``[0, 255]``."""
+        return np.clip(accumulated, 0.0, 255.0)
+
+
+# Singleton default policy instance
+DEFAULT_BLEND_POLICY: RGBBlendPolicy = RGBBlendPolicy()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Per-light contribution cache
+# ---------------------------------------------------------------------------
+
+
+def _compute_single_light_contribution(
+    origin_x: int,
+    origin_y: int,
+    radius: int,
+    color_rgb: tuple[int, int, int],
+    intensity: float,
+    opaque_grid: np.ndarray,
+    scene_h: int,
+    scene_w: int,
+) -> np.ndarray:
+    """Compute a single light's RGB contribution array (h × w × 3, float32).
+
+    Uses ``compute_visibility`` (callback-based shadowcasting) which is the
+    reliable production FOV path.  Returns a zeroed array if FOV is
+    unavailable or ``radius <= 0``.
+    """
+    contribution = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
+    if compute_visibility is None or radius <= 0:
+        return contribution
+
+    def _is_opaque(y: int, x: int) -> bool:
+        return bool(opaque_grid[y, x])
+
+    visible = compute_visibility(
+        scene_h, scene_w,
+        origin_y=origin_y, origin_x=origin_x,
+        radius=radius,
+        is_opaque=_is_opaque,
+    )
+    radius_sq = float(radius * radius)
+    color = np.array(color_rgb, dtype=np.float32) * float(intensity)
+    for cy, cx in visible:
+        dist_sq = (cx - origin_x) ** 2 + (cy - origin_y) ** 2
+        if dist_sq > radius_sq:
+            continue
+        fade = 1.0 - dist_sq / radius_sq
+        contribution[cy, cx, :] += color * fade
+    return contribution
+
+
+class LightContributionCache:
+    """Per-light RGB contribution cache for the production lighting renderer.
+
+    Maintains a separate ``(h × w × 3)`` float32 buffer for each light and
+    a combined scene buffer.  When a light's parameters are unchanged the
+    cached buffer is reused rather than recomputed.  Only the affected
+    light's contribution is subtracted and recalculated when it changes.
+
+    Usage::
+
+        cache = LightContributionCache(map_h, map_w)
+        # Each call updates the combined buffer incrementally:
+        combined = cache.update(lights, opaque_grid, scene_seq=current_tick)
+        # Use combined[viewport_y:..., viewport_x:..., :] for rendering.
+
+    Parameters
+    ----------
+    scene_h, scene_w:
+        Full map dimensions (not viewport dimensions).
+    blend_policy:
+        An :class:`RGBBlendPolicy` instance.  Defaults to
+        :data:`DEFAULT_BLEND_POLICY`.
+    """
+
+    def __init__(
+        self,
+        scene_h: int,
+        scene_w: int,
+        blend_policy: RGBBlendPolicy | None = None,
+    ) -> None:
+        self._h = scene_h
+        self._w = scene_w
+        self._policy = blend_policy or DEFAULT_BLEND_POLICY
+        # scene_seq at last full invalidation
+        self._last_scene_seq: int | None = None
+        # combined accumulation buffer
+        self._combined: np.ndarray = np.zeros(
+            (scene_h, scene_w, 3), dtype=np.float32
+        )
+        # per-light buffers keyed by stable light id
+        self._contributions: dict[int, np.ndarray] = {}
+        # per-light parameter keys (used to detect changes)
+        self._param_keys: dict[int, tuple] = {}
+
+    @staticmethod
+    def _param_key(light: Any) -> tuple[Any, ...]:
+        """Build a hashable key from the light's relevant parameters."""
+        return (
+            getattr(light, "x", None),
+            getattr(light, "y", None),
+            getattr(light, "radius", None),
+            getattr(light, "color", None),
+            getattr(light, "intensity", 1.0),
+        )
+
+    def _invalidate_all(self, opaque_grid: np.ndarray, lights: Iterable[Any]) -> None:
+        """Rebuild every light's contribution from scratch."""
+        self._combined[:] = 0.0
+        self._contributions.clear()
+        self._param_keys.clear()
+        for light in lights:
+            lid = light.id
+            key = self._param_key(light)
+            buf = _compute_single_light_contribution(
+                origin_x=light.x,
+                origin_y=light.y,
+                radius=light.radius,
+                color_rgb=tuple(light.color),
+                intensity=getattr(light, "intensity", 1.0),
+                opaque_grid=opaque_grid,
+                scene_h=self._h,
+                scene_w=self._w,
+            )
+            self._contributions[lid] = buf
+            self._param_keys[lid] = key
+            self._policy.accumulate(self._combined, buf)
+
+    def update(
+        self,
+        lights: Iterable[Any],
+        opaque_grid: np.ndarray,
+        scene_seq: int | None = None,
+    ) -> np.ndarray:
+        """Incrementally update and return the combined RGB buffer.
+
+        Parameters
+        ----------
+        lights:
+            Iterable of light objects.  Each must expose ``.id``,
+            ``.x``, ``.y``, ``.radius``, ``.color``, and optionally
+            ``.intensity``.
+        opaque_grid:
+            Boolean array ``(h × w)`` where ``True`` means the cell blocks
+            line-of-sight.
+        scene_seq:
+            Monotone counter that represents scene geometry version.  Pass
+            a new value when the opaque grid changes to force a full
+            cache invalidation.
+
+        Returns
+        -------
+        np.ndarray
+            The combined light contribution buffer ``(h × w × 3, float32)``.
+            Clamp to ``[0, 255]`` before converting to ``uint8`` for
+            rendering.
+        """
+        # Full invalidation when scene geometry changes
+        if scene_seq is not None and scene_seq != self._last_scene_seq:
+            self._last_scene_seq = scene_seq
+            self._invalidate_all(opaque_grid, lights)
+            return self._combined.copy()
+
+        # Incremental update: detect added, changed, and removed lights
+        lights_list = list(lights)
+        incoming_ids = {light.id for light in lights_list}
+        cached_ids = set(self._contributions.keys())
+
+        # Remove lights that are no longer present
+        for lid in cached_ids - incoming_ids:
+            old_buf = self._contributions.pop(lid)
+            self._policy.subtract(self._combined, old_buf)
+            self._param_keys.pop(lid, None)
+
+        # Add or update lights
+        for light in lights_list:
+            lid = light.id
+            new_key = self._param_key(light)
+            if lid in self._contributions:
+                if self._param_keys.get(lid) == new_key:
+                    continue  # unchanged — reuse cached contribution
+                # Changed — subtract old, recompute, accumulate new
+                old_buf = self._contributions[lid]
+                self._policy.subtract(self._combined, old_buf)
+            # New or changed: compute and accumulate
+            buf = _compute_single_light_contribution(
+                origin_x=light.x,
+                origin_y=light.y,
+                radius=light.radius,
+                color_rgb=tuple(light.color),
+                intensity=getattr(light, "intensity", 1.0),
+                opaque_grid=opaque_grid,
+                scene_h=self._h,
+                scene_w=self._w,
+            )
+            self._contributions[lid] = buf
+            self._param_keys[lid] = new_key
+            self._policy.accumulate(self._combined, buf)
+
+        return self._combined.copy()
+
+    def invalidate(self) -> None:
+        """Force a full rebuild on the next :meth:`update` call."""
+        self._last_scene_seq = None
+        self._combined[:] = 0.0
+        self._contributions.clear()
+        self._param_keys.clear()
+
 
 MEMORY_WALL_GLYPHS = np.array(
     [ord("▓"), ord("▒"), ord("░"), ord("⋅"), ord(" ")], dtype=np.uint16
