@@ -1,154 +1,370 @@
-# Simple RL LLM Style Guide
+# Simple RL — LLM / Agent Engineering Instructions
 
-## Purpose (LLM-only)
+## Status and scope
 
-This file is for **LLMs only**. It defines repo-wide engineering constraints and
-output expectations. If instructions conflict, follow the **most restrictive**.
+This is the canonical instruction set for all LLMs, Codex agents, automated code assistants, and human contributors working in this repository.
+
+These instructions apply repo-wide unless a more specific `AGENTS.md` exists in a subdirectory. If multiple instruction files apply, follow the most restrictive rule.
+
+All generated agent instruction files must be synchronized from this source. Do not maintain conflicting copies.
 
 ## Priority levels
 
-* **Critical**: Must not be violated.
-* **Strong**: Expected for almost all code; deviations require a reason.
-* **Guideline**: Preferred default.
+* **Critical:** Must not be violated.
+* **Strong:** Expected for almost all code. Deviations require an explicit reason.
+* **Guideline:** Preferred default.
 
 ## 1. Critical engineering rules
 
 ### 1.1 Python target
 
-* **Rule:** Target **Python 3.11+** across the repo.
+Target Python 3.11+ across the repository.
 
-### 1.2 Determinism
+Use Python 3.11-compatible syntax and typing features, including PEP 604 and PEP 585.
 
-* **Rule:** Use `from utils.game_rng import GameRNG` for all randomness.
-* **Rule:** Never use Python's `random` module or NumPy RNG directly in game
-  logic.
+### 1.2 Static typing
 
-### 1.3 Formatting
+Static typing is mandatory.
 
-* **Rule:** Format with `black` using an **88-character** line length.
+All new or modified Python code must satisfy the following rules:
 
-### 1.4 Static typing
+* Fully annotate every function and method signature.
+* Include `-> None` for functions and methods that do not return a value.
+* Use PEP 604 unions, for example `str | None`.
+* Do not use `Optional[T]`.
+* Use built-in generic types:
 
-* **Rule:** All code must have explicit type annotations. No type inference.
-* **Rule:** Use PEP 604 unions (`X | None`), never `Optional[X]`.
-* **Rule:** Function signatures must be fully annotated, including `-> None` for
-  void functions.
-* **Rule:** Code must pass `mypy --strict`.
-* **Rule:** Do not introduce `Any` unless there is no practical alternative, and
-  isolate it as tightly as possible.
+  * `list[str]`, not `typing.List[str]`
+  * `dict[str, int]`, not `typing.Dict[str, int]`
+  * `tuple[int, ...]`, not `typing.Tuple[int, ...]`
+  * `set[str]`, not `typing.Set[str]`
+* Do not import `List`, `Dict`, `Tuple`, `Set`, or `Optional` from `typing`.
+* Import from `typing` only for names without built-in equivalents, such as:
 
-* **Rule (PEP 585 — CRITICAL):** Always use built-in generic types for
-  annotations (e.g., `list[str]`, `dict[str, int]`, `tuple[int, ...]`,
-  `set[str]`). Do **not** use `typing.List`, `typing.Dict`, or `typing.Tuple`.
-  Import from `typing` only for names without builtin equivalents (e.g.,
-  `TypeVar`, `Callable`, `Protocol`, `Literal`, `TYPE_CHECKING`).
+  * `Final`
+  * `TypeVar`
+  * `Callable`
+  * `Protocol`
+  * `Literal`
+  * `TypedDict`
+  * `cast`
+  * `TYPE_CHECKING`
+* Avoid `Any`.
+* If `Any` is unavoidable, isolate it to the smallest possible scope and add a short comment explaining why.
+* Annotate module-level variables.
+* Annotate constants.
+* Annotate class attributes.
+* Annotate empty collections, because their element types are otherwise ambiguous.
 
-### 1.5 Data + performance primitives
+Local variable inference is allowed only when the inferred type is obvious from the right-hand side and `mypy --strict` accepts it.
 
-* **Rule:** Prefer `pathlib.Path` over string paths for filesystem work.
-* **Rule:** **Pandas is prohibited.** Use **Polars** for data
-  manipulation/state.
-* **Rule:** Use **Numba** for performance-critical loops/hot paths.
-* **Rule:** For anything involving scale, prefer `mmap`, NumPy, Polars
-  expressions, or other vectorized approaches. Avoid slow Python loops over
-  large data.
-
-### 1.6 Parsing and string rules
-
-* **Rule:** Regex is a last resort. Prefer `pyparsing` or `pydantic` for
-  structured parsing/validation.
-* **Rule:** If an f-string expression becomes unclear on one line, precompute
-  intermediate values into named variables.
-
-### 1.7 Architecture
-
-* **Rule:** Avoid object-oriented clutter. Prefer structural clarity, explicit
-  data flow, and throughput-oriented design.
-
-### 1.8 Constants
-
-* **Rule:** Declare constant values at the top of the module (after docstring and
-  imports, before any class or function definitions) and name them using
-  `ALL_CAPS_WITH_UNDERSCORES`.
-* **Rule:** For shared or numerous constants, create a dedicated `constants.py`
-  (or `constants/` package) and import from there. Prefer this when:
-
-  * A value is used by two or more modules.
-  * A module would otherwise have many constants (roughly >10).
-  * Constants represent domain/global configuration rather than module-specific
-    settings.
-
-* **Rule:** Use explicit type annotations and `typing.Final` for constants.
-* **Rule:** Prefer immutable types for constants (`tuple`, `frozenset`,
-  `MappingProxyType`) over mutable `list`/`dict`.
-* **Rule:** Add a short inline comment describing purpose and units where
-  relevant.
-* **Rule:** Group related constants with a one-line header comment.
-* **Rule:** If a shared constants module would introduce circular imports, split
-  constants by package or keep truly local constants in the original module.
-* **Rule:** Do not store secrets or environment-specific values in code
-  constants; use environment/config instead.
-* **Rule:** Constants must not be mutable runtime state.
-* **Rule:** Consider a lightweight lint/CI check to enforce placement and
-  `Final` annotations.
-
-Example:
+Good:
 
 ```python
-from types import MappingProxyType
-from typing import Final, Mapping
-
-MAX_RETRIES: Final[int] = 3  # max retries for network calls
-DEFAULT_TIMEOUT_SECONDS: Final[float] = 5.0  # seconds; default network timeout
-AGENT_NAMES: Final[tuple[str, ...]] = ("claude", "gpt", "bard")
-AGENT_TIMEOUTS: Final[Mapping[str, float]] = MappingProxyType({"claude": 1.5})
+def load_names(path: Path) -> list[str]:
+    names: list[str] = []
+    for line in path.read_text().splitlines():
+        names.append(line)
+    return names
 ```
 
-### 1.9 LLM operating rules
+Good:
 
-* **Rule:** Do not invent APIs, files, classes, or configuration keys. Only use
-  what exists in the repo or what you add explicitly.
-* **Rule:** Prefer minimal diffs. Avoid drive-by refactors.
-* **Rule:** Every code change must satisfy all **Critical** rules in this
-  document.
-* **Rule:** If you are uncertain about a requirement, stop and request the
-  missing information rather than guessing.
+```python
+count = len(items)
+```
 
-## 2. Tooling and CI (Critical)
+Bad:
 
-### 2.1 Tool version pinning
+```python
+def load_names(path):
+    names = []
+    return names
+```
 
-* **Rule:** `pyproject.toml` must pin **mypy**, **black**, and the repository
-  linter versions (for example, ruff), and they must be consistent across
-  developer machines and CI.
-* **Rule:** CI must run the formatter, linter, and type checker in a way that
-  matches local expectations.
+Bad:
 
-## 3. Development workflow (Strong)
+```python
+from typing import Optional, List
 
-### 3.1 Keep changes tight
+def find_name(names: List[str]) -> Optional[str]:
+    ...
+```
 
-* Keep changes focused and well documented.
-* Reuse helper functions and existing patterns where possible.
+Good:
 
-### 3.2 Performance work
+```python
+def find_name(names: list[str]) -> str | None:
+    ...
+```
 
-* For performance-critical changes, profile before and after (e.g. `cProfile`).
-* Confirm Numba compilation and correctness.
-* Verify with realistic dataset sizes (e.g., large maps, 100+ entities).
+### 1.3 Mypy enforcement
 
-### 3.3 Documentation
+The repository is intended to pass strict mypy checking.
 
-* When adding or changing behavior, update relevant docs in `docs/` and
-  component README files.
-* Document complex algorithms and design decisions with clear examples.
+Run mypy before completing code changes.
 
-## 4. Project context (Guideline)
+Use:
 
-* This is a simulation-heavy roguelike/RPG research project emphasizing
-  determinism, modularity, and high-performance Python.
-* Key libraries and patterns:
+```bash
+python -m mypy .
+```
 
-  * Polars for state/dataframes.
-  * Numba + NumPy for fast kernels and numerical work.
-  * `GameRNG` for deterministic randomness.
+However, some legacy modules may temporarily appear in a mypy `ignore_errors = true` override list.
+
+Do not use that override list as permission to write weakly typed code.
+
+For every Python file you create or modify:
+
+* Ensure the file itself is fully typed.
+* Do not add new files to an `ignore_errors = true` override.
+* Do not expand existing `ignore_errors = true` overrides.
+* If the edited file is already covered by `ignore_errors = true`, still make your changes strict-typed.
+* When practical, remove the edited module from the override list and fix its mypy errors.
+* If removing the override is too large for the current task, keep the diff focused and explicitly state that the pre-existing override remains.
+
+A successful repository-wide `mypy .` run is not sufficient if the changed code is hidden behind `ignore_errors = true`.
+
+### 1.4 Formatting and linting
+
+Format Python code with Black using an 88-character line length.
+
+Use Ruff for linting and import ordering.
+
+Before completing a code task, run:
+
+```bash
+python -m black .
+python -m ruff check .
+python -m mypy .
+```
+
+If the repository uses a narrower command in CI, use the CI-equivalent command as well.
+
+Do not claim the work is complete if formatting, linting, or type checking fails.
+
+If a failure is caused by unrelated pre-existing code, say so clearly and include the failing command and relevant error summary.
+
+### 1.5 Determinism
+
+Use the repository deterministic RNG abstraction for all game-logic randomness:
+
+```python
+from utils.game_rng import GameRNG
+```
+
+Do not use Python’s `random` module directly in game logic.
+
+Do not use NumPy RNGs directly in game logic.
+
+### 1.6 Data and performance primitives
+
+Prefer `pathlib.Path` over string paths for filesystem work.
+
+Pandas is prohibited.
+
+Use Polars for dataframe-style data manipulation and state.
+
+Use Numba for performance-critical loops and hot paths when appropriate.
+
+For scale-sensitive code, prefer one of:
+
+* NumPy vectorization
+* Polars expressions
+* memory mapping
+* compiled kernels
+* other throughput-oriented designs
+
+Avoid slow Python loops over large datasets.
+
+### 1.7 Parsing and validation
+
+Regex is a last resort for structured parsing.
+
+Prefer `pyparsing` or `pydantic` for structured parsing, validation, and schema-like inputs.
+
+Simple string operations are fine for simple string problems.
+
+### 1.8 Strings and f-strings
+
+Keep f-string expressions readable.
+
+If an f-string expression becomes complex, precompute intermediate values into named variables.
+
+Bad:
+
+```python
+message = f"{entity.name}: {world.tiles[entity.y][entity.x].terrain.name.lower().replace('_', ' ')}"
+```
+
+Good:
+
+```python
+terrain_name = world.tiles[entity.y][entity.x].terrain.name
+display_name = terrain_name.lower().replace("_", " ")
+message = f"{entity.name}: {display_name}"
+```
+
+### 1.9 Architecture
+
+Avoid unnecessary object-oriented structure.
+
+Prefer:
+
+* explicit data flow
+* small focused functions
+* simple modules
+* structural clarity
+* throughput-oriented design
+
+Do not introduce broad abstractions unless they remove real duplication or clarify an existing design problem.
+
+### 1.10 Constants
+
+Declare constants at the top of the module, after the module docstring and imports, before classes and functions.
+
+Name constants with `ALL_CAPS_WITH_UNDERSCORES`.
+
+Use `typing.Final` for constants.
+
+Prefer immutable constant values:
+
+* `tuple` instead of `list`
+* `frozenset` instead of `set`
+* `MappingProxyType` instead of mutable `dict` where immutability matters
+
+Add a short inline comment for units or non-obvious purpose.
+
+Good:
+
+```python
+from typing import Final
+
+MAX_RETRIES: Final[int] = 3  # maximum retry attempts for transient failures
+TILE_SIZE_PIXELS: Final[int] = 32  # rendered tile size in pixels
+DIRECTIONS: Final[tuple[tuple[int, int], ...]] = (
+    (0, -1),
+    (1, 0),
+    (0, 1),
+    (-1, 0),
+)
+```
+
+Use a dedicated `constants.py` or `constants/` package when:
+
+* a value is shared by two or more modules
+* a module would otherwise contain many constants
+* constants represent domain-wide configuration rather than local implementation detail
+
+Do not store secrets or environment-specific values as code constants.
+
+Constants must not be mutable runtime state.
+
+### 1.11 API and repository awareness
+
+Do not invent APIs, files, classes, configuration keys, or command names.
+
+Use what exists in the repository.
+
+If you need a new API, file, class, or configuration key, add it explicitly in the same focused change.
+
+Before modifying code, inspect the relevant existing files and patterns.
+
+Prefer minimal diffs.
+
+Avoid drive-by refactors.
+
+Do not rewrite unrelated code.
+
+### 1.12 Dependency changes
+
+Do not add dependencies casually.
+
+Before adding a dependency:
+
+* Check whether the repository already has a suitable dependency.
+* Prefer the standard library when it is sufficient.
+* Keep dependency changes focused.
+* Update project configuration and documentation if a dependency is added.
+
+### 1.13 Documentation
+
+When changing behavior, update relevant documentation.
+
+When adding non-trivial algorithms, include clear examples or comments explaining the design.
+
+Do not add noisy comments that merely restate the code.
+
+## 2. Required completion checklist for code changes
+
+Before saying a coding task is complete, verify the following:
+
+* The diff is focused on the requested task.
+* No unrelated refactors were introduced.
+* All new and modified function signatures are fully typed.
+* Void functions use `-> None`.
+* No `Optional`, `List`, `Dict`, `Tuple`, or `Set` imports were introduced.
+* No avoidable `Any` was introduced.
+* Empty collections have explicit element types.
+* Constants use `Final` where appropriate.
+* Filesystem paths use `Path` where appropriate.
+* Pandas was not introduced.
+* Randomness in game logic uses `GameRNG`.
+* Formatting, linting, and mypy commands were run.
+* Any remaining failures are reported accurately and distinguished from the current change.
+
+## 3. Commands
+
+Use these commands unless project documentation or CI specifies a stricter equivalent:
+
+```bash
+python -m black .
+python -m ruff check .
+python -m mypy .
+```
+
+For targeted checks during development, prefer checking changed files or packages first, then run the full commands before completion when practical.
+
+## 4. Project context
+
+This is a simulation-heavy roguelike/RPG research project emphasizing:
+
+* deterministic simulation
+* modular systems
+* high-performance Python
+* explicit state
+* typed interfaces
+* reproducible behavior
+
+Important project conventions:
+
+* Polars for dataframe-style state and data manipulation.
+* Numba and NumPy for fast numerical kernels.
+* `GameRNG` for deterministic game-logic randomness.
+* `pathlib.Path` for filesystem paths.
+* Black, Ruff, and mypy for code quality gates.
+
+## 5. Synchronization rule
+
+This instruction set is the canonical source.
+
+If the repository contains generated copies such as:
+
+* `AGENTS.md`
+* `.codex/AGENTS.md`
+* `.github/copilot-instructions.md`
+* `CLAUDE.md`
+* `.gemini/styleguide.md`
+* other LLM or agent instruction files
+
+they must be generated from this same source or manually kept identical in substance.
+
+Do not allow generated instruction files to drift.
+
+Do not put stricter typing rules in one agent file and weaker typing rules in another.
+
+Do not maintain contradictory command lists.
+
+Do not maintain contradictory mypy expectations.
+
+When updating these instructions, update the canonical source first, then regenerate or synchronize all derived instruction files.
