@@ -13,7 +13,9 @@ Usage::
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 REPO_ROOT: Final[Path] = Path(__file__).resolve().parent.parent
@@ -57,13 +59,15 @@ If the changed module is hidden behind a mypy `ignore_errors = true` override, d
 
 """
 
-TARGET_PREFIXES: Final[dict[Path, str]] = {
-    REPO_ROOT / "AGENTS.md": "",
-    REPO_ROOT / ".codex" / "AGENTS.md": CODEX_EXECUTION_REMINDER,
-    REPO_ROOT / ".github" / "copilot-instructions.md": "",
-    REPO_ROOT / ".gemini" / "styleguide.md": "",
-    REPO_ROOT / "CLAUDE.md": "",
-}
+TARGET_PREFIXES: Final[Mapping[Path, str]] = MappingProxyType(
+    {
+        REPO_ROOT / "AGENTS.md": "",
+        REPO_ROOT / ".codex" / "AGENTS.md": CODEX_EXECUTION_REMINDER,
+        REPO_ROOT / ".github" / "copilot-instructions.md": "",
+        REPO_ROOT / ".gemini" / "styleguide.md": "",
+        REPO_ROOT / "CLAUDE.md": "",
+    }
+)
 
 
 def build_expected_text(prefix: str, canon_text: str) -> str:

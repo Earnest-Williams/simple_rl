@@ -357,6 +357,8 @@ If the repository contains generated copies such as:
 * `AGENTS.md`
 * `.codex/AGENTS.md`
 * `.github/copilot-instructions.md`
+* `CLAUDE.md`
+* `.gemini/styleguide.md`
 * other LLM or agent instruction files
 
 they must be generated from this same source or manually kept identical in substance.
