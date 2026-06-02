@@ -1,72 +1,68 @@
 #!/usr/bin/env python3
+"""Production pathfinding perception fields for sound, scent, and detection.
 
-"""
-perception_systems.py
+This module owns the pathfinding-oriented perception state used by monsters and
+AI systems: multi-slice sound flow fields, Sil-compatible scent stamps, and
+monster detection helpers that query those fields. Callers allocate and retain
+the NumPy arrays; public update functions mutate only their documented output
+slices and use deterministic update semantics for reproducible simulation.
 
-Foundational implementation of noise, smell, and perception systems
-inspired by Sil, optimized for Python using NumPy, Numba, Polars, and Joblib.
-
-Designed as a starting point for iteration with custom map data.
+All coordinates are accepted and returned in ``(y, x)`` order unless a docstring
+explicitly states otherwise. Terrain arrays store integer ``FeatureType`` values.
+Walls block sound and scent. Closed and secret doors block scent line-of-sight in
+this production contract and use flow-specific rules for sound propagation.
 """
 
 import logging
 import os
 import time
-from collections import deque
 from enum import IntEnum
+from typing import Final
 
 import numpy as np
 import polars as pl
 from joblib import Parallel, delayed
 from numba import njit
+from numpy.typing import NDArray
 
 from common.constants import FeatureType
-from common.types import Neighbors8, QueueItem
+from common.types import Neighbors8
 from game.world.los import line_of_sight as los_line_of_sight
 from utils.game_rng import GameRNG
 
-# --- Constants ---
+logger: Final[logging.Logger] = logging.getLogger(__name__)
 
-logger: logging.Logger = logging.getLogger(__name__)
-
-# --- Configuration ---
-# Map dimensions (replace with actual dimensions)
-MAP_HGT: int = 64
-MAP_WID: int = 64
-# Noise/Smell parameters (from Sil analysis)
-BASE_FLOW_CENTER: int = 100
-NOISE_STRENGTH: int = 80  # Max propagation distance for noise cost calculation
-NOISE_MAX_DIST: int = 200  # Clamping value for get_noise_dist
-SMELL_STRENGTH: int = 80  # Threshold for scent aging/reset
-SCENT_RESET_AGE: int = 250  # Base age for scent reset cycle
-# Parallelism
+MAP_HGT: Final[int] = 64
+MAP_WID: Final[int] = 64
+BASE_FLOW_CENTER: Final[int] = 100
+NOISE_STRENGTH: Final[int] = 80
+NOISE_MAX_DIST: Final[int] = 200
+SMELL_STRENGTH: Final[int] = 80
+SCENT_RESET_AGE: Final[int] = 250
+FEATURE_WALL: Final[int] = int(FeatureType.WALL)
+FEATURE_CLOSED_DOOR: Final[int] = int(FeatureType.CLOSED_DOOR)
+FEATURE_SECRET_DOOR: Final[int] = int(FeatureType.SECRET_DOOR)
 _cpu_count: int | None = os.cpu_count()
 _safe_cpu_count: int = _cpu_count if _cpu_count is not None else 1
-DEFAULT_NUM_JOBS: int = max(
-    1, _safe_cpu_count // 2
-)  # Use half the CPU cores for Joblib
+DEFAULT_NUM_JOBS: Final[int] = max(1, _safe_cpu_count // 2)
 
 
-# --- Enums ---
 class FlowType(IntEnum):
-    """Flow field types for noise propagation."""
+    """Flow field types for pathfinding-oriented noise propagation."""
 
-    PASS_DOORS = 0  # Monsters that can open/bash doors
-    NO_DOORS = 1  # Monsters blocked by closed doors
-    REAL_NOISE = 2  # Actual noise for stealth/perception (dampened by doors)
-    MONSTER_NOISE = 3  # Noise originating from monsters
-    # Add other flow types (e.g., WANDERING) if needed
-    # FLOW_WANDERING_HEAD = 4 ...
+    PASS_DOORS = 0  # Door-capable monsters pay a closed-door passage penalty.
+    NO_DOORS = 1  # Door-blocked monsters cannot propagate through closed doors.
+    REAL_NOISE = 2  # Player/world noise is dampened by closed doors.
+    MONSTER_NOISE = 3  # Monster-originated noise uses real-noise door dampening.
 
 
-MAX_FLOWS: int = len(FlowType)  # Determine max flows from Enum
+MAX_FLOWS: Final[int] = len(FlowType)
+FLOW_PASS_DOORS: Final[int] = int(FlowType.PASS_DOORS)
+FLOW_NO_DOORS: Final[int] = int(FlowType.NO_DOORS)
+FLOW_REAL_NOISE: Final[int] = int(FlowType.REAL_NOISE)
+FLOW_MONSTER_NOISE: Final[int] = int(FlowType.MONSTER_NOISE)
 
-
-# --- Utility Functions (Numba Accelerated) ---
-
-# Precompute neighbor offsets for speed within Numba loops
-# Using a tuple of tuples is Numba-friendly
-NEIGHBORS_8: Neighbors8 = (
+NEIGHBORS_8: Final[Neighbors8] = (
     (-1, -1),
     (-1, 0),
     (-1, 1),
@@ -77,263 +73,7 @@ NEIGHBORS_8: Neighbors8 = (
     (1, 1),
 )
 
-
-@njit(cache=True, fastmath=True)
-def in_bounds(y: int, x: int, height: int, width: int) -> bool:
-    """Checks if coordinates are within map bounds."""
-    return 0 <= y < height and 0 <= x < width
-
-
-@njit(cache=True, fastmath=True)
-def cave_closed_door(feature_type: int) -> bool:
-    """
-    Checks if the feature type represents a closed or secret door.
-    *** PLACEHOLDER - ADAPT TO YOUR FEATURE DEFINITIONS ***
-    """
-    # Example implementation - replace with your logic
-    # Assumes FeatureType enum values are used in terrain_map
-    return (
-        feature_type == FeatureType.CLOSED_DOOR
-        or feature_type == FeatureType.SECRET_DOOR
-    )
-
-
-def terrain_transparency_map(terrain_map: np.ndarray) -> np.ndarray:
-    """Return a boolean transparency map (True == transparent)."""
-    blocking_mask = (
-        (terrain_map == FeatureType.WALL)
-        | (terrain_map == FeatureType.CLOSED_DOOR)
-        | (terrain_map == FeatureType.SECRET_DOOR)
-    )
-    return ~blocking_mask
-
-
-def line_of_sight(y1: int, x1: int, y2: int, x2: int, terrain_map: np.ndarray) -> bool:
-    """
-    Compatibility wrapper for callers using (y, x) coordinate ordering.
-
-    Converts terrain_map -> transparency_map and calls the numba LOS.
-    """
-    height, width = terrain_map.shape
-    if not (
-        0 <= y1 < height and 0 <= x1 < width and 0 <= y2 < height and 0 <= x2 < width
-    ):
-        return False
-
-    transparency_map = terrain_transparency_map(terrain_map)
-    return los_line_of_sight(x1, y1, x2, y2, transparency_map)
-
-
-# --- Noise System ---
-
-
-@njit(cache=True, fastmath=True)
-def _propagate_noise_kernel(
-    # Single slice for the current flow: shape (MAP_HGT, MAP_WID)
-    cost_grid: np.ndarray,
-    terrain_map: np.ndarray,  # Map features: shape (MAP_HGT, MAP_WID)
-    start_y: int,
-    start_x: int,  # Origin of the noise
-    start_cost: int,  # e.g., BASE_FLOW_CENTER
-    max_dist_prop: int,  # e.g., NOISE_STRENGTH
-    door_pass_penalty: int,  # Penalty for PASS_DOORS flow
-    door_real_penalty: int,  # Penalty for REAL_NOISE/MONSTER_NOISE flows
-    flow_type: int,  # Integer value from FlowType enum
-) -> None:
-    """
-    Core Numba kernel for propagating noise cost via BFS/Dijkstra-like approach.
-    Modifies cost_grid in-place.
-
-    Args:
-        cost_grid: 2D NumPy array to store costs for this flow type.
-        terrain_map: 2D NumPy array with feature types for the map.
-        start_y, start_x: Coordinates of the noise source.
-        start_cost: Initial cost value at the source.
-        max_dist_prop: Maximum cost difference from start_cost to propagate.
-        door_pass_penalty: Added cost for FLOW_PASS_DOORS through closed doors.
-        door_real_penalty: Added cost for FLOW_REAL_NOISE/MONSTER_NOISE through closed doors.
-        flow_type: The type of flow being calculated (determines door handling).
-    """
-    height, width = cost_grid.shape
-    # Use a large int value represent unreachable/infinity, avoid overflow
-    infinity: int = np.iinfo(cost_grid.dtype).max // 2
-    cost_grid.fill(infinity)
-
-    if not in_bounds(start_y, start_x, height, width):
-        print(f"Warning: Noise start ({start_y}, {start_x}) out of bounds.")
-        return  # Start is outside map
-
-    # Check if start location itself is blocked (e.g., inside a wall)
-    if terrain_map[start_y, start_x] == FeatureType.WALL:
-        # Cannot start noise inside a wall - might need refinement based on game rules
-        # Or maybe allow it for specific effects? For now, just exit.
-        print(f"Warning: Noise start ({start_y}, {start_x}) is inside a wall.")
-        return
-
-    cost_grid[start_y, start_x] = start_cost
-    # Numba doesn't directly support deque with heterogeneous types easily,
-    # but works well with deque of simple tuples like our QueueItem.
-    queue: deque[QueueItem] = deque([(start_y, start_x, start_cost)])
-
-    while queue:
-        y, x, current_cost = queue.popleft()
-
-        # Check propagation distance limit relative to the starting cost
-        if current_cost - start_cost >= max_dist_prop:
-            continue
-
-        for dy, dx in NEIGHBORS_8:
-            ny, nx = y + dy, x + dx
-
-            # Check bounds for the neighbor
-            if in_bounds(ny, nx, height, width):
-                terrain_feature: int = terrain_map[ny, nx]
-                cost_increase: int = 1  # Base cost to move to adjacent tile
-
-                # --- Cost Calculation Logic ---
-                # 1. Check for impassable terrain (walls)
-                if terrain_feature == FeatureType.WALL:
-                    continue  # Blocked by wall
-
-                # 2. Check for doors and apply penalties/blocking based on flow
-                # type
-                is_closed: bool = cave_closed_door(terrain_feature)
-                if is_closed:
-                    if flow_type == FlowType.NO_DOORS:
-                        continue  # Blocked for this flow type
-                    elif flow_type == FlowType.PASS_DOORS:
-                        # Note: adds penalty ON TOP of base cost_increase
-                        cost_increase += door_pass_penalty
-                    elif (
-                        flow_type == FlowType.REAL_NOISE
-                        or flow_type == FlowType.MONSTER_NOISE
-                    ):
-                        cost_increase += door_real_penalty
-                    # Else: Open doors or other features have default
-                    # cost_increase = 1
-
-                # 3. Calculate potential new cost
-                # Diagonal movement could optionally cost more (e.g., sqrt(2) ~ 1.41)
-                # For simplicity here, diagonal = 1, same as orthogonal
-                # If using floats: cost_increase = 1.414 if abs(dx) == 1 and
-                # abs(dy) == 1 else 1.0
-                new_cost: int = current_cost + cost_increase
-                # --- End Cost Calculation ---
-
-                # If we found a cheaper path, update cost and add to queue
-                if new_cost < cost_grid[ny, nx]:
-                    cost_grid[ny, nx] = new_cost
-                    queue.append((ny, nx, new_cost))
-
-
-def update_noise(
-    cave_cost: np.ndarray,  # Full 3D cost array: (MAX_FLOWS, MAP_HGT, MAP_WID)
-    # Array to store centers: (MAX_FLOWS, 2) for y, x
-    flow_centers: np.ndarray,
-    terrain_map: np.ndarray,  # Map features: (MAP_HGT, MAP_WID)
-    cy: int,
-    cx: int,  # Center coordinates for this update
-    which_flow: FlowType,  # Which flow map to update
-    penalties: dict[str, int],  # Dict with 'pass' and 'real' penalties
-) -> None:
-    """
-    Updates a specific noise flow map by calling the Numba kernel.
-
-    Args:
-        cave_cost: The main 3D array holding all cost maps.
-        flow_centers: Array where the center (cy, cx) of this flow will be stored.
-        terrain_map: The 2D map terrain data.
-        cy, cx: The origin coordinates of the noise source.
-        which_flow: The FlowType enum member indicating which map slice to update.
-        penalties: Dictionary containing 'pass' and 'real' door cost penalties.
-    """
-    flow_idx: int = int(which_flow)  # Get integer index from Enum
-
-    if not (0 <= flow_idx < MAX_FLOWS):
-        print(f"Error: Invalid flow index {flow_idx}")
-        return
-
-    # Select the specific 2D cost grid slice for this flow type
-    cost_grid_slice: np.ndarray = cave_cost[flow_idx]
-
-    # Store the center of this flow field
-    flow_centers[flow_idx, 0] = cy
-    flow_centers[flow_idx, 1] = cx
-
-    # Call the Numba kernel to perform the propagation
-    _propagate_noise_kernel(
-        cost_grid=cost_grid_slice,
-        terrain_map=terrain_map,
-        start_y=cy,
-        start_x=cx,
-        start_cost=BASE_FLOW_CENTER,
-        max_dist_prop=NOISE_STRENGTH,
-        door_pass_penalty=penalties.get("pass", 3),  # Default from Sil if missing
-        door_real_penalty=penalties.get("real", 5),  # Default from Sil if missing
-        flow_type=flow_idx,  # Pass the integer value
-    )
-
-
-def get_noise_dist(
-    cave_cost: np.ndarray,  # Full 3D cost array
-    flow_centers: np.ndarray,  # Array containing flow centers
-    which_flow: FlowType,  # Which flow map to query
-    y: int,
-    x: int,  # Coordinates to get the distance for
-) -> int:
-    """
-    Calculates the noise distance from the flow's center to grid (y, x).
-    Handles boundary checks and clamping based on Sil logic.
-
-    Args:
-        cave_cost: The main 3D array holding all cost maps.
-        flow_centers: Array storing the origin coordinates for each flow type.
-        which_flow: The FlowType enum member indicating which map slice to query.
-        y, x: The target coordinates.
-
-    Returns:
-        The calculated noise distance, clamped to NOISE_MAX_DIST if negative or out of bounds.
-    """
-    flow_idx: int = int(which_flow)
-    height, width = cave_cost.shape[1], cave_cost.shape[2]
-
-    if not (0 <= flow_idx < MAX_FLOWS):
-        print(f"Error: Invalid flow index {flow_idx} in get_noise_dist")
-        return NOISE_MAX_DIST  # Return max distance on error
-
-    if not in_bounds(y, x, height, width):
-        return NOISE_MAX_DIST  # Out of bounds
-
-    # Retrieve cost at target and cost at center for this flow
-    cost_at_target: int = cave_cost[flow_idx, y, x]
-    # Center cost is fixed at BASE_FLOW_CENTER when update_noise runs
-    cost_at_center: int = BASE_FLOW_CENTER
-
-    # If cost_at_target is infinity, it's unreachable
-    infinity: int = np.iinfo(cave_cost.dtype).max // 2
-    if cost_at_target >= infinity:
-        return NOISE_MAX_DIST
-
-    # Calculate distance relative to the center cost
-    noise_dist: int = cost_at_target - cost_at_center
-
-    # Clamp negative results to NOISE_MAX_DIST (as per Sil C code)
-    # This happens if the target is "behind" the propagation start direction implicitly
-    # or if cost somehow became lower than start_cost (shouldn't happen with
-    # BFS)
-    if noise_dist < 0:
-        noise_dist = NOISE_MAX_DIST
-
-    return noise_dist
-
-
-# --- Smell (Scent) System ---
-
-# Precompute scent adjustments relative to player center (from Sil analysis)
-# 0=center, 1=adjacent, 2=diagonal/further, 250=ignore
-# Using NumPy for potential future vectorization if needed, though loop is
-# small.
-SCENT_ADJUST_TABLE = np.array(
+SCENT_ADJUST_TABLE: Final[NDArray[np.int32]] = np.array(
     [
         [250, 2, 2, 2, 250],
         [2, 1, 1, 1, 2],
@@ -345,196 +85,298 @@ SCENT_ADJUST_TABLE = np.array(
 )
 
 
-@njit(
-    cache=True, parallel=False
-)  # Parallel=False as loop is small and writes to shared array
-def _lay_scent_kernel(
-    cave_when: np.ndarray,  # The 2D scent age map
-    transparency_map: np.ndarray,  # Boolean: True == transparent
-    py: int,
-    px: int,  # Player (scent source) coordinates
-    current_scent_when: int,  # Current global scent timer value
-    scent_adjust: np.ndarray,  # The 5x5 adjustment table
-) -> None:
-    """
-    Numba kernel to lay down scent in a 5x5 area around the player.
-    Modifies cave_when in-place.
+@njit(cache=True, fastmath=True)  # type: ignore[untyped-decorator]
+def in_bounds(y: int, x: int, height: int, width: int) -> bool:
+    """Return whether ``(y, x)`` is inside a map of ``height`` by ``width``."""
+    return 0 <= y < height and 0 <= x < width
 
-    Args:
-        cave_when: 2D NumPy array storing scent age.
-        transparency_map: 2D boolean array where True means transparent.
-        py, px: Player coordinates.
-        current_scent_when: The current global scent age value.
-        scent_adjust: The 5x5 NumPy array defining relative scent freshness.
-    """
+
+@njit(cache=True, fastmath=True)  # type: ignore[untyped-decorator]
+def cave_closed_door(feature_type: int) -> bool:
+    """Return ``True`` for closed or secret doors."""
+    return feature_type in (FEATURE_CLOSED_DOOR, FEATURE_SECRET_DOOR)
+
+
+@njit(cache=True, fastmath=True)  # type: ignore[untyped-decorator]
+def _sil_distance(y1: int, x1: int, y2: int, x2: int) -> int:
+    """Return Sil's integer geometric approximation for two coordinates."""
+    ay = abs(y1 - y2)
+    ax = abs(x1 - x2)
+    return max(ay, ax) + min(ay, ax) // 2
+
+
+def terrain_transparency_map(terrain_map: NDArray[np.int32]) -> NDArray[np.bool_]:
+    """Return a scent LOS transparency map where closed/secret doors are opaque."""
+    blocking_mask = (
+        (terrain_map == FEATURE_WALL)
+        | (terrain_map == FEATURE_CLOSED_DOOR)
+        | (terrain_map == FEATURE_SECRET_DOOR)
+    )
+    transparency_map: NDArray[np.bool_] = ~blocking_mask
+    return transparency_map
+
+
+def line_of_sight(
+    y1: int, x1: int, y2: int, x2: int, terrain_map: NDArray[np.int32]
+) -> bool:
+    """Return LOS for callers using ``(y, x)`` coordinate ordering."""
+    height, width = terrain_map.shape
+    if not (
+        0 <= y1 < height and 0 <= x1 < width and 0 <= y2 < height and 0 <= x2 < width
+    ):
+        return False
+
+    transparency_map = terrain_transparency_map(terrain_map)
+    return bool(los_line_of_sight(x1, y1, x2, y2, transparency_map))
+
+
+@njit(cache=True, nogil=True)  # type: ignore[untyped-decorator]
+def _propagate_noise_kernel(
+    cost_grid: NDArray[np.int32],
+    terrain_map: NDArray[np.int32],
+    start_y: int,
+    start_x: int,
+    start_cost: int,
+    max_dist_prop: int,
+    door_pass_penalty: int,
+    door_real_penalty: int,
+    flow_type_val: int,
+) -> None:
+    """Build one noise flow slice in place with an array-backed queue."""
+    height, width = cost_grid.shape
+    infinity = np.iinfo(np.int32).max // 2
+
+    for yy in range(height):
+        for xx in range(width):
+            cost_grid[yy, xx] = infinity
+
+    if not in_bounds(start_y, start_x, height, width):
+        return
+    if terrain_map[start_y, start_x] == FEATURE_WALL:
+        return
+
+    cost_grid[start_y, start_x] = start_cost
+
+    max_q = height * width
+    qy = np.empty(max_q, dtype=np.int32)
+    qx = np.empty(max_q, dtype=np.int32)
+    head = 0
+    tail = 0
+    count = 0
+    in_queue = np.zeros((height, width), dtype=np.bool_)
+
+    qy[tail] = start_y
+    qx[tail] = start_x
+    tail = (tail + 1) % max_q
+    count += 1
+    in_queue[start_y, start_x] = True
+
+    while count > 0:
+        y = qy[head]
+        x = qx[head]
+        head = (head + 1) % max_q
+        count -= 1
+        in_queue[y, x] = False
+        current_cost = cost_grid[y, x]
+
+        if current_cost - start_cost >= max_dist_prop:
+            continue
+
+        for idx in range(8):
+            dy = NEIGHBORS_8[idx][0]
+            dx = NEIGHBORS_8[idx][1]
+            ny = y + dy
+            nx = x + dx
+
+            if not in_bounds(ny, nx, height, width):
+                continue
+
+            terrain_feature = terrain_map[ny, nx]
+            if terrain_feature == FEATURE_WALL:
+                continue
+
+            cost_increase = 1
+            is_closed = cave_closed_door(terrain_feature)
+            if is_closed:
+                if flow_type_val == FLOW_NO_DOORS:
+                    continue
+                if flow_type_val == FLOW_PASS_DOORS:
+                    cost_increase += door_pass_penalty
+                elif flow_type_val in (FLOW_REAL_NOISE, FLOW_MONSTER_NOISE):
+                    cost_increase += door_real_penalty
+
+            new_cost = current_cost + cost_increase
+            if new_cost < cost_grid[ny, nx]:
+                cost_grid[ny, nx] = new_cost
+                if new_cost - start_cost < max_dist_prop and not in_queue[ny, nx]:
+                    qy[tail] = ny
+                    qx[tail] = nx
+                    tail = (tail + 1) % max_q
+                    count += 1
+                    in_queue[ny, nx] = True
+
+
+def update_noise(
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
+    terrain_map: NDArray[np.int32],
+    cy: int,
+    cx: int,
+    which_flow: FlowType,
+    penalties: dict[str, int],
+) -> None:
+    """Fully reset and rebuild exactly one noise flow slice."""
+    flow_idx = int(which_flow)
+    if not (0 <= flow_idx < MAX_FLOWS):
+        raise ValueError(f"Invalid flow index: {flow_idx}")
+
+    flow_centers[flow_idx, 0] = cy
+    flow_centers[flow_idx, 1] = cx
+
+    _propagate_noise_kernel(
+        cave_cost[flow_idx],
+        terrain_map,
+        cy,
+        cx,
+        BASE_FLOW_CENTER,
+        NOISE_STRENGTH,
+        int(penalties.get("pass", 3)),
+        int(penalties.get("real", 5)),
+        flow_idx,
+    )
+
+
+@njit(cache=True, fastmath=True)  # type: ignore[untyped-decorator]
+def get_noise_dist_scalar(
+    cost_at_target: int,
+    flow_center_y: int,
+    flow_center_x: int,
+    target_y: int,
+    target_x: int,
+) -> int:
+    """Convert a stored flow cost to Sil-compatible perceived noise distance."""
+    infinity = np.iinfo(np.int32).max // 2
+    if cost_at_target >= infinity:
+        return NOISE_MAX_DIST
+
+    base_dist = _sil_distance(flow_center_y, flow_center_x, target_y, target_x)
+    noise_dist = int(cost_at_target - BASE_FLOW_CENTER + base_dist)
+    if noise_dist > NOISE_MAX_DIST or noise_dist < 0:
+        return NOISE_MAX_DIST
+    return noise_dist
+
+
+def get_noise_dist(
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
+    which_flow: FlowType,
+    y: int,
+    x: int,
+) -> int:
+    """Return the perceived noise distance at ``(y, x)`` for one flow slice."""
+    flow_idx = int(which_flow)
+    height = cave_cost.shape[1]
+    width = cave_cost.shape[2]
+
+    if not (0 <= flow_idx < MAX_FLOWS):
+        return NOISE_MAX_DIST
+    if not in_bounds(y, x, height, width):
+        return NOISE_MAX_DIST
+
+    cost = int(cave_cost[flow_idx, y, x])
+    center_y = int(flow_centers[flow_idx, 0])
+    center_x = int(flow_centers[flow_idx, 1])
+    return int(get_noise_dist_scalar(cost, center_y, center_x, y, x))
+
+
+@njit(cache=True, parallel=False)  # type: ignore[untyped-decorator]
+def _lay_scent_kernel(
+    cave_when: NDArray[np.int32],
+    transparency_map: NDArray[np.bool_],
+    py: int,
+    px: int,
+    current_scent_when: int,
+    scent_adjust: NDArray[np.int32],
+) -> None:
+    """Lay a 5x5 scent stamp around ``(py, px)`` in place."""
     height, width = cave_when.shape
-    table_size = scent_adjust.shape[0]  # Should be 5
-    offset = table_size // 2  # Should be 2
+    table_size = scent_adjust.shape[0]
+    offset = table_size // 2
 
     for i in range(table_size):
         for j in range(table_size):
-            y: int = py + i - offset
-            x: int = px + j - offset
-
-            # Check bounds first
+            y = py + i - offset
+            x = px + j - offset
             if not in_bounds(y, x, height, width):
                 continue
 
-            adjustment: int = scent_adjust[i, j]
-
-            # Ignore grids marked as too far in the table
+            adjustment = int(scent_adjust[i, j])
             if adjustment == 250:
                 continue
-
-            # Walls cannot hold scent
             if not transparency_map[y, x]:
                 continue
-
-            # Grid must not be blocked by walls from the character (use numba LOS)
             if not los_line_of_sight(px, py, x, y, transparency_map):
                 continue
 
-            # Mark the grid with new scent age
-            # Newer scent = lower adjustment value added to base 'scent_when'
             cave_when[y, x] = current_scent_when + adjustment
 
 
 def update_smell(
-    cave_when: np.ndarray,  # The 2D scent age map (modified in-place)
-    terrain_map: np.ndarray,  # Map features
+    cave_when: NDArray[np.int32],
+    terrain_map: NDArray[np.int32],
     py: int,
-    px: int,  # Player coordinates
-    global_scent_when: int,  # Current global scent timer value (mutable!)
+    px: int,
+    global_scent_when: int,
 ) -> int:
-    """
-    Updates the scent map: ages existing scent and lays down new scent.
-
-    Args:
-        cave_when: 2D NumPy array storing scent age. Will be modified.
-        terrain_map: 2D NumPy array with map feature types.
-        py, px: Player coordinates for laying new scent.
-        global_scent_when: The current global scent timer.
-
-    Returns:
-        The updated global_scent_when value.
-    """
-    # 1. Age the global timer
+    """Age the global scent counter and lay a Sil-compatible player scent stamp."""
     global_scent_when -= 1
 
-    # 2. Handle scent cycle reset using NumPy vectorization
     if global_scent_when <= 0:
-        # Determine the reset offset based on constants
-        reset_offset: int = SCENT_RESET_AGE - SMELL_STRENGTH
-
-        # Identify scent older than the strength threshold
-        # Note: In Sil C code, '>' was used. If age decreases, this should be '<='.
-        # Assuming lower value means older scent. Adjust if higher value means older.
-        # Let's assume lower value = older (needs confirmation from Sil execution trace)
-        # If scent_when counts down, a smaller value is older.
-        # cave_when[y][x] <= SMELL_STRENGTH would mean it's old.
-
-        # *** Reinterpreting Sil C code based on variable names ***
-        # 'scent_when' decreases. cave_when[y][x] stores 'scent_when + adjustment'.
-        # Higher cave_when values are newer.
-        # Reset logic from Sil C code:
-        # if (cave_when[y][x] > SMELL_STRENGTH) cave_when[y][x] = 0; // Erase old
-        # else cave_when[y][x] = 250 - SMELL_STRENGTH + cave_when[y][x]; //
-        # Reset recent
-
-        # Vectorized equivalent:
-        is_old_scent: np.ndarray = cave_when > SMELL_STRENGTH
-        is_recent_scent: np.ndarray = (cave_when > 0) & (~is_old_scent)
-
-        # Erase old scent
+        reset_offset = SCENT_RESET_AGE - SMELL_STRENGTH
+        is_old_scent = cave_when > SMELL_STRENGTH
+        is_recent_scent = (cave_when > 0) & ~is_old_scent
         cave_when[is_old_scent] = 0
-
-        # Reset age of recent scent relative to the new cycle start
-        # cave_when[is_recent_scent] = reset_offset + cave_when[is_recent_scent] # This was slightly off
-        # The C code implies resetting based on the value *before* the new cycle adjustment.
-        # It seems like it's shifting the valid range. Let's try to match that:
-        # New value = (New Cycle Base) + (How far it was into the *old* valid range)
-        # Old valid range was roughly [1, SMELL_STRENGTH].
-        # New cycle base is 'reset_offset'.
-        # Let's stick closer to the C formula:
         cave_when[is_recent_scent] = reset_offset + cave_when[is_recent_scent]
-        # Caveat: This needs careful testing against C implementation behavior.
-
-        # Reset the global timer
         global_scent_when = reset_offset
-        print(f"Scent cycle reset. New base age: {global_scent_when}")
 
-    # 3. Lay down new scent using the Numba kernel
     transparency_map = terrain_transparency_map(terrain_map)
     _lay_scent_kernel(
-        cave_when=cave_when,
-        transparency_map=transparency_map,
-        py=py,
-        px=px,
-        current_scent_when=global_scent_when,
-        scent_adjust=SCENT_ADJUST_TABLE,
+        cave_when,
+        transparency_map,
+        py,
+        px,
+        global_scent_when,
+        SCENT_ADJUST_TABLE,
     )
-
     return global_scent_when
 
 
-def get_scent(cave_when: np.ndarray, y: int, x: int) -> int:
-    """
-    Gets the scent age at a specific location.
-
-    Args:
-        cave_when: 2D NumPy array storing scent age.
-        y, x: Target coordinates.
-
-    Returns:
-        Scent age value, or -1 if out of bounds or no scent (age 0).
-    """
+def get_scent(cave_when: NDArray[np.int32], y: int, x: int) -> int:
+    """Return the raw scent stamp, or ``0`` for no scent/out-of-bounds."""
     height, width = cave_when.shape
     if not in_bounds(y, x, height, width):
-        return -1
-
-    age: int = cave_when[y, x]
-
-    # Return -1 if no scent (age 0) or if technically invalid
-    return age if age > 0 else -1
-
-
-# --- Monster Data Representation (Polars DataFrame) ---
+        return 0
+    return int(cave_when[y, x])
 
 
 def initialize_monsters(
     num_monsters: int, height: int, width: int, rng: GameRNG | None = None
 ) -> pl.DataFrame:
-    """Creates a Polars DataFrame with sample monster data."""
+    """Create a Polars DataFrame with sample monster perception data."""
     if rng is None:
         rng = GameRNG()
     monster_data = {
         "id": range(num_monsters),
-        # Example race index
         "r_idx": np.array([rng.get_int(1, 4) for _ in range(num_monsters)]),
         "fy": np.array([rng.get_int(0, height - 1) for _ in range(num_monsters)]),
         "fx": np.array([rng.get_int(0, width - 1) for _ in range(num_monsters)]),
         "is_dead": np.zeros(num_monsters, dtype=bool),
-        "perception_stat": np.array(
-            [rng.get_int(5, 14) for _ in range(num_monsters)]
-        ),  # Base perception
-        "alertness": np.array(
-            [rng.get_int(-10, 0) for _ in range(num_monsters)]
-        ),  # Example: mostly unwary/asleep
-        # Add flags based on Sil RF flags if needed (e.g., RF2_SHORT_SIGHTED)
-        # Placeholder for bitflags
+        "perception_stat": np.array([rng.get_int(5, 14) for _ in range(num_monsters)]),
+        "alertness": np.array([rng.get_int(-10, 0) for _ in range(num_monsters)]),
         "flags": np.zeros(num_monsters, dtype=np.uint32),
-        "heard_player": np.zeros(
-            num_monsters, dtype=bool
-        ),  # Track if detected this turn
+        "heard_player": np.zeros(num_monsters, dtype=bool),
     }
-    # Create Polars DataFrame
-    # Using lazy API allows for potential optimizations on larger datasets
-    # but for this example, eager is fine.
-    monster_df = pl.DataFrame(monster_data)
-    return monster_df
-
-
-# --- Perception System (Parallelized) ---
+    return pl.DataFrame(monster_data)
 
 
 def skill_check(
@@ -542,70 +384,43 @@ def skill_check(
     difficulty: int,
     target_skill: int,
     rng_seed: int,
-    *,
-    min_threshold: int = 5,
-    max_threshold: int = 95,
-    skill_scale: int = 3,
 ) -> bool:
-    """
-    Performs a d100 skill check with tunable thresholds.
-
-    Args:
-        actor_skill: Skill value of the acting entity (e.g., monster perception).
-        difficulty: Difficulty modifier (e.g., based on noise distance, stealth).
-        target_skill: Skill value of the target resisting (e.g., player stealth).
-        rng_seed: Deterministic seed for the GameRNG.
-        min_threshold: Minimum success threshold clamp.
-        max_threshold: Maximum success threshold clamp.
-        skill_scale: Scaling factor for skill difference.
-
-    Returns:
-        True if the check succeeds, False otherwise.
-    """
+    """Return Sil's two-d10 skill check outcome for deterministic seed input."""
     rng = GameRNG(seed=rng_seed)
-    diff = actor_skill - target_skill
-    threshold = 50 + (skill_scale * diff) - difficulty
-    threshold = max(min_threshold, min(max_threshold, threshold))
-    roll = rng.get_int(1, 100)
-    return roll <= threshold
+    return _sil_skill_check_with_rng(actor_skill, difficulty, target_skill, rng)
 
 
-def warmup_perception_kernels() -> None:
-    """Warm up Numba kernels to avoid first-use JIT stutter."""
-    tiny_transparency = np.ones((4, 4), dtype=np.bool_)
-    los_line_of_sight(0, 0, 1, 1, tiny_transparency)
-    cave_when = np.zeros((4, 4), dtype=np.int32)
-    scent = np.ones((5, 5), dtype=np.int32)
-    _lay_scent_kernel(cave_when, tiny_transparency, 2, 2, 250, scent)
+def _sil_skill_check_with_rng(
+    skill: int, difficulty: int, opposition: int, rng: GameRNG
+) -> bool:
+    """Return ``(1d10 + skill) - (1d10 + difficulty + opposition) > 0``."""
+    actor_total = rng.get_int(1, 10) + skill
+    defender_total = rng.get_int(1, 10) + difficulty + opposition
+    return (actor_total - defender_total) > 0
+
+
+def _require_monster_columns(monster_df: pl.DataFrame) -> None:
+    """Validate the monster perception DataFrame schema used by this adapter."""
+    required_columns: Final[frozenset[str]] = frozenset(
+        {"id", "fy", "fx", "is_dead", "perception_stat"}
+    )
+    missing_columns = required_columns.difference(monster_df.columns)
+    if missing_columns:
+        missing_display = ", ".join(sorted(missing_columns))
+        raise ValueError(f"monster_df missing required columns: {missing_display}")
 
 
 def _process_monster_perception_chunk(
     monster_df_chunk: pl.DataFrame,
     *,
-    cave_cost: np.ndarray,
-    flow_centers: np.ndarray,
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
     player_stealth_skill: int,
     noise_flow_type: FlowType,
     rng_seeds: list[int],
     chunk_index: int,
 ) -> tuple[int, list[int]]:
-    """
-    Processes perception checks for a chunk of monsters.
-    Called by Joblib workers.
-
-    Args:
-        monster_df_chunk: A Polars DataFrame subset containing monsters to process.
-        cave_cost: The 3D NumPy array of noise costs.
-        flow_centers: NumPy array of flow center coordinates.
-        player_stealth_skill: The player's relevant skill (e.g., stealth).
-        noise_flow_type: The FlowType to use for noise distance checks.
-        rng_seeds: Per-entity deterministic seeds for each monster in the chunk.
-        chunk_index: Stable ordering index for deterministic aggregation.
-
-    Returns:
-        Tuple of (chunk_index, alerted monster IDs) for deterministic ordering.
-    """
-    # Safety check: ensure rng_seeds matches the number of monsters
+    """Process one deterministic chunk of monster perception checks."""
     num_monsters = monster_df_chunk.height
     if len(rng_seeds) != num_monsters:
         raise ValueError(
@@ -614,48 +429,29 @@ def _process_monster_perception_chunk(
         )
 
     alerted_monster_ids: list[int] = []
+    height = cave_cost.shape[1]
+    width = cave_cost.shape[2]
 
-    # Iterate through the rows of the DataFrame chunk with per-entity RNG
-    for idx, row in enumerate(monster_df_chunk.iter_rows(named=True)):
-        monster_id: int = row["id"]
-        m_y: int = row["fy"]
-        m_x: int = row["fx"]
-        perception: int = row["perception_stat"]
-        # Add checks for flags like RF2_SHORT_SIGHTED if implemented
+    ids = monster_df_chunk["id"].to_numpy().astype(np.int64)
+    ys = monster_df_chunk["fy"].to_numpy().astype(np.int64)
+    xs = monster_df_chunk["fx"].to_numpy().astype(np.int64)
+    perceptions = monster_df_chunk["perception_stat"].to_numpy().astype(np.int64)
 
-        # Use per-entity deterministic seed for the skill check.
-        per_seed = rng_seeds[idx]
+    for idx in range(num_monsters):
+        monster_id = int(ids[idx])
+        m_y = int(ys[idx])
+        m_x = int(xs[idx])
+        perception = int(perceptions[idx])
+        if not in_bounds(m_y, m_x, height, width):
+            continue
 
-        # 1. Get Noise Distance
-        noise_dist: int = get_noise_dist(
-            cave_cost, flow_centers, noise_flow_type, m_y, m_x
-        )
-
-        # Optimization: If noise distance is max, monster can't hear
+        noise_dist = get_noise_dist(cave_cost, flow_centers, noise_flow_type, m_y, m_x)
         if noise_dist >= NOISE_MAX_DIST:
             continue
 
-        # 2. Perform Perception Check
-        # Difficulty increases with noise distance (harder to hear far away)
-        # Player stealth skill resists the check.
-        difficulty_mod: int = noise_dist  # Simple difficulty based on distance
-
-        # Add other factors: lighting, player state (singing?), monster state?
-
-        if skill_check(
-            actor_skill=perception,
-            difficulty=difficulty_mod,
-            target_skill=player_stealth_skill,
-            rng_seed=per_seed,
-        ):
-            # --- Perception Success ---
+        per_seed = rng_seeds[idx]
+        if skill_check(perception, noise_dist, player_stealth_skill, per_seed):
             alerted_monster_ids.append(monster_id)
-            # Potential actions:
-            # - Set monster's heard_player flag (if modifying DF directly - tricky with parallel)
-            # - Update monster alertness (needs careful handling with parallel results)
-            # - Trigger AI state change (best handled after collecting all results)
-            # print(f"  Monster {monster_id} heard player! (Noise Dist:
-            # {noise_dist})") # DEBUG
 
     return chunk_index, alerted_monster_ids
 
@@ -663,71 +459,45 @@ def _process_monster_perception_chunk(
 def monster_perception(
     monster_df: pl.DataFrame,
     *,
-    cave_cost: np.ndarray,
-    flow_centers: np.ndarray,
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
     player_y: int,
     player_x: int,
     player_stealth_skill: int,
     rng: GameRNG | None = None,
     num_jobs: int | None = None,
     deterministic: bool = True,
+    noise_flow_type: FlowType = FlowType.REAL_NOISE,
 ) -> list[int]:
-    """
-    Updates monster perception based on noise. Parallelized using Joblib.
+    """Return deterministically ordered monster IDs alerted by a noise flow."""
+    del player_y, player_x
+    start_time = time.monotonic()
+    _require_monster_columns(monster_df)
 
-    Args:
-        monster_df: The Polars DataFrame containing all monster data.
-        cave_cost: The 3D NumPy array of noise costs.
-        flow_centers: NumPy array of flow center coordinates.
-        player_y, player_x: Current player coordinates (primarily for context).
-        player_stealth_skill: Player's relevant skill value.
-        rng: Optional GameRNG instance for deterministic random generation.
-        num_jobs: Optional override for Joblib worker count.
-        deterministic: Force single-threaded deterministic processing.
-
-    Returns:
-        A list containing the IDs of all monsters that detected the player this turn.
-    """
-    start_time = time.time()
-
-    # --- Filter Monsters ---
-    # Select only monsters that are alive and potentially relevant
-    # (e.g., within a max perception range if known, or just !is_dead)
-    active_monsters_df = monster_df.filter(~pl.col("is_dead"))
-
+    active_monsters_df = monster_df.filter(~pl.col("is_dead")).sort("id")
     num_monsters = active_monsters_df.height
     if num_monsters == 0:
         return []
 
-    # --- Parallel Processing ---
-    # Split the DataFrame into chunks for parallel processing
     resolved_jobs = num_jobs if num_jobs is not None else DEFAULT_NUM_JOBS
     if deterministic:
         resolved_jobs = 1
+    resolved_jobs = max(1, resolved_jobs)
 
-    # Adjust n_chunks based on resolved_jobs and number of monsters
-    # Heuristic: more chunks than jobs
-    n_chunks = min(num_monsters, max(1, resolved_jobs) * 4)
-    if n_chunks <= 0:
-        n_chunks = 1
-
-    chunk_size = (num_monsters + n_chunks - 1) // n_chunks  # Ceiling division
-
-    # Create list of DataFrame chunks (this involves copying data, consider
-    # indices if memory critical)
+    n_chunks = min(num_monsters, resolved_jobs * 4)
+    chunk_size = (num_monsters + n_chunks - 1) // n_chunks
     df_chunks = [
-        active_monsters_df.slice(i * chunk_size, chunk_size) for i in range(n_chunks)
+        active_monsters_df.slice(chunk_index * chunk_size, chunk_size)
+        for chunk_index in range(n_chunks)
     ]
 
-    # Ensure master RNG
-    if rng is None:
-        rng = GameRNG()
-
-    # Precompute per-entity seeds in the master process (stable)
+    master_rng = rng if rng is not None else GameRNG()
     seeds_for_chunks: list[list[int]] = []
     for chunk in df_chunks:
-        ids_in_chunk = [int(row["id"]) for row in chunk.iter_rows(named=True)]
-        seeds_for_chunks.append([rng.derive_seed(mid) for mid in ids_in_chunk])
+        ids_in_chunk = chunk["id"].to_numpy().astype(np.int64)
+        seeds_for_chunks.append(
+            [master_rng.derive_seed(int(monster_id)) for monster_id in ids_in_chunk]
+        )
 
     if resolved_jobs <= 1:
         results = [
@@ -736,7 +506,7 @@ def monster_perception(
                 cave_cost=cave_cost,
                 flow_centers=flow_centers,
                 player_stealth_skill=player_stealth_skill,
-                noise_flow_type=FlowType.REAL_NOISE,
+                noise_flow_type=noise_flow_type,
                 rng_seeds=seeds,
                 chunk_index=index,
             )
@@ -751,7 +521,7 @@ def monster_perception(
                 cave_cost=cave_cost,
                 flow_centers=flow_centers,
                 player_stealth_skill=player_stealth_skill,
-                noise_flow_type=FlowType.REAL_NOISE,
+                noise_flow_type=noise_flow_type,
                 rng_seeds=seeds,
                 chunk_index=index,
             )
@@ -760,99 +530,98 @@ def monster_perception(
             )
         )
 
-    # --- Aggregate Results ---
     ordered_chunks = [chunk for _, chunk in sorted(results, key=lambda pair: pair[0])]
-    all_alerted_ids: list[int] = [
-        item for sublist in ordered_chunks for item in sublist
-    ]
+    all_alerted_ids = [item for sublist in ordered_chunks for item in sublist]
 
-    end_time = time.time()
-    duration_s: float = end_time - start_time
+    duration_s = time.monotonic() - start_time
     logger.info(
         "Monster perception for %d monsters took %.4fs using %d jobs.",
         num_monsters,
         duration_s,
         resolved_jobs,
     )
-
-    # --- Update Monster State (Post-Parallel) ---
-    # Now that we have all alerted IDs, update the main DataFrame or trigger AI
     if all_alerted_ids:
         logger.info("Monsters alerted: %s", all_alerted_ids)
-        # Example: Update a 'heard_player' flag in the main DataFrame
-        # This is safer than trying to modify the DF from parallel workers.
-        # monster_df = monster_df.with_columns(
-        #     pl.when(pl.col('id').is_in(all_alerted_ids))
-        #     .then(True)
-        #     .otherwise(pl.col('heard_player'))
-        #     .alias('heard_player')
-        # )
-        # Note: Reassignment needed as Polars DataFrames are immutable by default.
-        # Or, pass these IDs to an AI system to update alertness/state.
-
-    return all_alerted_ids  # Return the list of IDs
+    return all_alerted_ids
 
 
-# --- Main Execution / Example Usage ---
+def choose_step_by_flow(
+    game_tiles: NDArray[np.int32], flow_costs_slice: NDArray[np.int32], my: int, mx: int
+) -> tuple[int, int]:
+    """Choose an adjacent coordinate descending a flow field without moving."""
+    height, width = flow_costs_slice.shape
+    if not (0 <= my < height and 0 <= mx < width):
+        return my, mx
+
+    current_cost = int(flow_costs_slice[my, mx])
+    best_y = my
+    best_x = mx
+
+    for dy, dx in NEIGHBORS_8:
+        ny = my + dy
+        nx = mx + dx
+        if not (0 <= ny < height and 0 <= nx < width):
+            continue
+        if game_tiles[ny, nx] == FEATURE_WALL:
+            continue
+        neighbor_cost = int(flow_costs_slice[ny, nx])
+        if neighbor_cost < current_cost:
+            current_cost = neighbor_cost
+            best_y = ny
+            best_x = nx
+
+    return best_y, best_x
+
+
+def warmup_perception_kernels() -> None:
+    """Warm Numba kernels used by perception gameplay paths."""
+    terrain_map = np.full((4, 4), FEATURE_WALL, dtype=np.int32)
+    terrain_map[1:3, 1:3] = int(FeatureType.FLOOR)
+    cave_cost = np.empty((MAX_FLOWS, 4, 4), dtype=np.int32)
+    flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
+    update_noise(cave_cost, flow_centers, terrain_map, 1, 1, FlowType.REAL_NOISE, {})
+    get_noise_dist(cave_cost, flow_centers, FlowType.REAL_NOISE, 1, 1)
+
+    transparency_map = terrain_transparency_map(terrain_map)
+    los_line_of_sight(1, 1, 2, 2, transparency_map)
+    cave_when = np.zeros((4, 4), dtype=np.int32)
+    _lay_scent_kernel(
+        cave_when, transparency_map, 1, 1, SCENT_RESET_AGE, SCENT_ADJUST_TABLE
+    )
+
 
 if __name__ == "__main__":
     print("Initializing perception systems demo...")
-
-    # --- Initialize Map Data (Placeholders) ---
-    # Replace with your actual map loading/generation
-    # Terrain map: integers representing FeatureType
     terrain_map = np.full((MAP_HGT, MAP_WID), FeatureType.FLOOR, dtype=np.int32)
-    # Add some walls and a closed door for testing noise propagation
     terrain_map[MAP_HGT // 2, MAP_WID // 4 : 3 * MAP_WID // 4] = FeatureType.WALL
     terrain_map[MAP_HGT // 2 + 5, MAP_WID // 2] = FeatureType.CLOSED_DOOR
-    # Add boundary walls
     terrain_map[0, :] = FeatureType.WALL
     terrain_map[MAP_HGT - 1, :] = FeatureType.WALL
     terrain_map[:, 0] = FeatureType.WALL
     terrain_map[:, MAP_WID - 1] = FeatureType.WALL
 
-    # Noise cost map: Init with a large value (infinity)
     infinity_val = np.iinfo(np.int32).max // 2
     cave_cost = np.full((MAX_FLOWS, MAP_HGT, MAP_WID), infinity_val, dtype=np.int32)
-    flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)  # Store (y, x) centers
-
-    # Scent map: Init with 0 (no scent)
+    flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
     cave_when = np.zeros((MAP_HGT, MAP_WID), dtype=np.int32)
-    global_scent_when: int = SCENT_RESET_AGE  # Initial scent timer
-
-    # Define door penalties
+    global_scent_when = SCENT_RESET_AGE
     door_penalties = {"pass": 3, "real": 5}
 
-    # --- Initialize Player and Monsters ---
-    player_y, player_x = MAP_HGT // 2 + 10, MAP_WID // 2
-    player_stealth_skill = 10  # Example skill value
-
-    num_monsters = 500  # Example number of monsters for testing parallelism
+    player_y = MAP_HGT // 2 + 10
+    player_x = MAP_WID // 2
+    player_stealth_skill = 10
+    num_monsters = 500
     monster_df = initialize_monsters(num_monsters, MAP_HGT, MAP_WID)
-    # Ensure monsters don't start inside walls (simple repositioning)
-    monster_df = monster_df.with_columns(
-        pl.when(terrain_map[pl.col("fy"), pl.col("fx")] == FeatureType.WALL)
-        .then(player_y)  # Move to player Y if in wall (crude fix)
-        .otherwise(pl.col("fy"))
-        .alias("fy"),
-        pl.when(terrain_map[pl.col("fy"), pl.col("fx")] == FeatureType.WALL)
-        .then(player_x + 1)  # Move to player X+1 if in wall (crude fix)
-        .otherwise(pl.col("fx"))
-        .alias("fx"),
-    )
 
     print(
-        f"Map: {MAP_HGT}x{MAP_WID}, Player: ({player_y}, {player_x}), Monsters: {num_monsters}"
+        f"Map: {MAP_HGT}x{MAP_WID}, Player: ({player_y}, {player_x}), "
+        f"Monsters: {num_monsters}"
     )
     print(f"Using {DEFAULT_NUM_JOBS} parallel jobs for perception.")
 
-    # --- Simulation Loop (Simplified Example) ---
     for turn in range(5):
         print(f"\n--- Turn {turn + 1} ---")
-
-        # 1. Update Noise (originate from player for this example)
-        noise_start_time = time.time()
-        # Update the flow maps relevant for perception/pathing
+        noise_start_time = time.monotonic()
         update_noise(
             cave_cost,
             flow_centers,
@@ -871,17 +640,14 @@ if __name__ == "__main__":
             FlowType.PASS_DOORS,
             door_penalties,
         )
-        # Add update_noise for NO_DOORS if needed for pathfinding logic
-        print(f"Noise update took: {time.time() - noise_start_time:.4f}s")
+        print(f"Noise update took: {time.monotonic() - noise_start_time:.4f}s")
 
-        # 2. Update Smell
-        smell_start_time = time.time()
+        smell_start_time = time.monotonic()
         global_scent_when = update_smell(
             cave_when, terrain_map, player_y, player_x, global_scent_when
         )
-        print(f"Smell update took: {time.time() - smell_start_time:.4f}s")
+        print(f"Smell update took: {time.monotonic() - smell_start_time:.4f}s")
 
-        # 3. Monster Perception
         alerted_ids = monster_perception(
             monster_df,
             cave_cost=cave_cost,
@@ -890,10 +656,8 @@ if __name__ == "__main__":
             player_x=player_x,
             player_stealth_skill=player_stealth_skill,
         )
-        # Here you would typically update the state of alerted monsters in monster_df
-        # or pass alerted_ids to an AI processing system.
+        print(f"Alerted monsters this turn: {len(alerted_ids)}")
 
-        # --- Example Lookups ---
         if num_monsters > 0:
             example_monster_id = 0
             m_info = monster_df.filter(pl.col("id") == example_monster_id)
@@ -904,13 +668,12 @@ if __name__ == "__main__":
                 )
                 scent = get_scent(cave_when, m_y, m_x)
                 print(
-                    f"Example Monster {example_monster_id} at ({m_y}, {m_x}): Noise Dist={noise}, Scent Age={scent}"
+                    f"Example Monster {example_monster_id} at ({m_y}, {m_x}): "
+                    f"Noise Dist={noise}, Scent Age={scent}"
                 )
 
-        # (Player moves, monsters move, combat happens, etc. - not implemented)
-        # Simple player movement example
         player_x += 1
         if player_x >= MAP_WID - 1:
-            player_x = 1  # Basic wrap/reset
+            player_x = 1
 
     print("\nDemo finished.")

@@ -9,10 +9,10 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 ## Core Components
 
 * **`perception_systems.py`:**
-    * **Noise Propagation:** Implements `update_noise` which calculates the spread of sound using a cost-based flood fill (similar to Dijkstra/BFS) accelerated by Numba (`_propagate_noise_kernel`). It handles different terrain/feature interactions (e.g., how noise passes through doors) via `FlowType` enums and `FeatureType` enums. Outputs noise cost maps (`cave_cost`).
-    * **Scent System:** Implements `update_smell` which simulates scent aging (`_age_scent_kernel`) and laying (`_lay_scent_kernel`), also using Numba kernels. Tracks scent intensity and the time it was last detected (`cave_when`).
-    * **Monster Perception:** Provides `monster_perception` which checks if monsters detect the player based on noise, scent, or (placeholder) line-of-sight. This check is parallelized across monsters using Joblib (`Parallel`, `delayed`) for efficiency. Monster data is expected in a Polars DataFrame.
-    * **Placeholders:** Includes placeholder functions for `line_of_sight` and `skill_check` that need actual implementations.
+    * **Noise Propagation:** Implements `update_noise` which fully resets and rebuilds a selected sound flow slice using a Numba array-backed queue. It handles closed and secret door interactions via `FlowType`: door-capable monsters pay a passage penalty, door-blocked monsters stop at doors, and real/monster noise is dampened by doors. Outputs noise cost maps (`cave_cost`) and records slice origins in `flow_centers`.
+    * **Scent System:** Implements `update_smell` with Sil-compatible `cave_when` global counter semantics. It stamps a 5×5 scent table around the player, skips sentinel corners, skips walls/opaque doors, and requires line-of-sight before writing scent.
+    * **Monster Perception:** Provides `monster_perception` which filters dead monsters, chunks active monsters deterministically, and returns alerted monster IDs from Sil-style two-d10 noise perception checks. Monster data is expected in a Polars DataFrame with the production adapter columns (`id`, `fy`, `fx`, `is_dead`, `perception_stat`).
+    * **Flow Following:** Provides `choose_step_by_flow`, a stateless helper for choosing an adjacent cell that descends a flow field without executing movement.
 * **`fix.sh`:** Standard code formatting script using `ruff`, `black`, etc.
 
 ## Dependencies
@@ -29,7 +29,7 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 * ✅ **Integrated**: The perception concepts from this module influenced the production perception system in `game/ai/perception.py` which generates noise and scent maps for the main game.
 * ✅ **Functional**: Core perception logic is working in the main game via `game/ai/perception.gather_perception`
 * 🔄 **Ongoing Work**: The `FeatureType` enum needs synchronization with the final feature set produced by the main `Dungeon/` generator
-* 🔄 **Requires Implementation**: The `line_of_sight` placeholder function needs proper implementation (e.g., Bresenham accelerated with Numba) - currently using placeholder
+* ✅ **Line-of-sight backed scent**: Scent stamping uses the shared `game.world.los` implementation and treats walls plus closed/secret doors as opaque for scent LOS
 * 🔄 **Tuning**: Perception parameters may require further adjustment based on gameplay validation
 
 **Integration Points:**
