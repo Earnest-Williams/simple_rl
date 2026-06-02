@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
 
+numba = pytest.importorskip("numba", reason="game.world.fov requires numba")
+
 from game.world.fov import (
     compute_fov_into,
     compute_visibility,

@@ -9,8 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from game.world.fov import compute_visibility
 from tests.fixtures.fov_scenarios import (
+    compute_visibility,
     bresenham_line,
     fov_from_transparency,
     make_open_room,

@@ -7,8 +7,8 @@ the production ``compute_visibility`` and related helpers from
 
 import numpy as np
 
-from game.world.fov import compute_visibility
 from tests.fixtures.fov_scenarios import (
+    compute_visibility,
     fov_from_transparency,
     scenario_diagonal_blocker,
     scenario_empty_room,
