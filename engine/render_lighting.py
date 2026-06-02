@@ -226,14 +226,18 @@ def _compute_single_light_contribution(
     A pure visibility fallback remains available only for environments where the
     accelerated FOV helper cannot be imported.
     """
-    contribution = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
+    contribution: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
     if radius <= 0:
         return contribution
 
-    scaled_color = tuple(int(channel * float(intensity)) for channel in color_rgb)
-    has_geometry = height_map is not None and ceiling_map is not None
+    scaled_color: tuple[int, int, int] = (
+        int(color_rgb[0] * float(intensity)),
+        int(color_rgb[1] * float(intensity)),
+        int(color_rgb[2] * float(intensity)),
+    )
+    has_geometry: bool = height_map is not None and ceiling_map is not None
     if compute_light_color_array is not None and has_geometry:
-        origin_h = int(height_map[origin_y, origin_x])
+        origin_h: int = int(height_map[origin_y, origin_x])
         compute_light_color_array(
             origin_xy=(origin_x, origin_y),
             range_limit=radius,
@@ -286,9 +290,9 @@ class LightContributionCache:
         scene_w: int,
         blend_policy: RGBBlendPolicy | None = None,
     ) -> None:
-        self._h = scene_h
-        self._w = scene_w
-        self._policy = blend_policy or DEFAULT_BLEND_POLICY
+        self._h: int = scene_h
+        self._w: int = scene_w
+        self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
         self._last_scene_seq: int | None = None
         self._combined: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
         self._contributions: dict[int, np.ndarray] = {}
@@ -461,7 +465,7 @@ class LightingRenderer:
     """Renderer-facing owner for cached colored light contributions."""
 
     def __init__(self, blend_policy: RGBBlendPolicy | None = None) -> None:
-        self._policy = blend_policy or DEFAULT_BLEND_POLICY
+        self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
         self._cache: LightContributionCache | None = None
         self._cache_shape: tuple[int, int] | None = None
 
@@ -549,6 +553,9 @@ def apply_colored_lighting(
         vp_w=vp_w,
         scene_seq=scene_seq,
     )
+
+
+_LEGACY_LIGHTING_RENDERER: LightingRenderer = LightingRenderer()
 
 
 MEMORY_WALL_GLYPHS = np.array(
@@ -672,8 +679,7 @@ def apply_light_sources(
     vp_w: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Backward-compatible wrapper around the cached colored-light path."""
-    scene_seq = getattr(game_map, "scene_geometry_version", None)
-    lighting_renderer = LightingRenderer()
+    scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
     return apply_colored_lighting(
         lit_fg,
         lit_bg,
@@ -684,7 +690,7 @@ def apply_light_sources(
         vp_h=vp_h,
         vp_w=vp_w,
         scene_seq=scene_seq,
-        lighting_renderer=lighting_renderer,
+        lighting_renderer=_LEGACY_LIGHTING_RENDERER,
     )
 
 

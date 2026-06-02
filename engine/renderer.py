@@ -339,7 +339,7 @@ def render_viewport(
 
     # Apply colored lights from the map via the cached colored-light renderer.
     if render_config.enable_colored_lights and gm.light_sources:
-        scene_seq = getattr(gm, "scene_geometry_version", None)
+        scene_seq: int | None = getattr(gm, "scene_geometry_version", None)
         final_fg, final_bg, _ = apply_colored_lighting(
             final_fg,
             final_bg,
