@@ -67,10 +67,12 @@ def compute_rgb_sum(
 ) -> NDArray[np.float32]:
     """Accumulate RGB contributions from all lights into a (h, w, 3) array.
 
-    Uses ``compute_visibility`` (the working callback-based shadowcasting)
-    rather than the numba-based ``compute_light_color_array``, which has
-    known issues in the current codebase.  The distance-based falloff
-    formula matches the production intent: ``intensity = 1 - d²/r²``.
+    Uses ``compute_visibility`` (the callback-based shadowcasting FOV) rather
+    than ``compute_light_color_array``, which internally relies on the numba
+    FOV path (``_compute_fov_numba_core``).  The numba path currently returns
+    only the origin cell as visible in open rooms — a pre-existing issue
+    tracked separately.  The distance-based falloff formula matches the
+    production intent: ``intensity = 1 - d²/r²``.
     """
     h, w = opaque.shape
     rgb = np.zeros((h, w, 3), dtype=np.float32)

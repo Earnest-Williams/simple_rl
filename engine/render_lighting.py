@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import structlog
@@ -189,7 +190,7 @@ class LightContributionCache:
         self._param_keys: dict[int, tuple] = {}
 
     @staticmethod
-    def _param_key(light) -> tuple:  # type: ignore[return]
+    def _param_key(light: Any) -> tuple[Any, ...]:
         """Build a hashable key from the light's relevant parameters."""
         return (
             getattr(light, "x", None),
@@ -199,7 +200,7 @@ class LightContributionCache:
             getattr(light, "intensity", 1.0),
         )
 
-    def _invalidate_all(self, opaque_grid: np.ndarray, lights) -> None:
+    def _invalidate_all(self, opaque_grid: np.ndarray, lights: Iterable[Any]) -> None:
         """Rebuild every light's contribution from scratch."""
         self._combined[:] = 0.0
         self._contributions.clear()
@@ -223,7 +224,7 @@ class LightContributionCache:
 
     def update(
         self,
-        lights,
+        lights: Iterable[Any],
         opaque_grid: np.ndarray,
         scene_seq: int | None = None,
     ) -> np.ndarray:
