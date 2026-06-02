@@ -9,7 +9,8 @@ import structlog
 import yaml
 
 from engine.glyphs import tile_id_for
-from game.world.fov import compute_visibility_into, update_memory_fade
+from game.world.fov import compute_visibility_into
+from game.world.memory import update_memory_fade
 
 log = structlog.get_logger()
 
@@ -158,7 +159,7 @@ class GameMap:
         self.visible: np.ndarray = np.zeros((height, width), dtype=bool, order="C")
         # Cached transparency map
         self.transparent: np.ndarray = get_transparency_map(self.tiles)
-        # Memory modifier map per tile
+        # Persistent tile-shaped memory state
         self._tile_modifier_overrides: dict[int, float] = {}
         self.tile_memory_modifiers: np.ndarray = get_memory_modifier_map(self.tiles)
         if tile_memory_modifiers:
@@ -254,15 +255,15 @@ class GameMap:
         """Fade remembered tiles based on elapsed time."""
         update_memory_fade(
             current_time,
-            self.last_seen_time,
-            self.memory_intensity,
-            self.visible,
-            self.memory_fade_mask,
-            self.prev_visible,
-            self.memory_strength,
-            self.tile_memory_modifiers,
-            steepness,
-            midpoint,
+            last_seen_time=self.last_seen_time,
+            memory_intensity=self.memory_intensity,
+            visible=self.visible,
+            needs_update_mask=self.memory_fade_mask,
+            prev_visible=self.prev_visible,
+            memory_strength=self.memory_strength,
+            tile_modifiers=self.tile_memory_modifiers,
+            steepness=steepness,
+            midpoint=midpoint,
         )
 
     # --- MODIFIED compute_fov method ---
