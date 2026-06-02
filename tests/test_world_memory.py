@@ -90,4 +90,4 @@ def test_refresh_visible_memory_updates_only_visible_tiles() -> None:
     assert game_map.last_seen_time[0, 1] == 3
     assert game_map.memory_strength[0, 0] == 5.0
     assert game_map.memory_strength[1, 2] == 5.0
-    assert game_map.memory_strength[0, 1] == 4.5
+    assert game_map.memory_strength[0, 1] == 3.5

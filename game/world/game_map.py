@@ -255,6 +255,10 @@ class GameMap:
         self.memory_strength[self.visible] = np.minimum(
             self.memory_strength[self.visible] + 1.0, MAX_MEMORY_STRENGTH
         )
+        not_visible: np.ndarray = ~self.visible
+        self.memory_strength[not_visible] = np.maximum(
+            self.memory_strength[not_visible] - 1.0, 0.0
+        )
 
     def fade_memory(self, current_time: int, steepness: float, midpoint: float) -> None:
         """Fade remembered tiles based on elapsed time."""
