@@ -1,13 +1,17 @@
 """Lighting and visual effect helpers for rendering."""
 
 import math
-from collections.abc import Iterable
-from typing import Any
+from collections.abc import Callable, Iterable
+from typing import Any, TypeAlias
 
 import numpy as np
 import structlog
 
 from common.tuning import MEMORY_LEVEL_COUNT
+
+# Light sources are duck-typed objects from production and tests; they expose
+# x/y/radius/color/intensity attributes but do not share a common base class.
+LightSourceLike: TypeAlias = Any
 
 try:
     from numba import float32, njit, uint8
@@ -61,8 +65,18 @@ except ImportError:
     )
 
 try:
-    from game.world.fov import compute_visibility
+    from game.world.fov import (
+        _THRESHOLD_AT_CUTOFF,
+        CLOSE_RANGE_DIVISOR,
+        CLOSE_RANGE_SQ_THRESHOLD,
+        FAR_RANGE_DIVISOR,
+        compute_visibility,
+    )
 except ImportError:
+    CLOSE_RANGE_SQ_THRESHOLD = 16
+    CLOSE_RANGE_DIVISOR = 8
+    FAR_RANGE_DIVISOR = 16
+    _THRESHOLD_AT_CUTOFF = CLOSE_RANGE_SQ_THRESHOLD // CLOSE_RANGE_DIVISOR
 
     def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
         return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
@@ -74,8 +88,8 @@ except ImportError:
         origin_y: int,
         origin_x: int,
         radius: int,
-        is_opaque: Any,
-        distance: Any = None,
+        is_opaque: Callable[[int, int], bool],
+        distance: Callable[[int, int, int, int], float] | None = None,
     ) -> set[tuple[int, int]]:
         """Pure-Python shadowcasting FOV fallback."""
         dist_fn = distance if distance is not None else _fov_euclidean
@@ -206,6 +220,38 @@ DEFAULT_BLEND_POLICY: RGBBlendPolicy = RGBBlendPolicy()
 # ---------------------------------------------------------------------------
 
 
+def _height_threshold_for_distance(dist_sq: int) -> int:
+    """Return the FOV height-difference threshold for a squared distance."""
+    if dist_sq <= CLOSE_RANGE_SQ_THRESHOLD:
+        return dist_sq // CLOSE_RANGE_DIVISOR
+    return (
+        _THRESHOLD_AT_CUTOFF + (dist_sq - CLOSE_RANGE_SQ_THRESHOLD) // FAR_RANGE_DIVISOR
+    )
+
+
+def _geometry_blocks_light(
+    *,
+    target_x: int,
+    target_y: int,
+    origin_x: int,
+    origin_y: int,
+    origin_height: int,
+    height_map: np.ndarray,
+    ceiling_map: np.ndarray,
+) -> bool:
+    """Return whether height or ceiling geometry blocks light to a target cell."""
+    target_ceiling = int(ceiling_map[target_y, target_x])
+    if target_ceiling <= origin_height:
+        return True
+
+    target_height = int(height_map[target_y, target_x])
+    dx = target_x - origin_x
+    dy = target_y - origin_y
+    dist_sq = dx * dx + dy * dy
+    threshold = _height_threshold_for_distance(dist_sq)
+    return abs(target_height - origin_height) > threshold
+
+
 def _compute_single_light_contribution(
     *,
     origin_x: int,
@@ -222,9 +268,8 @@ def _compute_single_light_contribution(
     """Compute one light's RGB contribution array.
 
     This callback-visibility contribution is the canonical production
-    colored-light kernel.  Height and ceiling maps are accepted by callers that
-    already have full scene geometry, but colored lighting currently uses tile
-    opacity visibility for stable cache behavior.
+    colored-light kernel.  When height and ceiling maps are supplied, the same
+    geometry blockers used by normal FOV are folded into the opacity callback.
     """
     contribution: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
     if radius <= 0:
@@ -236,9 +281,31 @@ def _compute_single_light_contribution(
         int(color_rgb[1] * intensity_f),
         int(color_rgb[2] * intensity_f),
     )
+    if height_map is not None and ceiling_map is not None:
+        if (
+            height_map.shape != opaque_grid.shape
+            or ceiling_map.shape != opaque_grid.shape
+        ):
+            raise ValueError("height_map and ceiling_map must match opaque_grid shape")
+        origin_height = int(height_map[origin_y, origin_x])
 
-    def _is_opaque(y: int, x: int) -> bool:
-        return bool(opaque_grid[y, x])
+        def _is_opaque(y: int, x: int) -> bool:
+            if bool(opaque_grid[y, x]):
+                return True
+            return _geometry_blocks_light(
+                target_x=x,
+                target_y=y,
+                origin_x=origin_x,
+                origin_y=origin_y,
+                origin_height=origin_height,
+                height_map=height_map,
+                ceiling_map=ceiling_map,
+            )
+
+    else:
+
+        def _is_opaque(y: int, x: int) -> bool:
+            return bool(opaque_grid[y, x])
 
     visible = compute_visibility(
         scene_h,
@@ -280,10 +347,10 @@ class LightContributionCache:
         self._last_scene_seq: int | None = None
         self._combined: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
         self._contributions: dict[int, np.ndarray] = {}
-        self._param_keys: dict[int, tuple[Any, ...]] = {}
+        self._param_keys: dict[int, tuple[object, ...]] = {}
 
     @staticmethod
-    def _light_id(light: Any, fallback_index: int) -> int:
+    def _light_id(light: LightSourceLike, fallback_index: int) -> int:
         """Return a stable cache key for light objects without requiring IDs."""
         raw_id = getattr(light, "id", fallback_index)
         if isinstance(raw_id, int):
@@ -291,7 +358,7 @@ class LightContributionCache:
         return fallback_index
 
     @staticmethod
-    def _param_key(light: Any) -> tuple[Any, ...]:
+    def _param_key(light: LightSourceLike) -> tuple[object, ...]:
         """Build a hashable key from a light's rendering parameters."""
         color = getattr(light, "color", None)
         if color is not None:
@@ -306,7 +373,7 @@ class LightContributionCache:
 
     def _compute_light(
         self,
-        light: Any,
+        light: LightSourceLike,
         opaque_grid: np.ndarray,
         height_map: np.ndarray | None,
         ceiling_map: np.ndarray | None,
@@ -327,7 +394,7 @@ class LightContributionCache:
 
     def _invalidate_all(
         self,
-        lights: list[Any],
+        lights: list[LightSourceLike],
         opaque_grid: np.ndarray,
         height_map: np.ndarray | None,
         ceiling_map: np.ndarray | None,
@@ -346,7 +413,7 @@ class LightContributionCache:
             self._param_keys[lid] = key
             self._policy.accumulate(self._combined, buf)
 
-    def _light_in_scene(self, light: Any) -> bool:
+    def _light_in_scene(self, light: LightSourceLike) -> bool:
         """Return whether a light origin is inside this cache's scene."""
         x = getattr(light, "x", None)
         y = getattr(light, "y", None)
@@ -373,7 +440,7 @@ class LightContributionCache:
 
     def update(
         self,
-        lights: Iterable[Any],
+        lights: Iterable[LightSourceLike],
         opaque_grid: np.ndarray,
         scene_seq: int | None = None,
         *,
@@ -464,7 +531,7 @@ class LightingRenderer:
         self,
         lit_fg: np.ndarray,
         lit_bg: np.ndarray,
-        light_sources: Iterable[Any],
+        light_sources: Iterable[LightSourceLike],
         game_map: GameMap,
         *,
         viewport_x: int,
@@ -515,7 +582,7 @@ class LightingRenderer:
 def apply_colored_lighting(
     lit_fg: np.ndarray,
     lit_bg: np.ndarray,
-    light_sources: Iterable[Any],
+    light_sources: Iterable[LightSourceLike],
     game_map: GameMap,
     *,
     viewport_x: int,
@@ -746,7 +813,7 @@ def apply_render_lighting(
     map_height_vp: np.ndarray,
     map_memory_vp: np.ndarray,
     map_tiles_vp: np.ndarray,
-    light_sources: Iterable[Any],
+    light_sources: Iterable[LightSourceLike],
     game_map: GameMap,
     viewport_x: int,
     viewport_y: int,
@@ -829,11 +896,11 @@ def apply_render_lighting(
             drawn_mask,
             visible_mask,
             memory_fade_color_np,
-            rng,
-            memory_fade_variance,
-            memory_noise_level,
-            viewport_x,
-            viewport_y,
+            rng=rng,
+            fade_color_variance=memory_fade_variance,
+            noise_level=memory_noise_level,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
         )
 
     return final_fg, final_bg, intensity_map

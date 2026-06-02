@@ -45,7 +45,7 @@ def make_opaque_grid(
 def make_flat_geometry(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
     """Return flat height and ceiling maps for colored-light tests."""
     height_map = np.zeros((height, width), dtype=np.int16)
-    ceiling_map = np.zeros((height, width), dtype=np.int16)
+    ceiling_map = np.full((height, width), 10, dtype=np.int16)
     return height_map, ceiling_map
 
 
@@ -155,6 +155,33 @@ def test_single_light_does_not_cross_wall() -> None:
             assert not np.any(
                 contrib[y, x] > 0
             ), f"Cell ({y},{x}) east of solid wall should not be lit"
+
+
+def test_single_light_respects_height_barrier() -> None:
+    """Height blockers must prevent colored light from crossing elevation walls."""
+    h, w = 9, 12
+    opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
+    height_map[:, 5] = 10
+
+    contrib = _compute_single_light_contribution(
+        origin_x=2,
+        origin_y=4,
+        radius=9,
+        color_rgb=(200, 200, 200),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
+    )
+
+    for y in range(3, 6):
+        for x in range(6, w):
+            assert not np.any(
+                contrib[y, x] > 0
+            ), f"Cell ({y},{x}) east of height barrier should not be lit"
 
 
 def test_single_light_zero_radius_returns_zeros() -> None:
@@ -404,7 +431,7 @@ def test_apply_memory_fade_accepts_read_only_map_inputs() -> None:
         drawn_mask,
         visible_mask,
         fade_color,
-        GameRNG(seed=1),
+        rng=GameRNG(seed=1),
     )
 
     assert np.any(final_fg != 100)

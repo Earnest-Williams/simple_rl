@@ -68,7 +68,7 @@ def make_open_map_arrays(
     """Return (opaque_grid, height_map, ceiling_map) for an open room."""
     opaque = np.zeros((height, width), dtype=np.bool_)
     height_map = np.zeros((height, width), dtype=np.int16)
-    ceiling_map = np.zeros((height, width), dtype=np.int16)
+    ceiling_map = np.full((height, width), 10, dtype=np.int16)
     return opaque, height_map, ceiling_map
 
 
