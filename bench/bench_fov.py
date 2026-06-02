@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from lights_dev import fov
+from game.world.fov import compute_visibility
 from utils.game_rng import GameRNG
 
 # Constants
@@ -12,9 +12,6 @@ WARMUP_RUNS: int = 3
 
 def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> None:
     transparency = np.ones((h, w), dtype=np.float32)
-    visible = np.zeros((h, w), dtype=np.uint8)
-    dist = -np.ones((h, w), dtype=np.int32)
-    side = np.zeros((h, w), dtype=np.uint8)
     cx = h // 2
     cy = w // 2
     # make some random walls
@@ -23,16 +20,17 @@ def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> Non
         y = rng.randint(0, h)
         x = rng.randint(0, w)
         transparency[y, x] = 0.0
+
+    def is_opaque(y: int, x: int) -> bool:
+        return transparency[y, x] < 0.5
+
     # warm up
     for _ in range(WARMUP_RUNS):
-        visible.fill(0)
-        dist.fill(-1)
-        fov.compute_fov_all_octants(transparency, visible, dist, side, cx, cy, radius)
+        compute_visibility(h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque)
+
     t0 = time.perf_counter()
     for _ in range(trials):
-        visible.fill(0)
-        dist.fill(-1)
-        fov.compute_fov_all_octants(transparency, visible, dist, side, cx, cy, radius)
+        compute_visibility(h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque)
     t1 = time.perf_counter()
     print(
         f"Ran {trials} trials in {t1 - t0:.3f}s, avg {((t1 - t0) / trials):.6f}s per FOV"
