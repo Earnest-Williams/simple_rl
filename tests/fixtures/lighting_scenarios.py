@@ -6,10 +6,79 @@ Uses ``game.world.fov.compute_visibility`` and production
 
 from __future__ import annotations
 
+import math as _math
+
 import numpy as np
 from numpy.typing import NDArray
 
-from game.world.fov import compute_visibility
+try:
+    from game.world.fov import compute_visibility
+except ImportError:
+    # Pure-Python shadowcasting fallback for environments without numba.
+    # Mirrors the logic of game.world.fov.compute_visibility /
+    # compute_shadowcast_callbacks so tests run without the numba dependency.
+    def _euclidean(oy: int, ox: int, y: int, x: int) -> float:
+        return _math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
+
+    def compute_visibility(  # type: ignore[misc]
+        height: int,
+        width: int,
+        *,
+        origin_y: int,
+        origin_x: int,
+        radius: int,
+        is_opaque,
+        distance=None,
+    ):
+        """Callback shadowcasting — pure-Python fallback (no numba)."""
+        distance_fn = distance if distance is not None else _euclidean
+        visible: set = set()
+
+        def blocks(cy: int, cx: int) -> bool:
+            return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
+
+        def mark(cy: int, cx: int) -> None:
+            if 0 <= cy < height and 0 <= cx < width:
+                visible.add((cy, cx))
+
+        def cast(row: int, start: float, end: float, xx: int, xy: int, yx: int, yy: int) -> None:
+            if start < end:
+                return
+            nstart = start
+            for d in range(row, radius + 1):
+                dx, dy = -d, -d
+                blocked = False
+                while dx <= 0:
+                    dx += 1
+                    cx = origin_x + dx * xx + dy * xy
+                    cy = origin_y + dx * yx + dy * yy
+                    ls = (dx - 0.5) / (dy + 0.5)
+                    rs = (dx + 0.5) / (dy - 0.5)
+                    if start < rs:
+                        continue
+                    if end > ls:
+                        break
+                    if distance_fn(origin_y, origin_x, cy, cx) <= radius:
+                        mark(cy, cx)
+                    cell_blocks = blocks(cy, cx)
+                    if blocked:
+                        if cell_blocks:
+                            nstart = rs
+                            continue
+                        blocked = False
+                        start = nstart
+                    elif cell_blocks and d < radius:
+                        blocked = True
+                        cast(d + 1, start, ls, xx, xy, yx, yy)
+                        nstart = rs
+                if blocked:
+                    break
+
+        mark(origin_y, origin_x)
+        for xx, xy, yx, yy in ((1,0,0,1),(0,1,1,0),(0,-1,1,0),(-1,0,0,1),
+                                (-1,0,0,-1),(0,-1,-1,0),(0,1,-1,0),(1,0,0,-1)):
+            cast(1, 1.0, 0.0, xx, xy, yx, yy)
+        return visible
 
 
 # ---------------------------------------------------------------------------

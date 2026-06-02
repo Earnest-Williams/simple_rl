@@ -16,13 +16,24 @@ try:
 except ImportError:
     _NUMBA_AVAILABLE = False
 
-    def njit(func=None, **options):  # type: ignore
-        if func:
-            return func
+    def njit(*args, **options):  # type: ignore
+        """No-op jit; returns the decorated function unchanged."""
+        for a in args:
+            if callable(a):
+                return a
         return lambda f: f
 
-    uint8 = np.uint8  # type: ignore
-    float32 = np.float32  # type: ignore
+    def float32(*args):  # type: ignore
+        """Fallback float32: casts a single value or acts as a no-op signature sentinel."""
+        if len(args) == 1:
+            return np.float32(args[0])
+        return None
+
+    def uint8(*args):  # type: ignore
+        """Fallback uint8: casts a single value or acts as a no-op signature sentinel."""
+        if len(args) == 1:
+            return np.uint8(args[0])
+        return None
 
 try:
     from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
@@ -49,9 +60,74 @@ try:
     from game.world.fov import compute_light_color_array, compute_visibility
 except ImportError:
     compute_light_color_array = None  # type: ignore
-    compute_visibility = None  # type: ignore
-    structlog.get_logger().error(
-        "CRITICAL: Failed to import FOV functions in render_lighting."
+
+    def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
+        return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
+
+    def compute_visibility(  # type: ignore[misc]
+        height: int,
+        width: int,
+        *,
+        origin_y: int,
+        origin_x: int,
+        radius: int,
+        is_opaque: Any,
+        distance: Any = None,
+    ) -> set[tuple[int, int]]:
+        """Pure-Python shadowcasting FOV fallback (used when numba is absent)."""
+        dist_fn = distance if distance is not None else _fov_euclidean
+        visible: set[tuple[int, int]] = set()
+
+        def blocks(cy: int, cx: int) -> bool:
+            return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
+
+        def mark(cy: int, cx: int) -> None:
+            if 0 <= cy < height and 0 <= cx < width:
+                visible.add((cy, cx))
+
+        def cast(row: int, start: float, end: float, xx: int, xy: int, yx: int, yy: int) -> None:
+            if start < end:
+                return
+            nstart = start
+            for d in range(row, radius + 1):
+                dx, dy = -d, -d
+                blocked = False
+                while dx <= 0:
+                    dx += 1
+                    cx = origin_x + dx * xx + dy * xy
+                    cy = origin_y + dx * yx + dy * yy
+                    ls = (dx - 0.5) / (dy + 0.5)
+                    rs = (dx + 0.5) / (dy - 0.5)
+                    if start < rs:
+                        continue
+                    if end > ls:
+                        break
+                    if dist_fn(origin_y, origin_x, cy, cx) <= radius:
+                        mark(cy, cx)
+                    cell_blocks = blocks(cy, cx)
+                    if blocked:
+                        if cell_blocks:
+                            nstart = rs
+                            continue
+                        blocked = False
+                        start = nstart
+                    elif cell_blocks and d < radius:
+                        blocked = True
+                        cast(d + 1, start, ls, xx, xy, yx, yy)
+                        nstart = rs
+                if blocked:
+                    break
+
+        mark(origin_y, origin_x)
+        for xx, xy, yx, yy in (
+            (1, 0, 0, 1), (0, 1, 1, 0), (0, -1, 1, 0), (-1, 0, 0, 1),
+            (-1, 0, 0, -1), (0, -1, -1, 0), (0, 1, -1, 0), (1, 0, 0, -1),
+        ):
+            cast(1, 1.0, 0.0, xx, xy, yx, yy)
+        return visible
+
+    structlog.get_logger().warning(
+        "numba not available: using pure-Python FOV fallback in render_lighting."
     )
 
 log = structlog.get_logger()
