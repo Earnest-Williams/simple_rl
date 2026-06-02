@@ -24,16 +24,19 @@ except ImportError:
         return lambda f: f
 
     def float32(*args):  # type: ignore
-        """Fallback float32: casts a single value or acts as a no-op signature sentinel."""
+        """Fallback float32: casts a single value; multi-arg calls are numba
+        type-signature expressions (e.g. ``float32(float32, …)`` in ``@njit``
+        decorators) and intentionally return ``None`` so the surrounding
+        ``njit(None, …)`` call still yields a pass-through decorator."""
         if len(args) == 1:
             return np.float32(args[0])
-        return None
+        return None  # numba signature sentinel — see njit fallback above
 
     def uint8(*args):  # type: ignore
-        """Fallback uint8: casts a single value or acts as a no-op signature sentinel."""
+        """Fallback uint8: same convention as float32 above."""
         if len(args) == 1:
             return np.uint8(args[0])
-        return None
+        return None  # numba signature sentinel — see njit fallback above
 
 try:
     from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
@@ -64,7 +67,7 @@ except ImportError:
     def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
         return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
 
-    def compute_visibility(  # type: ignore[misc]
+    def compute_visibility(  # type: ignore[misc]  # conditional redefinition
         height: int,
         width: int,
         *,
@@ -85,7 +88,17 @@ except ImportError:
             if 0 <= cy < height and 0 <= cx < width:
                 visible.add((cy, cx))
 
-        def cast(row: int, start: float, end: float, xx: int, xy: int, yx: int, yy: int) -> None:
+        def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
+            row: int, start: float, end: float,
+            xx: int, xy: int, yx: int, yy: int,
+        ) -> None:
+            """Sweep one octant row by row, pruning by slope boundaries.
+
+            ``start``/``end`` define the visible slope window.  Opaque cells
+            split the window (recursive call) or terminate the current sweep
+            (``blocked`` flag).  Octant transform ``(xx,xy,yx,yy)`` maps the
+            canonical (+x,+y) octant to each of the 8 real-space octants.
+            """
             if start < end:
                 return
             nstart = start

@@ -20,7 +20,7 @@ except ImportError:
     def _euclidean(oy: int, ox: int, y: int, x: int) -> float:
         return _math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
 
-    def compute_visibility(  # type: ignore[misc]
+    def compute_visibility(  # type: ignore[misc]  # conditional redefinition
         height: int,
         width: int,
         *,
@@ -41,7 +41,17 @@ except ImportError:
             if 0 <= cy < height and 0 <= cx < width:
                 visible.add((cy, cx))
 
-        def cast(row: int, start: float, end: float, xx: int, xy: int, yx: int, yy: int) -> None:
+        def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
+            row: int, start: float, end: float,
+            xx: int, xy: int, yx: int, yy: int,
+        ) -> None:
+            """Sweep one octant row by row, pruning by slope boundaries.
+
+            ``start``/``end`` define the visible slope window.  Opaque cells
+            split the window (recursive call) or close the current sweep
+            (``blocked`` flag).  ``(xx,xy,yx,yy)`` maps the canonical octant
+            to each of the 8 real-space octants.
+            """
             if start < end:
                 return
             nstart = start
