@@ -7,24 +7,34 @@ imports.
 
 from __future__ import annotations
 
+from typing import TypeAlias
+
 import numpy as np
-import pytest
 
 from engine.render_lighting import (
     DEFAULT_BLEND_POLICY,
     LightContributionCache,
     RGBBlendPolicy,
     _compute_single_light_contribution,
+    apply_memory_fade,
 )
-from tests.fixtures.lighting_scenarios import LightFixture, make_open_map_arrays
+from tests.fixtures.lighting_scenarios import LightFixture
+from utils.game_rng import GameRNG
 
+LightSpec: TypeAlias = (
+    tuple[int, int, int, int]
+    | tuple[int, int, int, int, tuple[int, int, int]]
+    | tuple[int, int, int, int, tuple[int, int, int], float]
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def make_opaque_grid(height: int, width: int, wall_cols=()) -> np.ndarray:
+def make_opaque_grid(
+    height: int, width: int, wall_cols: tuple[int, ...] = ()
+) -> np.ndarray:
     """Return a bool opaque grid with optional solid vertical wall columns."""
     grid = np.zeros((height, width), dtype=np.bool_)
     for col in wall_cols:
@@ -32,14 +42,27 @@ def make_opaque_grid(height: int, width: int, wall_cols=()) -> np.ndarray:
     return grid
 
 
-def make_lights(*args: tuple) -> list[LightFixture]:
+def make_flat_geometry(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return flat height and ceiling maps for colored-light tests."""
+    height_map = np.zeros((height, width), dtype=np.int16)
+    ceiling_map = np.zeros((height, width), dtype=np.int16)
+    return height_map, ceiling_map
+
+
+def make_lights(*args: LightSpec) -> list[LightFixture]:
     """Build LightFixture list from (id, x, y, radius, color, intensity) tuples."""
-    result = []
-    for t in args:
-        lid, x, y, radius = t[:4]
-        color = t[4] if len(t) > 4 else (200, 200, 200)
-        intensity = t[5] if len(t) > 5 else 1.0
-        result.append(LightFixture(lid, x, y, radius, color, intensity))
+    result: list[LightFixture] = []
+    for spec in args:
+        if len(spec) == 4:
+            light_id, x, y, radius = spec
+            color = (200, 200, 200)
+            intensity = 1.0
+        elif len(spec) == 5:
+            light_id, x, y, radius, color = spec
+            intensity = 1.0
+        else:
+            light_id, x, y, radius, color, intensity = spec
+        result.append(LightFixture(light_id, x, y, radius, color, intensity))
     return result
 
 
@@ -90,42 +113,66 @@ def test_single_light_lights_adjacent_cells() -> None:
     """A light in an open room illuminates cells directly adjacent."""
     h = w = 15
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     contrib = _compute_single_light_contribution(
-        origin_x=7, origin_y=7, radius=5,
-        color_rgb=(200, 200, 200), intensity=1.0,
-        opaque_grid=opaque, scene_h=h, scene_w=w,
+        origin_x=7,
+        origin_y=7,
+        radius=5,
+        color_rgb=(200, 200, 200),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
     )
     for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        assert np.any(contrib[7 + dy, 7 + dx] > 0), (
-            f"Adjacent cell ({7+dy},{7+dx}) should be lit"
-        )
+        assert np.any(
+            contrib[7 + dy, 7 + dx] > 0
+        ), f"Adjacent cell ({7+dy},{7+dx}) should be lit"
 
 
 def test_single_light_does_not_cross_wall() -> None:
     """A light must not illuminate mid-row cells on the far side of a wall."""
     h, w = 15, 20
-    opaque = make_opaque_grid(h, w, wall_cols=[10])
+    opaque = make_opaque_grid(h, w, wall_cols=(10,))
+    height_map, ceiling_map = make_flat_geometry(h, w)
     contrib = _compute_single_light_contribution(
-        origin_x=3, origin_y=7, radius=15,
-        color_rgb=(200, 200, 200), intensity=1.0,
-        opaque_grid=opaque, scene_h=h, scene_w=w,
+        origin_x=3,
+        origin_y=7,
+        radius=15,
+        color_rgb=(200, 200, 200),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
     )
     # Exclude extreme-corner rows due to known production FOV edge cases
     for y in range(2, h - 2):
         for x in range(11, w):
-            assert not np.any(contrib[y, x] > 0), (
-                f"Cell ({y},{x}) east of solid wall should not be lit"
-            )
+            assert not np.any(
+                contrib[y, x] > 0
+            ), f"Cell ({y},{x}) east of solid wall should not be lit"
 
 
 def test_single_light_zero_radius_returns_zeros() -> None:
     """A light with radius 0 produces no contribution."""
     h = w = 10
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     contrib = _compute_single_light_contribution(
-        origin_x=5, origin_y=5, radius=0,
-        color_rgb=(200, 200, 200), intensity=1.0,
-        opaque_grid=opaque, scene_h=h, scene_w=w,
+        origin_x=5,
+        origin_y=5,
+        radius=0,
+        color_rgb=(200, 200, 200),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
     )
     assert contrib.max() == 0.0
 
@@ -139,22 +186,31 @@ def test_cache_cached_vs_uncached_match() -> None:
     """Cache output matches direct summation over the same lights."""
     h = w = 20
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 5, 5, 6, (255, 0, 0)), (2, 14, 14, 6, (0, 0, 255)))
 
     # Uncached reference via direct summation
     ref = np.zeros((h, w, 3), dtype=np.float32)
     for light in lights:
         buf = _compute_single_light_contribution(
-            origin_x=light.x, origin_y=light.y,
-            radius=light.radius, color_rgb=light.color,
-            intensity=light.intensity, opaque_grid=opaque,
-            scene_h=h, scene_w=w,
+            origin_x=light.x,
+            origin_y=light.y,
+            radius=light.radius,
+            color_rgb=light.color,
+            intensity=light.intensity,
+            opaque_grid=opaque,
+            scene_h=h,
+            scene_w=w,
+            height_map=height_map,
+            ceiling_map=ceiling_map,
         )
         ref += buf
 
     # Cached output
     cache = LightContributionCache(h, w)
-    cached = cache.update(lights, opaque, scene_seq=1)
+    cached = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     np.testing.assert_array_equal(cached, ref)
 
@@ -163,13 +219,18 @@ def test_cache_unchanged_light_is_not_recomputed() -> None:
     """A light with identical parameters is not recomputed between updates."""
     h = w = 15
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 7, 7, 5, (200, 200, 200)))
 
     cache = LightContributionCache(h, w)
-    first = cache.update(lights, opaque, scene_seq=1)
+    first = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
     # Record the buffer reference
     cached_buf_before = cache._contributions[1].copy()
-    second = cache.update(lights, opaque, scene_seq=1)
+    second = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     np.testing.assert_array_equal(first, second)
     # The stored contribution buffer should be identical
@@ -180,18 +241,23 @@ def test_cache_moving_light_updates_only_that_light() -> None:
     """Moving one light invalidates only that light's contribution."""
     h = w = 20
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights(
         (1, 5, 5, 5, (255, 0, 0)),
         (2, 14, 14, 5, (0, 0, 255)),
     )
 
     cache = LightContributionCache(h, w)
-    before = cache.update(lights, opaque, scene_seq=1)
+    before = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
     buf_2_before = cache._contributions[2].copy()
 
     # Move light 1 to (3, 3); light 2 stays at (14, 14)
     lights[0] = LightFixture(1, 3, 3, 5, (255, 0, 0))
-    after = cache.update(lights, opaque, scene_seq=1)
+    after = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     # Light 2's contribution buffer should be unchanged
     np.testing.assert_array_equal(cache._contributions[2], buf_2_before)
@@ -203,13 +269,18 @@ def test_cache_changing_color_invalidates_that_light() -> None:
     """Changing a light's color causes its buffer to be recomputed."""
     h = w = 15
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 7, 7, 5, (255, 0, 0)))
 
     cache = LightContributionCache(h, w)
-    before = cache.update(lights, opaque, scene_seq=1)
+    before = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     lights[0] = LightFixture(1, 7, 7, 5, (0, 255, 0))  # changed color
-    after = cache.update(lights, opaque, scene_seq=1)
+    after = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     assert not np.array_equal(before, after), "Color change must update combined buffer"
 
@@ -218,50 +289,73 @@ def test_cache_removing_light_subtracts_contribution() -> None:
     """Removing a light subtracts its contribution from the combined buffer."""
     h = w = 15
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 5, 5, 5, (200, 200, 200)), (2, 10, 10, 5, (200, 200, 200)))
 
     cache = LightContributionCache(h, w)
-    cache.update(lights, opaque, scene_seq=1)
+    before = cache.update(
+        lights,
+        opaque,
+        scene_seq=1,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
+    )
     buf_2 = cache._contributions[2].copy()
 
     # Remove light 2
-    after = cache.update([lights[0]], opaque, scene_seq=1)
+    after = cache.update(
+        [lights[0]],
+        opaque,
+        scene_seq=1,
+        height_map=height_map,
+        ceiling_map=ceiling_map,
+    )
 
-    # after == (combined - buf_2), approximately
-    expected = (cache._contributions[1] + 0.0)  # only light 1 remains
     # The combined buffer should no longer contain light 2's contribution
     assert 2 not in cache._contributions
+    np.testing.assert_allclose(after, cache._contributions[1], atol=1e-5)
+    np.testing.assert_allclose(before - buf_2, after, atol=1e-5)
 
 
 def test_cache_scene_seq_change_triggers_full_rebuild() -> None:
     """A new scene_seq value forces full re-computation of all lights."""
     h, w = 15, 20
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 3, 7, 8, (200, 200, 200)))
 
     cache = LightContributionCache(h, w)
-    before = cache.update(lights, opaque, scene_seq=1)
+    before = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     # Change scene geometry (add a wall) but use a new scene_seq
-    opaque2 = make_opaque_grid(h, w, wall_cols=[8])
-    after = cache.update(lights, opaque2, scene_seq=2)
+    opaque2 = make_opaque_grid(h, w, wall_cols=(8,))
+    after = cache.update(
+        lights, opaque2, scene_seq=2, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     # The wall blocks some cells — output should differ
-    assert not np.array_equal(before, after), (
-        "Scene geometry change must invalidate cache"
-    )
+    assert not np.array_equal(
+        before, after
+    ), "Scene geometry change must invalidate cache"
 
 
 def test_cache_explicit_invalidate_forces_rebuild() -> None:
     """Calling invalidate() forces a full rebuild on next update."""
     h = w = 15
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 7, 7, 5, (200, 200, 200)))
 
     cache = LightContributionCache(h, w)
-    first = cache.update(lights, opaque, scene_seq=1)
+    first = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
     cache.invalidate()
-    second = cache.update(lights, opaque, scene_seq=1)
+    second = cache.update(
+        lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+    )
 
     # After explicit invalidate + same scene_seq, a new scene_seq=1 triggers full rebuild
     np.testing.assert_array_equal(first, second)
@@ -272,9 +366,47 @@ def test_cache_multiple_updates_deterministic() -> None:
     """Repeated cache updates with the same inputs produce identical output."""
     h = w = 20
     opaque = make_opaque_grid(h, w)
+    height_map, ceiling_map = make_flat_geometry(h, w)
     lights = make_lights((1, 5, 5, 6, (255, 100, 50)), (2, 15, 15, 5, (50, 100, 255)))
 
     cache = LightContributionCache(h, w)
-    results = [cache.update(lights, opaque, scene_seq=1) for _ in range(3)]
+    results = [
+        cache.update(
+            lights, opaque, scene_seq=1, height_map=height_map, ceiling_map=ceiling_map
+        )
+        for _ in range(3)
+    ]
     for r in results[1:]:
         np.testing.assert_array_equal(results[0], r)
+
+
+def test_apply_memory_fade_accepts_read_only_map_inputs() -> None:
+    """Memory fade must not mutate read-only map or visibility slices."""
+    final_fg = np.full((2, 2, 3), 100, dtype=np.uint8)
+    final_bg = np.full((2, 2, 3), 50, dtype=np.uint8)
+    glyph_indices = np.array([[1, 2], [3, 4]], dtype=np.int32)
+    map_memory_vp = np.array([[1.0, 0.25], [0.5, 1.0]], dtype=np.float32)
+    map_tiles_vp = np.array([[1, 1], [0, 0]], dtype=np.int32)
+    drawn_mask = np.ones((2, 2), dtype=np.bool_)
+    visible_mask = np.array([[True, False], [False, True]], dtype=np.bool_)
+    fade_color = np.array([128, 128, 128], dtype=np.uint8)
+
+    map_memory_vp.setflags(write=False)
+    map_tiles_vp.setflags(write=False)
+    visible_mask.setflags(write=False)
+
+    apply_memory_fade(
+        final_fg,
+        final_bg,
+        glyph_indices,
+        map_memory_vp,
+        map_tiles_vp,
+        drawn_mask,
+        visible_mask,
+        fade_color,
+        GameRNG(seed=1),
+    )
+
+    assert np.any(final_fg != 100)
+    assert np.any(final_bg != 50)
+    np.testing.assert_array_equal(glyph_indices, np.array([[1, 2], [3, 4]]))

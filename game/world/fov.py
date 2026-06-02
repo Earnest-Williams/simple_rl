@@ -679,7 +679,12 @@ def compute_light_color_array(
     target_rgb_array: np.ndarray,
     base_color_rgb: tuple[int, int, int],
 ) -> None:
-    """Accumulate colored light from a source into target_rgb_array."""
+    """Legacy height-aware colored-light accumulator.
+
+    Production rendering now uses ``engine.render_lighting``'s cached
+    callback-visibility contribution path.  This helper remains for tools that
+    explicitly want the height-aware FOV experiment.
+    """
     h, w = opaque_grid.shape
     temp_visible = np.zeros((h, w), dtype=np.bool_)
     temp_explored = np.zeros((h, w), dtype=np.bool_)

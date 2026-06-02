@@ -1,7 +1,6 @@
 """Lighting and visual effect helpers for rendering."""
 
 import math
-import threading
 from collections.abc import Iterable
 from typing import Any
 
@@ -62,9 +61,8 @@ except ImportError:
     )
 
 try:
-    from game.world.fov import compute_light_color_array, compute_visibility
+    from game.world.fov import compute_visibility
 except ImportError:
-    compute_light_color_array = None  # type: ignore
 
     def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
         return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
@@ -79,7 +77,7 @@ except ImportError:
         is_opaque: Any,
         distance: Any = None,
     ) -> set[tuple[int, int]]:
-        """Pure-Python shadowcasting FOV fallback (used when numba is absent)."""
+        """Pure-Python shadowcasting FOV fallback."""
         dist_fn = distance if distance is not None else _fov_euclidean
         visible: set[tuple[int, int]] = set()
 
@@ -90,7 +88,7 @@ except ImportError:
             if 0 <= cy < height and 0 <= cx < width:
                 visible.add((cy, cx))
 
-        def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
+        def cast(
             row: int,
             start: float,
             end: float,
@@ -99,42 +97,44 @@ except ImportError:
             yx: int,
             yy: int,
         ) -> None:
-            """Sweep one octant row by row, pruning by slope boundaries.
-
-            ``start``/``end`` define the visible slope window.  Opaque cells
-            split the window (recursive call) or terminate the current sweep
-            (``blocked`` flag).  Octant transform ``(xx,xy,yx,yy)`` maps the
-            canonical (+x,+y) octant to each of the 8 real-space octants.
-            """
             if start < end:
                 return
-            nstart = start
-            for d in range(row, radius + 1):
-                dx, dy = -d, -d
+            next_start = start
+            for distance_row in range(row, radius + 1):
+                dx = -distance_row
+                dy = -distance_row
                 blocked = False
                 while dx <= 0:
                     dx += 1
                     cx = origin_x + dx * xx + dy * xy
                     cy = origin_y + dx * yx + dy * yy
-                    ls = (dx - 0.5) / (dy + 0.5)
-                    rs = (dx + 0.5) / (dy - 0.5)
-                    if start < rs:
+                    left_slope = (dx - 0.5) / (dy + 0.5)
+                    right_slope = (dx + 0.5) / (dy - 0.5)
+                    if start < right_slope:
                         continue
-                    if end > ls:
+                    if end > left_slope:
                         break
                     if dist_fn(origin_y, origin_x, cy, cx) <= radius:
                         mark(cy, cx)
                     cell_blocks = blocks(cy, cx)
                     if blocked:
                         if cell_blocks:
-                            nstart = rs
+                            next_start = right_slope
                             continue
                         blocked = False
-                        start = nstart
-                    elif cell_blocks and d < radius:
+                        start = next_start
+                    elif cell_blocks and distance_row < radius:
                         blocked = True
-                        cast(d + 1, start, ls, xx, xy, yx, yy)
-                        nstart = rs
+                        cast(
+                            distance_row + 1,
+                            start,
+                            left_slope,
+                            xx,
+                            xy,
+                            yx,
+                            yy,
+                        )
+                        next_start = right_slope
                 if blocked:
                     break
 
@@ -153,7 +153,7 @@ except ImportError:
         return visible
 
     structlog.get_logger().warning(
-        "numba not available: using pure-Python FOV fallback in render_lighting."
+        "FOV helper unavailable; using pure-Python colored-light fallback."
     )
 
 log = structlog.get_logger()
@@ -170,8 +170,7 @@ class RGBBlendPolicy:
     into a scene buffer.  The default strategy is additive accumulation,
     where each light's contribution is added to the buffer and the result
     is clamped to ``[0, 255]`` only on final composite.  This matches the
-    behavior of the pre-existing ``apply_light_sources`` function so that
-    existing renderer output is unchanged.
+    renderer's historical additive colored-light output.
 
     Subclass or replace to experiment with premultiplied RGBA or other
     policies without touching the cache or renderer.
@@ -222,10 +221,10 @@ def _compute_single_light_contribution(
 ) -> np.ndarray:
     """Compute one light's RGB contribution array.
 
-    The production path delegates to ``compute_light_color_array`` so cached
-    colored lighting and legacy callers share one single-light implementation.
-    A pure visibility fallback remains available only for environments where the
-    accelerated FOV helper cannot be imported.
+    This callback-visibility contribution is the canonical production
+    colored-light kernel.  Height and ceiling maps are accepted by callers that
+    already have full scene geometry, but colored lighting currently uses tile
+    opacity visibility for stable cache behavior.
     """
     contribution: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
     if radius <= 0:
@@ -237,23 +236,6 @@ def _compute_single_light_contribution(
         int(color_rgb[1] * intensity_f),
         int(color_rgb[2] * intensity_f),
     )
-    has_geometry: bool = height_map is not None and ceiling_map is not None
-    if compute_light_color_array is not None and has_geometry:
-        origin_h: int = int(height_map[origin_y, origin_x])
-        compute_light_color_array(
-            origin_xy=(origin_x, origin_y),
-            range_limit=radius,
-            opaque_grid=opaque_grid,
-            height_map=height_map,
-            ceiling_map=ceiling_map,
-            origin_height=origin_h,
-            target_rgb_array=contribution,
-            base_color_rgb=scaled_color,
-        )
-        return contribution
-
-    if compute_visibility is None:
-        return contribution
 
     def _is_opaque(y: int, x: int) -> bool:
         return bool(opaque_grid[y, x])
@@ -557,19 +539,6 @@ def apply_colored_lighting(
     )
 
 
-_LEGACY_LIGHTING_RENDERER_LOCAL: threading.local = threading.local()
-
-
-def _get_legacy_lighting_renderer() -> LightingRenderer:
-    renderer: LightingRenderer | None = getattr(
-        _LEGACY_LIGHTING_RENDERER_LOCAL, "renderer", None
-    )
-    if renderer is None:
-        renderer = LightingRenderer()
-        _LEGACY_LIGHTING_RENDERER_LOCAL.renderer = renderer
-    return renderer
-
-
 MEMORY_WALL_GLYPHS = np.array(
     [ord("▓"), ord("▒"), ord("░"), ord("⋅"), ord(" ")], dtype=np.uint16
 )
@@ -680,32 +649,6 @@ def calculate_lighting(
     return lit_fg, lit_bg, intensity_map
 
 
-def apply_light_sources(
-    lit_fg: np.ndarray,
-    lit_bg: np.ndarray,
-    light_sources: Iterable[Any],
-    game_map: GameMap,
-    viewport_x: int,
-    viewport_y: int,
-    vp_h: int,
-    vp_w: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Backward-compatible wrapper around the cached colored-light path."""
-    scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
-    return apply_colored_lighting(
-        lit_fg,
-        lit_bg,
-        light_sources,
-        game_map,
-        viewport_x=viewport_x,
-        viewport_y=viewport_y,
-        vp_h=vp_h,
-        vp_w=vp_w,
-        scene_seq=scene_seq,
-        lighting_renderer=_get_legacy_lighting_renderer(),
-    )
-
-
 @njit(cache=True, nogil=True)
 def apply_height_visualization(
     lit_fg: np.ndarray,
@@ -791,6 +734,109 @@ def apply_height_visualization(
             ).astype(np.uint8)
 
     return final_fg, final_bg
+
+
+def apply_render_lighting(
+    *,
+    base_fg: np.ndarray,
+    base_bg: np.ndarray,
+    glyph_indices: np.ndarray,
+    drawn_mask: np.ndarray,
+    visible_mask: np.ndarray,
+    map_height_vp: np.ndarray,
+    map_memory_vp: np.ndarray,
+    map_tiles_vp: np.ndarray,
+    light_sources: Iterable[Any],
+    game_map: GameMap,
+    viewport_x: int,
+    viewport_y: int,
+    vp_h: int,
+    vp_w: int,
+    player_x: int,
+    player_y: int,
+    player_height: int,
+    show_height_vis: bool,
+    vis_max_diff: int,
+    vis_color_high_np: np.ndarray,
+    vis_color_mid_np: np.ndarray,
+    vis_color_low_np: np.ndarray,
+    vis_blend_factor: np.float32,
+    lighting_ambient: np.float32,
+    lighting_min_fov: np.float32,
+    lighting_falloff: np.float32,
+    fov_radius_sq: np.float32,
+    enable_colored_lights: bool,
+    enable_memory_fade: bool,
+    memory_fade_color_np: np.ndarray,
+    rng: GameRNG,
+    memory_fade_variance: float,
+    memory_noise_level: float,
+    lighting_renderer: LightingRenderer,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Apply viewport lighting and presentation effects in render order."""
+    lit_fg, lit_bg, intensity_map = calculate_lighting(
+        base_fg,
+        base_bg,
+        visible_mask,
+        vp_h,
+        vp_w,
+        viewport_x,
+        viewport_y,
+        player_x,
+        player_y,
+        lighting_ambient,
+        lighting_min_fov,
+        lighting_falloff,
+        fov_radius_sq,
+    )
+
+    final_fg, final_bg = apply_height_visualization(
+        lit_fg,
+        lit_bg,
+        drawn_mask,
+        map_height_vp,
+        player_height,
+        show_height_vis,
+        vis_max_diff,
+        vis_color_high_np,
+        vis_color_mid_np,
+        vis_color_low_np,
+        vis_blend_factor,
+    )
+
+    if enable_colored_lights and light_sources:
+        scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
+        final_fg, final_bg, _ = apply_colored_lighting(
+            final_fg,
+            final_bg,
+            light_sources,
+            game_map,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            vp_h=vp_h,
+            vp_w=vp_w,
+            scene_seq=scene_seq,
+            lighting_renderer=lighting_renderer,
+        )
+
+    if enable_memory_fade:
+        apply_memory_fade(
+            final_fg,
+            final_bg,
+            glyph_indices,
+            map_memory_vp,
+            map_tiles_vp,
+            drawn_mask,
+            visible_mask,
+            memory_fade_color_np,
+            rng,
+            memory_fade_variance,
+            memory_noise_level,
+            viewport_x,
+            viewport_y,
+        )
+
+    return final_fg, final_bg, intensity_map
 
 
 def apply_memory_fade(
