@@ -580,6 +580,7 @@ def warmup_perception_kernels() -> None:
     cave_cost = np.empty((MAX_FLOWS, 4, 4), dtype=np.int32)
     flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
     update_noise(cave_cost, flow_centers, terrain_map, 1, 1, FlowType.REAL_NOISE, {})
+    get_noise_dist(cave_cost, flow_centers, FlowType.REAL_NOISE, 1, 1)
 
     transparency_map = terrain_transparency_map(terrain_map)
     los_line_of_sight(1, 1, 2, 2, transparency_map)
