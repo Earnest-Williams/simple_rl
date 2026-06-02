@@ -9,8 +9,8 @@ import structlog
 import yaml
 
 from engine.glyphs import tile_id_for
+from game.world import memory
 from game.world.fov import compute_visibility_into
-from game.world.memory import update_memory_fade
 
 log = structlog.get_logger()
 
@@ -248,12 +248,17 @@ class GameMap:
         # Directly use the cached transparency map
         return self.transparent[y, x]
 
-    # --- Memory fade helper ---
-    def update_memory_fade(
-        self, current_time: int, steepness: float, midpoint: float
-    ) -> None:
+    def refresh_visible_memory(self, current_time: int) -> None:
+        """Refresh memory state for currently visible tiles."""
+        self.memory_intensity[self.visible] = 1.0
+        self.last_seen_time[self.visible] = current_time
+        self.memory_strength[self.visible] = np.minimum(
+            self.memory_strength[self.visible] + 1.0, MAX_MEMORY_STRENGTH
+        )
+
+    def fade_memory(self, current_time: int, steepness: float, midpoint: float) -> None:
         """Fade remembered tiles based on elapsed time."""
-        update_memory_fade(
+        memory.update_memory_fade(
             current_time,
             last_seen_time=self.last_seen_time,
             memory_intensity=self.memory_intensity,
@@ -266,7 +271,6 @@ class GameMap:
             midpoint=midpoint,
         )
 
-    # --- MODIFIED compute_fov method ---
     def compute_fov(self, x: int, y: int, radius: int) -> None:
         """Calculate field of view from ``(x, y)`` with the given ``radius``."""
         log_context = {"origin": (x, y), "radius": radius}
@@ -283,9 +287,6 @@ class GameMap:
         def set_visible(tile_y: int, tile_x: int) -> None:
             self.visible[tile_y, tile_x] = True
             self.explored[tile_y, tile_x] = True
-            self.memory_strength[tile_y, tile_x] = np.minimum(
-                self.memory_strength[tile_y, tile_x] + 1.0, MAX_MEMORY_STRENGTH
-            )
 
         def get_distance(
             origin_y: int, origin_x: int, target_y: int, target_x: int
@@ -303,20 +304,6 @@ class GameMap:
             mark_visible=set_visible,
             distance=get_distance,
         )
-
-        # Decrement memory strength for tiles not currently visible and
-        # ensure values stay within the valid range.
-        not_visible = ~self.visible
-        if np.any(not_visible):
-            self.memory_strength[not_visible] = np.maximum(
-                self.memory_strength[not_visible] - 1.0, 0.0
-            )
-
-        np.clip(
-            self.memory_strength, 0.0, MAX_MEMORY_STRENGTH, out=self.memory_strength
-        )
-
-    # --- END MODIFIED compute_fov method ---
 
     def create_test_room(self) -> None:
         """Creates a simple rectangular room for testing."""
@@ -361,7 +348,7 @@ class GameMap:
         visibility changed (either became visible or hidden).
         """
         previous_visible = self.visible.copy()
-        self.compute_fov(x, y, radius)  # Calls the updated method
+        self.compute_fov(x, y, radius)
         changed_positions = set()
 
         # Optimization: Use np.where for potentially faster comparison on large maps

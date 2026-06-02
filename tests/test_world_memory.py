@@ -49,3 +49,45 @@ def test_update_memory_fade_tracks_newly_hidden_tiles() -> None:
     assert not prev_visible[0, 0]
     assert 0.0 < memory_intensity[0, 0] < 1.0
     assert memory_intensity[1, 1] == 0.0
+
+
+def test_compute_fov_only_updates_visible_and_explored() -> None:
+    game_map: GameMap = GameMap(5, 5)
+    game_map.create_test_room()
+    game_map.memory_intensity[:] = 0.25
+    game_map.memory_strength[:] = 2.0
+    game_map.last_seen_time[:] = 7
+    expected_memory_intensity: npt.NDArray[np.float32] = (
+        game_map.memory_intensity.copy()
+    )
+    expected_memory_strength: npt.NDArray[np.float32] = game_map.memory_strength.copy()
+    expected_last_seen_time: npt.NDArray[np.int32] = game_map.last_seen_time.copy()
+
+    game_map.compute_fov(2, 2, 2)
+
+    np.testing.assert_array_equal(game_map.memory_intensity, expected_memory_intensity)
+    np.testing.assert_array_equal(game_map.memory_strength, expected_memory_strength)
+    np.testing.assert_array_equal(game_map.last_seen_time, expected_last_seen_time)
+    assert np.any(game_map.visible)
+    assert np.any(game_map.explored)
+
+
+def test_refresh_visible_memory_updates_only_visible_tiles() -> None:
+    game_map: GameMap = GameMap(3, 2)
+    game_map.visible[0, 0] = True
+    game_map.visible[1, 2] = True
+    game_map.memory_intensity[:] = 0.25
+    game_map.last_seen_time[:] = 3
+    game_map.memory_strength[:] = 4.5
+
+    game_map.refresh_visible_memory(11)
+
+    assert game_map.memory_intensity[0, 0] == 1.0
+    assert game_map.memory_intensity[1, 2] == 1.0
+    assert game_map.memory_intensity[0, 1] == 0.25
+    assert game_map.last_seen_time[0, 0] == 11
+    assert game_map.last_seen_time[1, 2] == 11
+    assert game_map.last_seen_time[0, 1] == 3
+    assert game_map.memory_strength[0, 0] == 5.0
+    assert game_map.memory_strength[1, 2] == 5.0
+    assert game_map.memory_strength[0, 1] == 4.5
