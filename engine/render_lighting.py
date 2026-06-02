@@ -1,6 +1,7 @@
 """Lighting and visual effect helpers for rendering."""
 
 import math
+import threading
 from collections.abc import Iterable
 from typing import Any
 
@@ -37,6 +38,7 @@ except ImportError:
         if len(args) == 1:
             return np.uint8(args[0])
         return None  # numba signature sentinel — see njit fallback above
+
 
 try:
     from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
@@ -89,8 +91,13 @@ except ImportError:
                 visible.add((cy, cx))
 
         def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
-            row: int, start: float, end: float,
-            xx: int, xy: int, yx: int, yy: int,
+            row: int,
+            start: float,
+            end: float,
+            xx: int,
+            xy: int,
+            yx: int,
+            yy: int,
         ) -> None:
             """Sweep one octant row by row, pruning by slope boundaries.
 
@@ -133,8 +140,14 @@ except ImportError:
 
         mark(origin_y, origin_x)
         for xx, xy, yx, yy in (
-            (1, 0, 0, 1), (0, 1, 1, 0), (0, -1, 1, 0), (-1, 0, 0, 1),
-            (-1, 0, 0, -1), (0, -1, -1, 0), (0, 1, -1, 0), (1, 0, 0, -1),
+            (1, 0, 0, 1),
+            (0, 1, 1, 0),
+            (0, -1, 1, 0),
+            (-1, 0, 0, 1),
+            (-1, 0, 0, -1),
+            (0, -1, -1, 0),
+            (0, 1, -1, 0),
+            (1, 0, 0, -1),
         ):
             cast(1, 1.0, 0.0, xx, xy, yx, yy)
         return visible
@@ -195,6 +208,7 @@ DEFAULT_BLEND_POLICY: RGBBlendPolicy = RGBBlendPolicy()
 
 
 def _compute_single_light_contribution(
+    *,
     origin_x: int,
     origin_y: int,
     radius: int,
@@ -203,28 +217,57 @@ def _compute_single_light_contribution(
     opaque_grid: np.ndarray,
     scene_h: int,
     scene_w: int,
+    height_map: np.ndarray | None = None,
+    ceiling_map: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Compute a single light's RGB contribution array (h × w × 3, float32).
+    """Compute one light's RGB contribution array.
 
-    Uses ``compute_visibility`` (callback-based shadowcasting) which is the
-    reliable production FOV path.  Returns a zeroed array if FOV is
-    unavailable or ``radius <= 0``.
+    The production path delegates to ``compute_light_color_array`` so cached
+    colored lighting and legacy callers share one single-light implementation.
+    A pure visibility fallback remains available only for environments where the
+    accelerated FOV helper cannot be imported.
     """
-    contribution = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
-    if compute_visibility is None or radius <= 0:
+    contribution: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
+    if radius <= 0:
+        return contribution
+
+    intensity_f: float = float(intensity)
+    scaled_color: tuple[int, int, int] = (
+        int(color_rgb[0] * intensity_f),
+        int(color_rgb[1] * intensity_f),
+        int(color_rgb[2] * intensity_f),
+    )
+    has_geometry: bool = height_map is not None and ceiling_map is not None
+    if compute_light_color_array is not None and has_geometry:
+        origin_h: int = int(height_map[origin_y, origin_x])
+        compute_light_color_array(
+            origin_xy=(origin_x, origin_y),
+            range_limit=radius,
+            opaque_grid=opaque_grid,
+            height_map=height_map,
+            ceiling_map=ceiling_map,
+            origin_height=origin_h,
+            target_rgb_array=contribution,
+            base_color_rgb=scaled_color,
+        )
+        return contribution
+
+    if compute_visibility is None:
         return contribution
 
     def _is_opaque(y: int, x: int) -> bool:
         return bool(opaque_grid[y, x])
 
     visible = compute_visibility(
-        scene_h, scene_w,
-        origin_y=origin_y, origin_x=origin_x,
+        scene_h,
+        scene_w,
+        origin_y=origin_y,
+        origin_x=origin_x,
         radius=radius,
         is_opaque=_is_opaque,
     )
     radius_sq = float(radius * radius)
-    color = np.array(color_rgb, dtype=np.float32) * float(intensity)
+    color = np.array(scaled_color, dtype=np.float32)
     for cy, cx in visible:
         dist_sq = (cx - origin_x) ** 2 + (cy - origin_y) ** 2
         if dist_sq > radius_sq:
@@ -238,24 +281,9 @@ class LightContributionCache:
     """Per-light RGB contribution cache for the production lighting renderer.
 
     Maintains a separate ``(h × w × 3)`` float32 buffer for each light and
-    a combined scene buffer.  When a light's parameters are unchanged the
-    cached buffer is reused rather than recomputed.  Only the affected
-    light's contribution is subtracted and recalculated when it changes.
-
-    Usage::
-
-        cache = LightContributionCache(map_h, map_w)
-        # Each call updates the combined buffer incrementally:
-        combined = cache.update(lights, opaque_grid, scene_seq=current_tick)
-        # Use combined[viewport_y:..., viewport_x:..., :] for rendering.
-
-    Parameters
-    ----------
-    scene_h, scene_w:
-        Full map dimensions (not viewport dimensions).
-    blend_policy:
-        An :class:`RGBBlendPolicy` instance.  Defaults to
-        :data:`DEFAULT_BLEND_POLICY`.
+    a combined scene buffer.  The cache receives current lights, opacity, scene
+    geometry, an optional viewport, and a scene geometry version, then returns
+    the canonical blended RGB contribution for that view.
     """
 
     def __init__(
@@ -264,125 +292,168 @@ class LightContributionCache:
         scene_w: int,
         blend_policy: RGBBlendPolicy | None = None,
     ) -> None:
-        self._h = scene_h
-        self._w = scene_w
-        self._policy = blend_policy or DEFAULT_BLEND_POLICY
-        # scene_seq at last full invalidation
+        self._h: int = scene_h
+        self._w: int = scene_w
+        self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
         self._last_scene_seq: int | None = None
-        # combined accumulation buffer
-        self._combined: np.ndarray = np.zeros(
-            (scene_h, scene_w, 3), dtype=np.float32
-        )
-        # per-light buffers keyed by stable light id
+        self._combined: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
         self._contributions: dict[int, np.ndarray] = {}
-        # per-light parameter keys (used to detect changes)
-        self._param_keys: dict[int, tuple] = {}
+        self._param_keys: dict[int, tuple[Any, ...]] = {}
+
+    @staticmethod
+    def _light_id(light: Any, fallback_index: int) -> int:
+        """Return a stable cache key for light objects without requiring IDs."""
+        raw_id = getattr(light, "id", fallback_index)
+        if isinstance(raw_id, int):
+            return raw_id
+        return fallback_index
 
     @staticmethod
     def _param_key(light: Any) -> tuple[Any, ...]:
-        """Build a hashable key from the light's relevant parameters."""
+        """Build a hashable key from a light's rendering parameters."""
+        color = getattr(light, "color", None)
+        if color is not None:
+            color = tuple(color)
         return (
             getattr(light, "x", None),
             getattr(light, "y", None),
             getattr(light, "radius", None),
-            getattr(light, "color", None),
+            color,
             getattr(light, "intensity", 1.0),
         )
 
-    def _invalidate_all(self, opaque_grid: np.ndarray, lights: Iterable[Any]) -> None:
+    def _compute_light(
+        self,
+        light: Any,
+        opaque_grid: np.ndarray,
+        height_map: np.ndarray | None,
+        ceiling_map: np.ndarray | None,
+    ) -> np.ndarray:
+        """Compute a full-scene contribution buffer for one light."""
+        return _compute_single_light_contribution(
+            origin_x=int(light.x),
+            origin_y=int(light.y),
+            radius=int(light.radius),
+            color_rgb=tuple(light.color),
+            intensity=float(getattr(light, "intensity", 1.0)),
+            opaque_grid=opaque_grid,
+            scene_h=self._h,
+            scene_w=self._w,
+            height_map=height_map,
+            ceiling_map=ceiling_map,
+        )
+
+    def _invalidate_all(
+        self,
+        lights: list[Any],
+        opaque_grid: np.ndarray,
+        height_map: np.ndarray | None,
+        ceiling_map: np.ndarray | None,
+    ) -> None:
         """Rebuild every light's contribution from scratch."""
         self._combined[:] = 0.0
         self._contributions.clear()
         self._param_keys.clear()
-        for light in lights:
-            lid = light.id
+        for index, light in enumerate(lights):
+            if not self._light_in_scene(light):
+                continue
+            lid = self._light_id(light, index)
             key = self._param_key(light)
-            buf = _compute_single_light_contribution(
-                origin_x=light.x,
-                origin_y=light.y,
-                radius=light.radius,
-                color_rgb=tuple(light.color),
-                intensity=getattr(light, "intensity", 1.0),
-                opaque_grid=opaque_grid,
-                scene_h=self._h,
-                scene_w=self._w,
-            )
+            buf = self._compute_light(light, opaque_grid, height_map, ceiling_map)
             self._contributions[lid] = buf
             self._param_keys[lid] = key
             self._policy.accumulate(self._combined, buf)
+
+    def _light_in_scene(self, light: Any) -> bool:
+        """Return whether a light origin is inside this cache's scene."""
+        x = getattr(light, "x", None)
+        y = getattr(light, "y", None)
+        return (
+            isinstance(x, int)
+            and isinstance(y, int)
+            and 0 <= x < self._w
+            and 0 <= y < self._h
+        )
+
+    def _viewport_slice(
+        self,
+        viewport_x: int,
+        viewport_y: int,
+        vp_h: int,
+        vp_w: int,
+    ) -> tuple[slice, slice]:
+        """Return safe scene slices for a viewport rectangle."""
+        y_start = max(0, viewport_y)
+        x_start = max(0, viewport_x)
+        y_end = min(self._h, viewport_y + vp_h)
+        x_end = min(self._w, viewport_x + vp_w)
+        return slice(y_start, y_end), slice(x_start, x_end)
 
     def update(
         self,
         lights: Iterable[Any],
         opaque_grid: np.ndarray,
         scene_seq: int | None = None,
+        *,
+        viewport_x: int = 0,
+        viewport_y: int = 0,
+        vp_h: int | None = None,
+        vp_w: int | None = None,
+        height_map: np.ndarray | None = None,
+        ceiling_map: np.ndarray | None = None,
     ) -> np.ndarray:
-        """Incrementally update and return the combined RGB buffer.
+        """Incrementally update and return a blended RGB contribution buffer.
 
-        Parameters
-        ----------
-        lights:
-            Iterable of light objects.  Each must expose ``.id``,
-            ``.x``, ``.y``, ``.radius``, ``.color``, and optionally
-            ``.intensity``.
-        opaque_grid:
-            Boolean array ``(h × w)`` where ``True`` means the cell blocks
-            line-of-sight.
-        scene_seq:
-            Monotone counter that represents scene geometry version.  Pass
-            a new value when the opaque grid changes to force a full
-            cache invalidation.
-
-        Returns
-        -------
-        np.ndarray
-            The combined light contribution buffer ``(h × w × 3, float32)``.
-            Clamp to ``[0, 255]`` before converting to ``uint8`` for
-            rendering.
+        The returned array is clamped through ``RGBBlendPolicy.composite``.  If
+        viewport dimensions are supplied, only that viewport contribution is
+        returned; otherwise the full scene contribution is returned.
         """
-        # Full invalidation when scene geometry changes
+        lights_list = list(lights)
         if scene_seq is not None and scene_seq != self._last_scene_seq:
             self._last_scene_seq = scene_seq
-            self._invalidate_all(opaque_grid, lights)
-            return self._combined.copy()
+            self._invalidate_all(lights_list, opaque_grid, height_map, ceiling_map)
+        else:
+            incoming_ids = {
+                self._light_id(light, index)
+                for index, light in enumerate(lights_list)
+                if self._light_in_scene(light)
+            }
+            cached_ids = set(self._contributions.keys())
 
-        # Incremental update: detect added, changed, and removed lights
-        lights_list = list(lights)
-        incoming_ids = {light.id for light in lights_list}
-        cached_ids = set(self._contributions.keys())
-
-        # Remove lights that are no longer present
-        for lid in cached_ids - incoming_ids:
-            old_buf = self._contributions.pop(lid)
-            self._policy.subtract(self._combined, old_buf)
-            self._param_keys.pop(lid, None)
-
-        # Add or update lights
-        for light in lights_list:
-            lid = light.id
-            new_key = self._param_key(light)
-            if lid in self._contributions:
-                if self._param_keys.get(lid) == new_key:
-                    continue  # unchanged — reuse cached contribution
-                # Changed — subtract old, recompute, accumulate new
-                old_buf = self._contributions[lid]
+            for lid in cached_ids - incoming_ids:
+                old_buf = self._contributions.pop(lid)
                 self._policy.subtract(self._combined, old_buf)
-            # New or changed: compute and accumulate
-            buf = _compute_single_light_contribution(
-                origin_x=light.x,
-                origin_y=light.y,
-                radius=light.radius,
-                color_rgb=tuple(light.color),
-                intensity=getattr(light, "intensity", 1.0),
-                opaque_grid=opaque_grid,
-                scene_h=self._h,
-                scene_w=self._w,
-            )
-            self._contributions[lid] = buf
-            self._param_keys[lid] = new_key
-            self._policy.accumulate(self._combined, buf)
+                self._param_keys.pop(lid, None)
 
-        return self._combined.copy()
+            for index, light in enumerate(lights_list):
+                if not self._light_in_scene(light):
+                    continue
+                lid = self._light_id(light, index)
+                new_key = self._param_key(light)
+                if lid in self._contributions:
+                    if self._param_keys.get(lid) == new_key:
+                        continue
+                    old_buf = self._contributions[lid]
+                    self._policy.subtract(self._combined, old_buf)
+                buf = self._compute_light(light, opaque_grid, height_map, ceiling_map)
+                self._contributions[lid] = buf
+                self._param_keys[lid] = new_key
+                self._policy.accumulate(self._combined, buf)
+
+        composite = self._policy.composite(self._combined)
+        if vp_h is None or vp_w is None:
+            return composite.copy()
+
+        y_slice, x_slice = self._viewport_slice(viewport_x, viewport_y, vp_h, vp_w)
+        viewport_rgb = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+        dest_y = max(0, -viewport_y)
+        dest_x = max(0, -viewport_x)
+        src = composite[y_slice, x_slice, :]
+        y_size = src.shape[0]
+        x_size = src.shape[1]
+        if y_size > 0 and x_size > 0:
+            viewport_rgb[dest_y : dest_y + y_size, dest_x : dest_x + x_size, :] = src
+        return viewport_rgb
 
     def invalidate(self) -> None:
         """Force a full rebuild on the next :meth:`update` call."""
@@ -390,6 +461,113 @@ class LightContributionCache:
         self._combined[:] = 0.0
         self._contributions.clear()
         self._param_keys.clear()
+
+
+class LightingRenderer:
+    """Renderer-facing owner for cached colored light contributions."""
+
+    def __init__(self, blend_policy: RGBBlendPolicy | None = None) -> None:
+        self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
+        self._cache: LightContributionCache | None = None
+        self._cache_shape: tuple[int, int] | None = None
+
+    def _get_cache(self, scene_h: int, scene_w: int) -> LightContributionCache:
+        shape = (scene_h, scene_w)
+        if self._cache is None or self._cache_shape != shape:
+            self._cache = LightContributionCache(scene_h, scene_w, self._policy)
+            self._cache_shape = shape
+        return self._cache
+
+    def apply_colored_lighting(
+        self,
+        lit_fg: np.ndarray,
+        lit_bg: np.ndarray,
+        light_sources: Iterable[Any],
+        game_map: GameMap,
+        *,
+        viewport_x: int,
+        viewport_y: int,
+        vp_h: int,
+        vp_w: int,
+        scene_seq: int | None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Apply cached colored lights to lit buffers within a viewport."""
+        if not light_sources:
+            empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+            return lit_fg, lit_bg, empty
+
+        if not isinstance(game_map, GameMap) or GameMap is object:
+            log.warning("Invalid GameMap supplied; skipping colored lights")
+            empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
+            return lit_fg, lit_bg, empty
+
+        opaque_grid = ~game_map.transparent
+        cache = self._get_cache(game_map.height, game_map.width)
+        light_rgb_vp = cache.update(
+            light_sources,
+            opaque_grid,
+            scene_seq,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            vp_h=vp_h,
+            vp_w=vp_w,
+            height_map=game_map.height_map,
+            ceiling_map=game_map.ceiling_map,
+        )
+        fg_f32 = lit_fg.astype(np.float32)
+        bg_f32 = lit_bg.astype(np.float32)
+        self._policy.accumulate(fg_f32, light_rgb_vp)
+        self._policy.accumulate(bg_f32, light_rgb_vp)
+        final_fg = self._policy.composite(fg_f32).astype(np.uint8)
+        final_bg = self._policy.composite(bg_f32).astype(np.uint8)
+        lit_fg[:] = final_fg
+        lit_bg[:] = final_bg
+        return lit_fg, lit_bg, light_rgb_vp
+
+    def invalidate(self) -> None:
+        """Invalidate cached colored-light contributions."""
+        if self._cache is not None:
+            self._cache.invalidate()
+
+
+def apply_colored_lighting(
+    lit_fg: np.ndarray,
+    lit_bg: np.ndarray,
+    light_sources: Iterable[Any],
+    game_map: GameMap,
+    *,
+    viewport_x: int,
+    viewport_y: int,
+    vp_h: int,
+    vp_w: int,
+    scene_seq: int | None,
+    lighting_renderer: LightingRenderer,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Renderer-facing cached colored-light entrypoint."""
+    return lighting_renderer.apply_colored_lighting(
+        lit_fg,
+        lit_bg,
+        light_sources,
+        game_map,
+        viewport_x=viewport_x,
+        viewport_y=viewport_y,
+        vp_h=vp_h,
+        vp_w=vp_w,
+        scene_seq=scene_seq,
+    )
+
+
+_LEGACY_LIGHTING_RENDERER_LOCAL: threading.local = threading.local()
+
+
+def _get_legacy_lighting_renderer() -> LightingRenderer:
+    renderer: LightingRenderer | None = getattr(
+        _LEGACY_LIGHTING_RENDERER_LOCAL, "renderer", None
+    )
+    if renderer is None:
+        renderer = LightingRenderer()
+        _LEGACY_LIGHTING_RENDERER_LOCAL.renderer = renderer
+    return renderer
 
 
 MEMORY_WALL_GLYPHS = np.array(
@@ -505,63 +683,27 @@ def calculate_lighting(
 def apply_light_sources(
     lit_fg: np.ndarray,
     lit_bg: np.ndarray,
-    light_sources: Iterable,
+    light_sources: Iterable[Any],
     game_map: GameMap,
     viewport_x: int,
     viewport_y: int,
     vp_h: int,
     vp_w: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply colored light sources to lit buffers within the viewport."""
-    if not light_sources:
-        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
-        return lit_fg, lit_bg, empty
-
-    if compute_light_color_array is None:
-        log.warning("compute_light_color_array unavailable; skipping colored lights")
-        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
-        return lit_fg, lit_bg, empty
-
-    if not isinstance(game_map, GameMap) or GameMap is object:
-        log.warning("Invalid GameMap supplied; skipping colored lights")
-        empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
-        return lit_fg, lit_bg, empty
-
-    light_rgb_map = np.zeros((game_map.height, game_map.width, 3), dtype=np.float32)
-    opaque_grid = ~game_map.transparent
-
-    for ls in light_sources:
-        if not game_map.in_bounds(ls.x, ls.y):
-            continue
-        try:
-            origin_h = int(game_map.height_map[ls.y, ls.x])
-            compute_light_color_array(
-                origin_xy=(ls.x, ls.y),
-                range_limit=ls.radius,
-                opaque_grid=opaque_grid,
-                height_map=game_map.height_map,
-                ceiling_map=game_map.ceiling_map,
-                origin_height=origin_h,
-                target_rgb_array=light_rgb_map,
-                base_color_rgb=ls.color,
-            )
-        except Exception as exc:
-            log.error("Error computing light source", error=str(exc), light=ls)
-
-    light_rgb_vp = light_rgb_map[
-        viewport_y : viewport_y + vp_h, viewport_x : viewport_x + vp_w
-    ]
-    final_fg = lit_fg
-    final_bg = lit_bg
-    fg_f32 = final_fg.astype(np.float32)
-    bg_f32 = final_bg.astype(np.float32)
-    fg_f32 += light_rgb_vp
-    bg_f32 += light_rgb_vp
-    np.clip(fg_f32, 0, 255, out=fg_f32)
-    np.clip(bg_f32, 0, 255, out=bg_f32)
-    final_fg[:] = fg_f32.astype(np.uint8)
-    final_bg[:] = bg_f32.astype(np.uint8)
-    return final_fg, final_bg, light_rgb_vp
+    """Backward-compatible wrapper around the cached colored-light path."""
+    scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
+    return apply_colored_lighting(
+        lit_fg,
+        lit_bg,
+        light_sources,
+        game_map,
+        viewport_x=viewport_x,
+        viewport_y=viewport_y,
+        vp_h=vp_h,
+        vp_w=vp_w,
+        scene_seq=scene_seq,
+        lighting_renderer=_get_legacy_lighting_renderer(),
+    )
 
 
 @njit(cache=True, nogil=True)
