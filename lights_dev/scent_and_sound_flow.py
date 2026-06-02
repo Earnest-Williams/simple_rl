@@ -4,24 +4,61 @@ scent_and_sound_flow.py
 
 Functional (non-OO) scent and sound flow helpers for simple_rl.
 
-This module implements three related systems used by simple_rl's AI and world
-simulation. It is the lights_dev R&D copy; production sound emission and
-audio playback live in `game/systems/sound.py`:
+This module is the reference-oriented, R&D copy of the scent/noise algorithms
+used by simple_rl's AI and world simulation.  It intentionally keeps the data
+model explicit: callers allocate the arrays, pass them into stateless helper
+functions, and the helpers mutate only the documented output arrays.  Production
+sound emission and audio playback live in `game/systems/sound.py`; this file is
+concerned with the simulation fields that monsters can query.
+
+The module implements three related systems:
 
   1. Noise propagation (flow fields).  Flow fields are multi-layer integer
      cost maps which monsters consult to move toward a sound source or a
-     remembered target.  We expose `update_noise` to build a single flow slice
-     inside a shared `cave_cost` 3-D array (shape = (MAX_FLOWS, H, W)).
+     remembered target.  `update_noise` builds one flow slice in a shared
+     `cave_cost` 3-D array with shape `(MAX_FLOWS, height, width)`, while
+     `flow_centers` records each slice origin with shape `(MAX_FLOWS, 2)`.
 
-  2. Scent (smell) tracking.  Implements Sil's "cave_when" stamp approach:
-     a global `scent_when` count that decrements each update and a 5×5 stamp
-     placed around the player when they lay fresh scent.  Old scent ages and
-     cycles out when the global counter wraps.
+  2. Scent (smell) tracking.  `update_smell` implements Sil's `cave_when`
+     stamp approach: a global `scent_when` count decrements each update and a
+     5×5 stamp is placed around the player when they lay fresh scent.  Cells do
+     not age individually; old scent ages by comparison with the global stamp
+     and cycles out when the counter wraps.
 
-  3. Monster perception.  Vectorized/chunked perception checks which ask:
-     "Does this monster detect the player from this noise field?"  The check
-     is the Sil d10/d10 skill mechanic ((1d10 + skill) - (1d10 + difficulty +
-     opposition) > 0).
+  3. Monster perception.  `monster_perception` performs vectorized/chunked
+     perception checks which ask: "Does this monster detect the player from
+     this noise field?"  The check is the Sil d10/d10 skill mechanic:
+     `(1d10 + skill) - (1d10 + difficulty + opposition) > 0`.
+
+Data layout contracts
+---------------------
+All coordinate pairs in this module are accepted and returned in `(y, x)` map
+order unless a docstring explicitly says otherwise.  The project LOS helper is
+the exception and expects `(x0, y0, x1, y1, transparency_map)`, so
+`update_smell` performs that conversion at the call site.  Terrain arrays store
+integer `FeatureType` values; walls block both scent and noise, while closed and
+secret doors are handled by flow-specific noise rules.
+
+Typical update/query flow
+-------------------------
+1. Allocate or retain `cave_cost: int32[MAX_FLOWS, H, W]` and
+   `flow_centers: int32[MAX_FLOWS, 2]` in the caller.
+2. Call `update_noise(...)` whenever a sound source or remembered target should
+   refresh one flow slice.  The selected slice is fully reset before
+   propagation, preventing stale costs from previous sounds.
+3. Call `get_noise_dist(...)` or `choose_step_by_flow(...)` when an AI needs to
+   evaluate the field.
+4. Call `update_smell(...)` once per player scent update and store the returned
+   global scent counter for the next tick.
+5. Call `monster_perception(...)` with a deterministic `GameRNG` to obtain the
+   int32 monster IDs alerted by the current noise field.
+
+Determinism and mutation boundaries
+-----------------------------------
+The only randomness is routed through `GameRNG`.  Numba kernels are deterministic
+for a fixed input state.  `update_noise` mutates one `cave_cost` slice and one
+row of `flow_centers`; `update_smell` mutates `cave_when`; all other public
+helpers are read-only with respect to caller-owned arrays.
 
 Implementation decisions and differences from the earlier iteration:
 
@@ -336,23 +373,40 @@ def update_noise(
     penalties: dict[str, int],
 ) -> None:
     """
-    Build the noise flow for a single flow type and store its center.
+    Build one noise flow slice and record the slice origin.
+
+    The selected `which_flow` slice in `cave_cost` is fully reset and rebuilt
+    from `(cy, cx)`.  Other flow slices are left untouched.  The companion
+    `flow_centers` row is updated before propagation so downstream distance
+    queries can reproduce Sil's stored-cost-plus-geometric-distance formula.
 
     Parameters
     ----------
     cave_cost : ndarray[int32]
-        3D array of shape (MAX_FLOWS, H, W) used to store cost slices. The
-        caller is responsible for allocating this with dtype=int32.
+        Mutable 3-D array of shape `(MAX_FLOWS, height, width)`.  Each slice is
+        an integer cost field.  The caller owns allocation and persistence.
     flow_centers : ndarray[int32]
-        Array shape (MAX_FLOWS,2) used to record each flow's origin as (y,x).
+        Mutable 2-D array of shape `(MAX_FLOWS, 2)` storing `(y, x)` origins for
+        each flow slice.
     terrain_map : ndarray[int32]
-        2D map of FeatureType values.
+        2-D terrain grid using integer `FeatureType` values.  Walls block
+        propagation; closed and secret doors are interpreted according to
+        `which_flow`.
     cy, cx : int
-        Y and X coordinates of the noise source.
+        Source coordinate in `(y, x)` order.  Out-of-bounds or wall sources
+        produce an all-infinity slice after reset.
     which_flow : FlowType
-        Which flow slice to update.
-    penalties : dict[str,int]
-        Contains door penalties: 'pass' and 'real' (integer costs).
+        Flow slice to rebuild.  Invalid enum values raise `ValueError` before
+        any slice is passed to the Numba kernel.
+    penalties : dict[str, int]
+        Door penalty configuration.  Key `"pass"` is used for
+        `FlowType.PASS_DOORS`; key `"real"` is used for real/monster noise.
+        Missing keys fall back to conservative local defaults (`3` and `5`).
+
+    Raises
+    ------
+    ValueError
+        Raised when `which_flow` does not map to a valid slice index.
     """
     flow_idx = int(which_flow)
     if not (0 <= flow_idx < MAX_FLOWS):
@@ -421,8 +475,12 @@ def get_noise_dist(
     x: int,
 ) -> int:
     """
-    Convenience wrapper returning the noise distance at (y,x) for a given flow.
-    Performs bounds checks and returns NOISE_MAX_DIST for out-of-bounds.
+    Return the perceived noise distance at `(y, x)` for one flow slice.
+
+    This wrapper performs the public API bounds checks, reads the stored center
+    for `which_flow`, and delegates the arithmetic to `get_noise_dist_scalar`.
+    It returns `NOISE_MAX_DIST` for invalid flow indices, out-of-bounds target
+    coordinates, unreachable cells, or clamped pathological values.
     """
     flow_idx = int(which_flow)
     height = cave_cost.shape[1]
@@ -447,13 +505,12 @@ def terrain_transparency_map(
     terrain_map: NDArray[np.int32],
 ) -> NDArray[np.bool_]:  # type: ignore[type-arg]
     """
-    Create a boolean transparency map suitable for `los_line_of_sight`:
+    Create a boolean transparency map suitable for `los_line_of_sight`.
 
-      True => transparent (not wall).
-      False => opaque (wall).
-
-    The LOS helper expects coordinates as x,y when called; this helper returns
-    a boolean map so callers can call los_line_of_sight correctly.
+    Values are `True` for transparent non-wall cells and `False` for opaque
+    walls.  The returned array has the same `(height, width)` layout as
+    `terrain_map`; callers remain responsible for passing LOS coordinates in
+    the helper's required `(x0, y0, x1, y1, map)` order.
     """
     transparency_map: NDArray[np.bool_] = terrain_map != FEATURE_WALL  # type: ignore[type-arg]
     return transparency_map
@@ -467,25 +524,29 @@ def update_smell(
     global_scent_when: int,
 ) -> int:
     """
-    Update the scent (cave_when) map and return the updated global_scent_when.
+    Age the scent map, lay the player's fresh scent stamp, and return the clock.
+
+    `cave_when` stores absolute freshness stamps rather than per-cell ages.
+    Larger nonzero values are fresher.  The caller must retain and pass the
+    returned `global_scent_when` on the next update so the cyclic age scheme
+    remains consistent.
 
     Semantics (Sil-compatible):
-      1. Decrement the global_scent_when first.
-      2. If global_scent_when <= 0, perform a cycle:
-         - Erase earlier portion of the previous cycle (values > SMELL_STRENGTH).
-         - Remap the recent scent portion with an offset so freshness ordering
-           is preserved across cycles.
-      3. Lay down a 5x5 stamp about (py,px) with SCENT_ADJUST_TABLE where:
+      1. Decrement `global_scent_when` before laying fresh scent.
+      2. If the counter reaches zero, perform a cycle:
+         - Erase the older portion of the previous cycle
+           (`cave_when > SMELL_STRENGTH`).
+         - Remap recent scent with an offset so relative freshness ordering is
+           preserved across the wrap.
+      3. Lay a 5×5 stamp around `(py, px)` with `SCENT_ADJUST_TABLE` where:
+         - The target coordinate is in bounds.
          - The target tile is not a wall.
-         - The LOS from (px,py) to (x,y) is clear (use project LOS).
-         - The SCENT_ADJUST_TABLE cell is not the sentinel 250.
+         - The table entry is not the `250` sentinel.
+         - Line of sight from player to target is clear.
 
-    Differences vs earlier iteration:
-      - This implementation uses the project's `los_line_of_sight` helper for
-        correctness. Earlier a fast-cardinal-only LOS was used and it falsely
-        blocked certain 5×5 offsets. Because we perform only 25 LOS calls per
-        player update, correctness is preferred here.
-      - We represent scent as an int32 stamp (same as Sil's `cave_when`).
+    The LOS call deliberately uses the project's Bresenham helper instead of a
+    local shortcut.  Only 25 candidate cells are checked per update, so exact
+    wall handling is more important than micro-optimizing this path.
     """
     height = cave_when.shape[0]
     width = cave_when.shape[1]
@@ -539,8 +600,11 @@ def update_smell(
 
 def get_scent(cave_when: NDArray[np.int32], y: int, x: int) -> int:
     """
-    Return the raw scent stamp at (y,x) (0 means no scent).  The stamp can be
-    compared directly: larger value => fresher scent (Sil semantics).
+    Return the raw scent stamp at `(y, x)`.
+
+    A return value of `0` means no scent or an out-of-bounds coordinate.  For
+    nonzero values, larger stamps represent fresher scent under Sil's cyclic
+    `cave_when` semantics.
     """
     if not in_bounds(y, x, cave_when.shape[0], cave_when.shape[1]):
         return 0
@@ -580,23 +644,17 @@ def _process_monster_perception_chunk(
     chunk_seed: int,
 ) -> NDArray[np.int32]:
     """
-    Process one chunk of monsters for perception checks.
+    Process one deterministic chunk of monster perception checks.
 
-    Parameters:
-      - monster_df_chunk: polars DataFrame slice containing columns:
-          'id', 'fy', 'fx', 'perception_stat', 'is_dead'
-      - cave_cost, flow_centers: flow state used to compute noise distances
-      - player_stealth_skill: integer opposition value used in the roll
-      - noise_flow_type: which flow to consult for noise
-      - chunk_seed: deterministic seed for this chunk's GameRNG
+    `monster_df_chunk` must contain `id`, `fy`, `fx`, and `perception_stat`
+    columns.  The public `monster_perception` wrapper filters dead monsters
+    before chunking, so this helper does not repeat that filter.  Each chunk owns
+    a `GameRNG` seeded from `chunk_seed`, which keeps threaded execution
+    reproducible while avoiding shared mutable RNG state.
 
-    Returns:
-      - numpy int32 array listing monster IDs that detected the player.
-
-    Notes:
-      - This function is pure Python and therefore safe to call in parallel via
-        Joblib.  The inner noise -> noise_dist computation relies on the
-        Njit'd `get_noise_dist_scalar` to guarantee consistent arithmetic.
+    Returns an int32 array containing only the IDs whose Sil skill check
+    succeeded.  Empty chunks or chunks with no successes return an empty int32
+    array rather than `None`.
     """
     if monster_df_chunk.height == 0:
         return np.array([], dtype=np.int32)
@@ -649,19 +707,18 @@ def monster_perception(
     parallel_threshold: int = 500,
 ) -> NDArray[np.int32]:
     """
-    Top-level perception routine.  Returns an int32 numpy array of alerted monster IDs.
+    Return the int32 monster IDs alerted by the selected noise field.
 
-    Behavior:
-      - Filters out dead monsters.
-      - For small numbers of monsters (< parallel_threshold) runs a single chunk
-        (fast path).  For large counts uses Joblib to run multiple chunks in
-        parallel.  Seeds for each chunk are derived deterministically from
-        `master_rng` so behavior is reproducible.
+    The routine first filters out dead monsters, then chooses a deterministic
+    execution strategy:
+      - Small active populations run as one chunk to avoid Joblib overhead.
+      - Larger populations are split into `chunk_size` DataFrame slices and run
+        with a deterministic per-chunk seed derived from `master_rng`.
 
-    Notes:
-      - `player_y` / `player_x` are accepted to align with other API shapes,
-        but perception uses noise fields (the flow center recorded by update_noise)
-        for distance metrics.
+    `player_y` and `player_x` are accepted for API shape compatibility with
+    other perception systems.  Noise perception distance is computed from the
+    stored flow center recorded by `update_noise`, not directly from those
+    player coordinates.
     """
     # Filter out dead monsters
     active_monsters = monster_df.filter(~pl.col("is_dead"))
@@ -712,15 +769,16 @@ def choose_step_by_flow(
     game_tiles: NDArray[np.int32], flow_costs_slice: NDArray[np.int32], my: int, mx: int
 ) -> tuple[int, int]:
     """
-    Choose the neighbor with strictly smaller flow cost than the current tile.
+    Choose the adjacent coordinate that descends a flow field.
 
-    Returns (ny,nx) for the chosen neighbor, or (my,mx) if none reduces cost.
+    The helper scans the eight neighboring cells in `NEIGHBORS_8` order and
+    returns the first/best `(ny, nx)` whose flow cost is strictly lower than the
+    current cell after ignoring walls.  If the current coordinate is out of
+    bounds, or no neighbor improves the cost, it returns `(my, mx)`.
 
-    Notes:
-      - This helper is intentionally stateless and small. A caller should check
-        walkability and apply movement constraints (open doors, bashing, etc.)
-        according to the monster's abilities before actually moving the monster.
-      - We treat walls as impassable.
+    This is intentionally a stateless suggestion, not a movement executor.  The
+    caller must still apply monster-specific movement rules such as door
+    opening, bashing, occupancy checks, and action costs before moving.
     """
     h, w = flow_costs_slice.shape
     if not (0 <= my < h and 0 <= mx < w):
