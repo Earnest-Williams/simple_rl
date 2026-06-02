@@ -24,7 +24,7 @@ from .render_entities import (
     render_ground_items_py,
     render_map_tiles,
 )
-from .render_lighting import LightingRenderer, apply_render_lighting
+from .render_lighting import LightingRenderer
 
 # Numba for acceleration
 try:
@@ -301,41 +301,42 @@ def render_viewport(
         )
 
     # Apply lighting and presentation effects in a single render-ordered block.
-    final_fg, final_bg, intensity_map = apply_render_lighting(
-        base_fg=base_fg,
-        base_bg=base_bg,
-        glyph_indices=glyph_indices,
-        drawn_mask=drawn_mask,
-        visible_mask=visible_mask,
-        map_height_vp=map_height_vp,
-        map_memory_vp=map_memory_vp,
-        map_tiles_vp=map_tiles_vp,
-        light_sources=gm.light_sources,
-        game_map=gm,
-        viewport_x=viewport_x,
-        viewport_y=viewport_y,
-        vp_h=vp_h,
-        vp_w=vp_w,
-        player_x=player_x,
-        player_y=player_y,
-        player_height=player_height,
-        show_height_vis=render_config.show_height_vis,
-        vis_max_diff=render_config.vis_max_diff,
-        vis_color_high_np=render_config.vis_color_high_np,
-        vis_color_mid_np=render_config.vis_color_mid_np,
-        vis_color_low_np=render_config.vis_color_low_np,
-        vis_blend_factor=render_config.vis_blend_factor,
-        lighting_ambient=render_config.lighting_ambient,
-        lighting_min_fov=render_config.lighting_min_fov,
-        lighting_falloff=render_config.lighting_falloff,
-        fov_radius_sq=render_config.fov_radius_sq,
-        enable_colored_lights=render_config.enable_colored_lights,
-        enable_memory_fade=render_config.enable_memory_fade,
-        memory_fade_color_np=render_config.memory_fade_color_np,
-        rng=gs.rng_instance,
-        memory_fade_variance=float(render_config.memory_fade_variance),
-        memory_noise_level=float(render_config.memory_noise_level),
-        lighting_renderer=render_config.lighting_renderer,
+    final_fg, final_bg, intensity_map = (
+        render_config.lighting_renderer.apply_render_lighting(
+            base_fg=base_fg,
+            base_bg=base_bg,
+            glyph_indices=glyph_indices,
+            drawn_mask=drawn_mask,
+            visible_mask=visible_mask,
+            map_height_vp=map_height_vp,
+            map_memory_vp=map_memory_vp,
+            map_tiles_vp=map_tiles_vp,
+            light_sources=gm.light_sources,
+            game_map=gm,
+            viewport_x=viewport_x,
+            viewport_y=viewport_y,
+            vp_h=vp_h,
+            vp_w=vp_w,
+            player_x=player_x,
+            player_y=player_y,
+            player_height=player_height,
+            show_height_vis=render_config.show_height_vis,
+            vis_max_diff=render_config.vis_max_diff,
+            vis_color_high_np=render_config.vis_color_high_np,
+            vis_color_mid_np=render_config.vis_color_mid_np,
+            vis_color_low_np=render_config.vis_color_low_np,
+            vis_blend_factor=render_config.vis_blend_factor,
+            lighting_ambient=render_config.lighting_ambient,
+            lighting_min_fov=render_config.lighting_min_fov,
+            lighting_falloff=render_config.lighting_falloff,
+            fov_radius_sq=render_config.fov_radius_sq,
+            enable_colored_lights=render_config.enable_colored_lights,
+            enable_memory_fade=render_config.enable_memory_fade,
+            memory_fade_color_np=render_config.memory_fade_color_np,
+            rng=gs.rng_instance,
+            memory_fade_variance=float(render_config.memory_fade_variance),
+            memory_noise_level=float(render_config.memory_noise_level),
+        )
     )
 
     # Prepare Output Buffer
