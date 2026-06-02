@@ -573,6 +573,107 @@ class LightingRenderer:
         lit_bg[:] = final_bg
         return lit_fg, lit_bg, light_rgb_vp
 
+    def apply_render_lighting(
+        self,
+        *,
+        base_fg: np.ndarray,
+        base_bg: np.ndarray,
+        glyph_indices: np.ndarray,
+        drawn_mask: np.ndarray,
+        visible_mask: np.ndarray,
+        map_height_vp: np.ndarray,
+        map_memory_vp: np.ndarray,
+        map_tiles_vp: np.ndarray,
+        light_sources: Iterable[LightSourceLike],
+        game_map: GameMap,
+        viewport_x: int,
+        viewport_y: int,
+        vp_h: int,
+        vp_w: int,
+        player_x: int,
+        player_y: int,
+        player_height: int,
+        show_height_vis: bool,
+        vis_max_diff: int,
+        vis_color_high_np: np.ndarray,
+        vis_color_mid_np: np.ndarray,
+        vis_color_low_np: np.ndarray,
+        vis_blend_factor: np.float32,
+        lighting_ambient: np.float32,
+        lighting_min_fov: np.float32,
+        lighting_falloff: np.float32,
+        fov_radius_sq: np.float32,
+        enable_colored_lights: bool,
+        enable_memory_fade: bool,
+        memory_fade_color_np: np.ndarray,
+        rng: GameRNG,
+        memory_fade_variance: float,
+        memory_noise_level: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Apply viewport lighting and presentation effects in render order."""
+        lit_fg, lit_bg, intensity_map = calculate_lighting(
+            base_fg,
+            base_bg,
+            visible_mask,
+            vp_h,
+            vp_w,
+            viewport_x,
+            viewport_y,
+            player_x,
+            player_y,
+            lighting_ambient,
+            lighting_min_fov,
+            lighting_falloff,
+            fov_radius_sq,
+        )
+
+        final_fg, final_bg = apply_height_visualization(
+            lit_fg,
+            lit_bg,
+            drawn_mask,
+            map_height_vp,
+            player_height,
+            show_height_vis,
+            vis_max_diff,
+            vis_color_high_np,
+            vis_color_mid_np,
+            vis_color_low_np,
+            vis_blend_factor,
+        )
+
+        if enable_colored_lights and light_sources:
+            scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
+            final_fg, final_bg, _ = self.apply_colored_lighting(
+                final_fg,
+                final_bg,
+                light_sources,
+                game_map,
+                viewport_x=viewport_x,
+                viewport_y=viewport_y,
+                vp_h=vp_h,
+                vp_w=vp_w,
+                scene_seq=scene_seq,
+            )
+
+        if enable_memory_fade:
+            apply_memory_fade(
+                final_fg,
+                final_bg,
+                glyph_indices,
+                map_memory_vp,
+                map_tiles_vp,
+                drawn_mask,
+                visible_mask,
+                memory_fade_color_np,
+                rng=rng,
+                fade_color_variance=memory_fade_variance,
+                noise_level=memory_noise_level,
+                viewport_x=viewport_x,
+                viewport_y=viewport_y,
+            )
+
+        return final_fg, final_bg, intensity_map
+
     def invalidate(self) -> None:
         """Invalidate cached colored-light contributions."""
         if self._cache is not None:
@@ -840,70 +941,42 @@ def apply_render_lighting(
     memory_noise_level: float,
     lighting_renderer: LightingRenderer,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Apply viewport lighting and presentation effects in render order."""
-    lit_fg, lit_bg, intensity_map = calculate_lighting(
-        base_fg,
-        base_bg,
-        visible_mask,
-        vp_h,
-        vp_w,
-        viewport_x,
-        viewport_y,
-        player_x,
-        player_y,
-        lighting_ambient,
-        lighting_min_fov,
-        lighting_falloff,
-        fov_radius_sq,
+    """Compatibility wrapper for the renderer-facing lighting pipeline."""
+    return lighting_renderer.apply_render_lighting(
+        base_fg=base_fg,
+        base_bg=base_bg,
+        glyph_indices=glyph_indices,
+        drawn_mask=drawn_mask,
+        visible_mask=visible_mask,
+        map_height_vp=map_height_vp,
+        map_memory_vp=map_memory_vp,
+        map_tiles_vp=map_tiles_vp,
+        light_sources=light_sources,
+        game_map=game_map,
+        viewport_x=viewport_x,
+        viewport_y=viewport_y,
+        vp_h=vp_h,
+        vp_w=vp_w,
+        player_x=player_x,
+        player_y=player_y,
+        player_height=player_height,
+        show_height_vis=show_height_vis,
+        vis_max_diff=vis_max_diff,
+        vis_color_high_np=vis_color_high_np,
+        vis_color_mid_np=vis_color_mid_np,
+        vis_color_low_np=vis_color_low_np,
+        vis_blend_factor=vis_blend_factor,
+        lighting_ambient=lighting_ambient,
+        lighting_min_fov=lighting_min_fov,
+        lighting_falloff=lighting_falloff,
+        fov_radius_sq=fov_radius_sq,
+        enable_colored_lights=enable_colored_lights,
+        enable_memory_fade=enable_memory_fade,
+        memory_fade_color_np=memory_fade_color_np,
+        rng=rng,
+        memory_fade_variance=memory_fade_variance,
+        memory_noise_level=memory_noise_level,
     )
-
-    final_fg, final_bg = apply_height_visualization(
-        lit_fg,
-        lit_bg,
-        drawn_mask,
-        map_height_vp,
-        player_height,
-        show_height_vis,
-        vis_max_diff,
-        vis_color_high_np,
-        vis_color_mid_np,
-        vis_color_low_np,
-        vis_blend_factor,
-    )
-
-    if enable_colored_lights and light_sources:
-        scene_seq: int | None = getattr(game_map, "scene_geometry_version", None)
-        final_fg, final_bg, _ = apply_colored_lighting(
-            final_fg,
-            final_bg,
-            light_sources,
-            game_map,
-            viewport_x=viewport_x,
-            viewport_y=viewport_y,
-            vp_h=vp_h,
-            vp_w=vp_w,
-            scene_seq=scene_seq,
-            lighting_renderer=lighting_renderer,
-        )
-
-    if enable_memory_fade:
-        apply_memory_fade(
-            final_fg,
-            final_bg,
-            glyph_indices,
-            map_memory_vp,
-            map_tiles_vp,
-            drawn_mask,
-            visible_mask,
-            memory_fade_color_np,
-            rng=rng,
-            fade_color_variance=memory_fade_variance,
-            noise_level=memory_noise_level,
-            viewport_x=viewport_x,
-            viewport_y=viewport_y,
-        )
-
-    return final_fg, final_bg, intensity_map
 
 
 def apply_memory_fade(
