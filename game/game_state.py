@@ -196,49 +196,57 @@ class GameState:
             self._update_sound_context()
 
     def update_fov(self) -> None:
-        """Calculates Field of View based on player position."""
+        """Run the authoritative player FOV and memory lifecycle."""
         player_pos = self.player_position
-        if player_pos:
-            px, py = player_pos
-            if not self.game_map.in_bounds(px, py):
-                log.warning("Player out of bounds, cannot compute FOV.", pos=(px, py))
-                # Clear visibility if player is OOB
-                self.game_map.visible[:] = False
-                return
-            self.game_map.compute_fov(px, py, self.fov_radius)
-            # Post-check: Ensure origin is always visible if FOV somehow clears it
-            if not self.game_map.visible[py, px]:
-                log.warning(
-                    "Origin tile became non-visible after FOV calculation, forcing visible.",
-                    pos=(px, py),
-                )
-                self.game_map.visible[py, px] = True
-                self.game_map.explored[py, px] = True  # Ensure explored too
-            self.game_map.refresh_visible_memory(self.turn_count)
-            # Fade memory for tiles no longer visible
-            if self.memory_fade_enabled:
-                self.game_map.fade_memory(
-                    self.turn_count,
-                    self.memory_fade_steepness,
-                    self.memory_fade_midpoint,
-                )
-            # Keep player light source in sync with position
-            try:
-                self.light_sources[self.player_light_index].x = px
-                self.light_sources[self.player_light_index].y = py
-            except (IndexError, AttributeError) as err:
-                log.error(
-                    "Failed to update player light source",
-                    index=self.player_light_index,
-                    light_sources=len(self.light_sources),
-                    error=str(err),
-                )
-        else:
+        if player_pos is None:
             log.warning("Cannot update FOV: Player position not found.")
-            self.game_map.visible[:] = False  # Clear visibility if no player
+            self.game_map.visible[:] = False
+            self.flush_message_queue()
+            return
 
-        # Deliver any queued messages for entities that just became visible.
+        px, py = player_pos
+        if not self.game_map.in_bounds(px, py):
+            log.warning("Player out of bounds, cannot compute FOV.", pos=(px, py))
+            self.game_map.visible[:] = False
+            self.flush_message_queue()
+            return
+
+        self.game_map.compute_fov(px, py, self.fov_radius)
+        self._force_player_visible(px, py)
+        self.game_map.refresh_visible_memory(self.turn_count)
+        if self.memory_fade_enabled:
+            self.game_map.fade_memory(
+                self.turn_count,
+                self.memory_fade_steepness,
+                self.memory_fade_midpoint,
+            )
+        self._sync_player_light_source(px, py)
         self.flush_message_queue()
+
+    def _force_player_visible(self, px: int, py: int) -> None:
+        """Ensure the player's tile remains visible and explored after FOV."""
+        if self.game_map.visible[py, px]:
+            return
+        log.warning(
+            "Origin tile became non-visible after FOV calculation, forcing visible.",
+            pos=(px, py),
+        )
+        self.game_map.visible[py, px] = True
+        self.game_map.explored[py, px] = True
+
+    def _sync_player_light_source(self, px: int, py: int) -> None:
+        """Keep the player-owned light source aligned with the player position."""
+        if not 0 <= self.player_light_index < len(self.light_sources):
+            log.error(
+                "Failed to update player light source",
+                index=self.player_light_index,
+                light_sources=len(self.light_sources),
+                error="player light index out of range",
+            )
+            return
+        player_light = self.light_sources[self.player_light_index]
+        player_light.x = px
+        player_light.y = py
 
     @property
     def map_width(self) -> int:
