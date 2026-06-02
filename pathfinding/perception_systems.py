@@ -9,8 +9,9 @@ slices and use deterministic update semantics for reproducible simulation.
 
 All coordinates are accepted and returned in ``(y, x)`` order unless a docstring
 explicitly states otherwise. Terrain arrays store integer ``FeatureType`` values.
-Walls block sound and scent. Closed and secret doors block scent line-of-sight in
-this production contract and use flow-specific rules for sound propagation.
+Walls block sound and scent. Secret doors block scent. Closed doors attenuate
+scent by 95%. Closed and secret doors continue to use flow-specific rules for
+sound propagation.
 """
 
 import logging
@@ -38,6 +39,12 @@ BASE_FLOW_CENTER: Final[int] = 100
 NOISE_STRENGTH: Final[int] = 80
 NOISE_MAX_DIST: Final[int] = 200
 SMELL_STRENGTH: Final[int] = 80
+SCENT_CLOSED_DOOR_REDUCTION_PERCENT: Final[int] = 95
+# Stamp-based scent stores freshness, so closed-door attenuation is an integer
+# freshness penalty rather than a floating-point smell intensity multiplier.
+SCENT_CLOSED_DOOR_PENALTY: Final[int] = (
+    SMELL_STRENGTH * SCENT_CLOSED_DOOR_REDUCTION_PERCENT // 100
+)
 SCENT_RESET_AGE: Final[int] = 250
 FEATURE_WALL: Final[int] = int(FeatureType.WALL)
 FEATURE_CLOSED_DOOR: Final[int] = int(FeatureType.CLOSED_DOOR)
@@ -106,14 +113,102 @@ def _sil_distance(y1: int, x1: int, y2: int, x2: int) -> int:
 
 
 def terrain_transparency_map(terrain_map: NDArray[np.int32]) -> NDArray[np.bool_]:
-    """Return a scent LOS transparency map where closed/secret doors are opaque."""
-    blocking_mask = (
-        (terrain_map == FEATURE_WALL)
-        | (terrain_map == FEATURE_CLOSED_DOOR)
-        | (terrain_map == FEATURE_SECRET_DOOR)
-    )
+    """Return scent LOS transparency where only hard scent blockers are opaque."""
+    blocking_mask = (terrain_map == FEATURE_WALL) | (terrain_map == FEATURE_SECRET_DOOR)
     transparency_map: NDArray[np.bool_] = ~blocking_mask
     return transparency_map
+
+
+def _count_closed_doors_on_line(
+    terrain_map: NDArray[np.int32],
+    py: int,
+    px: int,
+    target_y: int,
+    target_x: int,
+) -> int:
+    """Count closed-door cells crossed by the Bresenham line after the origin."""
+    dx = abs(target_x - px)
+    dy = -abs(target_y - py)
+    sx = 1 if px < target_x else -1
+    sy = 1 if py < target_y else -1
+    err = dx + dy
+
+    x = px
+    y = py
+    steps = max(dx, -dy)
+    closed_doors = 0
+
+    for _ in range(steps):
+        e2 = 2 * err
+        next_x = x
+        next_y = y
+        step_x = False
+        step_y = False
+
+        if e2 >= dy:
+            if x == target_x:
+                break
+            err += dy
+            next_x += sx
+            step_x = True
+
+        if e2 <= dx:
+            if y == target_y:
+                break
+            err += dx
+            next_y += sy
+            step_y = True
+
+        check_x = x
+        check_y = y
+        if step_x:
+            check_x += sx
+        if step_y:
+            check_y += sy
+
+        if terrain_map[check_y, check_x] == FEATURE_CLOSED_DOOR:
+            closed_doors += 1
+
+        x = check_x
+        y = check_y
+        if x == target_x and y == target_y:
+            break
+
+    return closed_doors
+
+
+def scent_path_penalty(
+    terrain_map: NDArray[np.int32],
+    transparency_map: NDArray[np.bool_],
+    py: int,
+    px: int,
+    target_y: int,
+    target_x: int,
+) -> int | None:
+    """Return the scent attenuation penalty from player to target.
+
+    Returns ``None`` when the line is blocked by a wall, secret door,
+    out-of-bounds coordinate, or failed LOS. Closed doors do not block scent;
+    each closed door crossed adds ``SCENT_CLOSED_DOOR_PENALTY``.
+    """
+    height, width = terrain_map.shape
+    if not (
+        0 <= py < height
+        and 0 <= px < width
+        and 0 <= target_y < height
+        and 0 <= target_x < width
+    ):
+        return None
+
+    target_feature = int(terrain_map[target_y, target_x])
+    if target_feature in (FEATURE_WALL, FEATURE_SECRET_DOOR):
+        return None
+
+    if not los_line_of_sight(px, py, target_x, target_y, transparency_map):
+        return None
+
+    closed_doors = _count_closed_doors_on_line(terrain_map, py, px, target_y, target_x)
+    return closed_doors * SCENT_CLOSED_DOOR_PENALTY
 
 
 def line_of_sight(
@@ -289,9 +384,9 @@ def get_noise_dist(
     return int(get_noise_dist_scalar(cost, center_y, center_x, y, x))
 
 
-@njit(cache=True, parallel=False)  # type: ignore[untyped-decorator]
-def _lay_scent_kernel(
+def _lay_scent_stamp(
     cave_when: NDArray[np.int32],
+    terrain_map: NDArray[np.int32],
     transparency_map: NDArray[np.bool_],
     py: int,
     px: int,
@@ -313,12 +408,16 @@ def _lay_scent_kernel(
             adjustment = int(scent_adjust[i, j])
             if adjustment == 250:
                 continue
-            if not transparency_map[y, x]:
-                continue
-            if not los_line_of_sight(px, py, x, y, transparency_map):
+
+            path_penalty = scent_path_penalty(
+                terrain_map, transparency_map, py, px, y, x
+            )
+            if path_penalty is None:
                 continue
 
-            cave_when[y, x] = current_scent_when + adjustment
+            scent_value = current_scent_when + adjustment - path_penalty
+            if scent_value > 0:
+                cave_when[y, x] = scent_value
 
 
 def update_smell(
@@ -340,8 +439,9 @@ def update_smell(
         global_scent_when = reset_offset
 
     transparency_map = terrain_transparency_map(terrain_map)
-    _lay_scent_kernel(
+    _lay_scent_stamp(
         cave_when,
+        terrain_map,
         transparency_map,
         py,
         px,
@@ -585,8 +685,14 @@ def warmup_perception_kernels() -> None:
     transparency_map = terrain_transparency_map(terrain_map)
     los_line_of_sight(1, 1, 2, 2, transparency_map)
     cave_when = np.zeros((4, 4), dtype=np.int32)
-    _lay_scent_kernel(
-        cave_when, transparency_map, 1, 1, SCENT_RESET_AGE, SCENT_ADJUST_TABLE
+    _lay_scent_stamp(
+        cave_when,
+        terrain_map,
+        transparency_map,
+        1,
+        1,
+        SCENT_RESET_AGE,
+        SCENT_ADJUST_TABLE,
     )
 
 

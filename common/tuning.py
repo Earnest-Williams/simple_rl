@@ -17,7 +17,7 @@ from typing import Final
 # =============================================================================
 
 # Number of discrete decay levels for the memory-fade renderer.
-# Used by: engine/render_lighting.py, lights_dev/constants.py, lights_dev/memory.py
+# Used by: engine/render_lighting.py and legacy lighting constants/memory modules.
 MEMORY_LEVEL_COUNT: Final[int] = 5
 
 # =============================================================================

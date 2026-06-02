@@ -10,7 +10,7 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 
 * **`perception_systems.py`:**
     * **Noise Propagation:** Implements `update_noise` which fully resets and rebuilds a selected sound flow slice using a Numba array-backed queue. It handles closed and secret door interactions via `FlowType`: door-capable monsters pay a passage penalty, door-blocked monsters stop at doors, and real/monster noise is dampened by doors. Outputs noise cost maps (`cave_cost`) and records slice origins in `flow_centers`.
-    * **Scent System:** Implements `update_smell` with Sil-compatible `cave_when` global counter semantics. It stamps a 5×5 scent table around the player, skips sentinel corners, skips walls/opaque doors, and requires line-of-sight before writing scent.
+    * **Scent System:** Implements `update_smell` with Sil-compatible `cave_when` global counter semantics. It stamps a 5×5 scent table around the player, skips sentinel corners, blocks walls and secret doors, attenuates scent through closed doors by a 95% freshness penalty, and requires hard-block line-of-sight before writing scent.
     * **Monster Perception:** Provides `monster_perception` which filters dead monsters, chunks active monsters deterministically, and returns alerted monster IDs from Sil-style two-d10 noise perception checks. Monster data is expected in a Polars DataFrame with the production adapter columns (`id`, `fy`, `fx`, `is_dead`, `perception_stat`).
     * **Flow Following:** Provides `choose_step_by_flow`, a stateless helper for choosing an adjacent cell that descends a flow field without executing movement.
 * **`fix.sh`:** Standard code formatting script using `ruff`, `black`, etc.
@@ -29,7 +29,7 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 * ✅ **Integrated**: The perception concepts from this module influenced the production perception system in `game/ai/perception.py` which generates noise and scent maps for the main game.
 * ✅ **Functional**: Core perception logic is working in the main game via `game/ai/perception.gather_perception`
 * 🔄 **Ongoing Work**: The `FeatureType` enum needs synchronization with the final feature set produced by the main `Dungeon/` generator
-* ✅ **Line-of-sight backed scent**: Scent stamping uses the shared `game.world.los` implementation and treats walls plus closed/secret doors as opaque for scent LOS
+* ✅ **Line-of-sight backed scent**: Scent stamping uses the shared `game.world.los` implementation, treats walls and secret doors as opaque for scent LOS, and attenuates scent through closed doors by a 95% freshness penalty
 * 🔄 **Tuning**: Perception parameters may require further adjustment based on gameplay validation
 
 **Integration Points:**
