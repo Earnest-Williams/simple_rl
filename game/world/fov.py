@@ -7,6 +7,7 @@ Includes height/ceiling checks and explored tile tracking.
 
 import time
 from collections import deque
+from collections.abc import Callable, Iterator
 from typing import TypeAlias
 
 import numba
@@ -27,6 +28,9 @@ def line_of_sight(
 # --- Type Aliases ---
 Point: TypeAlias = tuple[int, int]
 Slope: TypeAlias = tuple[int, int]  # (y, x) representation
+OpacityFn: TypeAlias = Callable[[int, int], bool]
+VisitFn: TypeAlias = Callable[[int, int], None]
+DistanceFn: TypeAlias = Callable[[int, int, int, int], float]
 
 # Numba type definitions
 sector_type = numba.types.Tuple(
@@ -48,6 +52,194 @@ CLOSE_RANGE_DIVISOR: int = 8
 FAR_RANGE_DIVISOR: int = 16
 _THRESHOLD_AT_CUTOFF: int = CLOSE_RANGE_SQ_THRESHOLD // CLOSE_RANGE_DIVISOR
 MAX_SECTORS: int = 10000  # Safety limit for sector processing
+
+
+# --- Generic callback shadowcasting ---
+
+
+def _euclidean_distance(
+    origin_y: int, origin_x: int, target_y: int, target_x: int
+) -> float:
+    """Return Euclidean distance between two ``(y, x)`` cells."""
+    dy = target_y - origin_y
+    dx = target_x - origin_x
+    return float(np.hypot(dy, dx))
+
+
+def compute_shadowcast_callbacks(
+    height: int,
+    width: int,
+    *,
+    origin_y: int,
+    origin_x: int,
+    radius: int,
+    is_opaque: OpacityFn,
+    mark_visible: VisitFn,
+    distance: DistanceFn | None = None,
+) -> None:
+    """Run callback-based symmetrical shadowcasting.
+
+    Coordinates use the production map convention: arrays are indexed as
+    ``[y, x]`` and callbacks receive ``(y, x)``. The origin is always marked
+    visible when it is in bounds, including when ``radius`` is zero. Radius
+    checks use the supplied ``distance`` callback or Euclidean distance by
+    default. Out-of-bounds cells are treated as opaque and are never passed to
+    ``mark_visible`` or ``is_opaque``.
+    """
+    if height < 0 or width < 0:
+        raise ValueError("height and width must be non-negative")
+    if radius < 0:
+        raise ValueError("radius must be non-negative")
+    if not (0 <= origin_y < height and 0 <= origin_x < width):
+        raise ValueError("origin coordinates out of bounds")
+
+    distance_fn = distance if distance is not None else _euclidean_distance
+
+    def blocks_light(cell_y: int, cell_x: int) -> bool:
+        if not (0 <= cell_y < height and 0 <= cell_x < width):
+            return True
+        return is_opaque(cell_y, cell_x)
+
+    def set_visible(cell_y: int, cell_x: int) -> None:
+        if 0 <= cell_y < height and 0 <= cell_x < width:
+            mark_visible(cell_y, cell_x)
+
+    def cast_light(
+        row: int,
+        start_slope: float,
+        end_slope: float,
+        xx: int,
+        xy: int,
+        yx: int,
+        yy: int,
+    ) -> None:
+        if start_slope < end_slope:
+            return
+
+        next_start_slope = start_slope
+        for distance_row in range(row, radius + 1):
+            dx = -distance_row
+            dy = -distance_row
+            blocked = False
+            while dx <= 0:
+                dx += 1
+                cell_x = origin_x + dx * xx + dy * xy
+                cell_y = origin_y + dx * yx + dy * yy
+
+                left_slope = (dx - 0.5) / (dy + 0.5)
+                right_slope = (dx + 0.5) / (dy - 0.5)
+                if start_slope < right_slope:
+                    continue
+                if end_slope > left_slope:
+                    break
+
+                if distance_fn(origin_y, origin_x, cell_y, cell_x) <= radius:
+                    set_visible(cell_y, cell_x)
+
+                cell_blocks = blocks_light(cell_y, cell_x)
+                if blocked:
+                    if cell_blocks:
+                        next_start_slope = right_slope
+                        continue
+                    blocked = False
+                    start_slope = next_start_slope
+                elif cell_blocks and distance_row < radius:
+                    blocked = True
+                    cast_light(
+                        distance_row + 1,
+                        start_slope,
+                        left_slope,
+                        xx,
+                        xy,
+                        yx,
+                        yy,
+                    )
+                    next_start_slope = right_slope
+            if blocked:
+                break
+
+    mark_visible(origin_y, origin_x)
+    multipliers = (
+        (1, 0, 0, 1),
+        (0, 1, 1, 0),
+        (0, -1, 1, 0),
+        (-1, 0, 0, 1),
+        (-1, 0, 0, -1),
+        (0, -1, -1, 0),
+        (0, 1, -1, 0),
+        (1, 0, 0, -1),
+    )
+    for xx, xy, yx, yy in multipliers:
+        cast_light(1, 1.0, 0.0, xx, xy, yx, yy)
+
+
+def compute_visibility_into(
+    height: int,
+    width: int,
+    *,
+    origin_y: int,
+    origin_x: int,
+    radius: int,
+    is_opaque: OpacityFn,
+    mark_visible: VisitFn,
+    distance: DistanceFn | None = None,
+) -> None:
+    """Fill caller-owned visibility state using callback shadowcasting."""
+    compute_shadowcast_callbacks(
+        height,
+        width,
+        origin_y=origin_y,
+        origin_x=origin_x,
+        radius=radius,
+        is_opaque=is_opaque,
+        mark_visible=mark_visible,
+        distance=distance,
+    )
+
+
+def compute_visibility(
+    height: int,
+    width: int,
+    *,
+    origin_y: int,
+    origin_x: int,
+    radius: int,
+    is_opaque: OpacityFn,
+    distance: DistanceFn | None = None,
+) -> set[tuple[int, int]]:
+    """Return visible ``(y, x)`` cells using callback shadowcasting."""
+    visible: set[tuple[int, int]] = set()
+
+    def mark_visible(cell_y: int, cell_x: int) -> None:
+        visible.add((cell_y, cell_x))
+
+    compute_visibility_into(
+        height,
+        width,
+        origin_y=origin_y,
+        origin_x=origin_x,
+        radius=radius,
+        is_opaque=is_opaque,
+        mark_visible=mark_visible,
+        distance=distance,
+    )
+    return visible
+
+
+def iter_visible_cells(visible_grid: np.ndarray) -> Iterator[tuple[int, int]]:
+    """Yield ``(y, x)`` coordinates for true cells in a visibility grid."""
+    ys, xs = np.nonzero(visible_grid)
+    for index in range(len(ys)):
+        yield int(ys[index]), int(xs[index])
+
+
+def is_visible(visible_grid: np.ndarray, y: int, x: int) -> bool:
+    """Return whether ``(y, x)`` is in bounds and marked visible."""
+    height, width = visible_grid.shape
+    if not (0 <= y < height and 0 <= x < width):
+        return False
+    return bool(visible_grid[y, x])
+
 
 # --- Numba Helper Functions ---
 
@@ -450,6 +642,29 @@ def compute_fov(
         "FOV computation finished",
         duration_ms=f"{duration_ms:.2f}",
         visible_count=np.sum(visible_grid),
+    )
+
+
+def compute_fov_into(
+    origin_xy: Point,
+    range_limit: int,
+    opaque_grid: np.ndarray,
+    height_map: np.ndarray,
+    ceiling_map: np.ndarray,
+    origin_height: int,
+    visible_grid: np.ndarray,
+    explored_grid: np.ndarray,
+) -> None:
+    """Fill caller-owned visibility grids using the production FOV path."""
+    compute_fov(
+        origin_xy,
+        range_limit,
+        opaque_grid,
+        height_map,
+        ceiling_map,
+        origin_height,
+        visible_grid,
+        explored_grid,
     )
 
 

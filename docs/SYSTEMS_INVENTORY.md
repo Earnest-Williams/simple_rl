@@ -154,8 +154,7 @@ The most important and sophisticated component - generates 3D cave networks and 
 ### 4. FOV/Visibility Systems ⭐⭐⭐⭐⭐
 
 **Locations:**
-- `game/world/fov.py` - Iterative shadowcasting
-- `game/world/visibility.py` - Symmetrical shadowcasting
+- `game/world/fov.py` - Production FOV and callback-driven symmetrical shadowcasting
 - `game/world/los.py` - Line of sight
 
 **Sophistication Level:** Very High
@@ -169,7 +168,7 @@ The most important and sophisticated component - generates 3D cave networks and 
    - Variable FOV radius
    - Close-range and far-range distance adjustments
 
-2. **Symmetrical Shadowcasting** (visibility.py)
+2. **Callback Symmetrical Shadowcasting** (fov.py)
    - Generic callback architecture
    - Custom blocking/visibility callbacks
    - Transformation coefficients for 8 octants
@@ -478,7 +477,7 @@ Player/Monster actions
 ```
 Game State (game/game_state.py)
   → orchestrates all entity/item/map updates
-  → FOV/Visibility Systems (game/world/fov.py, visibility.py, los.py)
+  → FOV/Visibility Systems (game/world/fov.py, los.py)
     - Shadowcasting algorithms
     - Determines what player can see
   → Lighting System (engine/render_lighting.py)
@@ -638,7 +637,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 - `constants.py` - R&D-specific constants
 
 **Integration Steps Needed:**
-1. Merge FOV algorithms with game/world/fov.py, visibility.py
+1. Merge FOV algorithms into game/world/fov.py
 2. Integrate lighting system with engine/render_lighting.py
 3. Add memory fade to main rendering pipeline
 4. Connect memory system to agent traits

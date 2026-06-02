@@ -14,8 +14,8 @@ area where future contributors need a clear canonical path.
 ## Decision
 
 Production world visibility and line-of-sight behavior belong under
-`game/world/`, currently including `game/world/fov.py`, `game/world/visibility.py`,
-and `game/world/los.py`. Production pathfinding and perception utilities that
+`game/world/`, currently including `game/world/fov.py` and
+`game/world/los.py`. Production pathfinding and perception utilities that
 serve AI routing or sound/scent concepts belong under `pathfinding/` or the
 relevant `game/systems/pathfinding/` modules. The `lights_dev/` tree remains an
 R&D harness for lighting, FOV, sound, scent, and visualization experiments.
