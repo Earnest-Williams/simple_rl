@@ -561,8 +561,10 @@ _LEGACY_LIGHTING_RENDERER_LOCAL: threading.local = threading.local()
 
 
 def _get_legacy_lighting_renderer() -> LightingRenderer:
-    renderer = getattr(_LEGACY_LIGHTING_RENDERER_LOCAL, "renderer", None)
-    if not isinstance(renderer, LightingRenderer):
+    renderer: LightingRenderer | None = getattr(
+        _LEGACY_LIGHTING_RENDERER_LOCAL, "renderer", None
+    )
+    if renderer is None:
         renderer = LightingRenderer()
         _LEGACY_LIGHTING_RENDERER_LOCAL.renderer = renderer
     return renderer
