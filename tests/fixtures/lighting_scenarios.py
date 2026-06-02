@@ -32,7 +32,7 @@ except ImportError:
     ):
         """Callback shadowcasting — pure-Python fallback (no numba)."""
         distance_fn = distance if distance is not None else _euclidean
-        visible: set = set()
+        visible: set[tuple[int, int]] = set()
 
         def blocks(cy: int, cx: int) -> bool:
             return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
@@ -85,8 +85,18 @@ except ImportError:
                     break
 
         mark(origin_y, origin_x)
-        for xx, xy, yx, yy in ((1,0,0,1),(0,1,1,0),(0,-1,1,0),(-1,0,0,1),
-                                (-1,0,0,-1),(0,-1,-1,0),(0,1,-1,0),(1,0,0,-1)):
+        # (xx, xy, yx, yy) — coordinate transforms for each of the 8 octants:
+        #   E, SE, S, SW, W, NW, N, NE
+        for xx, xy, yx, yy in (
+            ( 1,  0,  0,  1),  # E
+            ( 0,  1,  1,  0),  # SE
+            ( 0, -1,  1,  0),  # S
+            (-1,  0,  0,  1),  # SW
+            (-1,  0,  0, -1),  # W
+            ( 0, -1, -1,  0),  # NW
+            ( 0,  1, -1,  0),  # N
+            ( 1,  0,  0, -1),  # NE
+        ):
             cast(1, 1.0, 0.0, xx, xy, yx, yy)
         return visible
 
