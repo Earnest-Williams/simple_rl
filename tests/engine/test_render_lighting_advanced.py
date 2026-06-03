@@ -338,3 +338,60 @@ def test_cache_invalidation_advanced() -> None:
     cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
     buf_height = cache._contributions[42].copy()
     assert not np.array_equal(buf_chan, buf_height)
+
+
+def test_side_rgba_view_exposing() -> None:
+    """Verify that LightContributionCache.side_rgba_view and LightingRenderer.get_side_lighting_buffer correctly expose buffers."""
+    from engine.render_lighting import LightingRenderer
+    from game.world.game_map import GameMap
+
+    h = w = 5
+    light = LightSource(
+        x=2,
+        y=2,
+        radius=2,
+        color=(255, 255, 255),
+        intensity=1.0,
+        id=1,
+    )
+
+    renderer = LightingRenderer()
+    # Before update, buffer is None
+    assert renderer.get_side_lighting_buffer() is None
+
+    game_map = GameMap(w, h)
+    lit_fg = np.zeros((h, w, 3), dtype=np.uint8)
+    lit_bg = np.zeros((h, w, 3), dtype=np.uint8)
+
+    renderer.apply_colored_lighting(
+        lit_fg,
+        lit_bg,
+        [light],
+        game_map,
+        viewport_x=0,
+        viewport_y=0,
+        vp_h=h,
+        vp_w=w,
+        scene_seq=1,
+    )
+
+    buf = renderer.get_side_lighting_buffer()
+    assert buf is not None
+    assert buf.shape == (h, w, 8, 4)
+    # The view matches combined buffer in cache
+    assert renderer._cache is not None
+    assert np.array_equal(buf, renderer._cache.side_rgba_view())
+
+
+def test_game_map_set_light_channel_mask_invalidates_cache() -> None:
+    """Verify that set_light_channel_mask on GameMap updates light_channel_mask and increments geometry version."""
+    from game.world.game_map import GameMap
+
+    h = w = 5
+    game_map = GameMap(w, h)
+    initial_version = game_map.scene_geometry_version
+
+    # Set mask at (2, 2)
+    game_map.set_light_channel_mask(2, 2, 0x0000FFFF)
+    assert game_map.light_channel_mask[2, 2] == 0x0000FFFF
+    assert game_map.scene_geometry_version == initial_version + 1

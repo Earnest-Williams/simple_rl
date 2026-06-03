@@ -1,8 +1,8 @@
 # game/world/memory.py
 """Persistent map-memory update algorithms."""
 
-from dataclasses import dataclass
-from typing import Final
+from dataclasses import dataclass, field
+from typing import Any, Final
 
 import numpy as np
 import numpy.typing as npt
@@ -140,3 +140,43 @@ def resolve_memory_decay_parameters(
     effective_steepness = base_steepness * decay_mod
     effective_midpoint = base_midpoint / decay_mod
     return effective_steepness, effective_midpoint
+
+
+@dataclass
+class Actor:
+    """A wrapper representing an actor for memory traits resolution."""
+
+    entity_id: int
+    intelligence: int = 10
+    status_effects: list[dict[str, Any]] = field(default_factory=list)
+
+
+def build_memory_traits_for_actor(actor: Actor) -> MemoryTraits:
+    """Build MemoryTraits for an actor based on their intelligence and status effects."""
+    has_confusion = False
+    has_illness = False
+    fatigue_level = 0.0
+    magic_memory_bonus = 0.0
+    location_familiarity = 0.0
+
+    for effect in actor.status_effects:
+        effect_id = effect.get("id")
+        if effect_id == "confusion":
+            has_confusion = True
+        elif effect_id == "illness":
+            has_illness = True
+        elif effect_id == "fatigue":
+            fatigue_level = float(effect.get("intensity", 0.0))
+        elif effect_id == "magic_memory_bonus":
+            magic_memory_bonus = float(effect.get("intensity", 0.0))
+        elif effect_id == "location_familiarity":
+            location_familiarity = float(effect.get("intensity", 0.0))
+
+    return MemoryTraits(
+        intelligence=actor.intelligence,
+        has_confusion=has_confusion,
+        has_illness=has_illness,
+        fatigue_level=fatigue_level,
+        magic_memory_bonus=magic_memory_bonus,
+        location_familiarity=location_familiarity,
+    )

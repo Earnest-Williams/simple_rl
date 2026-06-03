@@ -176,8 +176,8 @@ class GameMap:
         self.ceiling_map: np.ndarray = np.zeros(
             (height, width), dtype=np.int16, order="C"
         )
-        self.light_masks: np.ndarray = np.full(
-            (height, width), fill_value=0xFFFFFFFF, dtype=np.uint32, order="C"
+        self.light_channel_mask: np.ndarray = np.full(
+            (height, width), 0xFFFFFFFF, dtype=np.uint32, order="C"
         )
         self.memory_intensity: np.ndarray = np.zeros(
             (height, width), dtype=np.float32, order="C"
@@ -229,6 +229,12 @@ class GameMap:
         self.tile_memory_modifiers = get_memory_modifier_map(
             self.tiles, self._tile_modifier_overrides
         )
+
+    def set_light_channel_mask(self, x: int, y: int, channels: int) -> None:
+        """Set the lighting channel mask for a specific cell and increment geometry version."""
+        if self.in_bounds(x, y):
+            self.light_channel_mask[y, x] = np.uint32(channels)
+            self._scene_geometry_version += 1
 
     @property
     def width(self) -> int:

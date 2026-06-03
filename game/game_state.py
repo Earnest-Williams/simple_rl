@@ -12,7 +12,7 @@ import structlog
 from numpy.typing import NDArray
 
 from common.constants import FeatureType
-from game.ai.perception import gather_perception, gather_perception_snapshot
+from game.ai.perception import gather_perception_snapshot
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
@@ -28,8 +28,18 @@ from game.perception_events import (
 from game.planning.spatial_hash import SpatialHashTable
 from game.systems.ai_system import dispatch_ai
 
+# Import sound system
+# Fallback removed
+from game.systems.sound import get_sound_manager, update_music_context
+
 # Assuming these imports are correct relative to game_state.py
 from game.world.game_map import GameMap, LightSource
+from game.world.memory import (
+    Actor,
+    MemoryTraits,
+    build_memory_traits_for_actor,
+    resolve_memory_decay_parameters,
+)
 from pathfinding.perception_systems import (
     MAX_FLOWS,
     SCENT_RESET_AGE,
@@ -39,10 +49,6 @@ from pathfinding.perception_systems import (
 )
 from simulation.zone_manager import ZoneManager
 from utils.game_rng import GameRNG  # Assuming this path is correct
-
-# Import sound system
-# Fallback removed
-from game.systems.sound import get_sound_manager, update_music_context
 
 SOUND_AVAILABLE = True
 
@@ -153,6 +159,7 @@ class GameState:
             blocks_movement=True,
             hp=player_start_hp,
             max_hp=player_start_hp,
+            intelligence=10,
             # Add defaults for mana/fullness etc. if needed by registry init
         )
         log.debug(
@@ -163,6 +170,7 @@ class GameState:
             glyph=player_glyph,
         )
 
+        self.memory_traits: MemoryTraits = MemoryTraits()
         self.base_fov_radius = player_fov_radius
         self.fov_radius = player_fov_radius
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
@@ -187,7 +195,6 @@ class GameState:
         )
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
-        from typing import Any
 
         self.ai_memory: dict[int, dict[str, Any]] = {}
         self.spatial_index: SpatialHashTable = SpatialHashTable()
@@ -261,10 +268,36 @@ class GameState:
         self._force_player_visible(px, py)
         self.game_map.refresh_visible_memory(self.turn_count)
         if self.memory_fade_enabled:
+            # Step 5: Update traits from real player gameplay state and resolve parameters
+            player_intel = (
+                self.entity_registry.get_entity_component(
+                    self.player_id, "intelligence"
+                )
+                or 10
+            )
+            player_statuses = (
+                self.entity_registry.get_entity_component(
+                    self.player_id, "status_effects"
+                )
+                or []
+            )
+
+            player_actor = Actor(
+                entity_id=self.player_id,
+                intelligence=player_intel,
+                status_effects=player_statuses,
+            )
+            self.memory_traits = build_memory_traits_for_actor(player_actor)
+
+            steepness, midpoint = resolve_memory_decay_parameters(
+                self.memory_traits,
+                base_steepness=self.memory_fade_steepness,
+                base_midpoint=self.memory_fade_midpoint,
+            )
             self.game_map.fade_memory(
                 self.turn_count,
-                self.memory_fade_steepness,
-                self.memory_fade_midpoint,
+                steepness,
+                midpoint,
             )
         self._sync_player_light_source(px, py)
         self.flush_message_queue()

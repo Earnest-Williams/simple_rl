@@ -172,8 +172,8 @@ def _accumulate_light_premult_rgba(
     light_src_x: float,
     light_src_y: float,
     light_height: float,
-    use_mask: int,
     cell_mask: np.ndarray,
+    use_cell_mask: int,
     light_channels: int,
 ) -> None:
     h, w = visible.shape
@@ -184,7 +184,7 @@ def _accumulate_light_premult_rgba(
             if visible[y, x] == 0:
                 continue
 
-            if use_mask != 0 and (cell_mask[y, x] & light_channels) == 0:
+            if use_cell_mask != 0 and (cell_mask[y, x] & light_channels) == 0:
                 continue
 
             sb = side_bits[y, x]
@@ -353,13 +353,11 @@ def _compute_single_light_contribution(
     side_bits_out = np.zeros((scene_h, scene_w), dtype=np.uint8)
     visibility_out = np.zeros((scene_h, scene_w), dtype=np.float32)
 
-    use_cell_mask = cell_mask is not None
-    if use_cell_mask:
-        use_mask = 1
+    use_cell_mask_int = 1 if cell_mask is not None else 0
+    if cell_mask is not None:
         cell_mask_u32 = cell_mask.astype(np.uint32)
     else:
-        use_mask = 0
-        cell_mask_u32 = DUMMY_CELL_MASK
+        cell_mask_u32 = np.full((scene_h, scene_w), 0xFFFFFFFF, dtype=np.uint32)
 
     # Angles
     if direction is not None:
@@ -371,64 +369,36 @@ def _compute_single_light_contribution(
         end_angle = None
 
     # Call JIT shadowcasting FOV
-    if use_cell_mask:
-        if start_angle is not None and end_angle is not None:
-            compute_fov_all_octants(
-                opaque_u8,
-                transparency_f32,
-                cell_mask_u32,
-                channels,
-                visible_out,
-                dist_out,
-                side_bits_out,
-                visibility_out,
-                origin_x,
-                origin_y,
-                radius,
-                start_angle,
-                end_angle,
-            )
-        else:
-            compute_fov_all_octants(
-                opaque_u8,
-                transparency_f32,
-                cell_mask_u32,
-                channels,
-                visible_out,
-                dist_out,
-                side_bits_out,
-                visibility_out,
-                origin_x,
-                origin_y,
-                radius,
-            )
+    if start_angle is not None and end_angle is not None:
+        compute_fov_all_octants(
+            opaque_u8,
+            transparency_f32,
+            cell_mask_u32,
+            channels,
+            visible_out,
+            dist_out,
+            side_bits_out,
+            visibility_out,
+            origin_x,
+            origin_y,
+            radius,
+            start_angle,
+            end_angle,
+        )
     else:
-        if start_angle is not None and end_angle is not None:
-            compute_fov_all_octants(
-                opaque_u8,
-                transparency_f32,
-                visible_out,
-                dist_out,
-                side_bits_out,
-                visibility_out,
-                origin_x,
-                origin_y,
-                radius,
-                start_angle,
-                end_angle,
-            )
-        else:
-            compute_fov_all_octants(
-                opaque_u8,
-                transparency_f32,
-                visible_out,
-                dist_out,
-                side_bits_out,
-                visibility_out,
-                origin_x,
-                origin_y,
-                radius,
-            )
+        compute_fov_all_octants(
+            opaque_u8,
+            transparency_f32,
+            cell_mask_u32,
+            channels,
+            visible_out,
+            dist_out,
+            side_bits_out,
+            visibility_out,
+            origin_x,
+            origin_y,
+            radius,
+        )
 
     # Directional math setup for JIT accumulator
     is_directional = 0
@@ -470,9 +440,9 @@ def _compute_single_light_contribution(
         float(origin_x),
         float(origin_y),
         float(height),
-        use_mask,
         cell_mask_u32,
-        channels,
+        use_cell_mask_int,
+        int(channels),
     )
 
     return contribution
@@ -500,6 +470,10 @@ class LightContributionCache:
         )
         self._contributions: dict[int, np.ndarray] = {}
         self._param_keys: dict[int, tuple[object, ...]] = {}
+
+    def side_rgba_view(self) -> np.ndarray:
+        """Return a view of the combined side-aware premultiplied RGBA buffer."""
+        return self._combined
 
     @staticmethod
     def _light_id(light: LightSourceLike, fallback_index: int) -> int:
@@ -731,11 +705,16 @@ class LightingRenderer:
 
         opaque_grid = ~game_map.transparent
         cache = self._get_cache(game_map.height, game_map.width)
-        cell_mask = getattr(game_map, "light_masks", None)
+        cell_mask = getattr(game_map, "light_channel_mask", None)
+        seq = (
+            scene_seq
+            if scene_seq is not None
+            else getattr(game_map, "scene_geometry_version", None)
+        )
         light_rgb_vp = cache.update(
             light_sources,
             opaque_grid,
-            scene_seq,
+            seq,
             viewport_x=viewport_x,
             viewport_y=viewport_y,
             vp_h=vp_h,
@@ -753,6 +732,12 @@ class LightingRenderer:
         lit_fg[:] = final_fg
         lit_bg[:] = final_bg
         return lit_fg, lit_bg, light_rgb_vp
+
+    def get_side_lighting_buffer(self) -> np.ndarray | None:
+        """Return the combined side-aware premultiplied RGBA buffer from the cache if available."""
+        if self._cache is not None:
+            return self._cache.side_rgba_view()
+        return None
 
     def apply_render_lighting(
         self,

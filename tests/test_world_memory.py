@@ -203,3 +203,29 @@ def test_prepare_base_layers_returns_read_only_memory_snapshots() -> None:
     assert game_map.memory_strength[1, 1] == 0.0
     assert not game_map.memory_fade_mask[1, 1]
     assert not game_map.prev_visible[1, 1]
+
+
+def test_game_state_memory_traits_update() -> None:
+    """Verify that GameState updates memory_traits from player status effects and intelligence."""
+    state = _make_memory_state()
+
+    # Set player intelligence and add some status effects
+    state.entity_registry.set_entity_component(state.player_id, "intelligence", 15)
+    state.entity_registry.set_entity_component(
+        state.player_id,
+        "status_effects",
+        [
+            {"id": "confusion", "duration": 5, "intensity": 1.0},
+            {"id": "fatigue", "duration": 10, "intensity": 0.5},
+        ],
+    )
+
+    # Trigger update_fov which runs memory traits updates
+    state.update_fov()
+
+    # Check that traits were resolved correctly
+    traits = state.memory_traits
+    assert traits.intelligence == 15
+    assert traits.has_confusion is True
+    assert traits.has_illness is False
+    assert traits.fatigue_level == 0.5
