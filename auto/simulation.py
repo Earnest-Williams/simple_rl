@@ -21,7 +21,7 @@ from utils.game_rng import GameRNG
 # --- Polars DataFrame Library ---
 import polars as pl
 
-from .goap_engine import Action
+from .goap_engine import Action, AgentAI
 
 # --- Numba JIT Compiler ---
 # Fallback removed

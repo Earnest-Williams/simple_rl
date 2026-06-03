@@ -25,20 +25,20 @@ from scipy.signal import convolve2d  # type: ignore[import-untyped]
 HAS_SCIPY = True
 
 
-# Fallback removed
-from skimage.draw import disk as sk_draw_disk
-from skimage.draw import ellipse as sk_ellipse
-from skimage.draw import line as sk_line
-from skimage.draw import polygon as sk_polygon
-# Fallback removed
-from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
-HAS_ELLIPSE_PERIMETER = True
-from skimage.morphology import dilation as sk_morphology_dilation
-from skimage.morphology import disk as sk_morphology_disk
-
-HAS_SKIMAGE = True
-pt ImportError:
-print("ERROR: scikit-image not found. Rasterization/Morphology cannot proceed.")
+try:
+    from skimage.draw import disk as sk_draw_disk
+    from skimage.draw import ellipse as sk_ellipse
+    from skimage.draw import line as sk_line
+    from skimage.draw import polygon as sk_polygon
+    from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
+    HAS_ELLIPSE_PERIMETER = True
+    from skimage.morphology import dilation as sk_morphology_dilation
+    from skimage.morphology import disk as sk_morphology_disk
+    HAS_SKIMAGE = True
+except ImportError:
+    HAS_ELLIPSE_PERIMETER = False
+    HAS_SKIMAGE = False
+    print("ERROR: scikit-image not found. Rasterization/Morphology cannot proceed.")
 
 #     HAS_PERLIN = True
 # except ImportError:
