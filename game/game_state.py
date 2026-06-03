@@ -537,6 +537,15 @@ class GameState:
 
     def _ensure_perception_arrays(self) -> None:
         """Resize production perception arrays if the active map shape changes."""
+        if (
+            self._map_width != self.game_map.width
+            or self._map_height != self.game_map.height
+        ):
+            self._map_width = self.game_map.width
+            self._map_height = self.game_map.height
+            self.zone_manager.map_width = self._map_width
+            self.zone_manager.map_height = self._map_height
+
         expected_cost_shape = (MAX_FLOWS, self.game_map.height, self.game_map.width)
         if self.perception_cave_cost.shape != expected_cost_shape:
             infinity = np.iinfo(np.int32).max // 2
@@ -581,11 +590,10 @@ class GameState:
         if include_player_scent:
             player_pos = self.player_position
             if player_pos is not None:
-                px, py = player_pos
                 scent_events.append(
                     ScentEvent(
-                        x=int(px),
-                        y=int(py),
+                        x=int(player_pos.x),
+                        y=int(player_pos.y),
                         intensity=5.0,
                         source_id=self.player_id,
                     )
@@ -634,6 +642,9 @@ class GameState:
                 flow_type,
                 {},
             )
+        else:
+            infinity = np.iinfo(np.int32).max // 2
+            self.perception_cave_cost.fill(infinity)
 
         if scent_events:
             latest = scent_events[-1]
@@ -668,7 +679,8 @@ class GameState:
         if player_pos is None:
             self.perception_alerted_monster_ids = []
             return
-        player_x, player_y = player_pos
+        player_x = player_pos.x
+        player_y = player_pos.y
 
         monster_df = entities_df.filter(
             (pl.col("entity_id") != self.player_id) & pl.col("is_active")
