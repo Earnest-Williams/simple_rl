@@ -2,7 +2,7 @@
 
 ## Status
 
-Completed / Retired R&D.
+Completed for ownership boundaries; R&D deletion deferred to ADR 0005.
 
 ## Context
 
@@ -16,11 +16,11 @@ The decision was made to migrate all production-worthy advanced features to prod
 All production world visibility and line-of-sight behavior are implemented under
 `game/world/` (including basic `game/world/fov.py`, `game/world/los.py`, and advanced light-aware `game/world/light_fov.py`).
 Advanced rendering and lighting accumulation are implemented in `engine/render_lighting.py`.
-The `lights_dev/` tree has been fully retired and deleted. All remaining production-worthy algorithms have graduated into production, covered by tests, and documented.
+The `lights_dev/` tree is frozen while deletion readiness is verified. All remaining production-worthy algorithms have graduated into production, covered by tests, and documented; ADR 0005 governs final folder retirement.
 
 ## Consequences
 
 - New gameplay calls must use production `game/world/light_fov.py` and `engine/render_lighting.py` for advanced FOV/lighting.
-- The `lights_dev/` directory has been deleted, removing any risk of importing experimental code.
+- The `lights_dev/` directory remains frozen pending the deletion checks in ADR 0005; production code must not import it.
 - `pathfinding/perception_systems.py` is the canonical owner for pathfinding-oriented sound and scent flow concepts.
 - `game/systems/sound.py` remains responsible for runtime sound playback.

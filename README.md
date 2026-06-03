@@ -13,7 +13,7 @@ This project is structured into several key component directories, each with its
 * **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph → Processing → Shaping). Outputs Polars DataFrames with preserved 3D depth information. ([See README](./Dungeon/README.md))
 * **`ai/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./ai/README.md))
 * **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
-* **`lights_dev/`**: An R&D environment for developing advanced **lighting, Field of View (FOV), and memory fade** mechanics, utilizing Numba for acceleration. Contains experimental features for future integration with the main rendering pipeline. ([See README](./lights_dev/README.md))
+* **`lights_dev/`**: A frozen historical R&D environment for **lighting, Field of View (FOV), and memory fade** mechanics. Production-ready behavior has migrated to `engine/render_lighting.py`, `game/world/light_fov.py`, and `game/world/memory.py`; see `docs/LIGHTING_FOV_MEMORY_STATUS.md` before any deletion work.
 * **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. ([See README](./pathfinding/README.md))
 * **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. `worldgen/game_rng.py` re-exports the same class for world-generation compatibility. ([See README](./utils/README.md))
 * **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, designed as a foundation for the **game's spell system**. Currently in development; basic effect system is functional.
@@ -30,7 +30,7 @@ Development prioritizes:
 
 ## Status
 
-This project is **under active development**. The core game systems are integrated and functional, including dungeon generation, FOV/lighting, combat, equipment, AI (GOAP and strategy-based), pathfinding, and rendering. Some experimental systems remain in dedicated R&D directories for testing and refinement before integration.
+This project is **under active development**. The core game systems are integrated and functional, including dungeon generation, FOV/lighting, combat, equipment, AI (GOAP and strategy-based), pathfinding, and rendering. Some experimental systems remain in dedicated R&D directories for testing and refinement; `lights_dev/` is frozen pending deletion checks after production migration.
 
 ### Production-Ready Systems
 * **Dungeon Generation**: 3D cave networks with 2D rasterization (fully integrated)
@@ -40,15 +40,14 @@ This project is **under active development**. The core game systems are integrat
 * **Perception**: Sound and scent propagation systems feeding AI decisions
 * **Effects System**: Comprehensive effect handlers and status management
 
-### R&D Systems (Not Yet Integrated)
-* **Community NPC AI** (`ai/`): Advanced trait-based AI for non-combat NPCs with habit learning
-* **Lighting Testbed** (`lights_dev/`): Experimental octant FOV and colored lighting research
-* **GOAP Test Environment** (`auto/`): Simulation harness for AI training and tuning (core GOAP is already integrated)
+### R&D Systems and Testbeds
+* **Community NPC AI** (`ai/`): Advanced trait-based AI for non-combat NPCs with habit learning; not yet integrated.
+* **Lighting Testbed** (`lights_dev/`): Frozen historical octant FOV / colored lighting / memory research; production parity is migrated and deletion awaits documented smoke evidence.
+* **GOAP Test Environment** (`auto/`): Simulation harness for AI training and tuning (core GOAP is already integrated).
 
 ### Planned Features
 * Historical/lore layer for dungeon generation
 * Full spell system based on `scripting_engine.py`
-* Advanced memory fade influenced by agent traits
 * Community and settlement management systems
 
 ## Legacy status
@@ -59,7 +58,7 @@ the canonical component entrypoints documented in the directory READMEs:
 
 - `Dungeon/` for procedural cave generation.
 - `game/` for integrated production game systems.
-- `lights_dev/` for lighting/FOV research and demos.
+- `engine/render_lighting.py`, `game/world/light_fov.py`, and `game/world/memory.py` for production lighting/FOV/memory behavior; `lights_dev/` is frozen historical R&D pending deletion checks.
 - `auto/` for GOAP simulation and tuning.
 
 ## Getting Started
@@ -99,7 +98,8 @@ Different components have dedicated development harnesses:
 * **Dungeon Generation:** `cd Dungeon && ./run.sh`
 * **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
 * **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
-* **Lighting/FOV Testbed:** `cd lights_dev && python main_game.py`
+* **Lighting/FOV/Memory Diagnostic:** `python complete_light_diagnostic.py`
+* **Lighting/FOV Visual Tool:** `python -m tools.lighting_fov_tool.main`
 
 Refer to individual component READMEs for specific requirements and usage details.
 Generated font assets and glyph metadata are documented in

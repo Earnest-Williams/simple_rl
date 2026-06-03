@@ -154,8 +154,9 @@ The most important and sophisticated component - generates 3D cave networks and 
 ### 4. FOV/Visibility Systems ⭐⭐⭐⭐⭐
 
 **Locations:**
-- `game/world/fov.py` - Production FOV and callback-driven symmetrical shadowcasting
+- `game/world/fov.py` - Production gameplay FOV and callback-driven symmetrical shadowcasting
 - `game/world/los.py` - Line of sight
+- `game/world/light_fov.py` - Advanced light-aware FOV with side bits, cones, masks, and subtractive visibility
 
 **Sophistication Level:** Very High
 
@@ -208,25 +209,28 @@ The most important and sophisticated component - generates 3D cave networks and 
 **Sophistication Level:** Medium-High
 
 **Features:**
-- Distance-squared based falloff
-- Numba-accelerated intensity computation
-- Configurable ambient lighting
-- Intensity interpolation for smooth gradients
-- Memory fade effects (fog of war)
-- Height-based lighting visualization
+- Production side-aware `(height, width, 8, 4)` premultiplied RGBA light buffers
+- Per-light contribution cache with removed-light subtraction and parameter invalidation
+- Deterministic additive RGB blend policy with final clamping
+- Directional cones, cone softness, channel masks, and height-incidence attenuation
+- Scene-geometry-version invalidation through `GameMap.scene_geometry_version`
+- Deterministic viewport slicing for renderer-facing light output
+- Memory fade effects (fog of war) remain renderer-adjacent but are owned by `game/world/memory.py`
 
 **Algorithm:**
 ```
-intensity = max(0, (1 - distance/radius)^falloff_power)
+attenuation = intensity              # near-source core
+attenuation = intensity / distance   # outside the core, after FOV visibility
+rgb += color_rgb * attenuation       # additive RGB policy, clamped on composite
 ```
 
 **Configuration:**
 - Ambient light level
-- FOV radius (squared)
-- Falloff power (curve control)
-- Minimum light level
+- Light radius and RGB color
+- Optional direction, cone angle, and cone softness
+- Optional light channel mask and light height
 
-**Use Case:** Visual rendering, atmospheric effects
+**Use Case:** Visual rendering, atmospheric effects, side-aware lighting diagnostics
 
 ---
 
@@ -397,7 +401,7 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 - **Very High Sophistication Systems:** 4 (Perception, AI, GameRNG, FOV/Visibility)
 - **High Sophistication Systems:** 5 (Flow Field, Lighting, Magic/Effects, Entity/Component, Rendering)
 - **Fully Integrated Systems:** 16+
-- **R&D Systems (Not Integrated):** 2 (Community NPC AI, Lighting Research)
+- **R&D Systems (Not Integrated):** 1 (Community NPC AI)
 - **Development/Tuning Environments:** 1 (GOAP auto/ directory - core already integrated)
 
 ---
@@ -409,7 +413,7 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 2. ✅ Duplicate dungeon generators removed (kept `Dungeon/` production version)
 3. ✅ Core GOAP integrated successfully
 4. 🔄 Complete Community NPC AI integration when ready
-5. 🔒 `lights_dev/` is frozen — migrate selected algorithms to production owners (see DEV MIGRATION issue)
+5. 🔒 `lights_dev/` is frozen — production parity is migrated; delete only after full-suite and smoke evidence is recorded
 
 ### Priority 2: Documentation & Consistency
 1. ✅ Document integration status clearly (completed in this update)
@@ -558,18 +562,18 @@ Spell Definition (magic/work parser)
 - `worldgen/game_rng.py` is a compatibility re-export for world-generation modules.
 - There is no root-level `game_rng.py` in the current tree.
 
-#### 2. lights_dev/ Development Environment is Non-Deterministic ⚠️
+#### 2. lights_dev/ Historical Development Environment is Frozen ⚠️
 
-**Status:** The `lights_dev/` R&D environment creates simple maps programmatically for developing lighting and FOV algorithms.
+**Status:** The `lights_dev/` R&D environment is frozen pending deletion checks. Production FOV, lighting, and memory behavior has migrated to `game/world/light_fov.py`, `engine/render_lighting.py`, and `game/world/memory.py`.
 
-**Location:** `lights_dev/` development environment
+**Location:** `lights_dev/` historical development environment
 
 **Impact:**
-- Simple maps are sufficient for FOV/lighting algorithm development
+- Do not add new production imports from `lights_dev/`
+- Run production diagnostics and tests instead of extending the R&D testbed
 - For complex dungeon development, the production `Dungeon/` pipeline should be used
-- Development environment focuses on rendering algorithms, not dungeon generation
 
-**Note:** This is a non-issue as the development environment's focus is on lighting/FOV/memory systems, not dungeon generation. The production `Dungeon/` pipeline at the repository root uses GameRNG for deterministic generation.
+**Note:** `lights_dev/` deletion remains blocked on documented full-suite and manual/generated-dungeon smoke evidence. See `docs/LIGHTING_FOV_MEMORY_STATUS.md`.
 
 ---
 
@@ -617,39 +621,42 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 **Location:** `lights_dev/` directory
 
 > **`lights_dev` is frozen R&D pending retirement.** Do not add production imports from it.
-> Migrate selected algorithms into production owners (`engine/render_lighting.py`,
-> `game/world/fov.py`), then delete or archive the folder. See the DEV MIGRATION issue
-> for the full phase-by-phase migration plan.
+> Production-ready behavior is now owned by `engine/render_lighting.py`,
+> `game/world/light_fov.py`, `game/world/fov.py`, `game/world/los.py`,
+> `game/world/memory.py`, and `game/game_state.py`. See
+> `docs/ADR/0005-lights-dev-retirement.md` and
+> `docs/LIGHTING_FOV_MEMORY_STATUS.md` before deleting the folder.
 >
 > **Ownership boundaries:**
 > - `engine/render_lighting.py` — production lighting owner
-> - `game/world/fov.py` — production FOV/LOS owner
-> - Memory simulation belongs in a production state/system module, not the renderer
+> - `game/world/light_fov.py` — advanced side-bit/cone/channel FOV owner
+> - `game/world/fov.py` and `game/world/los.py` — gameplay FOV/LOS owners
+> - `game/world/memory.py`, `game/world/game_map.py`, and `game/game_state.py` — memory fade and trait orchestration owners
 
 **Purpose:** R&D environment for advanced visual and memory systems (historical)
 
 **Sophistication:** High
 - Octant-based shadowcasting FOV (Numba-accelerated)
-- Dynamic colored lighting with inverse square falloff
-- Multi-source RGB light blending
-- Novel memory fade system with sigmoid decay
-- Memory influenced by traits/conditions (planned)
+- Dynamic colored lighting with side-aware additive RGB accumulation
+- Multi-source contribution caching with removal and geometry invalidation
+- Sigmoid memory fade influenced by traits, memory strength, and tile modifiers
 
 **Status:**
 - 🔒 **Frozen** — no new production imports allowed
-- ❌ **Not integrated** into main game engine
-- 🗑️ **Planned for deletion** after migrations and tests pass
+- ✅ **Production parity migrated** for lighting, FOV, diagnostics, and memory traits
+- 🗑️ **Planned for deletion** only after full-suite and manual/generated-dungeon smoke evidence is recorded
 
 **Migration Map:**
 
 | lights_dev source | Production target | Status |
 |---|---|---|
-| `lighting.py::LightContext` cache | `engine/render_lighting.py::LightContributionCache` | In progress |
-| `lighting.py` RGB blending policy | `engine/render_lighting.py` blend abstraction | In progress |
-| `generate_varied_test.py` fixtures | `tests/fixtures/fov_scenarios.py`, `tests/fixtures/lighting_scenarios.py` | In progress |
-| `memory.py::MemorySystem` | `game/world/memory.py` (if accepted) | Deferred |
-| `fov.py` side-bit FOV | `game/world/fov.py` (if needed) | Deferred |
-| R&D runner/CLI/`GameState`/entities | — | Discard |
+| `lighting.py::LightContext` cache | `engine/render_lighting.py::LightContributionCache` | Migrated |
+| `lighting.py` RGB blending policy | `engine/render_lighting.py::RGBBlendPolicy` | Migrated |
+| `generate_varied_test.py` fixtures | `tests/fixtures/fov_scenarios.py`, `tests/fixtures/lighting_scenarios.py` | Migrated |
+| `memory.py::MemorySystem` | `game/world/memory.py`, `game/world/game_map.py`, `game/game_state.py` | Migrated |
+| `fov.py` side-bit FOV | `game/world/light_fov.py` | Migrated |
+| Diagnostic runner | `complete_light_diagnostic.py` using production APIs | Migrated |
+| R&D-only CLI/`GameState`/entities | — | Discard |
 
 ---
 
@@ -744,7 +751,7 @@ Repository root
 └── data/                    # Game data
 ```
 
-### Development/R&D Systems (NOT Integrated)
+### Development/R&D Systems
 
 ```
 ├── ai/                      # Community NPC AI (NOT INTEGRATED)
@@ -755,7 +762,7 @@ Repository root
 │   ├── main.py              # Headless runner
 │   ├── gui/                 # Visualization tool
 │   └── README.md
-├── lights_dev/              # Lighting R&D environment (NOT INTEGRATED)
+├── lights_dev/              # Frozen lighting R&D pending deletion smoke checks
 │   ├── main_game.py         # Standalone development environment
 │   ├── dungeon_data.py      # Numba jitclass
 │   └── README.md
@@ -780,7 +787,7 @@ Repository root
 
 **Kept:**
 - ✅ `Dungeon/` (root) - Most sophisticated 3D generator
-- 🔒 `lights_dev/` - Frozen R&D, pending retirement after algorithm migration
+- 🔒 `lights_dev/` - Frozen R&D, pending deletion after full-suite and manual/generated smoke checks
 - ✅ `auto/` - AI testing environment, core already integrated
 - ✅ `ai/` - Community NPC AI under development
 
@@ -809,9 +816,11 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - Rendering pipeline with multiple stages
 - Deterministic RNG throughout
 
-**R&D Systems (Not Yet Integrated):** 2 systems with clear integration paths
+**R&D Systems (Not Yet Integrated):** 1 system with clear integration path
 - Community NPC AI (ai/v9.py) - Advanced trait-based behaviors
-- Lighting/FOV/Memory testbed (lights_dev/) - Experimental rendering features
+
+**R&D Systems Pending Deletion:** 1 system
+- Lighting/FOV/Memory testbed (lights_dev/) - Production parity migrated; deletion waits on explicit smoke evidence
 
 **Test/Tuning Environments:** 1 environment
 - GOAP test harness (auto/) - Core already integrated, used for AI training
@@ -821,4 +830,4 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - Fix method name mismatches (render_frame, apply_overlays)
 - Implement caching and bulk operations to eliminate N+1 patterns
 - Add spatial indexing for entity queries
-- Standardize GameRNG usage in all components (including lights_dev/)
+- Record full-suite and generated/manual smoke evidence before deleting `lights_dev/`

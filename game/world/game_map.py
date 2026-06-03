@@ -11,6 +11,7 @@ import yaml
 from engine.glyphs import tile_id_for
 from game.world import memory
 from game.world.fov import compute_visibility_into
+from game.world.memory import MemoryTraits, resolve_memory_decay_parameters
 
 log = structlog.get_logger()
 
@@ -281,8 +282,20 @@ class GameMap:
             self.memory_strength[not_visible] - 1.0, 0.0
         )
 
-    def fade_memory(self, current_time: int, steepness: float, midpoint: float) -> None:
-        """Fade remembered tiles based on elapsed time."""
+    def fade_memory(
+        self,
+        current_time: int,
+        *,
+        traits: MemoryTraits,
+        base_steepness: float,
+        base_midpoint: float,
+    ) -> None:
+        """Fade remembered tiles using actor memory traits and base decay config."""
+        steepness, midpoint = resolve_memory_decay_parameters(
+            traits,
+            base_steepness=base_steepness,
+            base_midpoint=base_midpoint,
+        )
         memory.update_memory_fade(
             current_time,
             last_seen_time=self.last_seen_time,
