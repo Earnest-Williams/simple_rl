@@ -2,35 +2,25 @@
 
 ## Status
 
-Accepted.
+Completed / Retired R&D.
 
 ## Context
 
-The repository contains production world-visibility modules, pathfinding
+The repository previously contained production world-visibility modules, pathfinding
 perception helpers, and a substantial `lights_dev/` experimentation area. The
-audit identified overlapping sound, scent, FOV, LOS, and lighting code as an
-area where future contributors need a clear canonical path.
+overlapping sound, scent, FOV, LOS, and lighting code required cleanup and a clear canonical path.
+The decision was made to migrate all production-worthy advanced features to production and fully retire the `lights_dev/` directory.
 
 ## Decision
 
-Production world visibility and line-of-sight behavior belong under
-`game/world/`, currently including `game/world/fov.py` and
-`game/world/los.py`. Production pathfinding and perception utilities that
-serve AI routing or sound/scent concepts belong under `pathfinding/` or the
-relevant `game/systems/pathfinding/` modules. The `lights_dev/` tree remains an
-R&D harness for lighting, FOV, sound, scent, and visualization experiments.
-
-Algorithms may graduate from `lights_dev/` only through focused production
-patches that add tests or runnable harness coverage, preserve deterministic
-inputs, and update status documentation.
+All production world visibility and line-of-sight behavior are implemented under
+`game/world/` (including basic `game/world/fov.py`, `game/world/los.py`, and advanced light-aware `game/world/light_fov.py`).
+Advanced rendering and lighting accumulation are implemented in `engine/render_lighting.py`.
+The `lights_dev/` tree has been fully retired and deleted. All remaining production-worthy algorithms have graduated into production, covered by tests, and documented.
 
 ## Consequences
 
-- New gameplay calls should prefer `game/world/` visibility and LOS APIs instead
-  of importing experimental `lights_dev/` modules.
-- `pathfinding/perception_systems.py` remains the documented owner for
-  pathfinding-oriented sound and scent flow concepts.
-- `lights_dev/scent_and_sound_flow.py` is retained as a repaired experimental
-  module, not as the production sound playback owner.
-- `game/systems/sound.py` remains responsible for runtime sound playback unless
-  a future ADR supersedes this boundary.
+- New gameplay calls must use production `game/world/light_fov.py` and `engine/render_lighting.py` for advanced FOV/lighting.
+- The `lights_dev/` directory has been deleted, removing any risk of importing experimental code.
+- `pathfinding/perception_systems.py` is the canonical owner for pathfinding-oriented sound and scent flow concepts.
+- `game/systems/sound.py` remains responsible for runtime sound playback.

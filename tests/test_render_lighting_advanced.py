@@ -6,9 +6,12 @@ Conforms to Phase 2 requirements of the retire lights_dev plan.
 from __future__ import annotations
 
 import math
+
 import numpy as np
+import pytest
 
 from engine.render_lighting import (
+    LightContributionCache,
     _compute_single_light_contribution,
     collapse_premult_rgba_to_rgb,
 )
@@ -167,3 +170,137 @@ def test_channel_masked_transparency() -> None:
 
     # Light should pass through the blocker and reach (7, 9)
     assert rgb[7, 9, 0] > 0.0
+
+
+def test_per_side_rgba() -> None:
+    """Validate side-aware (h, w, 8, 4) premultiplied RGBA buffer binning."""
+    h = w = 15
+    opaque = np.zeros((h, w), dtype=np.bool_)
+
+    # White light at (7, 7)
+    light = LightSource(
+        x=7,
+        y=7,
+        radius=5,
+        color=(255, 255, 255),
+        intensity=1.0,
+        id=1,
+    )
+
+    contribution = _compute_single_light_contribution(
+        origin_x=light.x,
+        origin_y=light.y,
+        radius=light.radius,
+        color_rgb=light.color,
+        intensity=light.intensity,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        channels=light.channels,
+        height=light.height,
+    )
+
+    # East of source at (7, 9): side bits should be in bin index 1 (SIDE_E)
+    # y=7, x=9
+    val_east_bin_1 = contribution[7, 9, 1]  # SIDE_E bin
+    val_east_bin_3 = contribution[7, 9, 3]  # SIDE_W bin
+
+    assert np.any(val_east_bin_1 > 0.0)
+    assert np.all(val_east_bin_3 == 0.0)
+
+
+def test_premultiplied_normalization() -> None:
+    """Validate that composite blending correctly clamps and normalizes oversaturated alpha."""
+    # Create an oversaturated 4D buffer manually
+    buf = np.zeros((2, 2, 8, 4), dtype=np.float32)
+    # Fill one cell with super intense lights that add up to > 255.0 alpha
+    # Side 0: R=200, G=100, B=50, A=150
+    # Side 1: R=150, G=150, B=100, A=200
+    buf[0, 0, 0] = [200.0, 100.0, 50.0, 150.0]
+    buf[0, 0, 1] = [150.0, 150.0, 100.0, 200.0]
+
+    # Total alpha at [0, 0] = 350.0 (> 255.0)
+    rgb = collapse_premult_rgba_to_rgb(buf)
+
+    # Check that output is clamped to [0, 255]
+    assert np.all(rgb[0, 0] <= 255.0)
+    assert np.all(rgb[0, 0] >= 0.0)
+
+    # Check scaling logic: total_rgba is (350, 250, 150, 350)
+    # scale = 255.0 / 350.0
+    # expected rgb is approx: (350 * 255/350, 250 * 255/350, 150 * 255/350) = (255, 182.14, 109.28)
+    expected_r = 255.0
+    expected_g = 250.0 * (255.0 / 350.0)
+    expected_b = 150.0 * (255.0 / 350.0)
+
+    assert rgb[0, 0, 0] == pytest.approx(expected_r, abs=1e-3)
+    assert rgb[0, 0, 1] == pytest.approx(expected_g, abs=1e-3)
+    assert rgb[0, 0, 2] == pytest.approx(expected_b, abs=1e-3)
+
+
+def test_cache_invalidation_advanced() -> None:
+    """Validate that the LightContributionCache updates/invalidates on param changes."""
+    h = w = 10
+    opaque = np.zeros((h, w), dtype=np.bool_)
+    # Add a blocker at (5, 6) with mask channel 0xFFFF0000
+    opaque[5, 6] = True
+    cell_mask = np.zeros((h, w), dtype=np.uint32)
+    cell_mask[5, 6] = 0xFFFF0000
+
+    # Start with a directional cone pointing East (0.0)
+    light = LightSource(
+        x=5,
+        y=5,
+        radius=4,
+        color=(255, 0, 0),
+        intensity=1.0,
+        direction=0.0,
+        cone_angle=math.pi / 2,
+        cone_softness=0.0,
+        channels=0xFFFFFFFF,
+        id=42,
+        height=0.0,
+    )
+
+    cache = LightContributionCache(h, w)
+
+    # 1. First frame (channels = 0xFFFFFFFF, blocks)
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_initial = cache._contributions[42].copy()
+
+    # 2. Change direction to facing North (math.pi * 1.5) -> cache key changes & buffer changes
+    light.direction = math.pi * 1.5
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_direction = cache._contributions[42].copy()
+    assert not np.array_equal(buf_initial, buf_direction)
+
+    # 3. Change cone_angle -> cache key changes & buffer changes
+    light.cone_angle = math.pi / 4
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_cone = cache._contributions[42].copy()
+    assert not np.array_equal(buf_direction, buf_cone)
+
+    # 4. Change cone_softness -> cache key changes & buffer changes
+    light.cone_softness = 0.5
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_soft = cache._contributions[42].copy()
+    assert not np.array_equal(buf_cone, buf_soft)
+
+    # 5. Change channels -> cache key changes & blocker becomes transparent
+    # Reset direction to None and cone_angle to math.tau so blocker (5,6) is inside range
+    light.direction = None
+    light.cone_angle = math.tau
+    # And run once to establish a baseline for omni channels change
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_omni = cache._contributions[42].copy()
+
+    light.channels = 0x0000FFFF
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_chan = cache._contributions[42].copy()
+    assert not np.array_equal(buf_omni, buf_chan)
+
+    # 6. Change height -> cache key changes & buffer changes
+    light.height = 2.0
+    cache.update([light], opaque, scene_seq=1, cell_mask=cell_mask)
+    buf_height = cache._contributions[42].copy()
+    assert not np.array_equal(buf_chan, buf_height)

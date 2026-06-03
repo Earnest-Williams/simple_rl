@@ -483,9 +483,9 @@ game_map.fade_memory(current_time, steepness, midpoint)
 
 The existing `update_memory_fade()` then applies memory strength and tile modifiers.
 
-## 3.6 Optional: add convenience API
+## 3.6 Canonical API: resolve_memory_decay_parameters()
 
-Add a helper:
+Add the canonical helper:
 
 ```python
 def resolve_memory_decay_parameters(
