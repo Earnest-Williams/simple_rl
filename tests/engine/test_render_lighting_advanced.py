@@ -143,14 +143,15 @@ def test_height_incidence_attenuation() -> None:
 
 
 def test_channel_masked_transparency() -> None:
-    """Test that cells with non-matching channel mask are transparent to the light."""
+    """Test that cells with non-matching channel mask are transparent to the light and receive no light."""
     h = w = 15
     opaque = np.zeros((h, w), dtype=np.bool_)
     # Put an opaque blocker at (7, 8)
     opaque[7, 8] = True
 
+    # Cell mask initialized to 0xFFFFFFFF (all channels match)
+    cell_mask = np.full((h, w), fill_value=0xFFFFFFFF, dtype=np.uint32)
     # Cell mask at (7, 8) has channel 2 (binary 10)
-    cell_mask = np.zeros((h, w), dtype=np.uint32)
     cell_mask[7, 8] = 2
 
     # A light with channel 1 (binary 01) -> no overlap, so blocker is transparent
@@ -170,6 +171,39 @@ def test_channel_masked_transparency() -> None:
 
     # Light should pass through the blocker and reach (7, 9)
     assert rgb[7, 9, 0] > 0.0
+    # The masked cell (7, 8) must receive exactly zero light
+    assert np.all(rgb[7, 8] == 0.0)
+
+
+def test_channel_masked_no_accumulation_floor() -> None:
+    """Test that open floor cells with a non-matching channel mask receive zero light."""
+    h = w = 15
+    opaque = np.zeros((h, w), dtype=np.bool_)
+
+    # Cell mask initialized to 0xFFFFFFFF (all channels match)
+    cell_mask = np.full((h, w), fill_value=0xFFFFFFFF, dtype=np.uint32)
+    # Cell mask at (7, 8) has channel 2 (binary 10) (no blocker, just a floor tile with a different mask)
+    cell_mask[7, 8] = 2
+
+    # A light with channel 1 (binary 01)
+    contribution = _compute_single_light_contribution(
+        origin_x=7,
+        origin_y=7,
+        radius=5,
+        color_rgb=(255, 255, 255),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+        channels=1,
+        cell_mask=cell_mask,
+    )
+    rgb = collapse_premult_rgba_to_rgb(contribution)
+
+    # (7, 9) is matched, so it receives light
+    assert rgb[7, 9, 0] > 0.0
+    # (7, 8) is a floor cell but doesn't match channels, so it must receive exactly zero light
+    assert np.all(rgb[7, 8] == 0.0)
 
 
 def test_per_side_rgba() -> None:
@@ -244,7 +278,7 @@ def test_cache_invalidation_advanced() -> None:
     opaque = np.zeros((h, w), dtype=np.bool_)
     # Add a blocker at (5, 6) with mask channel 0xFFFF0000
     opaque[5, 6] = True
-    cell_mask = np.zeros((h, w), dtype=np.uint32)
+    cell_mask = np.full((h, w), fill_value=0xFFFFFFFF, dtype=np.uint32)
     cell_mask[5, 6] = 0xFFFF0000
 
     # Start with a directional cone pointing East (0.0)

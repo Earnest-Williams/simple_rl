@@ -44,9 +44,9 @@ def test_no_light_east_of_solid_wall() -> None:
     h, w = sc["opaque"].shape
     for y in range(h):
         for x in range(12, w):  # east of wall at x=10
-            assert not has_light(rgb, y, x), (
-                f"Light leaked to ({y},{x}) east of solid wall"
-            )
+            assert not has_light(
+                rgb, y, x
+            ), f"Light leaked to ({y},{x}) east of solid wall"
 
 
 def test_no_light_behind_blocker_west_to_east() -> None:
@@ -59,9 +59,9 @@ def test_no_light_behind_blocker_west_to_east() -> None:
     # Exclude extreme corner rows (known production FOV edge-case at very steep angles)
     for y in range(2, h - 2):
         for x in range(11, w):
-            assert not has_light(rgb, y, x), (
-                f"Light leaked to ({y},{x}) east of solid wall"
-            )
+            assert not has_light(
+                rgb, y, x
+            ), f"Light leaked to ({y},{x}) east of solid wall"
 
 
 def test_light_reaches_open_cells() -> None:
@@ -75,9 +75,9 @@ def test_light_reaches_open_cells() -> None:
     # All cells directly adjacent to the source should receive light
     for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
         ny, nx = cy + dy, cx + dx
-        assert has_light(rgb, ny, nx), (
-            f"Expected cell ({ny},{nx}) adjacent to light source to receive light"
-        )
+        assert has_light(
+            rgb, ny, nx
+        ), f"Expected cell ({ny},{nx}) adjacent to light source to receive light"
 
 
 def test_two_colored_lights_blend() -> None:
@@ -126,9 +126,9 @@ def test_source_tile_has_max_contribution() -> None:
     src_val = float(np.sum(rgb[light.y, light.x]))
     max_val = float(np.max(np.sum(rgb, axis=2)))
     # Source tile intensity should be among the brightest
-    assert src_val >= max_val * 0.9, (
-        f"Source tile intensity {src_val:.3f} is much less than max {max_val:.3f}"
-    )
+    assert (
+        src_val >= max_val * 0.9
+    ), f"Source tile intensity {src_val:.3f} is much less than max {max_val:.3f}"
 
 
 def test_no_light_through_diagonal_wall() -> None:
@@ -142,6 +142,6 @@ def test_no_light_through_diagonal_wall() -> None:
     # Cells in the bottom-right quadrant past the diagonal should be dark
     for y in range(10, h):
         for x in range(10, w):
-            assert not has_light(rgb, y, x, threshold=0.5), (
-                f"Light leaked to ({y},{x}) past diagonal wall"
-            )
+            assert not has_light(
+                rgb, y, x, threshold=0.5
+            ), f"Light leaked to ({y},{x}) past diagonal wall"

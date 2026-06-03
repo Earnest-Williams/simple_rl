@@ -110,9 +110,9 @@ def test_thin_wall_no_leak_closed() -> None:
     visible = fov_from_transparency(transparency, cy=7, cx=3, radius=15)
     # Exclude extreme-corner rows which have known production FOV edge cases
     east_cells = [(y, x) for (y, x) in visible if x > 10 and 2 <= y <= 12]
-    assert east_cells == [], (
-        f"Expected no visibility east of closed wall (mid-rows), got {east_cells}"
-    )
+    assert (
+        east_cells == []
+    ), f"Expected no visibility east of closed wall (mid-rows), got {east_cells}"
 
 
 def test_thin_wall_gap_passes_light() -> None:
@@ -139,7 +139,9 @@ def test_walled_room_stays_inside() -> None:
     visible = compute_visibility(
         h, w, origin_y=7, origin_x=7, radius=10, is_opaque=is_opaque
     )
-    outside_cells = [(y, x) for (y, x) in visible if y == 0 or y == h - 1 or x == 0 or x == w - 1]
+    outside_cells = [
+        (y, x) for (y, x) in visible if y == 0 or y == h - 1 or x == 0 or x == w - 1
+    ]
     # Border tiles themselves may be visible (they are the wall face);
     # cells *beyond* the grid are never in the result set anyway.
     # Verify nothing outside the grid was returned (bounds check).
@@ -155,9 +157,7 @@ def test_radius_limits_visibility() -> None:
     visible = fov_from_transparency(transparency, cy=cy, cx=cx, radius=radius)
     for y, x in visible:
         dsq = (x - cx) ** 2 + (y - cy) ** 2
-        assert dsq <= radius * radius + 1, (
-            f"Cell ({y},{x}) is beyond radius {radius}"
-        )
+        assert dsq <= radius * radius + 1, f"Cell ({y},{x}) is beyond radius {radius}"
 
 
 def test_source_always_visible() -> None:
@@ -174,10 +174,8 @@ def test_blocker_in_shadow_of_another_blocker() -> None:
     """Two aligned blockers: the second one is not visible behind the first."""
     h = w = 15
     transparency = np.ones((h, w), dtype=np.float32)
-    transparency[7, 9] = 0.0   # first blocker
+    transparency[7, 9] = 0.0  # first blocker
     transparency[7, 11] = 0.0  # second blocker behind first
     visible = fov_from_transparency(transparency, cy=7, cx=4, radius=10)
     # The second blocker should be hidden behind the first
-    assert (7, 11) not in visible, (
-        "Second blocker should be shadowed by the first"
-    )
+    assert (7, 11) not in visible, "Second blocker should be shadowed by the first"

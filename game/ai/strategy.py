@@ -49,17 +49,16 @@ def _move(entity_row: series, dx: int, dy: int, game_state: GameState) -> None:
 
 
 def _get_priority_signal(
-    entity_id: int, 
-    perception: Any
+    entity_id: int, perception: Any
 ) -> tuple[str, tuple[int, int]] | None:
     """Return the highest priority signal type and its target coordinate."""
     if not hasattr(perception, "entity_facts"):
         return None
-    
+
     fact = perception.entity_facts.get(int(entity_id))
     if not fact:
         return None
-        
+
     if fact.visible_targets:
         first = fact.visible_targets[0]
         return "visual", (int(first.get("x")), int(first.get("y")))
@@ -69,8 +68,9 @@ def _get_priority_signal(
         return "scent", fact.scent_position
     if fact.last_known_position:
         return "memory", fact.last_known_position
-        
+
     return None
+
 
 def charge_behavior(
     entity_row: series,
@@ -83,7 +83,9 @@ def charge_behavior(
         return
 
     signal_type, target_pos = signal
-    dx, dy = _step_towards((int(entity_row.get("x")), int(entity_row.get("y"))), target_pos)
+    dx, dy = _step_towards(
+        (int(entity_row.get("x")), int(entity_row.get("y"))), target_pos
+    )
     _move(entity_row, dx, dy, game_state)
 
 

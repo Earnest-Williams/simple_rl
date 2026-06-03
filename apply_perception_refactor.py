@@ -2,6 +2,7 @@ import sys
 import glob
 import re
 
+
 def update_perception_py():
     with open("game/ai/perception.py", "r") as f:
         content = f.read()
@@ -103,49 +104,48 @@ def update_perception_py():
     )'''
 
     # Replace the existing function
-    pattern = re.compile(r'def gather_perception_snapshot\(game_state: GameState\) -> PerceptionSnapshot:.*?return PerceptionSnapshot\([^)]+\)', re.DOTALL)
+    pattern = re.compile(
+        r"def gather_perception_snapshot\(game_state: GameState\) -> PerceptionSnapshot:.*?return PerceptionSnapshot\([^)]+\)",
+        re.DOTALL,
+    )
     content = pattern.sub(new_snapshot, content)
-    
+
     with open("game/ai/perception.py", "w") as f:
         f.write(content)
+
 
 def update_game_state_py():
     with open("game/game_state.py", "r") as f:
         content = f.read()
-    content = content.replace("from game.ai.perception import gather_perception", "from game.ai.perception import gather_perception, gather_perception_snapshot")
-    content = content.replace("perception = gather_perception(self)", "perception = gather_perception_snapshot(self)")
+    content = content.replace(
+        "from game.ai.perception import gather_perception",
+        "from game.ai.perception import gather_perception, gather_perception_snapshot",
+    )
+    content = content.replace(
+        "perception = gather_perception(self)",
+        "perception = gather_perception_snapshot(self)",
+    )
     with open("game/game_state.py", "w") as f:
         f.write(content)
+
 
 def update_ai_system_py():
     with open("game/systems/ai_system.py", "r") as f:
         content = f.read()
     content = content.replace(
         "perception: tuple[np.ndarray, np.ndarray, np.ndarray] | None,",
-        "perception: Any | None,"
+        "perception: Any | None,",
     )
     with open("game/systems/ai_system.py", "w") as f:
         f.write(content)
 
+
 def update_strategy_py():
     with open("game/ai/strategy.py", "r") as f:
         content = f.read()
-    
-    # We want to replace perception argument and unpack logic for charge and flee
-    charge_repl = '''def charge_behavior(
-    entity_row: series,
-    game_state: GameState,
-    perception: Any,
-) -> None:
-    if hasattr(perception, "entity_facts"):
-        fact = perception.entity_facts.get(int(entity_row["entity_id"]))
-        enemies = fact.visible_targets if fact else []
-    else:
-        noise, scent, los = perception
-        enemies = find_visible_enemies(entity_row, game_state, los)
-    if not enemies:'''
 
-    flee_repl = '''def flee_behavior(
+    # We want to replace perception argument and unpack logic for charge and flee
+    charge_repl = """def charge_behavior(
     entity_row: series,
     game_state: GameState,
     perception: Any,
@@ -156,59 +156,86 @@ def update_strategy_py():
     else:
         noise, scent, los = perception
         enemies = find_visible_enemies(entity_row, game_state, los)
-    if not enemies:'''
+    if not enemies:"""
+
+    flee_repl = """def flee_behavior(
+    entity_row: series,
+    game_state: GameState,
+    perception: Any,
+) -> None:
+    if hasattr(perception, "entity_facts"):
+        fact = perception.entity_facts.get(int(entity_row["entity_id"]))
+        enemies = fact.visible_targets if fact else []
+    else:
+        noise, scent, los = perception
+        enemies = find_visible_enemies(entity_row, game_state, los)
+    if not enemies:"""
 
     # Regex replacements
-    content = re.sub(r'def charge_behavior\(.*?\) -> None:.*?if not enemies:', charge_repl, content, flags=re.DOTALL)
-    content = re.sub(r'def flee_behavior\(.*?\) -> None:.*?if not enemies:', flee_repl, content, flags=re.DOTALL)
-    
+    content = re.sub(
+        r"def charge_behavior\(.*?\) -> None:.*?if not enemies:",
+        charge_repl,
+        content,
+        flags=re.DOTALL,
+    )
+    content = re.sub(
+        r"def flee_behavior\(.*?\) -> None:.*?if not enemies:",
+        flee_repl,
+        content,
+        flags=re.DOTALL,
+    )
+
     # Also update smart_kobold and dispatch_strategy to accept Any
     content = content.replace(
-        "perception: tuple[np.ndarray, np.ndarray, np.ndarray]",
-        "perception: Any"
+        "perception: tuple[np.ndarray, np.ndarray, np.ndarray]", "perception: Any"
     )
-    
+
     with open("game/ai/strategy.py", "w") as f:
         f.write(content)
+
 
 def update_other_ai_files():
     for fpath in glob.glob("game/ai/*.py"):
         if fpath.endswith(("strategy.py", "perception.py", "__init__.py")):
             continue
-            
+
         with open(fpath, "r") as f:
             content = f.read()
-            
-        if "noise_map, scent_map, los_map = perception" not in content and "_, _, los_map = perception" not in content:
+
+        if (
+            "noise_map, scent_map, los_map = perception" not in content
+            and "_, _, los_map = perception" not in content
+        ):
             # Change type hints anyway
             content = content.replace(
                 "perception: tuple[np.ndarray, np.ndarray, np.ndarray]",
-                "perception: Any"
+                "perception: Any",
             )
             with open(fpath, "w") as f:
                 f.write(content)
             continue
-            
+
         # Replace unpack with conditional extract
-        unpack_repl = '''    if hasattr(perception, "los_map"):
+        unpack_repl = """    if hasattr(perception, "los_map"):
         noise_map = perception.debug_noise_map
         scent_map = perception.debug_scent_map
         los_map = perception.los_map
     else:
-        noise_map, scent_map, los_map = perception'''
-        
-        content = content.replace("    noise_map, scent_map, los_map = perception", unpack_repl)
+        noise_map, scent_map, los_map = perception"""
+
+        content = content.replace(
+            "    noise_map, scent_map, los_map = perception", unpack_repl
+        )
         content = content.replace("    _, _, los_map = perception", unpack_repl)
-        
+
         # Change type hint
         content = content.replace(
-            "perception: tuple[np.ndarray, np.ndarray, np.ndarray]",
-            "perception: Any"
+            "perception: tuple[np.ndarray, np.ndarray, np.ndarray]", "perception: Any"
         )
-        
+
         # In goap.py, try to utilize fact.scent_position if available
         if fpath.endswith("goap.py"):
-            goap_repl = '''    if move is None:
+            goap_repl = """    if move is None:
         if hasattr(perception, "entity_facts"):
             fact = perception.entity_facts.get(int(entity_id))
             if fact and fact.scent_position:
@@ -224,9 +251,10 @@ def update_other_ai_files():
                     and scent_map[ny, nx] > best_scent
                 ):
                     best_scent = scent_map[ny, nx]
-                    move = (ndx, ndy)'''
-            
-            content = content.replace('''    if move is None:
+                    move = (ndx, ndy)"""
+
+            content = content.replace(
+                """    if move is None:
         current_scent = scent_map[y, x]
         best_scent = current_scent
         for ndx, ndy in directions:
@@ -237,10 +265,13 @@ def update_other_ai_files():
                 and scent_map[ny, nx] > best_scent
             ):
                 best_scent = scent_map[ny, nx]
-                move = (ndx, ndy)''', goap_repl)
-            
+                move = (ndx, ndy)""",
+                goap_repl,
+            )
+
         with open(fpath, "w") as f:
             f.write(content)
+
 
 if __name__ == "__main__":
     update_perception_py()

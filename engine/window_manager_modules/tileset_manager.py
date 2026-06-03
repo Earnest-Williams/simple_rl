@@ -17,6 +17,7 @@ from PIL import Image
 # Fallback removed
 from numba import types as nb_types
 from numba.typed import Dict as NumbaTypedDict
+
 _NUMBA_AVAILABLE = True
 
 # Local Application Imports

@@ -26,11 +26,15 @@ def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> Non
 
     # warm up
     for _ in range(WARMUP_RUNS):
-        compute_visibility(h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque)
+        compute_visibility(
+            h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque
+        )
 
     t0 = time.perf_counter()
     for _ in range(trials):
-        compute_visibility(h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque)
+        compute_visibility(
+            h, w, origin_y=cy, origin_x=cx, radius=radius, is_opaque=is_opaque
+        )
     t1 = time.perf_counter()
     print(
         f"Ran {trials} trials in {t1 - t0:.3f}s, avg {((t1 - t0) / trials):.6f}s per FOV"

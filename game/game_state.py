@@ -43,6 +43,7 @@ from utils.game_rng import GameRNG  # Assuming this path is correct
 # Import sound system
 # Fallback removed
 from game.systems.sound import get_sound_manager, update_music_context
+
 SOUND_AVAILABLE = True
 
 
@@ -187,6 +188,7 @@ class GameState:
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
         from typing import Any
+
         self.ai_memory: dict[int, dict[str, Any]] = {}
         self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)

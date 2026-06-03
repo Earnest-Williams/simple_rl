@@ -56,7 +56,9 @@ def gather_perception(
     """
 
     game_map = game_state.game_map
-    if getattr(game_state, "noise_events", []) or getattr(game_state, "scent_events", []):
+    if getattr(game_state, "noise_events", []) or getattr(
+        game_state, "scent_events", []
+    ):
         game_state.update_perception_fields(include_player_scent=False)
 
     noise_map = game_map.noise_map.copy()
@@ -69,7 +71,7 @@ def gather_perception(
 def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     """Return structured AI-facing perception facts without breaking legacy callers."""
     from pathfinding.perception_systems import get_scent
-    
+
     noise_map, scent_map, los_map = gather_perception(game_state)
     facts: dict[int, PerceptionFact] = {}
 
@@ -77,41 +79,46 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     center_y = int(game_state.perception_flow_centers[flow_idx, 0])
     center_x = int(game_state.perception_flow_centers[flow_idx, 1])
     global_heard_source = (center_x, center_y)
-    
+
     alerted_set = set(game_state.perception_alerted_monster_ids)
 
     df = getattr(game_state.entity_registry, "entities_df", None)
     if df is not None and not df.is_empty():
         active_df = df.filter(
-            (pl.col("is_active") == True) & (pl.col("entity_id") != game_state.player_id)
+            (pl.col("is_active") == True)
+            & (pl.col("entity_id") != game_state.player_id)
         )
         cave_when = game_state.perception_cave_when
         game_map = game_state.game_map
         DEFAULT_MEMORY_TURNS = 5
-        
+
         for row in active_df.iter_rows(named=True):
-            if not (row.get("ai_type") or row.get("species") or row.get("intelligence") is not None):
+            if not (
+                row.get("ai_type")
+                or row.get("species")
+                or row.get("intelligence") is not None
+            ):
                 continue
-                
+
             ent_id = int(row["entity_id"])
             ex = row.get("x")
             ey = row.get("y")
             if ex is None or ey is None:
                 continue
             ex, ey = int(ex), int(ey)
-            
+
             # 1. Visible targets
             visible_targets = find_visible_enemies(row, game_state, los_map)
-            
+
             # 2. Audio facts
             heard_source = global_heard_source if ent_id in alerted_set else None
             heard_flow = "real_noise" if heard_source else None
-            
+
             # 3. Scent facts
             current_scent = get_scent(cave_when, ey, ex)
             best_scent_val = current_scent
             best_scent_pos = None
-            
+
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nx, ny = ex + dx, ey + dy
                 if 0 <= nx < game_map.width and 0 <= ny < game_map.height:
@@ -121,10 +128,10 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
                         if n_scent > best_scent_val:
                             best_scent_val = n_scent
                             best_scent_pos = (nx, ny)
-            
+
             scent_position = best_scent_pos
             scent_strength = best_scent_val if best_scent_pos else current_scent
-            
+
             # Prioritize the current signals
             confidence = 0.0
             signal_type = "idle"
@@ -146,7 +153,9 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
                 signal_type = "scent"
                 confidence = 0.8
                 current_target_pos = scent_position
-                memorable = False  # DO NOT memorize scent gradients as a "last known" position
+                memorable = (
+                    False  # DO NOT memorize scent gradients as a "last known" position
+                )
 
             # Update or retrieve from explicit memory
             last_known_position: tuple[int, int] | None = None
@@ -154,10 +163,10 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
             if memorable and current_target_pos is not None:
                 # Hard signal detected: refresh memory
                 game_state.ai_memory[ent_id] = {
-                    "pos": current_target_pos, 
-                    "turns_left": DEFAULT_MEMORY_TURNS
+                    "pos": current_target_pos,
+                    "turns_left": DEFAULT_MEMORY_TURNS,
                 }
-                last_known_position = current_target_pos 
+                last_known_position = current_target_pos
             else:
                 # No hard signal: check memory
                 if ent_id in game_state.ai_memory:
@@ -171,7 +180,7 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
                         mem["turns_left"] -= 1
                     else:
                         del game_state.ai_memory[ent_id]
-                
+
             facts[ent_id] = PerceptionFact(
                 signal_type=signal_type,
                 confidence=confidence,

@@ -2,7 +2,7 @@
 
 import math
 from collections.abc import Iterable
-from typing import Any, TypeAlias
+from typing import Any, Final, TypeAlias
 
 import numpy as np
 import structlog
@@ -24,6 +24,10 @@ from utils.game_rng import GameRNG
 LightSourceLike: TypeAlias = Any
 
 _NUMBA_AVAILABLE = True
+
+DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros(
+    (1, 1), dtype=np.uint32
+)  # fallback cell mask for Numba JIT compatibility
 
 log = structlog.get_logger()
 
@@ -168,6 +172,9 @@ def _accumulate_light_premult_rgba(
     light_src_x: float,
     light_src_y: float,
     light_height: float,
+    use_mask: int,
+    cell_mask: np.ndarray,
+    light_channels: int,
 ) -> None:
     h, w = visible.shape
     core_radius_sq = 4.0  # matching R&D
@@ -175,6 +182,9 @@ def _accumulate_light_premult_rgba(
     for y in range(h):
         for x in range(w):
             if visible[y, x] == 0:
+                continue
+
+            if use_mask != 0 and (cell_mask[y, x] & light_channels) == 0:
                 continue
 
             sb = side_bits[y, x]
@@ -345,7 +355,11 @@ def _compute_single_light_contribution(
 
     use_cell_mask = cell_mask is not None
     if use_cell_mask:
+        use_mask = 1
         cell_mask_u32 = cell_mask.astype(np.uint32)
+    else:
+        use_mask = 0
+        cell_mask_u32 = DUMMY_CELL_MASK
 
     # Angles
     if direction is not None:
@@ -456,6 +470,9 @@ def _compute_single_light_contribution(
         float(origin_x),
         float(origin_y),
         float(height),
+        use_mask,
+        cell_mask_u32,
+        channels,
     )
 
     return contribution
@@ -714,6 +731,7 @@ class LightingRenderer:
 
         opaque_grid = ~game_map.transparent
         cache = self._get_cache(game_map.height, game_map.width)
+        cell_mask = getattr(game_map, "light_masks", None)
         light_rgb_vp = cache.update(
             light_sources,
             opaque_grid,
@@ -724,6 +742,7 @@ class LightingRenderer:
             vp_w=vp_w,
             height_map=game_map.height_map,
             ceiling_map=game_map.ceiling_map,
+            cell_mask=cell_mask,
         )
         fg_f32 = lit_fg.astype(np.float32)
         bg_f32 = lit_bg.astype(np.float32)

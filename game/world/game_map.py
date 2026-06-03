@@ -176,6 +176,9 @@ class GameMap:
         self.ceiling_map: np.ndarray = np.zeros(
             (height, width), dtype=np.int16, order="C"
         )
+        self.light_masks: np.ndarray = np.full(
+            (height, width), fill_value=0xFFFFFFFF, dtype=np.uint32, order="C"
+        )
         self.memory_intensity: np.ndarray = np.zeros(
             (height, width), dtype=np.float32, order="C"
         )

@@ -29,9 +29,10 @@ def test_empty_room_center_source() -> None:
     # All cells directly along the N/S/E/W axes up to radius should be visible
     for d in range(1, radius + 1):
         for dy, dx in [(0, d), (0, -d), (d, 0), (-d, 0)]:
-            assert (cy + dy, cx + dx) in visible, (
-                f"Expected cardinal cell ({cy+dy},{cx+dx}) at distance {d} to be visible"
-            )
+            assert (
+                cy + dy,
+                cx + dx,
+            ) in visible, f"Expected cardinal cell ({cy+dy},{cx+dx}) at distance {d} to be visible"
 
 
 def test_single_blocker() -> None:
@@ -88,9 +89,10 @@ def test_thin_wall_gap_transmits_light() -> None:
     # Gap is at (y=7, x=10). A tile east of the wall should be reachable through the gap.
     # Source is at (y=7, x=3) so it aims directly at the gap.
     east_of_gap_y, east_of_gap_x = 7, 12
-    assert (east_of_gap_y, east_of_gap_x) in visible, (
-        "Expected light to pass through the wall gap at (7, 10)"
-    )
+    assert (
+        east_of_gap_y,
+        east_of_gap_x,
+    ) in visible, "Expected light to pass through the wall gap at (7, 10)"
 
 
 def test_radius_zero_only_origin() -> None:
@@ -107,4 +109,3 @@ def test_radius_zero_only_origin() -> None:
     assert (5, 5) in visible
     # No other tile should be visible with radius 0
     assert all(coord == (5, 5) for coord in visible)
-

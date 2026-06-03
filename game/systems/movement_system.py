@@ -79,6 +79,7 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
             # Import sound system dynamically to avoid circular imports
             # Fallback removed
             from game.systems.sound import handle_event
+
             terrain_type = (
                 gs.game_map.get_tile_type_name(dest_x, dest_y)
                 if hasattr(gs.game_map, "get_tile_type_name")

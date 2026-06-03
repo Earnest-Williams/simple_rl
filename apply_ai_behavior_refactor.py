@@ -1,16 +1,18 @@
 import re
 
+
 def update_game_state():
     with open("game/game_state.py", "r") as f:
         content = f.read()
-    
+
     if "self.ai_memory" not in content:
         content = content.replace(
             "self.perception_alerted_monster_ids: list[int] = []",
-            "self.perception_alerted_monster_ids: list[int] = []\n        from typing import Any\n        self.ai_memory: dict[int, dict[str, Any]] = {}"
+            "self.perception_alerted_monster_ids: list[int] = []\n        from typing import Any\n        self.ai_memory: dict[int, dict[str, Any]] = {}",
         )
         with open("game/game_state.py", "w") as f:
             f.write(content)
+
 
 def update_perception():
     with open("game/ai/perception.py", "r") as f:
@@ -141,17 +143,26 @@ def update_perception():
         debug_scent_map=scent_map,
     )'''
 
-    pattern = re.compile(r'def gather_perception_snapshot\(game_state: GameState\) -> PerceptionSnapshot:.*?return PerceptionSnapshot\([^)]+\)', re.DOTALL)
+    pattern = re.compile(
+        r"def gather_perception_snapshot\(game_state: GameState\) -> PerceptionSnapshot:.*?return PerceptionSnapshot\([^)]+\)",
+        re.DOTALL,
+    )
     content = pattern.sub(new_snapshot, content)
     with open("game/ai/perception.py", "w") as f:
         f.write(content)
+
 
 def update_strategy():
     with open("game/ai/strategy.py", "r") as f:
         content = f.read()
 
-    if "from typing import TYPE_CHECKING, Any" not in content and "from typing import Any" not in content:
-        content = content.replace("from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Any")
+    if (
+        "from typing import TYPE_CHECKING, Any" not in content
+        and "from typing import Any" not in content
+    ):
+        content = content.replace(
+            "from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Any"
+        )
 
     if "def _get_priority_signal" not in content:
         helper = '''def _get_priority_signal(
@@ -179,9 +190,11 @@ def update_strategy():
     return None
 
 '''
-        content = content.replace("def charge_behavior(", helper + "def charge_behavior(")
+        content = content.replace(
+            "def charge_behavior(", helper + "def charge_behavior("
+        )
 
-    charge_repl = '''def charge_behavior(
+    charge_repl = """def charge_behavior(
     entity_row: series,
     game_state: GameState,
     perception: Any,
@@ -193,10 +206,15 @@ def update_strategy():
 
     signal_type, target_pos = signal
     dx, dy = _step_towards((int(entity_row.get("x")), int(entity_row.get("y"))), target_pos)
-    _move(entity_row, dx, dy, game_state)'''
-    content = re.sub(r'def charge_behavior\(.*?\) -> None:.*?_move\(entity_row, dx, dy, game_state\)', charge_repl, content, flags=re.DOTALL)
+    _move(entity_row, dx, dy, game_state)"""
+    content = re.sub(
+        r"def charge_behavior\(.*?\) -> None:.*?_move\(entity_row, dx, dy, game_state\)",
+        charge_repl,
+        content,
+        flags=re.DOTALL,
+    )
 
-    flee_repl = '''def flee_behavior(
+    flee_repl = """def flee_behavior(
     entity_row: series,
     game_state: GameState,
     perception: Any,
@@ -211,11 +229,17 @@ def update_strategy():
     tx, ty = target_pos
     dx = 0 if tx == sx else (-1 if tx > sx else 1)
     dy = 0 if ty == sy else (-1 if ty > sy else 1)
-    _move(entity_row, dx, dy, game_state)'''
-    content = re.sub(r'def flee_behavior\(.*?\) -> None:.*?_move\(entity_row, dx, dy, game_state\)', flee_repl, content, flags=re.DOTALL)
+    _move(entity_row, dx, dy, game_state)"""
+    content = re.sub(
+        r"def flee_behavior\(.*?\) -> None:.*?_move\(entity_row, dx, dy, game_state\)",
+        flee_repl,
+        content,
+        flags=re.DOTALL,
+    )
 
     with open("game/ai/strategy.py", "w") as f:
         f.write(content)
+
 
 def update_goap():
     with open("game/ai/goap.py", "r") as f:
@@ -290,13 +314,24 @@ def update_goap():
     )
     return True'''
 
-    content = re.sub(r'def _action_move_attack\(.*?\) -> bool:.*?return True', goap_repl, content, flags=re.DOTALL)
-    
-    if "from typing import TYPE_CHECKING" in content and "Any" not in content[:content.find("import numpy")]:
-        content = content.replace("from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Any")
+    content = re.sub(
+        r"def _action_move_attack\(.*?\) -> bool:.*?return True",
+        goap_repl,
+        content,
+        flags=re.DOTALL,
+    )
+
+    if (
+        "from typing import TYPE_CHECKING" in content
+        and "Any" not in content[: content.find("import numpy")]
+    ):
+        content = content.replace(
+            "from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Any"
+        )
 
     with open("game/ai/goap.py", "w") as f:
         f.write(content)
+
 
 if __name__ == "__main__":
     update_game_state()

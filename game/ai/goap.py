@@ -95,7 +95,7 @@ def _action_move_attack(
         # Note: compute_field expects (y, x) tuples
         pathfinder.compute_field([(ty, tx)])
         pdx, pdy = pathfinder.get_flow_vector(y, x)
-        
+
         nx, ny = x + pdx, y + pdy
         if not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height):
             # Fallback simple step if pathfinding gives an out-of-bounds or zero vector

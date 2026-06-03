@@ -77,7 +77,9 @@ def rasterize_svg(svg_path: Path, size: int = RENDER_SIZE) -> Image.Image:
     Raises RuntimeError on failure.
     """
     try:
-        png_bytes: bytes = svg2png(url=str(svg_path), output_width=size, output_height=size)
+        png_bytes: bytes = svg2png(
+            url=str(svg_path), output_width=size, output_height=size
+        )
         img = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         return img
     except Exception as exc:
@@ -112,7 +114,9 @@ def ocr_single_char(img: Image.Image) -> Tuple[Optional[str], float]:
         ch = txt[0]
         # Try to get confidence via image_to_data (more robust)
         try:
-            data = pytesseract.image_to_data(bw, config=config, lang="eng", output_type=pytesseract.Output.DICT)
+            data = pytesseract.image_to_data(
+                bw, config=config, lang="eng", output_type=pytesseract.Output.DICT
+            )
             if "conf" in data and len(data["conf"]) > 0:
                 # conf list could be strings; convert safe
                 try:
@@ -130,7 +134,9 @@ def ocr_single_char(img: Image.Image) -> Tuple[Optional[str], float]:
         return None, 0.0
 
 
-def render_ascii_templates(chars: List[str], size: int = RENDER_SIZE) -> Dict[str, Image.Image]:
+def render_ascii_templates(
+    chars: List[str], size: int = RENDER_SIZE
+) -> Dict[str, Image.Image]:
     """Render ASCII char templates into grayscale images sized `size`×`size`.
 
     Centers glyphs robustly using textbbox/getsize/textsize depending on Pillow version.
@@ -186,7 +192,9 @@ def mse(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.mean(diff * diff))
 
 
-def template_match_char(img: Image.Image, templates: Dict[str, Image.Image]) -> Tuple[Optional[str], float]:
+def template_match_char(
+    img: Image.Image, templates: Dict[str, Image.Image]
+) -> Tuple[Optional[str], float]:
     """Return the best matching character and a crude confidence (1/(1+mse))."""
     gray = img.convert("L").resize((RENDER_SIZE, RENDER_SIZE), Image.NEAREST)
     a = np.asarray(gray).astype(np.float32)
@@ -290,7 +298,9 @@ def read_chart(md_path: Path) -> Tuple[List[str], Dict[str, ChartRow]]:
         alt = parts[3]
         notes = parts[4]
         # store raw strings (we preserve formatting when writing)
-        rows[png] = ChartRow(png=png, svg=svg, proposed_name=proposed, alternate=alt, notes=notes)
+        rows[png] = ChartRow(
+            png=png, svg=svg, proposed_name=proposed, alternate=alt, notes=notes
+        )
     return header, rows
 
 
@@ -299,7 +309,9 @@ def write_chart(md_path: Path, header: List[str], rows: Dict[str, ChartRow]) -> 
     out_lines: List[str] = []
     out_lines.extend(header)
     out_lines.append("")  # spacer
-    out_lines.append("png filename | svg filename | proposed_name | alternate_proposed_name | notes")
+    out_lines.append(
+        "png filename | svg filename | proposed_name | alternate_proposed_name | notes"
+    )
     out_lines.append("--- | --- | --- | --- | ---")
 
     def keyfn(k: str) -> int:
@@ -308,7 +320,9 @@ def write_chart(md_path: Path, header: List[str], rows: Dict[str, ChartRow]) -> 
 
     for png in sorted(rows.keys(), key=keyfn):
         r = rows[png]
-        out_lines.append(f"{r.png} | {r.svg} | {r.proposed_name} | {r.alternate} | {r.notes}")
+        out_lines.append(
+            f"{r.png} | {r.svg} | {r.proposed_name} | {r.alternate} | {r.notes}"
+        )
 
     md_path.write_text("\n".join(out_lines), encoding="utf8")
 
@@ -335,7 +349,13 @@ def update_keyboard_block(header: List[str], rows: Dict[str, ChartRow]) -> None:
             if png_name in rows:
                 rows[png_name].notes = note
             else:
-                rows[png_name] = ChartRow(png=png_name, svg=svg_name, proposed_name=f"kbd_unknown_{idx}", alternate=f"kbd_unknown_{idx}", notes=note)
+                rows[png_name] = ChartRow(
+                    png=png_name,
+                    svg=svg_name,
+                    proposed_name=f"kbd_unknown_{idx}",
+                    alternate=f"kbd_unknown_{idx}",
+                    notes=note,
+                )
             continue
 
         img = clean_tile_background(img)
@@ -377,12 +397,20 @@ def update_keyboard_block(header: List[str], rows: Dict[str, ChartRow]) -> None:
             row.alternate = alt
             row.notes = note
         else:
-            rows[png_name] = ChartRow(png=png_name, svg=svg_name, proposed_name=proposed, alternate=alt, notes=note)
+            rows[png_name] = ChartRow(
+                png=png_name,
+                svg=svg_name,
+                proposed_name=proposed,
+                alternate=alt,
+                notes=note,
+            )
 
 
 def main() -> None:
     if not GLYPH_CHART.exists():
-        raise RuntimeError("glyph_name_chart.md not found; run initial pass first and place the file in fonts/")
+        raise RuntimeError(
+            "glyph_name_chart.md not found; run initial pass first and place the file in fonts/"
+        )
     header, rows = read_chart(GLYPH_CHART)
 
     # Immediate manual correction from user: classic_roguelike_03 is a plant tile
@@ -397,7 +425,9 @@ def main() -> None:
 
     # Write updated chart back
     write_chart(GLYPH_CHART, header, rows)
-    print(f"Updated {GLYPH_CHART} for keyboard block {KBD_RANGE.start}..{KBD_RANGE.stop - 1}")
+    print(
+        f"Updated {GLYPH_CHART} for keyboard block {KBD_RANGE.start}..{KBD_RANGE.stop - 1}"
+    )
 
 
 if __name__ == "__main__":

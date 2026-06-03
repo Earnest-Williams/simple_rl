@@ -18,6 +18,7 @@ from scipy.spatial import KDTree  # type: ignore[import-untyped]
 # Import GameRNG using relative path (assuming main.py is in parent dir)
 # Fallback removed
 from utils.game_rng import GameRNG
+
 DEFAULT_INITIAL_PROBABILITY = 100.0
 DEPTH_METERS_PER_LEVEL_RANGE = (4.0, 6.0)
 SEGMENT_LENGTH_RANGE = (25.0, 35.0)

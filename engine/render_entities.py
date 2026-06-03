@@ -6,6 +6,7 @@ import numpy as np
 # Fallback removed
 from numba import njit, uint8
 from numba.typed import Dict as NumbaDict
+
 _NUMBA_AVAILABLE = True
 
 

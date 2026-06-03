@@ -410,7 +410,7 @@ def test_update_perception_fields_uses_loudest_noise_for_production_flow() -> No
         enable_sound=False,
         enable_ai=False,
     )
-    
+
     # We can use namedtuples from perception_systems or simple tuples.
     # The codebase usually uses tuples or dict-like for legacy compatibility in tests.
     # Since existing tests use tuples, we'll use tuples but pad them if needed.
@@ -444,11 +444,11 @@ def test_update_perception_fields_resets_noise_flow_when_no_noise_events() -> No
         enable_sound=False,
         enable_ai=False,
     )
-    
+
     # Fill with dummy value
     game_state.perception_cave_cost.fill(42)
     game_state.update_perception_fields(include_player_scent=False)
-    
+
     infinity = np.iinfo(np.int32).max // 2
     assert np.all(game_state.perception_cave_cost == infinity)
 
@@ -468,12 +468,14 @@ def test_update_perception_fields_appends_player_scent_in_production_turn() -> N
         enable_sound=False,
         enable_ai=False,
     )
-    
+
     game_state.update_perception_fields(include_player_scent=True)
     assert get_scent(game_state.perception_cave_when, 2, 2) > 0
 
 
-def test_update_perception_fields_latest_scent_event_wins_for_production_scent() -> None:
+def test_update_perception_fields_latest_scent_event_wins_for_production_scent() -> (
+    None
+):
     game_map = GameMap(width=7, height=7)
     game_map.tiles[:, :] = TILE_ID_FLOOR
     game_map.update_tile_transparency()
@@ -488,7 +490,7 @@ def test_update_perception_fields_latest_scent_event_wins_for_production_scent()
         enable_sound=False,
         enable_ai=False,
     )
-    
+
     game_state.scent_events.extend(
         [
             (1, 1, 5.0),
@@ -497,12 +499,14 @@ def test_update_perception_fields_latest_scent_event_wins_for_production_scent()
     )
 
     game_state.update_perception_fields(include_player_scent=False)
-    
+
     assert get_scent(game_state.perception_cave_when, 4, 4) > 0
     assert get_scent(game_state.perception_cave_when, 1, 1) == 0
 
 
-def test_gather_perception_does_not_add_automatic_player_scent_for_legacy_callers() -> None:
+def test_gather_perception_does_not_add_automatic_player_scent_for_legacy_callers() -> (
+    None
+):
     game_map = GameMap(width=7, height=7)
     game_map.tiles[:, :] = TILE_ID_FLOOR
     game_map.update_tile_transparency()
@@ -517,9 +521,9 @@ def test_gather_perception_does_not_add_automatic_player_scent_for_legacy_caller
         enable_sound=False,
         enable_ai=False,
     )
-    
+
     game_state.scent_events.append((4, 4, 5.0))
     gather_perception(game_state)
-    
+
     assert get_scent(game_state.perception_cave_when, 4, 4) > 0
     assert get_scent(game_state.perception_cave_when, 1, 1) == 0

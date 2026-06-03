@@ -77,7 +77,6 @@ def update_memory_fade(
     needs_update_mask[ys, xs] = memory_intensity[ys, xs] > 0.0
 
 
-
 BASE_INTELLIGENCE: Final[int] = 10
 MIN_INTELLIGENCE: Final[int] = 1
 MAX_INTELLIGENCE: Final[int] = 30

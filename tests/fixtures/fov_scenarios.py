@@ -56,9 +56,7 @@ def fov_from_transparency(
     )
 
 
-def bresenham_line(
-    x0: int, y0: int, x1: int, y1: int
-) -> Iterator[tuple[int, int]]:
+def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[tuple[int, int]]:
     """Yield intermediate ``(x, y)`` cells along a Bresenham line.
 
     The endpoint ``(x1, y1)`` is **not** yielded; the origin ``(x0, y0)`` is

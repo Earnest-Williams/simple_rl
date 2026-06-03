@@ -65,6 +65,7 @@ def _get_tile_id_for_name(tile_name: str) -> int:
     """Look up tile ID from the glyph registry."""
     # Fallback removed
     from engine.glyphs import tile_id_for
+
     result = tile_id_for(tile_name, None)
     return result if result is not None else 13  # fallback to blank_tile_a
 

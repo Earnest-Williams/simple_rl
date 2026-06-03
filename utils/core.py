@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 # Fallback removed
 import polars as pl
+
 POLARS_AVAILABLE = True
 
 if TYPE_CHECKING:

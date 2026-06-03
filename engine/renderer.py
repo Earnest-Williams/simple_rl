@@ -30,6 +30,7 @@ from .render_lighting import LightingRenderer
 # Fallback removed
 from numba import types as nb_types
 from numba.typed import Dict as NumbaDict
+
 _NUMBA_AVAILABLE = True
 
 # Local Application Imports

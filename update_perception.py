@@ -1,9 +1,11 @@
 import sys
 import re
 
+
 def update_readme():
     with open("pathfinding/README.md", "a") as f:
-        f.write("""
+        f.write(
+            """
 ## Production Flow and Scent Contract
 
 ### Flow slices
@@ -87,7 +89,9 @@ AI consumers should treat production perception as compact turn-level facts:
   maps. They are not the authoritative pathfinding flow contract.
 - AI should not assume that every queued noise or scent event becomes a distinct
   production source.
-""")
+"""
+        )
+
 
 def update_game_state():
     with open("game/game_state.py", "r") as f:
@@ -114,9 +118,11 @@ def update_game_state():
     with open("game/game_state.py", "w") as f:
         f.write(content)
 
+
 def update_tests():
     with open("tests/test_perception_systems.py", "a") as f:
-        f.write("""
+        f.write(
+            """
 
 def test_update_perception_fields_uses_loudest_noise_for_production_flow() -> None:
     game_map = GameMap(width=7, height=7)
@@ -246,7 +252,9 @@ def test_gather_perception_does_not_add_automatic_player_scent_for_legacy_caller
     
     assert get_scent(game_state.perception_cave_when, 4, 4) > 0
     assert get_scent(game_state.perception_cave_when, 1, 1) == 0
-""")
+"""
+        )
+
 
 if __name__ == "__main__":
     update_readme()
