@@ -191,6 +191,9 @@ class SoundManager:
         if not isinstance(candidate, np.ndarray):
             log.warning("Ignoring non-array flow-cost map in sound context")
             return None
+        if candidate.ndim != 2:
+            log.warning("Ignoring flow-cost map with invalid dimensions (must be 2D)")
+            return None
         if not np.issubdtype(candidate.dtype, np.integer):
             log.warning(
                 "Ignoring non-integer sound attenuation map; pass flow_cost_map "

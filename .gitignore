@@ -131,3 +131,6 @@ processed_cave_data.json
 shaped_dungeon_map.arrow
 debug_*.png
 stitched_debug_grid.png
+
+# Backup files
+*.bak
