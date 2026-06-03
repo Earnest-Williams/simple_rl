@@ -1,7 +1,4 @@
-"""Advanced lighting tests for directional/cone behavior, cone softness, channel masking, per-side RGBA, premultiplied normalization, and cache invalidation.
-
-Conforms to Phase 2 requirements of the retire lights_dev plan.
-"""
+"""Advanced lighting tests for directional/cone behavior, cone softness, channel masking, per-side RGBA, premultiplied normalization, and cache invalidation."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 """Tests for LightContributionCache and RGBBlendPolicy.
 
 Validates Phase 3 (per-light contribution cache) and Phase 4 (RGB blend
-policy) implemented in ``engine.render_lighting``.  No ``lights_dev``
+policy) implemented in ``engine.render_lighting``.
 imports.
 """
 
@@ -130,7 +130,7 @@ def test_single_light_lights_adjacent_cells() -> None:
     for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
         assert np.any(
             contrib[7 + dy, 7 + dx] > 0
-        ), f"Adjacent cell ({7+dy},{7+dx}) should be lit"
+        ), f"Adjacent cell ({7 + dy},{7 + dx}) should be lit"
 
 
 def test_single_light_does_not_cross_wall() -> None:

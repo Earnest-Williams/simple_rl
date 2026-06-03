@@ -16,7 +16,6 @@ High-level map of the Simple RL codebase.  Each module has its own
 | `engine/` | Rendering, lighting, FOV, window management | — |
 | `game/` | Main game engine: combat, movement, AI, effects, entities, world | — |
 | `game/skills/` | Skill system integration with game engine | [`game/skills/README.md`](../game/skills/README.md) |
-| `lights_dev/` | Frozen historical lighting/FOV/memory R&D pending deletion checks | [`docs/LIGHTING_FOV_MEMORY_STATUS.md`](./LIGHTING_FOV_MEMORY_STATUS.md) |
 | `magic/` | Spell system with Brainfuck interpreter backends | — |
 | `pathfinding/` | Perception systems: noise & scent propagation | [`pathfinding/README.md`](../pathfinding/README.md) |
 | `scripts/` | CLI tools, validators, linters, sync scripts | — |

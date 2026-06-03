@@ -282,24 +282,6 @@ def test_game_perception_ages_production_scent_once_for_multiple_events() -> Non
     assert get_scent(game_state.perception_cave_when, 1, 1) == 0
 
 
-def test_production_code_does_not_import_lights_dev() -> None:
-    production_roots = [
-        Path("pathfinding"),
-        Path("game"),
-        Path("common"),
-        Path("utils"),
-    ]
-
-    offenders: list[Path] = []
-    for root in production_roots:
-        for path in root.rglob("*.py"):
-            text = path.read_text(encoding="utf-8")
-            if "lights_dev" in text:
-                offenders.append(path)
-
-    assert offenders == []
-
-
 def test_monster_perception_is_deterministic_and_filters_dead_monsters() -> None:
     terrain_map = _floor_map(5, 5)
     cave_cost, flow_centers = _flow_arrays(5, 5)

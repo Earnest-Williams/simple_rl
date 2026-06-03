@@ -413,7 +413,6 @@ rgb += color_rgb * attenuation       # additive RGB policy, clamped on composite
 2. ✅ Duplicate dungeon generators removed (kept `Dungeon/` production version)
 3. ✅ Core GOAP integrated successfully
 4. 🔄 Complete Community NPC AI integration when ready
-5. 🔒 `lights_dev/` is frozen — production parity is migrated; delete only after full-suite and smoke evidence is recorded
 
 ### Priority 2: Documentation & Consistency
 1. ✅ Document integration status clearly (completed in this update)
@@ -562,19 +561,6 @@ Spell Definition (magic/work parser)
 - `worldgen/game_rng.py` is a compatibility re-export for world-generation modules.
 - There is no root-level `game_rng.py` in the current tree.
 
-#### 2. lights_dev/ Historical Development Environment is Frozen ⚠️
-
-**Status:** The `lights_dev/` R&D environment is frozen pending deletion checks. Production FOV, lighting, and memory behavior has migrated to `game/world/light_fov.py`, `engine/render_lighting.py`, and `game/world/memory.py`.
-
-**Location:** `lights_dev/` historical development environment
-
-**Impact:**
-- Do not add new production imports from `lights_dev/`
-- Run production diagnostics and tests instead of extending the R&D testbed
-- For complex dungeon development, the production `Dungeon/` pipeline should be used
-
-**Note:** `lights_dev/` deletion remains blocked on documented full-suite and manual/generated-dungeon smoke evidence. See `docs/LIGHTING_FOV_MEMORY_STATUS.md`.
-
 ---
 
 ## UNINTEGRATED SYSTEMS
@@ -616,51 +602,8 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ---
 
-### 2. Lighting/FOV/Memory R&D Environment 🔒 FROZEN — PENDING RETIREMENT
 
-**Location:** `lights_dev/` directory
-
-> **`lights_dev` is frozen R&D pending retirement.** Do not add production imports from it.
-> Production-ready behavior is now owned by `engine/render_lighting.py`,
-> `game/world/light_fov.py`, `game/world/fov.py`, `game/world/los.py`,
-> `game/world/memory.py`, and `game/game_state.py`. See
-> `docs/ADR/0005-lights-dev-retirement.md` and
-> `docs/LIGHTING_FOV_MEMORY_STATUS.md` before deleting the folder.
->
-> **Ownership boundaries:**
-> - `engine/render_lighting.py` — production lighting owner
-> - `game/world/light_fov.py` — advanced side-bit/cone/channel FOV owner
-> - `game/world/fov.py` and `game/world/los.py` — gameplay FOV/LOS owners
-> - `game/world/memory.py`, `game/world/game_map.py`, and `game/game_state.py` — memory fade and trait orchestration owners
-
-**Purpose:** R&D environment for advanced visual and memory systems (historical)
-
-**Sophistication:** High
-- Octant-based shadowcasting FOV (Numba-accelerated)
-- Dynamic colored lighting with side-aware additive RGB accumulation
-- Multi-source contribution caching with removal and geometry invalidation
-- Sigmoid memory fade influenced by traits, memory strength, and tile modifiers
-
-**Status:**
-- 🔒 **Frozen** — no new production imports allowed
-- ✅ **Production parity migrated** for lighting, FOV, diagnostics, and memory traits
-- 🗑️ **Planned for deletion** only after full-suite and manual/generated-dungeon smoke evidence is recorded
-
-**Migration Map:**
-
-| lights_dev source | Production target | Status |
-|---|---|---|
-| `lighting.py::LightContext` cache | `engine/render_lighting.py::LightContributionCache` | Migrated |
-| `lighting.py` RGB blending policy | `engine/render_lighting.py::RGBBlendPolicy` | Migrated |
-| `generate_varied_test.py` fixtures | `tests/fixtures/fov_scenarios.py`, `tests/fixtures/lighting_scenarios.py` | Migrated |
-| `memory.py::MemorySystem` | `game/world/memory.py`, `game/world/game_map.py`, `game/game_state.py` | Migrated |
-| `fov.py` side-bit FOV | `game/world/light_fov.py` | Migrated |
-| Diagnostic runner | `complete_light_diagnostic.py` using production APIs | Migrated |
-| R&D-only CLI/`GameState`/entities | — | Discard |
-
----
-
-### 3. GOAP AI Simulation Environment ✅ PARTIALLY INTEGRATED
+### 2. GOAP AI Simulation Environment ✅ PARTIALLY INTEGRATED
 
 **Location:** `auto/` directory
 
@@ -703,7 +646,7 @@ These systems exist in the codebase but are **NOT integrated** into the main gam
 
 ---
 
-### 4. Simulation Zone Manager ✅ INTEGRATED
+### 3. Simulation Zone Manager ✅ INTEGRATED
 
 **Location:** `simulation/zone_manager.py`
 
@@ -762,7 +705,6 @@ Repository root
 │   ├── main.py              # Headless runner
 │   ├── gui/                 # Visualization tool
 │   └── README.md
-├── lights_dev/              # Frozen lighting R&D pending deletion smoke checks
 │   ├── main_game.py         # Standalone development environment
 │   ├── dungeon_data.py      # Numba jitclass
 │   └── README.md
@@ -781,13 +723,12 @@ Repository root
 ### Cleanup Status
 
 **Moved (archived) (2026-01-16):**
-- ✅ No `legacy/dungeon_generator.py` or `legacy/lights_dev/dungeon_generator.py` files are present in the current tree.
+- ✅ No historical duplicate dungeon generator files are present in the current tree.
 - ✅ `prototypes/` - Entire directory (old prototypes, superseded implementations)
-  - Contained: lights_dev/, Dungeon/, ai/, pathfinding/, auto/ variants
+  - Contained multiple Dungeon, ai, pathfinding, and auto variants
 
 **Kept:**
 - ✅ `Dungeon/` (root) - Most sophisticated 3D generator
-- 🔒 `lights_dev/` - Frozen R&D, pending deletion after full-suite and manual/generated smoke checks
 - ✅ `auto/` - AI testing environment, core already integrated
 - ✅ `ai/` - Community NPC AI under development
 
@@ -819,9 +760,6 @@ The codebase has evolved from multiple merged projects and now has clear separat
 **R&D Systems (Not Yet Integrated):** 1 system with clear integration path
 - Community NPC AI (ai/v9.py) - Advanced trait-based behaviors
 
-**R&D Systems Pending Deletion:** 1 system
-- Lighting/FOV/Memory testbed (lights_dev/) - Production parity migrated; deletion waits on explicit smoke evidence
-
 **Test/Tuning Environments:** 1 environment
 - GOAP test harness (auto/) - Core already integrated, used for AI training
 
@@ -830,4 +768,3 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - Fix method name mismatches (render_frame, apply_overlays)
 - Implement caching and bulk operations to eliminate N+1 patterns
 - Add spatial indexing for entity queries
-- Record full-suite and generated/manual smoke evidence before deleting `lights_dev/`
