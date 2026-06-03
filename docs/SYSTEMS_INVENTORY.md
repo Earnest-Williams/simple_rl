@@ -415,7 +415,7 @@ intensity = max(0, (1 - distance/radius)^falloff_power)
 1. ✅ Document integration status clearly (completed in this update)
 2. ✅ Update README files to reflect current state (completed)
 3. 🔄 Document 3D → 2D conversion pipeline in detail
-4. 🔄 Create integration guide for perception → AI → pathfinding
+4. ✅ Integration complete for perception → AI → pathfinding
 5. 🔄 Document GameRNG usage patterns and best practices
 
 ### Priority 3: Address Performance Issues
@@ -461,7 +461,7 @@ Player/Monster actions
     - Decay models (scent: 90%, noise: 60%)
     - Radial falloff
   → AI Strategy System (game/ai/strategy.py)
-    - Reads flow fields + LOS
+    - Reads structured PerceptionSnapshot facts (LOS, Audio, Scent, Memory)
     - Selects behavior state (HOME, CHARGE, FLEE, SMART_KOBOLD)
   → GOAP Planner (game/ai/goap.py) or ML Policy (game/ai/ml_policy.py)
     - Generates action sequence

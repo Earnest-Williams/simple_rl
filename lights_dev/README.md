@@ -52,15 +52,15 @@ For a pygame/SDL loop, call `runner.step(dt)` each tick, then use
 `LightingSystem.compute_final_rgb_map(...)` to get an RGB buffer for blitting.
 
 **Current Status:**
-* ⚠️ **Active R&D**: Experimental systems being refined
-* ❌ **Not Integrated**: Standalone testbed separate from production engine
-* 🔄 **Planned Integration**: Systems will merge with main game rendering pipeline
+* 🔒 **Archived / Reference Only**: The algorithms here have been migrated or parity has been reached in the production engine. No new production imports should be made.
+* ❌ **Not Integrated**: Standalone testbed separate from production engine.
+* ✅ **Integration Complete**: Systems have merged with the main game rendering pipeline and production parity is settled.
 
 **Integration Roadmap:**
-1. Merge FOV algorithms into `game/world/fov.py`
-2. Integrate lighting system with `engine/render_lighting.py`
-3. Add memory fade to main rendering pipeline
-4. Connect memory system to agent traits
-5. Remove or archive standalone `main_game.py` after integration
+1. ✅ Merge FOV algorithms into `game/world/fov.py`
+2. ✅ Integrate lighting system with `engine/render_lighting.py`
+3. ✅ Add memory fade to main rendering pipeline
+4. 🔄 Connect memory system to agent traits (Deferred)
+5. 🗑️ Remove or archive standalone `main_game.py`
 
 The systems developed here are planned for integration into the main simulation, potentially combined with perception systems from `pathfinding/` under a unified orchestrator. The memory system might be separated due to its complexity and interactions with other game states.
