@@ -3,21 +3,10 @@
 
 import numpy as np
 
-try:
-    from numba import njit, uint8
-    from numba.typed import Dict as NumbaDict
-
-    _NUMBA_AVAILABLE = True
-except ImportError:
-    _NUMBA_AVAILABLE = False
-    NumbaDict = dict  # type: ignore
-
-    def njit(func=None, **options):  # type: ignore
-        if func:
-            return func
-        return lambda f: f
-
-    uint8 = np.uint8  # type: ignore
+# Fallback removed
+from numba import njit, uint8
+from numba.typed import Dict as NumbaDict
+_NUMBA_AVAILABLE = True
 
 
 # FIXED: Complete sentinel variable name

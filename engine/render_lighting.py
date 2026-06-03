@@ -13,162 +13,25 @@ from common.tuning import MEMORY_LEVEL_COUNT
 # x/y/radius/color/intensity attributes but do not share a common base class.
 LightSourceLike: TypeAlias = Any
 
-try:
-    from numba import float32, njit, uint8
-
-    _NUMBA_AVAILABLE = True
-except ImportError:
-    _NUMBA_AVAILABLE = False
-
-    def njit(*args, **options):  # type: ignore
-        """No-op jit; returns the decorated function unchanged."""
-        for a in args:
-            if callable(a):
-                return a
-        return lambda f: f
-
-    def float32(*args):  # type: ignore
-        """Fallback float32: casts a single value; multi-arg calls are numba
-        type-signature expressions (e.g. ``float32(float32, …)`` in ``@njit``
-        decorators) and intentionally return ``None`` so the surrounding
-        ``njit(None, …)`` call still yields a pass-through decorator."""
-        if len(args) == 1:
-            return np.float32(args[0])
-        return None  # numba signature sentinel — see njit fallback above
-
-    def uint8(*args):  # type: ignore
-        """Fallback uint8: same convention as float32 above."""
-        if len(args) == 1:
-            return np.uint8(args[0])
-        return None  # numba signature sentinel — see njit fallback above
+# Fallback removed
+from numba import float32, njit, uint8
+_NUMBA_AVAILABLE = True
 
 
-try:
-    from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
-except ImportError:
-    GameMap = object  # type: ignore
-    TILE_ID_FLOOR = 0  # type: ignore
-    TILE_ID_WALL = 1  # type: ignore
-    structlog.get_logger().error(
-        "CRITICAL: Failed to import tile IDs in render_lighting."
-    )
+# Fallback removed
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
-try:
-    from utils.game_rng import GameRNG
-except ImportError:
+# Fallback removed
+from utils.game_rng import GameRNG
 
-    class GameRNG:  # type: ignore
-        pass
-
-    structlog.get_logger().error(
-        "CRITICAL: Failed to import GameRNG in render_lighting."
-    )
-
-try:
-    from game.world.fov import (
-        _THRESHOLD_AT_CUTOFF,
-        CLOSE_RANGE_DIVISOR,
-        CLOSE_RANGE_SQ_THRESHOLD,
-        FAR_RANGE_DIVISOR,
-        compute_visibility,
-    )
-except ImportError:
-    CLOSE_RANGE_SQ_THRESHOLD = 16
-    CLOSE_RANGE_DIVISOR = 8
-    FAR_RANGE_DIVISOR = 16
-    _THRESHOLD_AT_CUTOFF = CLOSE_RANGE_SQ_THRESHOLD // CLOSE_RANGE_DIVISOR
-
-    def _fov_euclidean(oy: int, ox: int, y: int, x: int) -> float:
-        return math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
-
-    def compute_visibility(  # type: ignore[misc]  # conditional redefinition
-        height: int,
-        width: int,
-        *,
-        origin_y: int,
-        origin_x: int,
-        radius: int,
-        is_opaque: Callable[[int, int], bool],
-        distance: Callable[[int, int, int, int], float] | None = None,
-    ) -> set[tuple[int, int]]:
-        """Pure-Python shadowcasting FOV fallback."""
-        dist_fn = distance if distance is not None else _fov_euclidean
-        visible: set[tuple[int, int]] = set()
-
-        def blocks(cy: int, cx: int) -> bool:
-            return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
-
-        def mark(cy: int, cx: int) -> None:
-            if 0 <= cy < height and 0 <= cx < width:
-                visible.add((cy, cx))
-
-        def cast(
-            row: int,
-            start: float,
-            end: float,
-            xx: int,
-            xy: int,
-            yx: int,
-            yy: int,
-        ) -> None:
-            if start < end:
-                return
-            next_start = start
-            for distance_row in range(row, radius + 1):
-                dx = -distance_row
-                dy = -distance_row
-                blocked = False
-                while dx <= 0:
-                    dx += 1
-                    cx = origin_x + dx * xx + dy * xy
-                    cy = origin_y + dx * yx + dy * yy
-                    left_slope = (dx - 0.5) / (dy + 0.5)
-                    right_slope = (dx + 0.5) / (dy - 0.5)
-                    if start < right_slope:
-                        continue
-                    if end > left_slope:
-                        break
-                    if dist_fn(origin_y, origin_x, cy, cx) <= radius:
-                        mark(cy, cx)
-                    cell_blocks = blocks(cy, cx)
-                    if blocked:
-                        if cell_blocks:
-                            next_start = right_slope
-                            continue
-                        blocked = False
-                        start = next_start
-                    elif cell_blocks and distance_row < radius:
-                        blocked = True
-                        cast(
-                            distance_row + 1,
-                            start,
-                            left_slope,
-                            xx,
-                            xy,
-                            yx,
-                            yy,
-                        )
-                        next_start = right_slope
-                if blocked:
-                    break
-
-        mark(origin_y, origin_x)
-        for xx, xy, yx, yy in (
-            (1, 0, 0, 1),
-            (0, 1, 1, 0),
-            (0, -1, 1, 0),
-            (-1, 0, 0, 1),
-            (-1, 0, 0, -1),
-            (0, -1, -1, 0),
-            (0, 1, -1, 0),
-            (1, 0, 0, -1),
-        ):
-            cast(1, 1.0, 0.0, xx, xy, yx, yy)
-        return visible
-
-    structlog.get_logger().warning(
-        "FOV helper unavailable; using pure-Python colored-light fallback."
-    )
+# Fallback removed
+from game.world.fov import (
+    _THRESHOLD_AT_CUTOFF,
+    CLOSE_RANGE_DIVISOR,
+    CLOSE_RANGE_SQ_THRESHOLD,
+    FAR_RANGE_DIVISOR,
+    compute_visibility,
+)
 
 log = structlog.get_logger()
 

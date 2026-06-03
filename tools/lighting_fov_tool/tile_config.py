@@ -63,19 +63,10 @@ DEFAULT_ELEMENT_COLORS: Final[dict[ElementType, tuple[tuple[int, int, int], ...]
 
 def _get_tile_id_for_name(tile_name: str) -> int:
     """Look up tile ID from the glyph registry."""
-    try:
-        from engine.glyphs import tile_id_for
-
-        result = tile_id_for(tile_name, None)
-        return result if result is not None else 13  # fallback to blank_tile_a
-    except ImportError:
-        # Fallback tile IDs if engine not available
-        fallback_ids: dict[str, int] = {
-            "wall_stone_bricks": 38,
-            "blank_tile_a": 13,
-            "prop_pillar": 103,
-        }
-        return fallback_ids.get(tile_name, 13)
+    # Fallback removed
+    from engine.glyphs import tile_id_for
+    result = tile_id_for(tile_name, None)
+    return result if result is not None else 13  # fallback to blank_tile_a
 
 
 @dataclass

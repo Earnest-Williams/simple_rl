@@ -12,87 +12,8 @@ from collections.abc import Iterator
 import numpy as np
 from numpy.typing import NDArray
 
-try:
-    from game.world.fov import compute_visibility
-except ImportError:
-    # Pure-Python shadowcasting fallback for environments without numba.
-    # Mirrors the logic of game.world.fov.compute_visibility so tests run
-    # without the numba dependency.
-    def _euclidean(oy: int, ox: int, y: int, x: int) -> float:
-        return _math.sqrt((y - oy) ** 2 + (x - ox) ** 2)
-
-    def compute_visibility(  # type: ignore[misc]  # conditional redefinition
-        height: int,
-        width: int,
-        *,
-        origin_y: int,
-        origin_x: int,
-        radius: int,
-        is_opaque,
-        distance=None,
-    ):
-        """Callback shadowcasting — pure-Python fallback (no numba)."""
-        distance_fn = distance if distance is not None else _euclidean
-        visible: set[tuple[int, int]] = set()
-
-        def blocks(cy: int, cx: int) -> bool:
-            return not (0 <= cy < height and 0 <= cx < width) or is_opaque(cy, cx)
-
-        def mark(cy: int, cx: int) -> None:
-            if 0 <= cy < height and 0 <= cx < width:
-                visible.add((cy, cx))
-
-        def cast(  # noqa: PLR0912 — recursive shadowcasting octant sweep
-            row: int, start: float, end: float,
-            xx: int, xy: int, yx: int, yy: int,
-        ) -> None:
-            if start < end:
-                return
-            nstart = start
-            for d in range(row, radius + 1):
-                dx, dy = -d, -d
-                blocked = False
-                while dx <= 0:
-                    dx += 1
-                    cx = origin_x + dx * xx + dy * xy
-                    cy = origin_y + dx * yx + dy * yy
-                    ls = (dx - 0.5) / (dy + 0.5)
-                    rs = (dx + 0.5) / (dy - 0.5)
-                    if start < rs:
-                        continue
-                    if end > ls:
-                        break
-                    if distance_fn(origin_y, origin_x, cy, cx) <= radius:
-                        mark(cy, cx)
-                    cell_blocks = blocks(cy, cx)
-                    if blocked:
-                        if cell_blocks:
-                            nstart = rs
-                            continue
-                        blocked = False
-                        start = nstart
-                    elif cell_blocks and d < radius:
-                        blocked = True
-                        cast(d + 1, start, ls, xx, xy, yx, yy)
-                        nstart = rs
-                if blocked:
-                    break
-
-        mark(origin_y, origin_x)
-        # (xx, xy, yx, yy) — coordinate transforms for each of the 8 octants:
-        #   E, SE, S, SW, W, NW, N, NE
-        for xx, xy, yx, yy in (
-            ( 1,  0,  0,  1),  # E
-            ( 0,  1,  1,  0),  # SE
-            ( 0, -1,  1,  0),  # S
-            (-1,  0,  0,  1),  # SW
-            (-1,  0,  0, -1),  # W
-            ( 0, -1, -1,  0),  # NW
-            ( 0,  1, -1,  0),  # N
-            ( 1,  0,  0, -1),  # NE
-        ):
-            cast(1, 1.0, 0.0, xx, xy, yx, yy)
-        return visible
+# Fallback removed
+from game.world.fov import compute_visibility
 
 
 # ---------------------------------------------------------------------------

@@ -25,22 +25,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 # Import the actual modules
-try:
-    from lights_dev import constants
-    from lights_dev.dungeon_data import Dungeon
-    from lights_dev.entities import LightSource
-    from lights_dev.lighting import LightContext, Light
-    from lights_dev.fov import compute_fov_all_octants
-    print("✓ Successfully imported all modules")
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    print("\nMake sure the following files are in /mnt/user-data/uploads:")
-    print("  - constants.py")
-    print("  - dungeon_data.py")
-    print("  - entities.py")
-    print("  - lighting.py (NEW corrected version)")
-    print("  - fov.py")
-    sys.exit(1)
+# Fallback removed
+from lights_dev import constants
+from lights_dev.dungeon_data import Dungeon
+from lights_dev.entities import LightSource
+from lights_dev.lighting import LightContext, Light
+from lights_dev.fov import compute_fov_all_octants
+print("✓ Successfully imported all modules")
 
 
 def create_simple_test_scene() -> tuple[Dungeon, LightSource, int, int]:

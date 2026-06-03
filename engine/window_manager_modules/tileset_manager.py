@@ -14,25 +14,17 @@ import structlog
 from PIL import Image
 
 # Numba imports with fallback
-try:
-    from numba import types as nb_types
-    from numba.typed import Dict as NumbaTypedDict
-
-    _NUMBA_AVAILABLE = True
-except ImportError:
-    _NUMBA_AVAILABLE = False
-    nb_types = None
-    NumbaTypedDict = dict
+# Fallback removed
+from numba import types as nb_types
+from numba.typed import Dict as NumbaTypedDict
+_NUMBA_AVAILABLE = True
 
 # Local Application Imports
 from engine.tileset_loader import load_tiles
 
 # Ensure GameMap and TILE_TYPES can be imported
-try:
-    from game.world.game_map import TILE_TYPES
-except ImportError:
-    TILE_TYPES = {}
-    structlog.get_logger().error("Could not import TILE_TYPES for TilesetManager.")
+# Fallback removed
+from game.world.game_map import TILE_TYPES
 
 log = structlog.get_logger(__name__)
 

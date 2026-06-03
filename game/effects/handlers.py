@@ -18,15 +18,8 @@ from ..systems.death_system import handle_entity_death
 from ..world import line_of_sight
 
 # Import sound system for audio feedback
-try:
-    from ..systems.sound import handle_event, play_sound
-except ImportError:
-    # Fallback if sound system is not available
-    def handle_event(event_name: str, context=None):
-        pass
-
-    def play_sound(effect_name: str, context=None):
-        return False
+# Fallback removed
+from ..systems.sound import handle_event, play_sound
 
 
 if TYPE_CHECKING:
@@ -594,11 +587,8 @@ def dig_tunnel(context: dict[str, Any], params: dict[str, Any]) -> None:
         return
 
     # Corrected import path
-    try:
-        from ..world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
-    except ImportError:
-        log.error("Could not import TILE_ID constants for digging.")
-        return
+    # Fallback removed
+    from ..world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
 
     start_pos = gs.entity_registry.get_position(source_entity_id)
     if not start_pos:

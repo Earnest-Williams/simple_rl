@@ -18,64 +18,28 @@ from numba import njit
 from common.constants import Material
 
 # Import GameRNG using relative path
-try:
-    # Adjust path relative to main.py's location
-    from utils.game_rng import GameRNG
-except ImportError:
-    # Fallback for running shaper.py directly for tests (requires PYTHONPATH)
-    print(
-        "Warning: Relative import failed. Ensure PYTHONPATH includes project root "
-        "or run via main.py."
-    )
-    try:
-        from utils.game_rng import GameRNG  # type: ignore # noqa
-    except ImportError:
-        print("FATAL: GameRNG not found via absolute path either.")
-        raise
-
-# === Dependency Imports ===
-try:
-    from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
-    from scipy.signal import convolve2d  # type: ignore[import-untyped]
-
-    HAS_SCIPY = True
-except ImportError:
-    print("Warning: SciPy not found. CA and Chamber ID calculation will be limited.")
-    HAS_SCIPY = False
-
-    # Define dummy label if SciPy not found to avoid NameError
-    def ndi_label(*args, **kwargs):  # type: ignore # noqa
-        print("Warning: SciPy not found, returning dummy labels.")
-        # Return dummy grid of zeros and 0 labels
-        if args and isinstance(args[0], np.ndarray):
-            return np.zeros_like(args[0], dtype=int), 0
-        return np.array([[]], dtype=int), 0
+# Fallback removed
+from utils.game_rng import GameRNG
+from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
+from scipy.signal import convolve2d  # type: ignore[import-untyped]
+HAS_SCIPY = True
 
 
-try:
-    from skimage.draw import disk as sk_draw_disk
-    from skimage.draw import ellipse as sk_ellipse
-    from skimage.draw import line as sk_line
-    from skimage.draw import polygon as sk_polygon
+# Fallback removed
+from skimage.draw import disk as sk_draw_disk
+from skimage.draw import ellipse as sk_ellipse
+from skimage.draw import line as sk_line
+from skimage.draw import polygon as sk_polygon
+# Fallback removed
+from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
+HAS_ELLIPSE_PERIMETER = True
+from skimage.morphology import dilation as sk_morphology_dilation
+from skimage.morphology import disk as sk_morphology_disk
 
-    try:
-        from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
+HAS_SKIMAGE = True
+pt ImportError:
+print("ERROR: scikit-image not found. Rasterization/Morphology cannot proceed.")
 
-        HAS_ELLIPSE_PERIMETER = True
-    except ImportError:
-        HAS_ELLIPSE_PERIMETER = False
-        print("Info: skimage.draw.ellipse_perimeter not found (optional).")
-    from skimage.morphology import dilation as sk_morphology_dilation
-    from skimage.morphology import disk as sk_morphology_disk
-
-    HAS_SKIMAGE = True
-except ImportError:
-    print("ERROR: scikit-image not found. Rasterization/Morphology cannot proceed.")
-    HAS_SKIMAGE = False  # Essential for drawing
-
-# Removed perlin-noise import
-# try:
-#     from perlin_noise import PerlinNoise
 #     HAS_PERLIN = True
 # except ImportError:
 #     HAS_PERLIN = False # Noise blobs will fallback
@@ -1125,26 +1089,20 @@ def generate_shaped_cave(  # Added rng parameter
     save_debug_images = True
     if save_debug_images:
         print("\n--- Stage: Saving Debug Images ---")
-        try:
-            import matplotlib.pyplot as plt  # Local import
-
-            def save_img(filename, data, cmap):
-                if np.any(data != 0) and np.any(
-                    np.isfinite(data)
-                ):  # Avoid saving empty/all-NaN
-                    plt.imsave(filename, np.nan_to_num(data), cmap=cmap)
-                    print(f"Saved {filename}")
-                else:
-                    print(f"Skipping save of empty/invalid {filename}.")
-
-            save_img("debug_initial_grid.png", initial_grid, cmap="viridis")
-            save_img("debug_final_grid.png", final_grid, cmap="viridis")
-            save_img("debug_depth_grid.png", depth_grid, cmap="magma")
-            save_img("debug_type_grid.png", type_grid, cmap="tab20")
-        except ImportError:
-            print("Warning: Install matplotlib to save debug images.")
-        except Exception as e:
-            print(f"Error saving debug images: {e}")
+        # Fallback removed
+        import matplotlib.pyplot as plt  # Local import
+        def save_img(filename, data, cmap):
+            if np.any(data != 0) and np.any(
+                np.isfinite(data)
+            ):  # Avoid saving empty/all-NaN
+                plt.imsave(filename, np.nan_to_num(data), cmap=cmap)
+                print(f"Saved {filename}")
+            else:
+                print(f"Skipping save of empty/invalid {filename}.")
+        save_img("debug_initial_grid.png", initial_grid, cmap="viridis")
+        save_img("debug_final_grid.png", final_grid, cmap="viridis")
+        save_img("debug_depth_grid.png", depth_grid, cmap="magma")
+        save_img("debug_type_grid.png", type_grid, cmap="tab20")
 
     print("\n--- Stage: Creating DataFrame ---")
     # Pass rng down

@@ -9,12 +9,9 @@ from lights_dev import constants
 from lights_dev.game_state import find_path
 from lights_dev.runner import GameRunner
 
-try:
-    import readchar
-
-    READCHAR_AVAILABLE = True
-except ImportError:
-    READCHAR_AVAILABLE = False
+# Fallback removed
+import readchar
+READCHAR_AVAILABLE = True
 
 
 def run_simulation() -> None:

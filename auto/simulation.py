@@ -12,24 +12,8 @@ from collections import defaultdict, deque
 from typing import Final
 
 # --- Use relative imports for project modules ---
-try:
-    from utils.game_rng import GameRNG
-except ImportError:
-    print("Warning: Could not import GameRNG. Using dummy.", file=sys.stderr)
-
-    # Define dummy if needed for standalone testing, but main path needs real one
-    class GameRNG:  # type: ignore # noqa
-        def get_int(self, a, b):
-            return (a + b) // 2
-
-        def choice(self, seq):
-            return seq[0] if seq else None
-
-        def shuffle(self, seq):
-            pass
-
-        def get_float(self, a=0.0, b=1.0):
-            return (a + b) / 2.0
+# Fallback removed
+from utils.game_rng import GameRNG
 
 
 # --- NumPy for potential future use ---
@@ -40,20 +24,8 @@ import polars as pl
 from .goap_engine import Action
 
 # --- Numba JIT Compiler ---
-try:
-    from numba import njit
-except ImportError:
-    print(
-        "Warning: Numba not found, distance calculation will be slower.",
-        file=sys.stderr,
-    )
-
-    # Dummy decorator if Numba not available
-    def njit(func=None, **options):  # type: ignore # noqa
-        if func:
-            return func
-        else:
-            return lambda f: f
+# Fallback removed
+from numba import njit
 
 
 # --- Type Hinting Aliases (Using modern types where possible) ---

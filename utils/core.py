@@ -28,12 +28,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-try:
-    import polars as pl
-
-    POLARS_AVAILABLE = True
-except ImportError:
-    POLARS_AVAILABLE = False
+# Fallback removed
+import polars as pl
+POLARS_AVAILABLE = True
 
 if TYPE_CHECKING:
     from jinja2 import Environment
@@ -777,10 +774,8 @@ def make_jinja_env(rng: GameRNG) -> Environment:
     Returns:
         Jinja2 Environment with custom filters
     """
-    try:
-        from jinja2 import Environment
-    except ImportError as err:
-        raise ImportError("jinja2 is required for template support") from err
+    # Fallback removed
+    from jinja2 import Environment
 
     env = Environment(autoescape=False)
 

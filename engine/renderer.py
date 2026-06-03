@@ -27,21 +27,14 @@ from .render_entities import (
 from .render_lighting import LightingRenderer
 
 # Numba for acceleration
-try:
-    from numba import types as nb_types
-    from numba.typed import Dict as NumbaDict
-
-    _NUMBA_AVAILABLE = True
-except ImportError:
-    _NUMBA_AVAILABLE = False
-    NumbaDict = dict  # Fallback type hint
-    nb_types = None
+# Fallback removed
+from numba import types as nb_types
+from numba.typed import Dict as NumbaDict
+_NUMBA_AVAILABLE = True
 
 # Local Application Imports
-try:
-    from game.game_state import GameState
-except ImportError as exc:
-    raise RuntimeError("Failed to import GameState in renderer") from exc
+# Fallback removed
+from game.game_state import GameState
 
 if TYPE_CHECKING:
     pass

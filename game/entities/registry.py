@@ -14,15 +14,8 @@ from skills.registry_integration import SKILL_TABLE_SCHEMA, SkillSystemMixin
 if TYPE_CHECKING:
     pass
 
-try:
-    from game.items.registry import BodySlotType, EquipSlot
-except ImportError:
-    log = structlog.get_logger()
-    log.error(
-        "CRITICAL: Could not import EquipSlot/BodySlotType from game.items.registry."
-    )
-    EquipSlot = Any
-    BodySlotType = Any
+# Fallback removed
+from game.items.registry import BodySlotType, EquipSlot
 
 log = structlog.get_logger()
 

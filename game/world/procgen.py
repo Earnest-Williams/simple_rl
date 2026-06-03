@@ -6,19 +6,11 @@ from typing import NamedTuple
 import numpy as np
 import structlog
 
-try:
-    from utils.game_rng import GameRNG
-except ImportError as e:
-    structlog.get_logger().error("CRITICAL: GameRNG class not found.", error=str(e))
-    raise
+# Fallback removed
+from utils.game_rng import GameRNG
 
-try:
-    from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
-except ImportError as e:
-    structlog.get_logger().error(
-        "CRITICAL: GameMap class or TILE_ID_FLOOR not found.", error=str(e)
-    )
-    raise
+# Fallback removed
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
 
 log = structlog.get_logger()

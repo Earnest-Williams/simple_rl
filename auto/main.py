@@ -190,21 +190,9 @@ if __name__ == "__main__":
     # --- GUI Mode ---
     if args.mode == "gui":
         print("Starting GUI Mode...")
-        try:
-            from PySide6.QtWidgets import QApplication
-
-            # Use relative import for GUI components when run as module
-            from .gui.main_window import MainWindow
-        except ImportError:
-            print(
-                "Error: Could not import GUI components. Ensure PySide6 is installed.",
-                file=sys.stderr,
-            )
-            print(
-                "If running directly, ensure script is in the correct directory.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        # Fallback removed
+        from PySide6.QtWidgets import QApplication
+        from .gui.main_window import MainWindow
 
         try:
             app = QApplication(sys.argv)

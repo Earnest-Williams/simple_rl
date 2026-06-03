@@ -291,6 +291,8 @@ Before adding a dependency:
 * Keep dependency changes focused.
 * Update project configuration and documentation if a dependency is added.
 
+* Never use fallback patterns (e.g., `try ... except ImportError`) for core dependencies like `numba`, `numpy`, or `polars`. They are guaranteed to be available, and fallbacks only introduce new failure points and complication.
+
 ### 1.13 Documentation
 
 When changing behavior, update relevant documentation.

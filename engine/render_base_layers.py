@@ -3,13 +3,8 @@
 import numpy as np
 import structlog
 
-try:
-    from game.world.game_map import GameMap
-except ImportError:
-    GameMap = object  # type: ignore
-    structlog.get_logger().error(
-        "CRITICAL: Failed to import GameMap in render_base_layers."
-    )
+# Fallback removed
+from game.world.game_map import GameMap
 
 log = structlog.get_logger()
 

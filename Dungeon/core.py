@@ -16,24 +16,8 @@ import numpy as np
 from scipy.spatial import KDTree  # type: ignore[import-untyped]
 
 # Import GameRNG using relative path (assuming main.py is in parent dir)
-try:
-    # Adjust path relative to main.py's location
-    from utils.game_rng import GameRNG
-except ImportError:
-    # Fallback for running core.py directly for tests (requires PYTHONPATH)
-    print(
-        "Warning: Relative import failed. Ensure PYTHONPATH includes project root "
-        "or run via main.py."
-    )
-    # Attempt absolute import for direct execution scenario
-    try:
-        from utils.game_rng import GameRNG  # type: ignore # noqa
-    except ImportError:
-        print("FATAL: GameRNG not found via absolute path either.")
-        raise
-
-# --- Core Generation Constants ---
-# (Keep all constants as they were)
+# Fallback removed
+from utils.game_rng import GameRNG
 DEFAULT_INITIAL_PROBABILITY = 100.0
 DEPTH_METERS_PER_LEVEL_RANGE = (4.0, 6.0)
 SEGMENT_LENGTH_RANGE = (25.0, 35.0)

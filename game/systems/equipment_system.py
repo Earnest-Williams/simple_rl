@@ -17,27 +17,9 @@ from game.entities.components import Inventory
 
 # Import specific types needed from other modules
 # Ensure these imports work correctly based on your project structure
-try:
-    from game.entities.registry import EntityRegistry
-    from game.items.registry import BodySlotType, EquipSlot, ItemLocation, ItemRegistry
-except ImportError as e:
-    # Define logger early for import errors
-    # Note: Basic config might be needed if structlog isn't fully configured yet
-    import logging
-
-    logging.basicConfig(level=logging.ERROR)
-    log_fallback = logging.getLogger(__name__)
-    log_fallback.error(
-        f"CRITICAL: Failed to import registry types in equipment_system: {e}"
-    )
-    # Define dummy types to prevent NameErrors during parsing, but expect runtime failures
-    EquipSlot = Any
-    ItemLocation = Any
-    BodySlotType = Any
-    EntityRegistry = Any
-    ItemRegistry = Any
-    # Fallback logger if full structlog isn't ready
-    log = log_fallback
+# Fallback removed
+from game.entities.registry import EntityRegistry
+from game.items.registry import BodySlotType, EquipSlot, ItemLocation, ItemRegistry
 
 
 if TYPE_CHECKING:

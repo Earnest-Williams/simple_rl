@@ -41,18 +41,9 @@ from simulation.zone_manager import ZoneManager
 from utils.game_rng import GameRNG  # Assuming this path is correct
 
 # Import sound system
-try:
-    from game.systems.sound import get_sound_manager, update_music_context
-
-    SOUND_AVAILABLE = True
-except ImportError:
-    SOUND_AVAILABLE = False
-
-    def get_sound_manager():
-        return None
-
-    def update_music_context(context):
-        pass
+# Fallback removed
+from game.systems.sound import get_sound_manager, update_music_context
+SOUND_AVAILABLE = True
 
 
 log = structlog.get_logger()

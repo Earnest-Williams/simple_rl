@@ -7,21 +7,10 @@ import numpy as np
 import structlog  # Added
 
 # --- Numba Acceleration ---
-try:
-    from numba import njit
-
-    # For type hinting Numba dict if needed
-    from numba.typed import Dict as NumbaDict
-
-    _NUMBA_AVAILABLE = True
-except ImportError:
-    _NUMBA_AVAILABLE = False
-    NumbaDict = dict  # Fallback type hint
-
-    def njit(func=None, **options):
-        if func:
-            return func
-        return lambda f: f
+# Fallback removed
+from numba import njit
+from numba.typed import Dict as NumbaDict
+_NUMBA_AVAILABLE = True
 
 
 log = structlog.get_logger(__name__)
