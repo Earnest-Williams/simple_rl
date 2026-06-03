@@ -813,75 +813,97 @@ def initialize_cave_grid(  # Added rng parameter
     return grid, depth_grid, type_grid, (origin_offset_x, origin_offset_y)
 
 
-@njit(cache=True)  # CA Step (unchanged)
+@njit(cache=True)
 def _run_ca_step_numpy(grid: np.ndarray) -> np.ndarray:
-    """Numba CA step using explicit loops."""
+    """Numba CA step that only mutates ordinary cave floor and solid rock."""
     new_grid = grid.copy()
     height, width = grid.shape
+
     for r in range(height):
         for c in range(width):
-            non_solid_neighbors = 0
-            # Check 8 neighbors
+            tile = grid[r, c]
+
+            protected = (
+                tile == Material.SHAFT_OPENING
+                or tile == Material.CLIFF_EDGE
+                or tile == Material.DOOR_CLOSED
+                or tile == Material.DOOR_OPEN
+            )
+            if protected:
+                continue
+
+            floor_neighbors = 0
             for dr in range(-1, 2):
                 for dc in range(-1, 2):
                     if dr == 0 and dc == 0:
                         continue
-                    nr, nc = r + dr, c + dc
-                    # Check bounds before accessing grid
-                    if (
-                        0 <= nr < height
-                        and 0 <= nc < width
-                        and grid[nr, nc] != Material.SOLID_ROCK
-                    ):
-                        non_solid_neighbors += 1
 
-            # Apply CA rules
-            # Use central constant
-            if (
-                grid[r, c] == Material.SOLID_ROCK
-                and non_solid_neighbors >= CA_BIRTH_THRESHOLD
-            ):
-                # Use central constant
-                new_grid[r, c] = Material.CAVE_FLOOR
-            # Use central constant
-            elif (
-                grid[r, c] != Material.SOLID_ROCK
-                and non_solid_neighbors < CA_SURVIVAL_THRESHOLD
-            ):
-                # Use central constant
-                new_grid[r, c] = Material.SOLID_ROCK
-            # Else (other non-solid types remain unchanged by these basic rules)
+                    nr = r + dr
+                    nc = c + dc
+
+                    if 0 <= nr < height and 0 <= nc < width:
+                        neighbor = grid[nr, nc]
+                        if (
+                            neighbor == Material.CAVE_FLOOR
+                            or neighbor == Material.SHAFT_OPENING
+                            or neighbor == Material.DOOR_OPEN
+                        ):
+                            floor_neighbors += 1
+
+            if tile == Material.SOLID_ROCK:
+                if floor_neighbors >= CA_BIRTH_THRESHOLD:
+                    new_grid[r, c] = Material.CAVE_FLOOR
+            elif tile == Material.CAVE_FLOOR:
+                if floor_neighbors < CA_SURVIVAL_THRESHOLD:
+                    new_grid[r, c] = Material.SOLID_ROCK
 
     return new_grid
 
 
-def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:  # CA Step (unchanged)
-    """SciPy CA step using convolution."""
-    # Kernel counts 8 neighbors
+def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:
+    """SciPy CA step that only mutates ordinary cave floor and solid rock."""
     kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]])
-    # Use central constant
-    non_solid_mask = grid != Material.SOLID_ROCK
-    # Count non-solid neighbors using convolution
-    non_solid_neighbor_count = convolve2d(
-        non_solid_mask, kernel, mode="same", boundary="fill", fillvalue=0
+
+    floor_like = (
+        (grid == Material.CAVE_FLOOR)
+        | (grid == Material.SHAFT_OPENING)
+        | (grid == Material.DOOR_OPEN)
     )
 
-    # Apply rules based on neighbor count
-    # Use central constant
-    born = (grid == Material.SOLID_ROCK) & (
-        non_solid_neighbor_count >= CA_BIRTH_THRESHOLD
-    )
-    # Use central constant
-    survived = (grid != Material.SOLID_ROCK) & (
-        non_solid_neighbor_count >= CA_SURVIVAL_THRESHOLD
+    mutable_floor = grid == Material.CAVE_FLOOR
+    mutable_rock = grid == Material.SOLID_ROCK
+
+    protected = (
+        (grid == Material.SHAFT_OPENING)
+        | (grid == Material.CLIFF_EDGE)
+        | (grid == Material.DOOR_CLOSED)
+        | (grid == Material.DOOR_OPEN)
     )
 
-    # Create new grid based on rules
-    # Use central constant
-    new_grid = np.full(grid.shape, Material.SOLID_ROCK, dtype=grid.dtype)
-    new_grid[born] = Material.CAVE_FLOOR  # Use central constant
-    # Preserve original tile type for survivors
-    new_grid[survived] = grid[survived]
+    floor_neighbor_count = convolve2d(
+        floor_like,
+        kernel,
+        mode="same",
+        boundary="fill",
+        fillvalue=0,
+    )
+
+    born = mutable_rock & (floor_neighbor_count >= CA_BIRTH_THRESHOLD)
+    survived_floor = mutable_floor & (
+        floor_neighbor_count >= CA_SURVIVAL_THRESHOLD
+    )
+
+    new_grid = grid.copy()
+
+    # Only ordinary cave floor can die.
+    new_grid[mutable_floor & ~survived_floor] = Material.SOLID_ROCK
+
+    # Only solid rock can become ordinary cave floor.
+    new_grid[born] = Material.CAVE_FLOOR
+
+    # Restore protected semantic tiles exactly.
+    new_grid[protected] = grid[protected]
+
     return new_grid
 
 
