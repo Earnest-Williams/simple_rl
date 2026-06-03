@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import structlog
@@ -57,63 +57,53 @@ def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
 
 
 def _action_move_attack(
-    entity_row,
+    entity_row: Any,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
 ) -> bool:
-    """Basic behaviour: move toward the player or wander."""
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
-    if hasattr(perception, "los_map"):
-        noise_map = perception.debug_noise_map
-        scent_map = perception.debug_scent_map
-        los_map = perception.los_map
-    else:
-        noise_map, scent_map, los_map = perception
+    """Basic behaviour: move toward priority signal or wander."""
+    entity_id = int(entity_row["entity_id"])
+    x, y = int(entity_row["x"]), int(entity_row["y"])
 
-    player_pos = game_state.player_position
-    move = None
-    if player_pos is not None:
+    move: tuple[int, int] | None = None
+    target_pos: tuple[int, int] | None = None
+    active_signal: str = "none"
+
+    # Consume structured perception facts based on strict priority
+    if hasattr(perception, "entity_facts"):
+        fact = perception.entity_facts.get(entity_id)
+        if fact:
+            if fact.visible_targets:
+                first_target = fact.visible_targets[0]
+                target_pos = (int(first_target.get("x")), int(first_target.get("y")))
+                active_signal = "visual"
+            elif fact.heard_source:
+                target_pos = fact.heard_source
+                active_signal = "audio"
+            elif fact.scent_position:
+                target_pos = fact.scent_position
+                active_signal = "scent"
+            elif fact.last_known_position:
+                target_pos = fact.last_known_position
+                active_signal = "memory"
+
+    # 1. Move towards highest-priority target
+    if target_pos is not None:
+        tx, ty = target_pos
         pathfinder = _ensure_pathfinder(game_state)
-        pathfinder.compute_field([(player_pos.y, player_pos.x)])
+        # Note: compute_field expects (y, x) tuples
+        pathfinder.compute_field([(ty, tx)])
         pdx, pdy = pathfinder.get_flow_vector(y, x)
+        
         nx, ny = x + pdx, y + pdy
         if not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height):
-            pdx = 0 if player_pos.x == x else (-1 if player_pos.x < x else 1)
-            pdy = 0 if player_pos.y == y else (-1 if player_pos.y < y else 1)
+            # Fallback simple step if pathfinding gives an out-of-bounds or zero vector
+            pdx = 0 if tx == x else (-1 if tx < x else 1)
+            pdy = 0 if ty == y else (-1 if ty < y else 1)
         move = (pdx, pdy)
 
-    current_noise = noise_map[y, x]
-    best_noise = current_noise
-    for ndx, ndy in directions:
-        nx, ny = x + ndx, y + ndy
-        if (
-            0 <= nx < noise_map.shape[1]
-            and 0 <= ny < noise_map.shape[0]
-            and noise_map[ny, nx] > best_noise
-        ):
-            best_noise = noise_map[ny, nx]
-            move = (ndx, ndy)
-
-    if move is None:
-        if hasattr(perception, "entity_facts"):
-            fact = perception.entity_facts.get(int(entity_id))
-            if fact and fact.scent_position:
-                move = (fact.scent_position[0] - x, fact.scent_position[1] - y)
-        if move is None:
-            current_scent = scent_map[y, x]
-            best_scent = current_scent
-            for ndx, ndy in directions:
-                nx, ny = x + ndx, y + ndy
-                if (
-                    0 <= nx < scent_map.shape[1]
-                    and 0 <= ny < scent_map.shape[0]
-                    and scent_map[ny, nx] > best_scent
-                ):
-                    best_scent = scent_map[ny, nx]
-                    move = (ndx, ndy)
-
+    # 2. Else: Idle/Wander/Patrol
     if move is None:
         if not hasattr(rng, "get_int"):
             raise TypeError("rng must provide get_int from GameRNG")
@@ -127,9 +117,8 @@ def _action_move_attack(
         "GOAP AI entity processed",
         entity_id=entity_id,
         pos=(x, y),
-        noise=int(noise_map[y, x]) if noise_map.size else None,
-        scent=int(scent_map[y, x]) if scent_map.size else None,
-        visible=bool(los_map[y, x]) if los_map.size else None,
+        target_pos=target_pos,
+        signal=active_signal,
         dx=dx,
         dy=dy,
         moved=moved,

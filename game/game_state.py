@@ -186,6 +186,8 @@ class GameState:
         )
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
+        from typing import Any
+        self.ai_memory: dict[int, dict[str, Any]] = {}
         self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)
         self.light_sources: list[LightSource] = self.game_map.light_sources

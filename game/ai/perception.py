@@ -87,6 +87,7 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
         )
         cave_when = game_state.perception_cave_when
         game_map = game_state.game_map
+        DEFAULT_MEMORY_TURNS = 5
         
         for row in active_df.iter_rows(named=True):
             if not (row.get("ai_type") or row.get("species") or row.get("intelligence") is not None):
@@ -124,24 +125,52 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
             scent_position = best_scent_pos
             scent_strength = best_scent_val if best_scent_pos else current_scent
             
-            # 5. Priority: LOS > fresh noise > fresh scent > last-known memory > idle
-            last_known_position = None
-            signal_type = "idle"
+            # Prioritize the current signals
             confidence = 0.0
-            
+            signal_type = "idle"
+            current_target_pos: tuple[int, int] | None = None
+            memorable = False
+
             if visible_targets:
                 signal_type = "visual"
                 confidence = 1.0
                 first = visible_targets[0]
-                last_known_position = (int(first["x"]), int(first["y"]))
+                current_target_pos = (int(first["x"]), int(first["y"]))
+                memorable = True
             elif heard_source:
                 signal_type = "audio"
                 confidence = 1.0
-                last_known_position = heard_source
+                current_target_pos = heard_source
+                memorable = True
             elif scent_position:
                 signal_type = "scent"
                 confidence = 0.8
-                last_known_position = scent_position
+                current_target_pos = scent_position
+                memorable = False  # DO NOT memorize scent gradients as a "last known" position
+
+            # Update or retrieve from explicit memory
+            last_known_position: tuple[int, int] | None = None
+
+            if memorable and current_target_pos is not None:
+                # Hard signal detected: refresh memory
+                game_state.ai_memory[ent_id] = {
+                    "pos": current_target_pos, 
+                    "turns_left": DEFAULT_MEMORY_TURNS
+                }
+                last_known_position = current_target_pos 
+            else:
+                # No hard signal: check memory
+                if ent_id in game_state.ai_memory:
+                    mem = game_state.ai_memory[ent_id]
+                    if mem["turns_left"] > 0:
+                        if not current_target_pos:
+                            # Only fallback to memory if we don't even have a scent
+                            signal_type = "memory"
+                            confidence = 0.5
+                        last_known_position = mem["pos"]
+                        mem["turns_left"] -= 1
+                    else:
+                        del game_state.ai_memory[ent_id]
                 
             facts[ent_id] = PerceptionFact(
                 signal_type=signal_type,
