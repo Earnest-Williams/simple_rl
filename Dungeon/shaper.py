@@ -20,6 +20,7 @@ from common.constants import Material
 # Import GameRNG using relative path
 # Fallback removed
 from utils.game_rng import GameRNG
+from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]
 from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
 from scipy.signal import convolve2d  # type: ignore[import-untyped]
 HAS_SCIPY = True
@@ -1058,6 +1059,231 @@ def create_map_dataframe(  # Added rng parameter
     return map_data
 
 
+def _is_walkable_grid(grid: np.ndarray) -> np.ndarray:
+    """Return walkable cells for connectivity repair."""
+    return (
+        (grid == Material.CAVE_FLOOR)
+        | (grid == Material.SHAFT_OPENING)
+        | (grid == Material.DOOR_OPEN)
+    )
+
+
+def _nearest_valid_depth(depth_grid: np.ndarray, row: int, col: int) -> float:
+    """Return a usable nearby depth value, falling back to 0.0."""
+    value = float(depth_grid[row, col])
+    if np.isfinite(value):
+        return value
+
+    radius = 6
+    row_min = max(0, row - radius)
+    row_max = min(depth_grid.shape[0], row + radius + 1)
+    col_min = max(0, col - radius)
+    col_max = min(depth_grid.shape[1], col + radius + 1)
+
+    window = depth_grid[row_min:row_max, col_min:col_max]
+    finite_values = window[np.isfinite(window)]
+    if finite_values.size == 0:
+        return 0.0
+
+    return float(finite_values[0])
+
+
+def _draw_repair_corridor_mask(
+    shape: tuple[int, int],
+    start_row: int,
+    start_col: int,
+    end_row: int,
+    end_col: int,
+    radius_cells: int,
+) -> np.ndarray:
+    """Draw a corridor mask between two grid points."""
+    mask = np.zeros(shape, dtype=bool)
+
+    rr, cc = sk_line(start_row, start_col, end_row, end_col)
+    valid = (
+        (rr >= 0)
+        & (rr < shape[0])
+        & (cc >= 0)
+        & (cc < shape[1])
+    )
+    rr = rr[valid]
+    cc = cc[valid]
+
+    if rr.size == 0:
+        return mask
+
+    mask[rr, cc] = True
+
+    if radius_cells > 0:
+        footprint = sk_morphology_disk(radius_cells)
+        mask = sk_morphology_dilation(mask, footprint=footprint)
+
+    return mask
+
+
+def repair_connectivity(
+    final_grid: np.ndarray,
+    depth_grid: np.ndarray,
+    type_grid: np.ndarray,
+    *,
+    min_component_cells: int = 12,
+    corridor_radius_cells: int = 2,
+    repair_type_id: int = 1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Connect disconnected walkable components back to the largest component.
+
+    Small fragments below min_component_cells are deleted instead of connected.
+    This prevents thousands of tiny CA/rasterization crumbs from creating spaghetti.
+    """
+    if not HAS_SCIPY or not HAS_SKIMAGE:
+        print("Connectivity repair skipped: SciPy or scikit-image unavailable.")
+        return final_grid, depth_grid, type_grid
+
+    repaired_grid = final_grid.copy()
+    repaired_depth = depth_grid.copy()
+    repaired_type = type_grid.copy()
+
+    walkable = _is_walkable_grid(repaired_grid)
+    structure = np.array(
+        [
+            [1, 1, 1],
+            [1, 1, 1],
+            [1, 1, 1],
+        ],
+        dtype=bool,
+    )
+
+    labels, component_count = ndi_label(walkable, structure=structure)
+    if component_count <= 1:
+        print(f"Connectivity repair: already connected ({component_count} component).")
+        return repaired_grid, repaired_depth, repaired_type
+
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+
+    largest_label = int(np.argmax(sizes))
+    largest_size = int(sizes[largest_label])
+
+    print(
+        "Connectivity repair: "
+        f"{component_count} components, largest={largest_label} size={largest_size}."
+    )
+
+    main_mask = labels == largest_label
+
+    # Nearest point in the current main component for every cell.
+    # For a component cell, nearest_main_rows[cell] / nearest_main_cols[cell]
+    # gives the closest target point already connected to the main component.
+    _, nearest_indices = distance_transform_edt(
+        ~main_mask,
+        return_indices=True,
+    )
+    nearest_main_rows = nearest_indices[0]
+    nearest_main_cols = nearest_indices[1]
+
+    component_labels = [
+        int(label)
+        for label in range(1, component_count + 1)
+        if label != largest_label
+    ]
+    component_labels.sort(key=lambda label: int(sizes[label]), reverse=True)
+
+    connected_count = 0
+    deleted_count = 0
+
+    for label in component_labels:
+        component_size = int(sizes[label])
+        component_mask = labels == label
+
+        if component_size < min_component_cells:
+            repaired_grid[component_mask] = Material.SOLID_ROCK
+            repaired_depth[component_mask] = np.nan
+            repaired_type[component_mask] = 0
+            deleted_count += 1
+            continue
+
+        comp_rows, comp_cols = np.where(component_mask)
+        if comp_rows.size == 0:
+            continue
+
+        target_rows = nearest_main_rows[comp_rows, comp_cols]
+        target_cols = nearest_main_cols[comp_rows, comp_cols]
+
+        dist_sq = (
+            (comp_rows - target_rows) * (comp_rows - target_rows)
+            + (comp_cols - target_cols) * (comp_cols - target_cols)
+        )
+        best_index = int(np.argmin(dist_sq))
+
+        start_row = int(comp_rows[best_index])
+        start_col = int(comp_cols[best_index])
+        end_row = int(target_rows[best_index])
+        end_col = int(target_cols[best_index])
+
+        corridor_mask = _draw_repair_corridor_mask(
+            repaired_grid.shape,
+            start_row,
+            start_col,
+            end_row,
+            end_col,
+            corridor_radius_cells,
+        )
+
+        # Do not overwrite special semantic blockers.
+        protected_mask = (
+            (repaired_grid == Material.CLIFF_EDGE)
+            | (repaired_grid == Material.DOOR_CLOSED)
+        )
+        corridor_mask &= ~protected_mask
+
+        start_depth = _nearest_valid_depth(repaired_depth, start_row, start_col)
+        end_depth = _nearest_valid_depth(repaired_depth, end_row, end_col)
+
+        corridor_rows, corridor_cols = np.where(corridor_mask)
+        if corridor_rows.size > 0:
+            denom = max(
+                1.0,
+                float(
+                    (start_row - end_row) * (start_row - end_row)
+                    + (start_col - end_col) * (start_col - end_col)
+                ),
+            )
+            t = (
+                (corridor_rows - start_row) * (end_row - start_row)
+                + (corridor_cols - start_col) * (end_col - start_col)
+            ) / denom
+            t = np.clip(t, 0.0, 1.0)
+
+            repaired_grid[corridor_mask] = Material.CAVE_FLOOR
+            repaired_depth[corridor_rows, corridor_cols] = (
+                start_depth + (end_depth - start_depth) * t
+            ).astype(np.float32)
+            repaired_type[corridor_mask] = repair_type_id
+
+        # Important: grow the main component for subsequent repairs.
+        main_mask |= component_mask | corridor_mask
+        _, nearest_indices = distance_transform_edt(
+            ~main_mask,
+            return_indices=True,
+        )
+        nearest_main_rows = nearest_indices[0]
+        nearest_main_cols = nearest_indices[1]
+
+        connected_count += 1
+
+    final_walkable = _is_walkable_grid(repaired_grid)
+    final_labels, final_component_count = ndi_label(final_walkable, structure=structure)
+
+    print(
+        "Connectivity repair complete: "
+        f"connected={connected_count}, deleted_small={deleted_count}, "
+        f"final_components={final_component_count}."
+    )
+
+    return repaired_grid, repaired_depth, repaired_type
+
+
 # === Main Orchestration Function (Modified to accept/pass rng) ===
 def generate_shaped_cave(  # Added rng parameter
     augmented_nodes: list[dict],
@@ -1082,6 +1308,16 @@ def generate_shaped_cave(  # Added rng parameter
         print("Error: Cellular Automata failed.")
         return None
     print("Cellular Automata completed.")
+
+    print("\n--- Stage: Repairing Connectivity ---")
+    final_grid, depth_grid, type_grid = repair_connectivity(
+        final_grid,
+        depth_grid,
+        type_grid,
+        min_component_cells=12,
+        corridor_radius_cells=2,
+        repair_type_id=1,
+    )
 
     # Removed NPY dump call for post-CA state
 
