@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -26,7 +26,7 @@ class PerceptionFact:
 
     signal_type: str | None = None
     confidence: float = 0.0
-    visible_targets: list[Any] = field(default_factory=list)
+    visible_targets: list[object] = field(default_factory=list)
     heard_source: tuple[int, int] | None = None
     heard_flow: str | None = None
     scent_strength: float = 0.0
