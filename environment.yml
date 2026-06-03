@@ -21,6 +21,8 @@ dependencies:
   - pydub>=0.25.1
   - ffmpeg                 # required by pydub for audio handling (conda-forge)
   - pytest>=7.4            # dev/test tool (include here for devs)
+  - pygame=2.6.1
+  - setuptools<81
 
   # Ensure pip is present so we can install the project editable
   - pip
