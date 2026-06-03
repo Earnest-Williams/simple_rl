@@ -679,8 +679,7 @@ class GameState:
         if player_pos is None:
             self.perception_alerted_monster_ids = []
             return
-        player_x = player_pos.x
-        player_y = player_pos.y
+        player_x, player_y = player_pos.x, player_pos.y
 
         monster_df = entities_df.filter(
             (pl.col("entity_id") != self.player_id) & pl.col("is_active")
