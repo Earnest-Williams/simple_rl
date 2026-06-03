@@ -283,7 +283,8 @@ class GameState:
         raw_statuses = self.entity_registry.get_entity_component(
             self.player_id, "status_effects"
         )
-        statuses = raw_statuses if isinstance(raw_statuses, list) else []
+        # Any is used here because status effect dicts can contain values of various types (e.g., str, float)
+        statuses: list[dict[str, Any]] = raw_statuses if isinstance(raw_statuses, list) else []
 
         has_confusion = False
         has_illness = False
