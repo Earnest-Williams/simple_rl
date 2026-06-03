@@ -12,6 +12,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from game.entities.components import Position
+from game.perception_events import NoiseEvent
 
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from game.game_state import GameState
@@ -60,9 +61,18 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
 
     moved = entity_reg.set_position(entity_id, Position(dest_x, dest_y))
     if moved:
-        # Moving entities generate noise at their destination
+        # Moving entities generate gameplay noise at their destination. This is
+        # intentionally a perception event, not an audio playback call.
         with contextlib.suppress(AttributeError):
-            gs.noise_events.append((dest_x, dest_y, 10.0))
+            gs.noise_events.append(
+                NoiseEvent(
+                    x=dest_x,
+                    y=dest_y,
+                    intensity=10.0,
+                    source_id=entity_id,
+                    cause="movement",
+                )
+            )
 
         # Play movement sound effect if it's the player
         if entity_id == gs.player_id:

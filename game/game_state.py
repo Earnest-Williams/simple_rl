@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import contextlib
 import heapq
-from dataclasses import dataclass
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import numpy as np
 import polars as pl
@@ -18,6 +17,14 @@ from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
 from game.perception import apply_radius_perception
+from game.perception_events import (
+    NoiseEvent,
+    PendingNoiseEvent,
+    PendingScentEvent,
+    ScentEvent,
+    event_xy_intensity,
+    noise_event_flow_type,
+)
 from game.planning.spatial_hash import SpatialHashTable
 from game.systems.ai_system import dispatch_ai
 
@@ -26,7 +33,6 @@ from game.world.game_map import GameMap, LightSource
 from pathfinding.perception_systems import (
     MAX_FLOWS,
     SCENT_RESET_AGE,
-    FlowType,
     monster_perception,
     update_noise,
     update_smell,
@@ -51,37 +57,13 @@ except ImportError:
 
 log = structlog.get_logger()
 
-
-@dataclass(slots=True)
-class NoiseEvent:
-    """Typed pending sound/noise event consumed by production perception fields."""
-
-    x: int
-    y: int
-    intensity: float
-    flow_type: FlowType = FlowType.REAL_NOISE
-    source_id: int | None = None
-    lifetime: int = 0
-
-
-@dataclass(slots=True)
-class ScentEvent:
-    """Typed pending scent event consumed by production scent fields."""
-
-    x: int
-    y: int
-    intensity: float = 5.0
-    source_id: int | None = None
-
-
-PendingNoiseEvent = NoiseEvent | tuple[int, int, float]
-PendingScentEvent = ScentEvent | tuple[int, int, float]
-
-
-def _event_xy_intensity(event: PendingNoiseEvent | PendingScentEvent) -> tuple[int, int, float]:
-    if isinstance(event, tuple):
-        return int(event[0]), int(event[1]), float(event[2])
-    return int(event.x), int(event.y), float(event.intensity)
+__all__: Final[tuple[str, ...]] = (
+    "GameState",
+    "NoiseEvent",
+    "PendingNoiseEvent",
+    "PendingScentEvent",
+    "ScentEvent",
+)
 
 
 class GameState:
@@ -520,7 +502,6 @@ class GameState:
         self._consume_player_fuel()
         return active_rows, ai_entities
 
-
     def _terrain_map_for_perception(self) -> NDArray[np.int32]:
         """Return a FeatureType terrain map for production perception fields."""
         feature_map = getattr(self.game_map, "feature_map", None)
@@ -604,7 +585,7 @@ class GameState:
         self.game_map.scent_map *= 0.9
 
         for event in noise_events:
-            x, y, intensity = _event_xy_intensity(event)
+            x, y, intensity = event_xy_intensity(event)
             apply_radius_perception(
                 map_arr=self.game_map.noise_map,
                 x=x,
@@ -615,7 +596,7 @@ class GameState:
             )
 
         for event in scent_events:
-            x, y, intensity = _event_xy_intensity(event)
+            x, y, intensity = event_xy_intensity(event)
             apply_radius_perception(
                 map_arr=self.game_map.scent_map,
                 x=x,
@@ -626,13 +607,9 @@ class GameState:
             )
 
         if noise_events:
-            loudest = max(noise_events, key=lambda event: _event_xy_intensity(event)[2])
-            loudest_x, loudest_y, _intensity = _event_xy_intensity(loudest)
-            flow_type = (
-                loudest.flow_type
-                if isinstance(loudest, NoiseEvent)
-                else FlowType.REAL_NOISE
-            )
+            loudest = max(noise_events, key=lambda event: event_xy_intensity(event)[2])
+            loudest_x, loudest_y, _intensity = event_xy_intensity(loudest)
+            flow_type = noise_event_flow_type(loudest)
             update_noise(
                 self.perception_cave_cost,
                 self.perception_flow_centers,
@@ -648,7 +625,7 @@ class GameState:
 
         if scent_events:
             latest = scent_events[-1]
-            scent_x, scent_y, _intensity = _event_xy_intensity(latest)
+            scent_x, scent_y, _intensity = event_xy_intensity(latest)
             self.perception_global_scent_when = update_smell(
                 self.perception_cave_when,
                 terrain_map,

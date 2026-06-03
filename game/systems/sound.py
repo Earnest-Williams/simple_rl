@@ -11,6 +11,11 @@ that integrates with the game's event-driven architecture. It supports:
 
 The sound system is designed to be non-intrusive and can be disabled entirely
 through configuration.
+
+This module is audio-only. It may use already-computed flow-cost fields to
+attenuate playback volume, but it must not own or run pathfinding sound/scent
+propagation. Gameplay systems should emit typed perception events elsewhere and
+let ``GameState``/``pathfinding.perception_systems`` update simulation fields.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 import structlog
+from numpy.typing import NDArray
 
 from game.world import line_of_sight
 from pathfinding.perception_systems import BASE_FLOW_CENTER, NOISE_STRENGTH
@@ -44,6 +50,9 @@ if TYPE_CHECKING:
     from game.world.game_map import GameMap
 
 log = structlog.get_logger(__name__)
+
+# NumPy scalar precision is dtype-dependent, so Any is required by numpy.typing.
+FlowCostMap = NDArray[np.integer[Any]]
 
 # SDL_mixer configuration
 SDL_MIXER_FREQUENCY: Final[int] = 22050  # Hz
@@ -160,6 +169,35 @@ class BackgroundMusic:
 
 class SoundManager:
     """Main sound system manager."""
+
+    @staticmethod
+    def _extract_flow_cost_map(context: dict[str, Any]) -> FlowCostMap | None:
+        """Return an integer pathfinding flow-cost map from an audio context.
+
+        ``flow_cost_map`` is the preferred key. ``noise_flow_cost`` is accepted
+        as a descriptive alias. A legacy ``noise_map`` key is accepted only when
+        it is integer typed; float radius/debug maps are ignored because
+        ``_calculate_volume()`` interprets values as costs relative to
+        ``BASE_FLOW_CENTER``.
+        """
+        candidate = context.get("flow_cost_map")
+        if candidate is None:
+            candidate = context.get("noise_flow_cost")
+        if candidate is None:
+            candidate = context.get("noise_map")
+
+        if candidate is None:
+            return None
+        if not isinstance(candidate, np.ndarray):
+            log.warning("Ignoring non-array flow-cost map in sound context")
+            return None
+        if not np.issubdtype(candidate.dtype, np.integer):
+            log.warning(
+                "Ignoring non-integer sound attenuation map; pass flow_cost_map "
+                "from pathfinding perception fields instead of a float debug map"
+            )
+            return None
+        return candidate
 
     def __init__(
         self, config_path: Path | None = None, rng: GameRNG | None = None
@@ -321,7 +359,7 @@ class SoundManager:
         listener_pos: tuple[float, float, float] = self.listener_position
         listener_orient: tuple[float, float] = self.listener_orientation
         game_map: GameMap | None = None
-        noise_map = None
+        flow_cost_map: FlowCostMap | None = None
         if context:
             source_pos = context.get("source_position") or context.get("position")
             lp = context.get("listener_position")
@@ -331,7 +369,7 @@ class SoundManager:
             if lo:
                 listener_orient = (lo[0], lo[1])
             game_map = context.get("game_map")
-            noise_map = context.get("noise_map")
+            flow_cost_map = self._extract_flow_cost_map(context)
             if source_pos and "distance" not in context:
                 sx, sy = source_pos
                 lx, ly, lz = listener_pos
@@ -347,7 +385,7 @@ class SoundManager:
             listener_pos,
             listener_orient,
             game_map,
-            noise_map,
+            flow_cost_map,
         )
 
         # Apply environment DSP effects
@@ -440,7 +478,7 @@ class SoundManager:
         listener_pos: tuple[float, float, float] | None = None,
         listener_orientation: tuple[float, float] | None = None,
         game_map: GameMap | None = None,
-        noise_map: np.ndarray | None = None,
+        flow_cost_map: FlowCostMap | None = None,
     ) -> float:
         """Calculate final volume with all modifiers applied."""
         final_volume = base_volume * self.sfx_volume * self.master_volume
@@ -471,13 +509,13 @@ class SoundManager:
 
         occlusion_cfg = self.situational_modifiers.get("occlusion", {})
 
-        # Apply attenuation based on precomputed noise map
-        if noise_map is not None and listener_pos is not None:
+        # Apply attenuation based on a precomputed pathfinding flow-cost map.
+        if flow_cost_map is not None and listener_pos is not None:
             nx = int(listener_pos[0])
             ny = int(listener_pos[1])
-            if 0 <= ny < noise_map.shape[0] and 0 <= nx < noise_map.shape[1]:
-                cost = noise_map[ny, nx]
-                infinity = np.iinfo(noise_map.dtype).max // 2
+            if 0 <= ny < flow_cost_map.shape[0] and 0 <= nx < flow_cost_map.shape[1]:
+                cost = int(flow_cost_map[ny, nx])
+                infinity = np.iinfo(flow_cost_map.dtype).max // 2
                 if cost < infinity:
                     noise_dist = cost - BASE_FLOW_CENTER
                     if NOISE_STRENGTH > 0:

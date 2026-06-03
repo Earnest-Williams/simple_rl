@@ -3,6 +3,7 @@ from __future__ import annotations
 from game.ai import goap_adapter
 from game.ai.perception import gather_perception
 from game.game_state import GameState
+from game.perception_events import NoiseEvent
 from game.planning.spatial_hash import SpatialHashTable
 from game.world.game_map import GameMap
 
@@ -23,7 +24,15 @@ def _make_state() -> GameState:
 
 def test_gather_perception_uses_shared_radius_helper() -> None:
     state = _make_state()
-    state.noise_events.append((3, 3, 5.0))
+    state.noise_events.append(
+        NoiseEvent(
+            x=3,
+            y=3,
+            intensity=5.0,
+            source_id=state.player_id,
+            cause="test_noise",
+        )
+    )
     state.scent_events.append((4, 4, 6.0))
 
     noise_map, scent_map, los_map = gather_perception(state)
@@ -77,3 +86,15 @@ def test_goap_world_adapter_prefers_spatial_index() -> None:
 
     assert entity_id == 42
     assert distance == 3.0
+
+
+def test_noise_event_schema_is_not_owned_by_sound_playback() -> None:
+    event = NoiseEvent(
+        x=2,
+        y=3,
+        intensity=7.5,
+        source_id=99,
+        cause="movement",
+    )
+    observed = (event.x, event.y, event.intensity, event.source_id, event.cause)
+    assert observed == (2, 3, 7.5, 99, "movement")
