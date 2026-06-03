@@ -3,23 +3,34 @@ from __future__ import annotations
 
 import contextlib
 import heapq
+from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
+import polars as pl
 import structlog
 from numpy.typing import NDArray
 
+from common.constants import FeatureType
 from game.ai.perception import gather_perception
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
+from game.perception import apply_radius_perception
 from game.planning.spatial_hash import SpatialHashTable
 from game.systems.ai_system import dispatch_ai
 
 # Assuming these imports are correct relative to game_state.py
 from game.world.game_map import GameMap, LightSource
-from pathfinding.perception_systems import MAX_FLOWS, SCENT_RESET_AGE
+from pathfinding.perception_systems import (
+    MAX_FLOWS,
+    SCENT_RESET_AGE,
+    FlowType,
+    monster_perception,
+    update_noise,
+    update_smell,
+)
 from simulation.zone_manager import ZoneManager
 from utils.game_rng import GameRNG  # Assuming this path is correct
 
@@ -41,6 +52,38 @@ except ImportError:
 log = structlog.get_logger()
 
 
+@dataclass(slots=True)
+class NoiseEvent:
+    """Typed pending sound/noise event consumed by production perception fields."""
+
+    x: int
+    y: int
+    intensity: float
+    flow_type: FlowType = FlowType.REAL_NOISE
+    source_id: int | None = None
+    lifetime: int = 0
+
+
+@dataclass(slots=True)
+class ScentEvent:
+    """Typed pending scent event consumed by production scent fields."""
+
+    x: int
+    y: int
+    intensity: float = 5.0
+    source_id: int | None = None
+
+
+PendingNoiseEvent = NoiseEvent | tuple[int, int, float]
+PendingScentEvent = ScentEvent | tuple[int, int, float]
+
+
+def _event_xy_intensity(event: PendingNoiseEvent | PendingScentEvent) -> tuple[int, int, float]:
+    if isinstance(event, tuple):
+        return int(event[0]), int(event[1]), float(event[2])
+    return int(event.x), int(event.y), float(event.intensity)
+
+
 class GameState:
     """Central container for mutable game data.
 
@@ -57,6 +100,14 @@ class GameState:
 
     Each lookup is backed by list components (``seal_tags``, ``font_sources``,
     and ``vent_targets``) managed by :class:`game.entities.registry.EntityRegistry`.
+
+    Pathfinding perception arrays are owned here, not by ``GameMap``. They are
+    dynamic simulation state rather than static map-shaped terrain storage:
+
+    - ``perception_cave_cost``
+    - ``perception_flow_centers``
+    - ``perception_cave_when``
+    - ``perception_global_scent_when``
     """
 
     def __init__(
@@ -145,8 +196,8 @@ class GameState:
         self.message_queue: list[tuple[int, str, tuple[int, int, int]]] = []
         self.turn_count: int = 0
         # Perception event queues processed by gather_perception.
-        self.noise_events: list[tuple[int, int, float]] = []
-        self.scent_events: list[tuple[int, int, float]] = []
+        self.noise_events: list[PendingNoiseEvent] = []
+        self.scent_events: list[PendingScentEvent] = []
         # Production pathfinding perception fields mirrored from queued events.
         perception_infinity = np.iinfo(np.int32).max // 2
         self.perception_cave_cost: NDArray[np.int32] = np.full(
@@ -469,6 +520,192 @@ class GameState:
         self._consume_player_fuel()
         return active_rows, ai_entities
 
+
+    def _terrain_map_for_perception(self) -> NDArray[np.int32]:
+        """Return a FeatureType terrain map for production perception fields."""
+        feature_map = getattr(self.game_map, "feature_map", None)
+        if isinstance(feature_map, np.ndarray):
+            return feature_map.astype(np.int32, copy=False)
+
+        terrain_map = np.full(
+            self.game_map.transparent.shape,
+            int(FeatureType.WALL),
+            dtype=np.int32,
+        )
+        terrain_map[self.game_map.transparent] = int(FeatureType.FLOOR)
+        return terrain_map
+
+    def _ensure_perception_arrays(self) -> None:
+        """Resize production perception arrays if the active map shape changes."""
+        expected_cost_shape = (MAX_FLOWS, self.game_map.height, self.game_map.width)
+        if self.perception_cave_cost.shape != expected_cost_shape:
+            infinity = np.iinfo(np.int32).max // 2
+            self.perception_cave_cost = np.full(
+                expected_cost_shape,
+                infinity,
+                dtype=np.int32,
+            )
+
+        expected_centers_shape = (MAX_FLOWS, 2)
+        if self.perception_flow_centers.shape != expected_centers_shape:
+            self.perception_flow_centers = np.zeros(
+                expected_centers_shape,
+                dtype=np.int32,
+            )
+
+        expected_scent_shape = (self.game_map.height, self.game_map.width)
+        if self.perception_cave_when.shape != expected_scent_shape:
+            self.perception_cave_when = np.zeros(
+                expected_scent_shape,
+                dtype=np.int32,
+            )
+
+    def update_perception_fields(
+        self,
+        *,
+        include_player_scent: bool = True,
+        clear_events: bool = True,
+    ) -> None:
+        """Advance production sound/scent fields and derived monster alerts.
+
+        This is the lifecycle owner for non-visual perception. ``gather_perception()``
+        may still call this with ``include_player_scent=False`` as a compatibility
+        fallback when tests or legacy callers enqueue events and then gather directly.
+        """
+        self._ensure_perception_arrays()
+
+        terrain_map = self._terrain_map_for_perception()
+        noise_events = list(self.noise_events)
+        scent_events = list(self.scent_events)
+
+        if include_player_scent:
+            player_pos = self.player_position
+            if player_pos is not None:
+                px, py = player_pos
+                scent_events.append(
+                    ScentEvent(
+                        x=int(px),
+                        y=int(py),
+                        intensity=5.0,
+                        source_id=self.player_id,
+                    )
+                )
+
+        # Debug/compatibility radius maps remain simple AI-facing heat maps.
+        self.game_map.noise_map *= 0.6
+        self.game_map.scent_map *= 0.9
+
+        for event in noise_events:
+            x, y, intensity = _event_xy_intensity(event)
+            apply_radius_perception(
+                map_arr=self.game_map.noise_map,
+                x=x,
+                y=y,
+                r=2,
+                base_intensity=intensity,
+                game_map=self.game_map,
+            )
+
+        for event in scent_events:
+            x, y, intensity = _event_xy_intensity(event)
+            apply_radius_perception(
+                map_arr=self.game_map.scent_map,
+                x=x,
+                y=y,
+                r=4,
+                base_intensity=intensity,
+                game_map=self.game_map,
+            )
+
+        if noise_events:
+            loudest = max(noise_events, key=lambda event: _event_xy_intensity(event)[2])
+            loudest_x, loudest_y, _intensity = _event_xy_intensity(loudest)
+            flow_type = (
+                loudest.flow_type
+                if isinstance(loudest, NoiseEvent)
+                else FlowType.REAL_NOISE
+            )
+            update_noise(
+                self.perception_cave_cost,
+                self.perception_flow_centers,
+                terrain_map,
+                loudest_y,
+                loudest_x,
+                flow_type,
+                {},
+            )
+
+        if scent_events:
+            latest = scent_events[-1]
+            scent_x, scent_y, _intensity = _event_xy_intensity(latest)
+            self.perception_global_scent_when = update_smell(
+                self.perception_cave_when,
+                terrain_map,
+                scent_y,
+                scent_x,
+                self.perception_global_scent_when,
+            )
+
+        self.resolve_monster_perception()
+
+        if clear_events:
+            self.noise_events.clear()
+            self.scent_events.clear()
+
+    def resolve_monster_perception(self) -> None:
+        """Convert perception arrays into derived monster-alert facts."""
+        entities_df = getattr(self.entity_registry, "entities_df", None)
+        if not isinstance(entities_df, pl.DataFrame) or entities_df.is_empty():
+            self.perception_alerted_monster_ids = []
+            return
+
+        required_columns = {"entity_id", "x", "y", "is_active"}
+        if not required_columns.issubset(set(entities_df.columns)):
+            self.perception_alerted_monster_ids = []
+            return
+
+        player_pos = self.player_position
+        if player_pos is None:
+            self.perception_alerted_monster_ids = []
+            return
+        player_x, player_y = player_pos
+
+        monster_df = entities_df.filter(
+            (pl.col("entity_id") != self.player_id) & pl.col("is_active")
+        )
+        if monster_df.is_empty():
+            self.perception_alerted_monster_ids = []
+            return
+
+        perception_stat = (
+            pl.col("perception_stat")
+            if "perception_stat" in monster_df.columns
+            else pl.lit(10)
+        )
+        is_dead = (
+            (~pl.col("is_active")) | (pl.col("hp") <= 0)
+            if "hp" in monster_df.columns
+            else ~pl.col("is_active")
+        )
+        adapted_df = monster_df.select(
+            pl.col("entity_id").alias("id"),
+            pl.col("y").cast(pl.Int64).alias("fy"),
+            pl.col("x").cast(pl.Int64).alias("fx"),
+            is_dead.alias("is_dead"),
+            perception_stat.cast(pl.Int64).alias("perception_stat"),
+        )
+
+        self.perception_alerted_monster_ids = monster_perception(
+            adapted_df,
+            cave_cost=self.perception_cave_cost,
+            flow_centers=self.perception_flow_centers,
+            player_y=int(player_y),
+            player_x=int(player_x),
+            player_stealth_skill=0,
+            rng=self.rng_instance,
+            deterministic=True,
+        )
+
     def _process_zone(self, zone: tuple[int, int]) -> None:
         """Aggregate update for all entities within ``zone``.
 
@@ -502,9 +739,6 @@ class GameState:
         active_rows, ai_entities = self.process_turn()
 
         player_pos = self.player_position
-        if player_pos:
-            px, py = player_pos
-            self.scent_events.append((px, py, 5.0))
 
         active_zones: set[tuple[int, int]] = self.zone_manager.get_active_zones(
             player_pos
@@ -525,6 +759,7 @@ class GameState:
 
         # Recalculate FOV so perception and rendering use up-to-date visibility
         self.update_fov()
+        self.update_perception_fields(include_player_scent=True)
 
         self.community_manager.step()
 

@@ -999,6 +999,7 @@ def apply_memory_fade(
     IMPORTANT: this function intentionally does NOT write Unicode ordinals into
     `glyph_indices`. Glyph indices must remain tile indices that index into
     the tileset (tile_arrays). Memory is expressed purely via color/brightness.
+    It expects read-only map and mask slices, such as renderer base-layer views.
     """
     # memory_mask = cells that are drawn but not currently visible
     memory_mask = drawn_mask & (~visible_mask)

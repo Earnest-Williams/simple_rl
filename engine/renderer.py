@@ -70,6 +70,8 @@ class RenderConfig:
     )
     memory_fade_variance: np.float32 = np.float32(0.0)
     memory_noise_level: np.float32 = np.float32(0.0)
+    # Long-lived cache owner for a renderer/config instance. This prevents
+    # constructing a new LightingRenderer every frame.
     lighting_renderer: LightingRenderer = field(default_factory=LightingRenderer)
 
 
@@ -300,7 +302,8 @@ def render_viewport(
             "RGBA", (max(1, output_pixel_w), max(1, output_pixel_h)), (255, 0, 0, 255)
         )
 
-    # Apply lighting and presentation effects in a single render-ordered block.
+    # Apply lighting and presentation effects through the LightingRenderer so
+    # render_viewport() stays an orchestration boundary.
     final_fg, final_bg, intensity_map = (
         render_config.lighting_renderer.apply_render_lighting(
             base_fg=base_fg,
@@ -432,7 +435,8 @@ def render_viewport(
         log.error(f"Critical error during tile rendering: {e}", exc_info=True)
         log.info("Attempting to continue with background-only rendering")
 
-    # Prepare and render ground items
+    # Prepare and render ground items.
+    # Visibility behavior is downstream of the lighting pipeline.
     item_xs = None
     item_ys = None
     item_glyphs = None
@@ -508,7 +512,8 @@ def render_viewport(
         except Exception as e:
             log.error(f"Error during render_ground_items: {e}", exc_info=True)
 
-    # Prepare and render entities
+    # Prepare and render entities.
+    # Visibility behavior is downstream of the lighting pipeline.
     entity_xs = None
     entity_ys = None
     entity_glyphs = None
