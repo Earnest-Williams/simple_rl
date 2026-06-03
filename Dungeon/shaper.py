@@ -1148,8 +1148,11 @@ def repair_connectivity(
     depth_grid: np.ndarray,
     type_grid: np.ndarray,
     *,
-    min_component_cells: int = 12,
-    corridor_radius_cells: int = 2,
+    augmented_nodes: list[dict] | None = None,
+    augmented_node_map: dict[int, Any] | None = None,
+    origin_offset: tuple[int, int] | None = None,
+    min_component_cells: int = 32,
+    corridor_radius_cells: int = 1,
     repair_type_id: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -1192,11 +1195,107 @@ def repair_connectivity(
         f"{component_count} components, largest={largest_label} size={largest_size}."
     )
 
+    h, w = repaired_grid.shape
+    connected_edges = 0
+
+    if augmented_nodes and augmented_node_map and origin_offset:
+        ox, oy = origin_offset
+        edges = []
+        for child in augmented_nodes:
+            parent_id = child.get("parent_id")
+            if parent_id is not None and parent_id in augmented_node_map:
+                parent = augmented_node_map[parent_id]
+                edges.append((parent, child))
+
+        for parent, child in edges:
+            walkable = _is_walkable_grid(repaired_grid)
+            labels, component_count = ndi_label(walkable, structure=structure)
+            if component_count <= 1:
+                break
+
+            p_x = parent.get("x", 0.0)
+            p_y = parent.get("y", 0.0)
+            c_x = child.get("x", p_x)
+            c_y = child.get("y", p_y)
+
+            p_grid_x = int(round(p_x / GRID_RESOLUTION)) - ox
+            p_grid_y = int(round(p_y / GRID_RESOLUTION)) - oy
+            c_grid_x = int(round(c_x / GRID_RESOLUTION)) - ox
+            c_grid_y = int(round(c_y / GRID_RESOLUTION)) - oy
+
+            p_grid_x = max(0, min(w - 1, p_grid_x))
+            p_grid_y = max(0, min(h - 1, p_grid_y))
+            c_grid_x = max(0, min(w - 1, c_grid_x))
+            c_grid_y = max(0, min(h - 1, c_grid_y))
+
+            _, nearest_indices = distance_transform_edt(~walkable, return_indices=True)
+
+            p_nearest_y = nearest_indices[0, p_grid_y, p_grid_x]
+            p_nearest_x = nearest_indices[1, p_grid_y, p_grid_x]
+            c_nearest_y = nearest_indices[0, c_grid_y, c_grid_x]
+            c_nearest_x = nearest_indices[1, c_grid_y, c_grid_x]
+
+            p_label = labels[p_nearest_y, p_nearest_x]
+            c_label = labels[c_nearest_y, c_nearest_x]
+
+            if p_label == 0 or c_label == 0:
+                continue
+
+            if p_label != c_label:
+                corridor_mask = _draw_repair_corridor_mask(
+                    repaired_grid.shape,
+                    p_nearest_y,
+                    p_nearest_x,
+                    c_nearest_y,
+                    c_nearest_x,
+                    corridor_radius_cells,
+                )
+
+                protected_mask = (
+                    (repaired_grid == Material.CLIFF_EDGE)
+                    | (repaired_grid == Material.DOOR_CLOSED)
+                )
+                corridor_mask &= ~protected_mask
+
+                start_depth = _nearest_valid_depth(repaired_depth, p_nearest_y, p_nearest_x)
+                end_depth = _nearest_valid_depth(repaired_depth, c_nearest_y, c_nearest_x)
+
+                corridor_rows, corridor_cols = np.where(corridor_mask)
+                if corridor_rows.size > 0:
+                    denom = max(
+                        1.0,
+                        float(
+                            (p_nearest_y - c_nearest_y) * (p_nearest_y - c_nearest_y)
+                            + (p_nearest_x - c_nearest_x) * (p_nearest_x - c_nearest_x)
+                        ),
+                    )
+                    t = (
+                        (corridor_rows - p_nearest_y) * (c_nearest_y - p_nearest_y)
+                        + (corridor_cols - p_nearest_x) * (c_nearest_x - p_nearest_x)
+                    ) / denom
+                    t = np.clip(t, 0.0, 1.0)
+
+                    repaired_grid[corridor_mask] = Material.CAVE_FLOOR
+                    repaired_depth[corridor_rows, corridor_cols] = (
+                        start_depth + (end_depth - start_depth) * t
+                    ).astype(np.float32)
+                    repaired_type[corridor_mask] = repair_type_id
+                
+                connected_edges += 1
+
+    # After graph-edge repairs: delete tiny crumbs and fallback
+    walkable = _is_walkable_grid(repaired_grid)
+    labels, component_count = ndi_label(walkable, structure=structure)
+
+    if component_count <= 1:
+        return repaired_grid, repaired_depth, repaired_type
+
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+
+    largest_label = int(np.argmax(sizes))
     main_mask = labels == largest_label
 
-    # Nearest point in the current main component for every cell.
-    # For a component cell, nearest_main_rows[cell] / nearest_main_cols[cell]
-    # gives the closest target point already connected to the main component.
     _, nearest_indices = distance_transform_edt(
         ~main_mask,
         return_indices=True,
@@ -1299,8 +1398,8 @@ def repair_connectivity(
 
     print(
         "Connectivity repair complete: "
-        f"connected={connected_count}, deleted_small={deleted_count}, "
-        f"final_components={final_component_count}."
+        f"graph_repairs={connected_edges}, fallback_repairs={connected_count}, "
+        f"deleted_small={deleted_count}, final_components={final_component_count}."
     )
 
     return repaired_grid, repaired_depth, repaired_type
@@ -1336,8 +1435,11 @@ def generate_shaped_cave(  # Added rng parameter
         final_grid,
         depth_grid,
         type_grid,
-        min_component_cells=12,
-        corridor_radius_cells=2,
+        augmented_nodes=augmented_nodes,
+        augmented_node_map=augmented_node_map,
+        origin_offset=origin,
+        min_component_cells=32,
+        corridor_radius_cells=1,
         repair_type_id=1,
     )
 
