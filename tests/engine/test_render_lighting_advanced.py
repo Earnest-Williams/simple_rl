@@ -394,6 +394,38 @@ def test_game_map_set_light_channel_mask_invalidates_cache() -> None:
     assert game_map.scene_geometry_version == initial_version + 1
 
 
+def test_game_map_geometry_setters_invalidate_cache() -> None:
+    """Verify that set_height and set_ceiling update buffers and increment geometry version."""
+    from game.world.game_map import GameMap
+
+    h = w = 5
+    game_map = GameMap(w, h)
+    
+    # Height
+    initial_version = game_map.scene_geometry_version
+    game_map.set_height(2, 2, 5)
+    assert game_map.height_map[2, 2] == 5
+    assert game_map.scene_geometry_version == initial_version + 1
+
+    # Ceiling
+    initial_version = game_map.scene_geometry_version
+    game_map.set_ceiling(2, 2, 12)
+    assert game_map.ceiling_map[2, 2] == 12
+    assert game_map.scene_geometry_version == initial_version + 1
+
+    # Region Height
+    initial_version = game_map.scene_geometry_version
+    game_map.set_height_region(0, 0, 2, 2, 10)
+    assert np.all(game_map.height_map[0:2, 0:2] == 10)
+    assert game_map.scene_geometry_version == initial_version + 1
+
+    # Region Ceiling
+    initial_version = game_map.scene_geometry_version
+    game_map.set_ceiling_region(0, 0, 2, 2, 20)
+    assert np.all(game_map.ceiling_map[0:2, 0:2] == 20)
+    assert game_map.scene_geometry_version == initial_version + 1
+
+
 def test_removed_light_subtracts_advanced_contribution() -> None:
     """Removing a light subtracts the cached side-aware contribution."""
     h = w = 9
@@ -422,7 +454,7 @@ def test_scene_geometry_version_invalidates_lighting_renderer_cache() -> None:
     h = w = 9
     game_map = GameMap(w, h)
     game_map.tiles[:, :] = TILE_ID_FLOOR
-    game_map.ceiling_map[:, :] = 10
+    game_map.set_ceiling_region(0, 0, w, h, 10)
     game_map.update_tile_transparency()
     light = LightSource(x=2, y=4, radius=8, color=(255, 255, 255), id=1)
     renderer = LightingRenderer()

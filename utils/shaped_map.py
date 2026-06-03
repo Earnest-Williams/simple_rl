@@ -187,7 +187,8 @@ def shaped_dataframe_to_game_map(
             (height, width), default_height, dtype=np.int16, order="C"
         )
         height_grid[gy, gx] = np.rint(height_vals).astype(np.int16)
-        game_map.height_map = height_grid
+        game_map.height_map[:, :] = height_grid
+        game_map._scene_geometry_version += 1
 
     ceiling_grid = np.full((height, width), default_ceiling, dtype=np.int16, order="C")
     if "ceiling_depth" in df_columns:
@@ -200,7 +201,8 @@ def shaped_dataframe_to_game_map(
         ceiling_vals = floor_vals - height_vals
         ceiling_vals = np.nan_to_num(ceiling_vals, nan=default_ceiling)
         ceiling_grid[gy, gx] = np.rint(ceiling_vals).astype(np.int16)
-    game_map.ceiling_map = ceiling_grid
+    game_map.ceiling_map[:, :] = ceiling_grid
+    game_map._scene_geometry_version += 1
 
     if "height" not in df_columns and "floor_depth" in df_columns:
         depth_vals = df.get_column("floor_depth").to_numpy()
@@ -209,7 +211,8 @@ def shaped_dataframe_to_game_map(
             (height, width), default_floor_depth, dtype=np.int16, order="C"
         )
         depth_grid[gy, gx] = np.rint(depth_vals).astype(np.int16)
-        game_map.height_map = depth_grid
+        game_map.height_map[:, :] = depth_grid
+        game_map._scene_geometry_version += 1
 
     game_map.update_tile_transparency()
     return game_map, (min_x, min_y)

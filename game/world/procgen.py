@@ -81,8 +81,8 @@ class Rect(NamedTuple):
                 # Set tile type
                 game_map.tiles[y_start:y_end, x_start:x_end] = TILE_ID_FLOOR
                 # Assign Height/Ceiling
-                game_map.height_map[y_start:y_end, x_start:x_end] = floor_height
-                game_map.ceiling_map[y_start:y_end, x_start:x_end] = ceiling_height
+                game_map.set_height_region(x_start, y_start, x_end, y_end, floor_height)
+                game_map.set_ceiling_region(x_start, y_start, x_end, y_end, ceiling_height)
                 log.debug("Carved rectangle area", **log_context)
             except IndexError:
                 log.error("IndexError during carving", **log_context)
@@ -556,8 +556,8 @@ def _generate_cavern_level(
 
     # Update height and ceiling only for reachable floors
     for y, x in visited:
-        game_map.height_map[y, x] = 0
-        game_map.ceiling_map[y, x] = DEFAULT_ROOM_CEILING_OFFSET
+        game_map.set_height(x, y, 0)
+        game_map.set_ceiling(x, y, DEFAULT_ROOM_CEILING_OFFSET)
 
     visited_list = list(visited)
     spawn_y, spawn_x = visited_list[rng.get_int(0, len(visited_list) - 1)]
@@ -575,8 +575,8 @@ def _apply_prefab(
                 continue
             if char == ".":
                 game_map.tiles[ty, tx] = TILE_ID_FLOOR
-                game_map.height_map[ty, tx] = 0
-                game_map.ceiling_map[ty, tx] = DEFAULT_ROOM_CEILING_OFFSET
+                game_map.set_height(tx, ty, 0)
+                game_map.set_ceiling(tx, ty, DEFAULT_ROOM_CEILING_OFFSET)
     w, h = len(prefab[0]), len(prefab)
     return x + w // 2, y + h // 2
 

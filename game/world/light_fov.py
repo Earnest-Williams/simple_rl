@@ -132,6 +132,29 @@ def _is_masked_transparent_for_blocking(
     return (cell_mask[y, x] & light_channels) == uint32(0)
 
 
+@numba.njit(inline="always")
+def _cell_blocks_light_side_refinement(
+    opaque: np.uint8[:, :],
+    transparency: np.float32[:, :],
+    cell_mask: np.uint32[:, :],
+    use_mask: int,
+    light_channels: uint32,
+    x: int,
+    y: int,
+    opacity_threshold: float32,
+) -> bool:
+    if _is_masked_transparent_for_blocking(
+        cell_mask,
+        use_mask,
+        light_channels,
+        x,
+        y,
+    ):
+        return False
+
+    return opaque[y, x] != uint8(0) or transparency[y, x] <= opacity_threshold
+
+
 @numba.njit(nogil=True, cache=True)
 def _compute_octant_core_legacy(
     transparency: np.float32[:, :],
@@ -270,53 +293,45 @@ def _compute_octant_core_ex(
                 if mask & SIDE_SE:
                     if (
                         mx + 1 >= w
-                        or opaque[my, mx + 1] != uint8(0)
-                        or transparency[my, mx + 1] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx + 1, my, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_E))
                     if (
                         my + 1 >= h
-                        or opaque[my + 1, mx] != uint8(0)
-                        or transparency[my + 1, mx] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my + 1, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_S))
                 if mask & SIDE_NE:
                     if (
                         mx + 1 >= w
-                        or opaque[my, mx + 1] != uint8(0)
-                        or transparency[my, mx + 1] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx + 1, my, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_E))
                     if (
                         my - 1 < 0
-                        or opaque[my - 1, mx] != uint8(0)
-                        or transparency[my - 1, mx] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my - 1, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_N))
                 if mask & SIDE_SW:
                     if (
                         mx - 1 < 0
-                        or opaque[my, mx - 1] != uint8(0)
-                        or transparency[my, mx - 1] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx - 1, my, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_W))
                     if (
                         my + 1 >= h
-                        or opaque[my + 1, mx] != uint8(0)
-                        or transparency[my + 1, mx] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my + 1, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_S))
                 if mask & SIDE_NW:
                     if (
                         mx - 1 < 0
-                        or opaque[my, mx - 1] != uint8(0)
-                        or transparency[my, mx - 1] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx - 1, my, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_W))
                     if (
                         my - 1 < 0
-                        or opaque[my - 1, mx] != uint8(0)
-                        or transparency[my - 1, mx] <= opacity_threshold
+                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my - 1, opacity_threshold)
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_N))
 

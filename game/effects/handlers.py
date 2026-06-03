@@ -614,9 +614,9 @@ def dig_tunnel(context: dict[str, Any], params: dict[str, Any]) -> None:
         if current_tile == TILE_ID_WALL:
             gs.game_map.tiles[ny, nx] = TILE_ID_FLOOR
             # Set height/ceiling reasonably based on source
-            gs.game_map.height_map[ny, nx] = source_height
+            gs.game_map.set_height(nx, ny, source_height)
             # Example ceiling
-            gs.game_map.ceiling_map[ny, nx] = source_height + 6
+            gs.game_map.set_ceiling(nx, ny, source_height + 6)
             log.debug("Dug wall", pos=(nx, ny))
             map_changed = True
         else:

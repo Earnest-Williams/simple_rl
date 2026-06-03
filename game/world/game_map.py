@@ -237,6 +237,32 @@ class GameMap:
             self.light_channel_mask[y, x] = np.uint32(channels)
             self._scene_geometry_version += 1
 
+    def set_height(self, x: int, y: int, height: int) -> None:
+        """Set the floor height for a specific cell and increment geometry version."""
+        if self.in_bounds(x, y):
+            self.height_map[y, x] = np.int16(height)
+            self._scene_geometry_version += 1
+
+    def set_ceiling(self, x: int, y: int, height: int) -> None:
+        """Set the ceiling height for a specific cell and increment geometry version."""
+        if self.in_bounds(x, y):
+            self.ceiling_map[y, x] = np.int16(height)
+            self._scene_geometry_version += 1
+
+    def set_height_region(self, x0: int, y0: int, x1: int, y1: int, height: int) -> None:
+        """Set the floor height for a region and increment geometry version."""
+        x0, x1 = max(0, min(x0, x1)), min(self._width, max(x0, x1))
+        y0, y1 = max(0, min(y0, y1)), min(self._height, max(y0, y1))
+        self.height_map[y0:y1, x0:x1] = np.int16(height)
+        self._scene_geometry_version += 1
+
+    def set_ceiling_region(self, x0: int, y0: int, x1: int, y1: int, height: int) -> None:
+        """Set the ceiling height for a region and increment geometry version."""
+        x0, x1 = max(0, min(x0, x1)), min(self._width, max(x0, x1))
+        y0, y1 = max(0, min(y0, y1)), min(self._height, max(y0, y1))
+        self.ceiling_map[y0:y1, x0:x1] = np.int16(height)
+        self._scene_geometry_version += 1
+
     @property
     def width(self) -> int:
         return self._width
@@ -360,8 +386,8 @@ class GameMap:
         # --- Assign default height/ceiling to test room ---
         test_floor_height = 0
         test_ceiling_height = 6  # e.g., 3 meters high
-        self.height_map[y_start:y_end, x_start:x_end] = test_floor_height
-        self.ceiling_map[y_start:y_end, x_start:x_end] = test_ceiling_height
+        self.set_height_region(x_start, y_start, x_end, y_end, test_floor_height)
+        self.set_ceiling_region(x_start, y_start, x_end, y_end, test_ceiling_height)
         # --- End Assignment ---
 
         # Update transparency after changing tiles
