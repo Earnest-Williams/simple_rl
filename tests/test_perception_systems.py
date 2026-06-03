@@ -393,3 +393,133 @@ def test_choose_step_by_flow_descends_without_entering_walls() -> None:
 
     assert choose_step_by_flow(terrain_map, flow_costs, 1, 0) == (2, 1)
     assert choose_step_by_flow(terrain_map, flow_costs, -1, 0) == (-1, 0)
+
+
+def test_update_perception_fields_uses_loudest_noise_for_production_flow() -> None:
+    game_map = GameMap(width=7, height=7)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=11,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    
+    # We can use namedtuples from perception_systems or simple tuples.
+    # The codebase usually uses tuples or dict-like for legacy compatibility in tests.
+    # Since existing tests use tuples, we'll use tuples but pad them if needed.
+    # If the system expects flow_type as 4th element:
+    game_state.noise_events.extend(
+        [
+            (1, 1, 1.0, FlowType.REAL_NOISE),
+            (5, 5, 20.0, FlowType.REAL_NOISE),
+            (3, 3, 3.0, FlowType.REAL_NOISE),
+        ]
+    )
+
+    game_state.update_perception_fields(include_player_scent=False)
+
+    flow_idx = int(FlowType.REAL_NOISE)
+    assert tuple(game_state.perception_flow_centers[flow_idx]) == (5, 5)
+
+
+def test_update_perception_fields_resets_noise_flow_when_no_noise_events() -> None:
+    game_map = GameMap(width=5, height=5)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=11,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    
+    # Fill with dummy value
+    game_state.perception_cave_cost.fill(42)
+    game_state.update_perception_fields(include_player_scent=False)
+    
+    infinity = np.iinfo(np.int32).max // 2
+    assert np.all(game_state.perception_cave_cost == infinity)
+
+
+def test_update_perception_fields_appends_player_scent_in_production_turn() -> None:
+    game_map = GameMap(width=5, height=5)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(2, 2),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=11,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    
+    game_state.update_perception_fields(include_player_scent=True)
+    assert get_scent(game_state.perception_cave_when, 2, 2) > 0
+
+
+def test_update_perception_fields_latest_scent_event_wins_for_production_scent() -> None:
+    game_map = GameMap(width=7, height=7)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=12,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    
+    game_state.scent_events.extend(
+        [
+            (1, 1, 5.0),
+            (4, 4, 5.0),
+        ]
+    )
+
+    game_state.update_perception_fields(include_player_scent=False)
+    
+    assert get_scent(game_state.perception_cave_when, 4, 4) > 0
+    assert get_scent(game_state.perception_cave_when, 1, 1) == 0
+
+
+def test_gather_perception_does_not_add_automatic_player_scent_for_legacy_callers() -> None:
+    game_map = GameMap(width=7, height=7)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
+    game_state = GameState(
+        existing_map=game_map,
+        player_start_pos=(1, 1),
+        player_glyph=64,
+        player_start_hp=10,
+        player_fov_radius=5,
+        item_templates={},
+        rng_seed=12,
+        enable_sound=False,
+        enable_ai=False,
+    )
+    
+    game_state.scent_events.append((4, 4, 5.0))
+    gather_perception(game_state)
+    
+    assert get_scent(game_state.perception_cave_when, 4, 4) > 0
+    assert get_scent(game_state.perception_cave_when, 1, 1) == 0

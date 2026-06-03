@@ -597,6 +597,9 @@ class GameState:
                 game_map=self.game_map,
             )
 
+        # Production noise is intentionally loudest-event-wins. The debug radius map
+        # receives every queued event, but the pathfinding flow field represents one
+        # authoritative investigate source for this update.
         if noise_events:
             loudest = max(noise_events, key=lambda event: event_xy_intensity(event)[2])
             loudest_x, loudest_y, _intensity = event_xy_intensity(loudest)
@@ -614,6 +617,9 @@ class GameState:
             infinity = np.iinfo(np.int32).max // 2
             self.perception_cave_cost.fill(infinity)
 
+        # Production scent applies the latest scent event only. During normal turns,
+        # automatic player scent is appended after queued scent events and is therefore
+        # authoritative.
         if scent_events:
             latest = scent_events[-1]
             scent_x, scent_y, _intensity = event_xy_intensity(latest)

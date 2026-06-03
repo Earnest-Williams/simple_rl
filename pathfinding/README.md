@@ -38,3 +38,87 @@ The goal is to enable agents (particularly monsters or NPCs with heightened sens
 * Perception events can influence GOAP planning decisions via the perception tuple
 * Monster perception checks in the main game can run in parallel for performance
 * Data stored in game map layers for efficient access
+
+## Production Flow and Scent Contract
+
+### Flow slices
+
+Production noise fields are stored in `GameState.perception_cave_cost`,
+indexed by `pathfinding.perception_systems.FlowType`.
+
+Current flow types are:
+
+- `PASS_DOORS`: door-capable movement flow; closed/secret doors add a passage
+  penalty.
+- `NO_DOORS`: door-blocked flow; closed/secret doors stop propagation.
+- `REAL_NOISE`: player/world noise; closed/secret doors dampen propagation.
+- `MONSTER_NOISE`: monster-originated noise; uses real-noise door dampening.
+
+`update_noise()` rebuilds exactly one selected flow slice at a time and records
+that slice origin in `perception_flow_centers`.
+
+If richer sound behavior is needed, the next intended expansion is two
+semantic production slices: player noise and world/monster noise. Arbitrary
+per-source slices are intentionally out of scope for the current contract.
+
+### Noise source semantics
+
+`GameState.update_perception_fields()` may receive multiple queued
+`NoiseEvent`s in one update.
+
+Production noise semantics are loudest-event-wins:
+
+- All queued noise events contribute to the legacy/debug `game_map.noise_map`.
+- Only the loudest queued noise event is used to rebuild the production
+  pathfinding flow slice.
+- The selected event's `flow_type` chooses which `FlowType` slice is rebuilt.
+- The selected event's position is stored in `perception_flow_centers`.
+- If no noise events are queued, production noise costs are reset to infinity.
+
+The current production contract does not model multiple simultaneous
+pathfinding sound sources. Supporting multiple active sound sources requires a
+separate source-attribution design.
+
+### Scent lifecycle
+
+Production turns call `GameState.update_perception_fields(include_player_scent=True)`.
+That automatically appends a player `ScentEvent` at the current player position.
+
+Normal gameplay systems should not enqueue explicit player scent events during
+ordinary turns. Player scent is produced by the GameState lifecycle.
+
+Explicit `ScentEvent`s remain supported for tests, legacy callers, scripted
+events, and future non-player scent mechanics.
+
+On update:
+
+- All scent events contribute to the legacy/debug `game_map.scent_map`.
+- The production Sil-style scent field applies only the latest scent event in
+  the update batch.
+- During normal production turns, the automatically appended player scent event
+  is latest, so player scent is authoritative.
+- `gather_perception()` may process queued events with
+  `include_player_scent=False` for compatibility callers that invoke perception
+  directly.
+
+The production scent field stores freshness stamps in `perception_cave_when`;
+it is not an additive arbitrary scent-intensity map.
+
+`update_smell()` ages the global scent counter, lays a 5x5 stamp around the
+source, skips sentinel corners, blocks walls and secret doors, and applies a
+closed-door freshness penalty.
+
+### AI-facing expectations
+
+AI consumers should treat production perception as compact turn-level facts:
+
+- Audio perception currently exposes one selected heard source per update,
+  derived from the selected production noise flow center.
+- `gather_perception_snapshot()` uses the `REAL_NOISE` flow center as the
+  current heard source for alerted monsters.
+- Scent perception exposes Sil-style freshness stamps suitable for scent
+  following, trail heuristics, and last-known-position logic.
+- `game_map.noise_map` and `game_map.scent_map` are compatibility/debug heat
+  maps. They are not the authoritative pathfinding flow contract.
+- AI should not assume that every queued noise or scent event becomes a distinct
+  production source.

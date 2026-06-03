@@ -422,6 +422,7 @@ def test_apply_memory_fade_accepts_read_only_map_inputs() -> None:
     map_tiles_vp.setflags(write=False)
     visible_mask.setflags(write=False)
     drawn_mask.setflags(write=False)
+    glyph_indices.setflags(write=False)
 
     apply_memory_fade(
         final_fg,
