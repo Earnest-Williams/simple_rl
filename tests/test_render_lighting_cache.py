@@ -17,6 +17,7 @@ from engine.render_lighting import (
     RGBBlendPolicy,
     _compute_single_light_contribution,
     apply_memory_fade,
+    collapse_premult_rgba_to_rgb,
 )
 from tests.fixtures.lighting_scenarios import LightFixture
 from utils.game_rng import GameRNG
@@ -217,7 +218,7 @@ def test_cache_cached_vs_uncached_match() -> None:
     lights = make_lights((1, 5, 5, 6, (255, 0, 0)), (2, 14, 14, 6, (0, 0, 255)))
 
     # Uncached reference via direct summation
-    ref = np.zeros((h, w, 3), dtype=np.float32)
+    ref_combined = np.zeros((h, w, 8, 4), dtype=np.float32)
     for light in lights:
         buf = _compute_single_light_contribution(
             origin_x=light.x,
@@ -231,7 +232,8 @@ def test_cache_cached_vs_uncached_match() -> None:
             height_map=height_map,
             ceiling_map=ceiling_map,
         )
-        ref += buf
+        ref_combined += buf
+    ref = collapse_premult_rgba_to_rgb(ref_combined)
 
     # Cached output
     cache = LightContributionCache(h, w)
@@ -320,13 +322,14 @@ def test_cache_removing_light_subtracts_contribution() -> None:
     lights = make_lights((1, 5, 5, 5, (200, 200, 200)), (2, 10, 10, 5, (200, 200, 200)))
 
     cache = LightContributionCache(h, w)
-    before = cache.update(
+    cache.update(
         lights,
         opaque,
         scene_seq=1,
         height_map=height_map,
         ceiling_map=ceiling_map,
     )
+    combined_before = cache._combined.copy()
     buf_2 = cache._contributions[2].copy()
 
     # Remove light 2
@@ -340,8 +343,12 @@ def test_cache_removing_light_subtracts_contribution() -> None:
 
     # The combined buffer should no longer contain light 2's contribution
     assert 2 not in cache._contributions
-    np.testing.assert_allclose(after, cache._contributions[1], atol=1e-5)
-    np.testing.assert_allclose(before - buf_2, after, atol=1e-5)
+    np.testing.assert_allclose(
+        after, collapse_premult_rgba_to_rgb(cache._contributions[1]), atol=1e-5
+    )
+    np.testing.assert_allclose(
+        collapse_premult_rgba_to_rgb(combined_before - buf_2), after, atol=1e-5
+    )
 
 
 def test_cache_scene_seq_change_triggers_full_rebuild() -> None:

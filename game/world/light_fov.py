@@ -1,28 +1,21 @@
-#!/usr/bin/env python
-# Numba-based integer-slope shadowcasting FOV with per-tile side-bits.
-# - integer slope comparisons (cross-multiplication)
-# - half-cell slope representation for top-inclusive / bottom-exclusive tie-break
-# - early exit when top <= bottom
-# - simple transparency threshold model (t < 1 => treated as blocker for slope updates)
-# - side bits per tile (N/NE/E/SE/S/SW/W/NW) accumulated across octants
+# game/world/light_fov.py
+"""Light-aware Field of View (FOV) shadowcasting for production.
+
+Features side-bit outputs, direction/cone constraints, channel masks, and
+subtractive visibility ray-marching.
+"""
+
 from __future__ import annotations
 
 import math
-from typing import Final
+from typing import Any, Final
 
 import numba
 import numpy as np
-from numba import boolean, float32, uint8, uint32
+from numba import float32, uint8, uint32
 from numpy.typing import NDArray
 
-from lights_dev._numba_fov import (
-    Slope,
-    _compute_octant_for_boolean_array,
-)
-from lights_dev.dungeon_data import Dungeon
-
-# Side bit definitions
-# Must match lighting accumulator mapping:
+# Side bit definitions matching lighting accumulator mapping
 # 1:N, 2:E, 4:S, 8:W, 16:NE, 32:SE, 64:SW, 128:NW
 SIDE_N: Final[int] = 1 << 0  # North (bit 0)
 SIDE_E: Final[int] = 1 << 1  # East (bit 1)
@@ -44,7 +37,7 @@ def _slope_ge(a_n: int, a_d: int, b_n: int, b_d: int) -> bool:
 
 
 @numba.njit(inline="always")
-def _slope_le(a_n: INT, a_d: INT, b_n: INT, b_d: INT) -> boolean:
+def _slope_le(a_n: int, a_d: int, b_n: int, b_d: int) -> bool:
     # true iff a_n/a_d <= b_n/b_d without dividing
     return a_n * b_d <= b_n * a_d
 
@@ -53,7 +46,6 @@ def _slope_le(a_n: INT, a_d: INT, b_n: INT, b_d: INT) -> boolean:
 def _octant_map_coords(
     cx: int, cy: int, x: int, y: int, octant: int
 ) -> tuple[int, int]:
-    # map (x,y) in octant coords (x >= 1, 0 <= y <= x) to map coordinates
     if octant == 0:
         return cx + x, cy - y
     elif octant == 1:
@@ -68,23 +60,13 @@ def _octant_map_coords(
         return cx - y, cy + x
     elif octant == 6:
         return cx + y, cy + x
-    else:
-        # octant == 7
+    else:  # octant == 7
         return cx + x, cy + y
 
 
 @numba.njit(inline="always")
 def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
-    """
-    Compute an 8-bit mask for the direction from source to target.
-    Bits: N, NE, E, SE, S, SW, W, NW.
-    Rule:
-      - if |dx| > |dy| => horizontal side (E if dx>0 else W)
-      - if |dy| > |dx| => vertical side (S if dy>0 else N)
-      - if |dx| == |dy| => diagonal side (NE/SE/SW/NW)
-    """
     if dx == 0 and dy == 0:
-        # source tile: set all sides
         return uint8(
             SIDE_N | SIDE_NE | SIDE_E | SIDE_SE | SIDE_S | SIDE_SW | SIDE_W | SIDE_NW
         )
@@ -104,9 +86,6 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
         elif dy < 0:
             mask |= SIDE_N
     else:
-        # Exact diagonal: set the diagonal plus the two adjacent cardinal sides.
-        # This gives the lighting accumulator the information that the tile can be
-        # exposed on both adjacent cardinals as well as the diagonal.
         if dx > 0 and dy > 0:
             mask |= SIDE_SE | SIDE_E | SIDE_S
         elif dx > 0 and dy < 0:
@@ -127,7 +106,7 @@ def _in_cone(
     dir_x: float32,
     dir_y: float32,
     cos_half: float32,
-) -> boolean:
+) -> bool:
     if use_angle == 0:
         return True
     if dx == 0 and dy == 0:
@@ -147,7 +126,7 @@ def _is_masked_transparent_for_blocking(
     light_channels: uint32,
     x: int,
     y: int,
-) -> boolean:
+) -> bool:
     if use_mask == 0:
         return False
     return (cell_mask[y, x] & light_channels) == uint32(0)
@@ -165,9 +144,6 @@ def _compute_octant_core_legacy(
     octant: int,
     opacity_threshold: float32,
 ) -> None:
-    """
-    Core integer-slope octant scan with side-bit accumulation (legacy).
-    """
     h, w = transparency.shape
     radius_sq = radius * radius
 
@@ -196,33 +172,22 @@ def _compute_octant_core_legacy(
                 dx = mx - cx
                 dy = my - cy
                 mask = _compute_side_mask_from_vector(dx, dy)
-                # If we set diagonal+cardinals above, be conservative: if either of the
-                # adjacent cardinal cells is blocking (transparency <= opacity_threshold),
-                # then clear the corresponding cardinal bit so lighting won't treat that
-                # face as exposed.
-                # (Use 255 - SIDE_X as a safe uint8 mask complement.)
                 if mask & (SIDE_SE | SIDE_NE | SIDE_SW | SIDE_NW):
-                    # SE diagonal -> check E (mx+1,my) and S (mx,my+1)
                     if mask & SIDE_SE:
-                        # E neighbor
                         if mx + 1 >= w or transparency[my, mx + 1] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_E))
-                        # S neighbor
                         if my + 1 >= h or transparency[my + 1, mx] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_S))
-                    # NE diagonal -> check E (mx+1,my) and N (mx,my-1)
                     if mask & SIDE_NE:
                         if mx + 1 >= w or transparency[my, mx + 1] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_E))
                         if my - 1 < 0 or transparency[my - 1, mx] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_N))
-                    # SW diagonal -> check W (mx-1,my) and S (mx,my+1)
                     if mask & SIDE_SW:
                         if mx - 1 < 0 or transparency[my, mx - 1] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_W))
                         if my + 1 >= h or transparency[my + 1, mx] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_S))
-                    # NW diagonal -> check W (mx-1,my) and N (mx,my-1)
                     if mask & SIDE_NW:
                         if mx - 1 < 0 or transparency[my, mx - 1] <= opacity_threshold:
                             mask = uint8(mask & uint8(255 - SIDE_W))
@@ -267,9 +232,6 @@ def _compute_octant_core_ex(
     octant: int,
     opacity_threshold: float32,
 ) -> None:
-    """
-    Core integer-slope octant scan with side-bit accumulation and angle/mask support.
-    """
     h, w = transparency.shape
     radius_sq = radius * radius
 
@@ -304,19 +266,14 @@ def _compute_octant_core_ex(
                 dist[my, mx] = d
 
             mask = _compute_side_mask_from_vector(dx, dy)
-            # Same conservative refinement for the 'ex' octant core where we have both
-            # opaque and transparency available. For cardinal checks we consider a cell
-            # blocking if opaque != 0 OR transparency <= opacity_threshold.
             if mask & (SIDE_SE | SIDE_NE | SIDE_SW | SIDE_NW):
                 if mask & SIDE_SE:
-                    # E neighbor
                     if (
                         mx + 1 >= w
                         or opaque[my, mx + 1] != uint8(0)
                         or transparency[my, mx + 1] <= opacity_threshold
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_E))
-                    # S neighbor
                     if (
                         my + 1 >= h
                         or opaque[my + 1, mx] != uint8(0)
@@ -512,7 +469,6 @@ def _filter_occluded_legacy(
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
-    # Only cells within the radius can be visible; clamp to map bounds.
     y_min = max(0, cy - radius)
     y_max = min(h - 1, cy + radius)
     x_min = max(0, cx - radius)
@@ -543,7 +499,6 @@ def _filter_occluded_extended(
     opacity_threshold: float32,
 ) -> None:
     h, w = transparency.shape
-    # Only cells within the radius can be visible; clamp to map bounds.
     y_min = max(0, cy - radius)
     y_max = min(h - 1, cy + radius)
     x_min = max(0, cx - radius)
@@ -580,16 +535,7 @@ def _compute_fov_all_octants_legacy(
     radius: int,
     opacity_threshold: float32,
 ) -> None:
-    """
-    Top-level API: compute FOV for all 8 octants.
-
-    Precondition: visible_out, dist_out, side_bits_out are preallocated and
-    C-contiguous. dist_out should be initialized to -1 by the caller if desired;
-    this routine will only
-    overwrite distances for discovered tiles.
-    """
     h, w = transparency.shape
-    # mark the origin
     if 0 <= cx < w and 0 <= cy < h:
         visible_out[cy, cx] = 1
         dist_out[cy, cx] = 0
@@ -797,7 +743,10 @@ def _compute_visibility_subtractive_ex(
             visibility_out[ty, tx] = cur_vis
 
 
-def compute_fov_all_octants(*args: object) -> None:
+def compute_fov_all_octants(*args: Any) -> None:
+    # Any is used here because this wrapper accommodates two different multi-argument signatures
+    # for backward compatibility and test calls.
+    """Flexible wrapper matching advanced fov's compute_fov_all_octants."""
     if (
         len(args) >= 7
         and isinstance(args[0], np.ndarray)
@@ -921,47 +870,3 @@ def compute_fov_all_octants(*args: object) -> None:
             cx,
             cy,
         )
-
-
-def compute_los_into_boolean_array(
-    origin: tuple[int, int],
-    range_limit: int,
-    dungeon_instance: Dungeon,
-    target_los_array: NDArray[np.bool_],
-) -> None:
-    ox, oy = origin
-    if not (0 <= ox < dungeon_instance.width and 0 <= oy < dungeon_instance.height):
-        return
-    target_los_array[oy, ox] = True
-    start_top = Slope(1, 1)
-    start_bottom = Slope(0, 1)
-    for octant in range(8):
-        _compute_octant_for_boolean_array(
-            octant,
-            origin,
-            range_limit,
-            1,
-            start_top,
-            start_bottom,
-            dungeon_instance,
-            target_los_array,
-        )
-
-
-class FOVSystem:
-    @staticmethod
-    def compute_fov(
-        dungeon: Dungeon, origin: tuple[int, int], radius: int
-    ) -> NDArray[np.bool_]:
-        visible: NDArray[np.bool_] = np.zeros(
-            (dungeon.height, dungeon.width), dtype=np.bool_
-        )
-        compute_los_into_boolean_array(origin, radius, dungeon, visible)
-        return visible
-
-    @staticmethod
-    def precompile(dungeon: Dungeon, origin: tuple[int, int]) -> None:
-        dummy_visible: NDArray[np.bool_] = np.zeros(
-            (dungeon.height, dungeon.width), dtype=np.bool_
-        )
-        compute_los_into_boolean_array(origin, 0, dungeon, dummy_visible)

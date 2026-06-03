@@ -125,14 +125,19 @@ def get_transparency_map(tiles: np.ndarray) -> np.ndarray:
     return transparency
 
 
-@dataclass()
+@dataclass(slots=True)
 class LightSource:
-    """Simple representation of a colored light source."""
-
     x: int
     y: int
     radius: int
     color: tuple[int, int, int]
+    intensity: float = 1.0
+    direction: float | None = None
+    cone_angle: float = math.tau
+    cone_softness: float = 0.0
+    channels: int = 0xFFFFFFFF
+    id: int = -1
+    height: float = 0.0
 
 
 class GameMap:

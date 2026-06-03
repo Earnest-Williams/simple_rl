@@ -10,7 +10,10 @@ from typing import TypeAlias, TypedDict
 import numpy as np
 from numpy.typing import NDArray
 
-from engine.render_lighting import _compute_single_light_contribution
+from engine.render_lighting import (
+    _compute_single_light_contribution,
+    collapse_premult_rgba_to_rgb,
+)
 
 
 class LightingScenario(TypedDict):
@@ -94,7 +97,7 @@ def compute_rgb_sum(
             height_map=height_map,
             ceiling_map=ceiling_map,
         )
-        rgb += contribution
+        rgb += collapse_premult_rgba_to_rgb(contribution)
     return rgb
 
 

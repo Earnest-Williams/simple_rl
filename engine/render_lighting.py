@@ -1,37 +1,29 @@
 """Lighting and visual effect helpers for rendering."""
 
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, TypeAlias
 
 import numpy as np
 import structlog
+from numba import float32, njit, uint8
 
 from common.tuning import MEMORY_LEVEL_COUNT
-
-# Light sources are duck-typed objects from production and tests; they expose
-# x/y/radius/color/intensity attributes but do not share a common base class.
-LightSourceLike: TypeAlias = Any
-
-# Fallback removed
-from numba import float32, njit, uint8
-_NUMBA_AVAILABLE = True
-
-
-# Fallback removed
-from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
-
-# Fallback removed
-from utils.game_rng import GameRNG
-
-# Fallback removed
 from game.world.fov import (
     _THRESHOLD_AT_CUTOFF,
     CLOSE_RANGE_DIVISOR,
     CLOSE_RANGE_SQ_THRESHOLD,
     FAR_RANGE_DIVISOR,
-    compute_visibility,
 )
+from game.world.game_map import GameMap
+from game.world.light_fov import compute_fov_all_octants
+from utils.game_rng import GameRNG
+
+# Light sources are duck-typed objects from production and tests; they expose
+# x/y/radius/color/intensity attributes but do not share a common base class.
+LightSourceLike: TypeAlias = Any
+
+_NUMBA_AVAILABLE = True
 
 log = structlog.get_logger()
 
@@ -58,7 +50,7 @@ class RGBBlendPolicy:
         target: np.ndarray,
         contribution: np.ndarray,
     ) -> None:
-        """Add *contribution* (h × w × 3, float32) into *target* in-place."""
+        """Add *contribution* into *target* in-place."""
         target += contribution
 
     def subtract(
@@ -66,12 +58,34 @@ class RGBBlendPolicy:
         target: np.ndarray,
         contribution: np.ndarray,
     ) -> None:
-        """Subtract *contribution* (h × w × 3, float32) from *target* in-place."""
+        """Subtract *contribution* from *target* in-place."""
         target -= contribution
 
     def composite(self, accumulated: np.ndarray) -> np.ndarray:
-        """Return the final float32 buffer clamped to ``[0, 255]``."""
-        return np.clip(accumulated, 0.0, 255.0)
+        """Return the final float32 buffer clamped to ``[0, 255]``.
+
+        Under Option B, if accumulated buffer is (h, w, 8, 4), collapses it
+        to (h, w, 3) using premultiplied alpha rules before clamping.
+        """
+        return collapse_premult_rgba_to_rgb(accumulated)
+
+
+def collapse_premult_rgba_to_rgb(buf: np.ndarray) -> np.ndarray:
+    """Collapse a (h, w, 8, 4) side-aware premultiplied RGBA buffer to (h, w, 3) RGB."""
+    if buf.ndim == 4:
+        total_rgba = np.sum(buf, axis=2)  # shape (h, w, 4)
+        light_rgb = total_rgba[:, :, 0:3].copy()
+        light_a = total_rgba[:, :, 3].copy()
+
+        oversaturated = light_a > 255.0
+        if np.any(oversaturated):
+            scale = 255.0 / light_a[oversaturated]
+            light_rgb[oversaturated] *= scale[:, None]
+
+        np.clip(light_rgb, 0.0, 255.0, out=light_rgb)
+        return light_rgb
+    else:
+        return np.clip(buf, 0.0, 255.0)
 
 
 # Singleton default policy instance
@@ -92,27 +106,201 @@ def _height_threshold_for_distance(dist_sq: int) -> int:
     )
 
 
-def _geometry_blocks_light(
-    *,
-    target_x: int,
-    target_y: int,
+@njit(nogil=True, cache=True)
+def _precompute_geometry_blockers(
+    opaque_grid: np.ndarray,
+    height_map: np.ndarray,
+    ceiling_map: np.ndarray,
     origin_x: int,
     origin_y: int,
     origin_height: int,
-    height_map: np.ndarray,
-    ceiling_map: np.ndarray,
-) -> bool:
-    """Return whether height or ceiling geometry blocks light to a target cell."""
-    target_ceiling = int(ceiling_map[target_y, target_x])
-    if target_ceiling <= origin_height:
-        return True
+) -> tuple[np.ndarray, np.ndarray]:
+    h, w = opaque_grid.shape
+    opaque_out = opaque_grid.astype(np.uint8)
+    transparency_out = np.ones((h, w), dtype=np.float32)
+    # Default transparency of opaque grid is 0.0
+    for y in range(h):
+        for x in range(w):
+            if opaque_out[y, x] != 0:
+                transparency_out[y, x] = 0.0
+                continue
 
-    target_height = int(height_map[target_y, target_x])
-    dx = target_x - origin_x
-    dy = target_y - origin_y
-    dist_sq = dx * dx + dy * dy
-    threshold = _height_threshold_for_distance(dist_sq)
-    return abs(target_height - origin_height) > threshold
+            # Ceiling checks
+            target_ceiling = int(ceiling_map[y, x])
+            if target_ceiling <= origin_height:
+                opaque_out[y, x] = 1
+                transparency_out[y, x] = 0.0
+                continue
+
+            # Height checks
+            target_height = int(height_map[y, x])
+            dx = x - origin_x
+            dy = y - origin_y
+            dist_sq = dx * dx + dy * dy
+
+            # _height_threshold_for_distance inlined:
+            threshold = dist_sq // 8 if dist_sq <= 16 else 2 + (dist_sq - 16) // 16
+
+            if abs(target_height - origin_height) > threshold:
+                opaque_out[y, x] = 1
+                transparency_out[y, x] = 0.0
+
+    return opaque_out, transparency_out
+
+
+@njit(nogil=True, cache=True)
+def _accumulate_light_premult_rgba(
+    visible: np.ndarray,
+    dist: np.ndarray,
+    side_bits: np.ndarray,
+    visibility: np.ndarray,
+    out_side_rgba: np.ndarray,
+    light_intensity: float,
+    light_r: float,
+    light_g: float,
+    light_b: float,
+    is_directional: int,
+    dir_x: float,
+    dir_y: float,
+    use_soft: int,
+    cos_outer: float,
+    cos_inner: float,
+    light_src_x: float,
+    light_src_y: float,
+    light_height: float,
+) -> None:
+    h, w = visible.shape
+    core_radius_sq = 4.0  # matching R&D
+
+    for y in range(h):
+        for x in range(w):
+            if visible[y, x] == 0:
+                continue
+
+            sb = side_bits[y, x]
+            if sb == 0:
+                continue
+
+            d = dist[y, x]
+
+            dx = float((x + 0.5) - light_src_x)
+            dy = float((y + 0.5) - light_src_y)
+            len2d_sq = dx * dx + dy * dy
+
+            if len2d_sq <= core_radius_sq or d <= 0:
+                atten = light_intensity
+                inv_len2d = 1.0
+            else:
+                len2d = math.sqrt(len2d_sq)
+                if len2d <= 1e-9:
+                    atten = light_intensity
+                    inv_len2d = 1.0
+                else:
+                    inv_len2d = 1.0 / len2d
+                    atten = light_intensity * inv_len2d
+
+            t = float(visibility[y, x])
+            atten *= t
+            if atten <= 0.0:
+                continue
+
+            dz = float(light_height)
+            if dz > 0.0:
+                len3 = math.sqrt(dx * dx + dy * dy + dz * dz)
+                if len3 <= 1e-9:
+                    incidence = 1.0
+                else:
+                    incidence = dz / len3
+                    if incidence < 0.0:
+                        incidence = 0.0
+                atten *= incidence
+                if atten <= 0.0:
+                    continue
+
+            if is_directional != 0:
+                if d <= 0:
+                    dir_weight = 1.0
+                else:
+                    if len2d_sq <= core_radius_sq:
+                        len2d = math.sqrt(len2d_sq)
+                        if len2d <= 1e-9:
+                            ndx = 0.0
+                            ndy = 0.0
+                        else:
+                            ndx = dx / len2d
+                            ndy = dy / len2d
+                    else:
+                        ndx = dx * inv_len2d
+                        ndy = dy * inv_len2d
+
+                    dot = ndx * dir_x + ndy * dir_y
+
+                    if use_soft == 0:
+                        dir_weight = 1.0 if dot >= cos_outer else 0.0
+                    else:
+                        if dot >= cos_inner:
+                            dir_weight = 1.0
+                        elif dot <= cos_outer:
+                            dir_weight = 0.0
+                        else:
+                            denom = cos_inner - cos_outer
+                            if denom <= 1e-9:
+                                dir_weight = 1.0 if dot >= cos_inner else 0.0
+                            else:
+                                dir_weight = (dot - cos_outer) / denom
+
+                if dir_weight <= 0.0:
+                    continue
+                atten *= dir_weight
+                if atten <= 0.0:
+                    continue
+
+            r_ratio = atten
+            rgb_add_r = light_r * r_ratio
+            rgb_add_g = light_g * r_ratio
+            rgb_add_b = light_b * r_ratio
+            a_add = r_ratio * 255.0
+
+            if sb & 1:
+                out_side_rgba[y, x, 0, 0] += rgb_add_r
+                out_side_rgba[y, x, 0, 1] += rgb_add_g
+                out_side_rgba[y, x, 0, 2] += rgb_add_b
+                out_side_rgba[y, x, 0, 3] += a_add
+            if sb & 2:
+                out_side_rgba[y, x, 1, 0] += rgb_add_r
+                out_side_rgba[y, x, 1, 1] += rgb_add_g
+                out_side_rgba[y, x, 1, 2] += rgb_add_b
+                out_side_rgba[y, x, 1, 3] += a_add
+            if sb & 4:
+                out_side_rgba[y, x, 2, 0] += rgb_add_r
+                out_side_rgba[y, x, 2, 1] += rgb_add_g
+                out_side_rgba[y, x, 2, 2] += rgb_add_b
+                out_side_rgba[y, x, 2, 3] += a_add
+            if sb & 8:
+                out_side_rgba[y, x, 3, 0] += rgb_add_r
+                out_side_rgba[y, x, 3, 1] += rgb_add_g
+                out_side_rgba[y, x, 3, 2] += rgb_add_b
+                out_side_rgba[y, x, 3, 3] += a_add
+            if sb & 16:
+                out_side_rgba[y, x, 4, 0] += rgb_add_r
+                out_side_rgba[y, x, 4, 1] += rgb_add_g
+                out_side_rgba[y, x, 4, 2] += rgb_add_b
+                out_side_rgba[y, x, 4, 3] += a_add
+            if sb & 32:
+                out_side_rgba[y, x, 5, 0] += rgb_add_r
+                out_side_rgba[y, x, 5, 1] += rgb_add_g
+                out_side_rgba[y, x, 5, 2] += rgb_add_b
+                out_side_rgba[y, x, 5, 3] += a_add
+            if sb & 64:
+                out_side_rgba[y, x, 6, 0] += rgb_add_r
+                out_side_rgba[y, x, 6, 1] += rgb_add_g
+                out_side_rgba[y, x, 6, 2] += rgb_add_b
+                out_side_rgba[y, x, 6, 3] += a_add
+            if sb & 128:
+                out_side_rgba[y, x, 7, 0] += rgb_add_r
+                out_side_rgba[y, x, 7, 1] += rgb_add_g
+                out_side_rgba[y, x, 7, 2] += rgb_add_b
+                out_side_rgba[y, x, 7, 3] += a_add
 
 
 def _compute_single_light_contribution(
@@ -127,75 +315,157 @@ def _compute_single_light_contribution(
     scene_w: int,
     height_map: np.ndarray | None = None,
     ceiling_map: np.ndarray | None = None,
+    direction: float | None = None,
+    cone_angle: float = math.tau,
+    cone_softness: float = 0.0,
+    channels: int = 0xFFFFFFFF,
+    height: float = 0.0,
+    cell_mask: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Compute one light's RGB contribution array.
-
-    This callback-visibility contribution is the canonical production
-    colored-light kernel.  When height and ceiling maps are supplied, the same
-    geometry blockers used by normal FOV are folded into the opacity callback.
-    """
-    contribution: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
+    """Compute one light's side-aware premultiplied RGBA contribution array."""
+    contribution = np.zeros((scene_h, scene_w, 8, 4), dtype=np.float32)
     if radius <= 0:
         return contribution
 
-    intensity_f: float = float(intensity)
-    scaled_color: tuple[int, int, int] = (
-        int(color_rgb[0] * intensity_f),
-        int(color_rgb[1] * intensity_f),
-        int(color_rgb[2] * intensity_f),
-    )
+    # Precompute geometry blocking relative to this light's origin
     if height_map is not None and ceiling_map is not None:
-        if (
-            height_map.shape != opaque_grid.shape
-            or ceiling_map.shape != opaque_grid.shape
-        ):
-            raise ValueError("height_map and ceiling_map must match opaque_grid shape")
         origin_height = int(height_map[origin_y, origin_x])
+        opaque_u8, transparency_f32 = _precompute_geometry_blockers(
+            opaque_grid, height_map, ceiling_map, origin_x, origin_y, origin_height
+        )
+    else:
+        opaque_u8 = opaque_grid.astype(np.uint8)
+        transparency_f32 = (1.0 - opaque_grid).astype(np.float32)
 
-        def _is_opaque(y: int, x: int) -> bool:
-            if bool(opaque_grid[y, x]):
-                return True
-            return _geometry_blocks_light(
-                target_x=x,
-                target_y=y,
-                origin_x=origin_x,
-                origin_y=origin_y,
-                origin_height=origin_height,
-                height_map=height_map,
-                ceiling_map=ceiling_map,
+    # Allocate outputs
+    visible_out = np.zeros((scene_h, scene_w), dtype=np.uint8)
+    dist_out = -np.ones((scene_h, scene_w), dtype=np.int32)
+    side_bits_out = np.zeros((scene_h, scene_w), dtype=np.uint8)
+    visibility_out = np.zeros((scene_h, scene_w), dtype=np.float32)
+
+    use_cell_mask = cell_mask is not None
+    if use_cell_mask:
+        cell_mask_u32 = cell_mask.astype(np.uint32)
+
+    # Angles
+    if direction is not None:
+        half_cone = 0.5 * cone_angle
+        start_angle = direction - half_cone
+        end_angle = direction + half_cone
+    else:
+        start_angle = None
+        end_angle = None
+
+    # Call JIT shadowcasting FOV
+    if use_cell_mask:
+        if start_angle is not None and end_angle is not None:
+            compute_fov_all_octants(
+                opaque_u8,
+                transparency_f32,
+                cell_mask_u32,
+                channels,
+                visible_out,
+                dist_out,
+                side_bits_out,
+                visibility_out,
+                origin_x,
+                origin_y,
+                radius,
+                start_angle,
+                end_angle,
+            )
+        else:
+            compute_fov_all_octants(
+                opaque_u8,
+                transparency_f32,
+                cell_mask_u32,
+                channels,
+                visible_out,
+                dist_out,
+                side_bits_out,
+                visibility_out,
+                origin_x,
+                origin_y,
+                radius,
+            )
+    else:
+        if start_angle is not None and end_angle is not None:
+            compute_fov_all_octants(
+                opaque_u8,
+                transparency_f32,
+                visible_out,
+                dist_out,
+                side_bits_out,
+                visibility_out,
+                origin_x,
+                origin_y,
+                radius,
+                start_angle,
+                end_angle,
+            )
+        else:
+            compute_fov_all_octants(
+                opaque_u8,
+                transparency_f32,
+                visible_out,
+                dist_out,
+                side_bits_out,
+                visibility_out,
+                origin_x,
+                origin_y,
+                radius,
             )
 
-    else:
+    # Directional math setup for JIT accumulator
+    is_directional = 0
+    dir_x = 0.0
+    dir_y = 0.0
+    use_soft = 0
+    cos_outer = 0.0
+    cos_inner = 0.0
 
-        def _is_opaque(y: int, x: int) -> bool:
-            return bool(opaque_grid[y, x])
+    if direction is not None:
+        is_directional = 1
+        dir_x = math.cos(direction)
+        dir_y = math.sin(direction)
+        half_cone = 0.5 * cone_angle
+        cos_outer = math.cos(half_cone)
+        if cone_softness > 0.0:
+            use_soft = 1
+            inner_angle = half_cone * (1.0 - cone_softness)
+            cos_inner = math.cos(inner_angle)
+        else:
+            cos_inner = cos_outer
 
-    visible = compute_visibility(
-        scene_h,
-        scene_w,
-        origin_y=origin_y,
-        origin_x=origin_x,
-        radius=radius,
-        is_opaque=_is_opaque,
+    _accumulate_light_premult_rgba(
+        visible_out,
+        dist_out,
+        side_bits_out,
+        visibility_out,
+        contribution,
+        float(intensity),
+        float(color_rgb[0]),
+        float(color_rgb[1]),
+        float(color_rgb[2]),
+        is_directional,
+        dir_x,
+        dir_y,
+        use_soft,
+        cos_outer,
+        cos_inner,
+        float(origin_x),
+        float(origin_y),
+        float(height),
     )
-    radius_sq = float(radius * radius)
-    color = np.array(scaled_color, dtype=np.float32)
-    for cy, cx in visible:
-        dist_sq = (cx - origin_x) ** 2 + (cy - origin_y) ** 2
-        if dist_sq > radius_sq:
-            continue
-        fade = 1.0 - dist_sq / radius_sq
-        contribution[cy, cx, :] += color * fade
+
     return contribution
 
 
 class LightContributionCache:
-    """Per-light RGB contribution cache for the production lighting renderer.
+    """Per-light side-aware contribution cache for the production lighting renderer.
 
-    Maintains a separate ``(h × w × 3)`` float32 buffer for each light and
-    a combined scene buffer.  The cache receives current lights, opacity, scene
-    geometry, an optional viewport, and a scene geometry version, then returns
-    the canonical blended RGB contribution for that view.
+    Maintains a separate ``(h × w × 8 × 4)`` float32 buffer for each light and
+    a combined scene buffer.
     """
 
     def __init__(
@@ -208,7 +478,9 @@ class LightContributionCache:
         self._w: int = scene_w
         self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
         self._last_scene_seq: int | None = None
-        self._combined: np.ndarray = np.zeros((scene_h, scene_w, 3), dtype=np.float32)
+        self._combined: np.ndarray = np.zeros(
+            (scene_h, scene_w, 8, 4), dtype=np.float32
+        )
         self._contributions: dict[int, np.ndarray] = {}
         self._param_keys: dict[int, tuple[object, ...]] = {}
 
@@ -232,6 +504,11 @@ class LightContributionCache:
             getattr(light, "radius", None),
             color,
             getattr(light, "intensity", 1.0),
+            getattr(light, "direction", None),
+            getattr(light, "cone_angle", math.tau),
+            getattr(light, "cone_softness", 0.0),
+            getattr(light, "channels", 0xFFFFFFFF),
+            getattr(light, "height", 0.0),
         )
 
     def _compute_light(
@@ -240,19 +517,33 @@ class LightContributionCache:
         opaque_grid: np.ndarray,
         height_map: np.ndarray | None,
         ceiling_map: np.ndarray | None,
+        cell_mask: np.ndarray | None = None,
     ) -> np.ndarray:
         """Compute a full-scene contribution buffer for one light."""
+        intensity = float(getattr(light, "intensity", 1.0))
+        direction = getattr(light, "direction", None)
+        cone_angle = float(getattr(light, "cone_angle", math.tau))
+        cone_softness = float(getattr(light, "cone_softness", 0.0))
+        channels = int(getattr(light, "channels", 0xFFFFFFFF))
+        height = float(getattr(light, "height", 0.0))
+
         return _compute_single_light_contribution(
             origin_x=int(light.x),
             origin_y=int(light.y),
             radius=int(light.radius),
             color_rgb=tuple(light.color),
-            intensity=float(getattr(light, "intensity", 1.0)),
+            intensity=intensity,
             opaque_grid=opaque_grid,
             scene_h=self._h,
             scene_w=self._w,
             height_map=height_map,
             ceiling_map=ceiling_map,
+            direction=direction,
+            cone_angle=cone_angle,
+            cone_softness=cone_softness,
+            channels=channels,
+            height=height,
+            cell_mask=cell_mask,
         )
 
     def _invalidate_all(
@@ -261,6 +552,7 @@ class LightContributionCache:
         opaque_grid: np.ndarray,
         height_map: np.ndarray | None,
         ceiling_map: np.ndarray | None,
+        cell_mask: np.ndarray | None = None,
     ) -> None:
         """Rebuild every light's contribution from scratch."""
         self._combined[:] = 0.0
@@ -271,7 +563,9 @@ class LightContributionCache:
                 continue
             lid = self._light_id(light, index)
             key = self._param_key(light)
-            buf = self._compute_light(light, opaque_grid, height_map, ceiling_map)
+            buf = self._compute_light(
+                light, opaque_grid, height_map, ceiling_map, cell_mask
+            )
             self._contributions[lid] = buf
             self._param_keys[lid] = key
             self._policy.accumulate(self._combined, buf)
@@ -313,6 +607,7 @@ class LightContributionCache:
         vp_w: int | None = None,
         height_map: np.ndarray | None = None,
         ceiling_map: np.ndarray | None = None,
+        cell_mask: np.ndarray | None = None,
     ) -> np.ndarray:
         """Incrementally update and return a blended RGB contribution buffer.
 
@@ -323,7 +618,9 @@ class LightContributionCache:
         lights_list = list(lights)
         if scene_seq is not None and scene_seq != self._last_scene_seq:
             self._last_scene_seq = scene_seq
-            self._invalidate_all(lights_list, opaque_grid, height_map, ceiling_map)
+            self._invalidate_all(
+                lights_list, opaque_grid, height_map, ceiling_map, cell_mask
+            )
         else:
             incoming_ids = {
                 self._light_id(light, index)
@@ -347,7 +644,9 @@ class LightContributionCache:
                         continue
                     old_buf = self._contributions[lid]
                     self._policy.subtract(self._combined, old_buf)
-                buf = self._compute_light(light, opaque_grid, height_map, ceiling_map)
+                buf = self._compute_light(
+                    light, opaque_grid, height_map, ceiling_map, cell_mask
+                )
                 self._contributions[lid] = buf
                 self._param_keys[lid] = new_key
                 self._policy.accumulate(self._combined, buf)
