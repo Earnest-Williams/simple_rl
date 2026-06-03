@@ -12,7 +12,7 @@ import structlog
 from numpy.typing import NDArray
 
 from common.constants import FeatureType
-from game.ai.perception import gather_perception
+from game.ai.perception import gather_perception, gather_perception_snapshot
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
@@ -751,7 +751,7 @@ class GameState:
         # --- AI processing for nearby entities ---
         if self.ai_enabled:
             log.debug("Gathering perception data for AI")
-            perception = gather_perception(self)
+            perception = gather_perception_snapshot(self)
 
             log.debug("Processing AI-controlled entities")
             ai_rows = []

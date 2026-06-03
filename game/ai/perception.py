@@ -68,24 +68,93 @@ def gather_perception(
 
 def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     """Return structured AI-facing perception facts without breaking legacy callers."""
+    from pathfinding.perception_systems import get_scent
+    
     noise_map, scent_map, los_map = gather_perception(game_state)
     facts: dict[int, PerceptionFact] = {}
 
     flow_idx = int(FlowType.REAL_NOISE)
     center_y = int(game_state.perception_flow_centers[flow_idx, 0])
     center_x = int(game_state.perception_flow_centers[flow_idx, 1])
-    heard_source = (center_x, center_y)
+    global_heard_source = (center_x, center_y)
+    
+    alerted_set = set(game_state.perception_alerted_monster_ids)
 
-    for entity_id in game_state.perception_alerted_monster_ids:
-        facts[int(entity_id)] = PerceptionFact(
-            signal_type="audio",
-            confidence=1.0,
-            heard_source=heard_source,
-            heard_flow="real_noise",
-            last_known_position=heard_source,
+    df = getattr(game_state.entity_registry, "entities_df", None)
+    if df is not None and not df.is_empty():
+        active_df = df.filter(
+            (pl.col("is_active") == True) & (pl.col("entity_id") != game_state.player_id)
         )
+        cave_when = game_state.perception_cave_when
+        game_map = game_state.game_map
+        
+        for row in active_df.iter_rows(named=True):
+            if not (row.get("ai_type") or row.get("species") or row.get("intelligence") is not None):
+                continue
+                
+            ent_id = int(row["entity_id"])
+            ex = row.get("x")
+            ey = row.get("y")
+            if ex is None or ey is None:
+                continue
+            ex, ey = int(ex), int(ey)
+            
+            # 1. Visible targets
+            visible_targets = find_visible_enemies(row, game_state, los_map)
+            
+            # 2. Audio facts
+            heard_source = global_heard_source if ent_id in alerted_set else None
+            heard_flow = "real_noise" if heard_source else None
+            
+            # 3. Scent facts
+            current_scent = get_scent(cave_when, ey, ex)
+            best_scent_val = current_scent
+            best_scent_pos = None
+            
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = ex + dx, ey + dy
+                if 0 <= nx < game_map.width and 0 <= ny < game_map.height:
+                    # check passable - transparent is True for walkable
+                    if game_map.transparent[ny, nx]:
+                        n_scent = get_scent(cave_when, ny, nx)
+                        if n_scent > best_scent_val:
+                            best_scent_val = n_scent
+                            best_scent_pos = (nx, ny)
+            
+            scent_position = best_scent_pos
+            scent_strength = best_scent_val if best_scent_pos else current_scent
+            
+            # 5. Priority: LOS > fresh noise > fresh scent > last-known memory > idle
+            last_known_position = None
+            signal_type = "idle"
+            confidence = 0.0
+            
+            if visible_targets:
+                signal_type = "visual"
+                confidence = 1.0
+                first = visible_targets[0]
+                last_known_position = (int(first["x"]), int(first["y"]))
+            elif heard_source:
+                signal_type = "audio"
+                confidence = 1.0
+                last_known_position = heard_source
+            elif scent_position:
+                signal_type = "scent"
+                confidence = 0.8
+                last_known_position = scent_position
+                
+            facts[ent_id] = PerceptionFact(
+                signal_type=signal_type,
+                confidence=confidence,
+                visible_targets=visible_targets,
+                heard_source=heard_source,
+                heard_flow=heard_flow,
+                scent_strength=scent_strength,
+                scent_position=scent_position,
+                last_known_position=last_known_position,
+            )
 
-    log.debug("Perception snapshot generated", alerted_count=len(facts))
+    log.debug("Perception snapshot generated", facts_count=len(facts))
     return PerceptionSnapshot(
         los_map=los_map,
         entity_facts=facts,

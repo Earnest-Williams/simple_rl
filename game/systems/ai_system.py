@@ -31,7 +31,7 @@ def dispatch_ai(
     *,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray] | None,
+    perception: Any | None,
     batch_size: int = 4,
     deterministic: bool = True,
 ) -> None:

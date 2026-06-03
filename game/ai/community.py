@@ -45,7 +45,7 @@ def take_turn(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
     **kwargs,
 ) -> None:
     """Execute one turn for an entity using the community AI system.
@@ -56,7 +56,12 @@ def take_turn(
     """
     entity_id = entity_row["entity_id"]
     x, y = entity_row["x"], entity_row["y"]
-    noise_map, scent_map, los_map = perception
+    if hasattr(perception, "los_map"):
+        noise_map = perception.debug_noise_map
+        scent_map = perception.debug_scent_map
+        los_map = perception.los_map
+    else:
+        noise_map, scent_map, los_map = perception
 
     player_pos = game_state.player_position
     move = None

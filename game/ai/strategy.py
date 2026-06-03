@@ -51,10 +51,14 @@ def _move(entity_row: series, dx: int, dy: int, game_state: GameState) -> None:
 def charge_behavior(
     entity_row: series,
     game_state: GameState,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> None:
-    noise, scent, los = perception
-    enemies = find_visible_enemies(entity_row, game_state, los)
+    if hasattr(perception, "entity_facts"):
+        fact = perception.entity_facts.get(int(entity_row["entity_id"]))
+        enemies = fact.visible_targets if fact else []
+    else:
+        noise, scent, los = perception
+        enemies = find_visible_enemies(entity_row, game_state, los)
     if not enemies:
         return
     target = enemies[0]
@@ -74,10 +78,14 @@ def home_behavior(entity_row: series, game_state: GameState) -> None:
 def flee_behavior(
     entity_row: series,
     game_state: GameState,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> None:
-    noise, scent, los = perception
-    enemies = find_visible_enemies(entity_row, game_state, los)
+    if hasattr(perception, "entity_facts"):
+        fact = perception.entity_facts.get(int(entity_row["entity_id"]))
+        enemies = fact.visible_targets if fact else []
+    else:
+        noise, scent, los = perception
+        enemies = find_visible_enemies(entity_row, game_state, los)
     if not enemies:
         return
     target = enemies[0]
@@ -91,7 +99,7 @@ def flee_behavior(
 def smart_kobold_behavior(
     entity_row: series,
     game_state: GameState,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> None:
     hp = entity_row.get("hp", 1)
     max_hp = entity_row.get("max_hp", hp)
@@ -105,7 +113,7 @@ def dispatch_strategy(
     entity_row: series,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
     **kwargs,
 ) -> None:
     """Dispatch behaviour based on the entity's ``strategy_state``."""

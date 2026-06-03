@@ -19,7 +19,7 @@ def take_turn(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
     **kwargs,
 ) -> None:
     """Execute one turn for a stationary attacking plant."""

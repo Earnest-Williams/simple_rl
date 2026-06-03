@@ -60,12 +60,17 @@ def _action_move_attack(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> bool:
     """Basic behaviour: move toward the player or wander."""
     entity_id = entity_row["entity_id"]
     x, y = entity_row["x"], entity_row["y"]
-    noise_map, scent_map, los_map = perception
+    if hasattr(perception, "los_map"):
+        noise_map = perception.debug_noise_map
+        scent_map = perception.debug_scent_map
+        los_map = perception.los_map
+    else:
+        noise_map, scent_map, los_map = perception
 
     player_pos = game_state.player_position
     move = None
@@ -92,17 +97,22 @@ def _action_move_attack(
             move = (ndx, ndy)
 
     if move is None:
-        current_scent = scent_map[y, x]
-        best_scent = current_scent
-        for ndx, ndy in directions:
-            nx, ny = x + ndx, y + ndy
-            if (
-                0 <= nx < scent_map.shape[1]
-                and 0 <= ny < scent_map.shape[0]
-                and scent_map[ny, nx] > best_scent
-            ):
-                best_scent = scent_map[ny, nx]
-                move = (ndx, ndy)
+        if hasattr(perception, "entity_facts"):
+            fact = perception.entity_facts.get(int(entity_id))
+            if fact and fact.scent_position:
+                move = (fact.scent_position[0] - x, fact.scent_position[1] - y)
+        if move is None:
+            current_scent = scent_map[y, x]
+            best_scent = current_scent
+            for ndx, ndy in directions:
+                nx, ny = x + ndx, y + ndy
+                if (
+                    0 <= nx < scent_map.shape[1]
+                    and 0 <= ny < scent_map.shape[0]
+                    and scent_map[ny, nx] > best_scent
+                ):
+                    best_scent = scent_map[ny, nx]
+                    move = (ndx, ndy)
 
     if move is None:
         if not hasattr(rng, "get_int"):
@@ -131,12 +141,17 @@ def _action_seek_cover(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> bool:
     """Intermediate behaviour: attempt to move to a tile out of sight."""
     entity_id = entity_row["entity_id"]
     x, y = entity_row["x"], entity_row["y"]
-    _, _, los_map = perception
+    if hasattr(perception, "los_map"):
+        noise_map = perception.debug_noise_map
+        scent_map = perception.debug_scent_map
+        los_map = perception.los_map
+    else:
+        noise_map, scent_map, los_map = perception
     if not los_map[y, x]:
         return False
     for dx, dy in directions:
@@ -155,7 +170,7 @@ def _action_coordinate(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
 ) -> bool:
     """Advanced behaviour: coordinate with allies (placeholder)."""
     # For now we simply record that coordination was attempted.
@@ -174,7 +189,7 @@ def take_turn(
     entity_row,
     game_state: GameState,
     rng: GameRNG,
-    perception: tuple[np.ndarray, np.ndarray, np.ndarray],
+    perception: Any,
     plan_depth: int = 1,
     **kwargs,
 ) -> None:
