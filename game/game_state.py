@@ -34,12 +34,7 @@ from game.systems.sound import get_sound_manager, update_music_context
 
 # Assuming these imports are correct relative to game_state.py
 from game.world.game_map import GameMap, LightSource
-from game.world.memory import (
-    Actor,
-    MemoryTraits,
-    build_memory_traits_for_actor,
-    resolve_memory_decay_parameters,
-)
+from game.world.memory import MemoryTraits
 from pathfinding.perception_systems import (
     MAX_FLOWS,
     SCENT_RESET_AGE,
@@ -106,7 +101,7 @@ class GameState:
         memory_fade_config: dict[str, Any] | None = None,
         enable_sound: bool = True,
         enable_ai: bool = True,
-    ):
+    ) -> None:
         log.info("Initializing GameState...")
 
         if not isinstance(existing_map, GameMap):
@@ -268,39 +263,61 @@ class GameState:
         self._force_player_visible(px, py)
         self.game_map.refresh_visible_memory(self.turn_count)
         if self.memory_fade_enabled:
-            # Step 5: Update traits from real player gameplay state and resolve parameters
-            player_intel = (
-                self.entity_registry.get_entity_component(
-                    self.player_id, "intelligence"
-                )
-                or 10
-            )
-            player_statuses = (
-                self.entity_registry.get_entity_component(
-                    self.player_id, "status_effects"
-                )
-                or []
-            )
-
-            player_actor = Actor(
-                entity_id=self.player_id,
-                intelligence=player_intel,
-                status_effects=player_statuses,
-            )
-            self.memory_traits = build_memory_traits_for_actor(player_actor)
-
-            steepness, midpoint = resolve_memory_decay_parameters(
-                self.memory_traits,
+            self.memory_traits = self._build_player_memory_traits()
+            self.game_map.fade_memory(
+                self.turn_count,
+                traits=self.memory_traits,
                 base_steepness=self.memory_fade_steepness,
                 base_midpoint=self.memory_fade_midpoint,
             )
-            self.game_map.fade_memory(
-                self.turn_count,
-                steepness,
-                midpoint,
-            )
         self._sync_player_light_source(px, py)
         self.flush_message_queue()
+
+    def _build_player_memory_traits(self) -> MemoryTraits:
+        """Resolve memory traits from live player-owned entity components."""
+        raw_intelligence = self.entity_registry.get_entity_component(
+            self.player_id, "intelligence"
+        )
+        intelligence = raw_intelligence if isinstance(raw_intelligence, int) else 10
+
+        raw_statuses = self.entity_registry.get_entity_component(
+            self.player_id, "status_effects"
+        )
+        statuses = raw_statuses if isinstance(raw_statuses, list) else []
+
+        has_confusion = False
+        has_illness = False
+        fatigue_level = 0.0
+        magic_memory_bonus = 0.0
+        location_familiarity = 0.0
+
+        for status in statuses:
+            if not isinstance(status, dict):
+                continue
+            effect_id = status.get("id")
+            raw_intensity = status.get("intensity", 0.0)
+            intensity = (
+                float(raw_intensity) if isinstance(raw_intensity, int | float) else 0.0
+            )
+            if effect_id == "confusion":
+                has_confusion = True
+            elif effect_id == "illness":
+                has_illness = True
+            elif effect_id == "fatigue":
+                fatigue_level = intensity
+            elif effect_id == "magic_memory_bonus":
+                magic_memory_bonus = intensity
+            elif effect_id == "location_familiarity":
+                location_familiarity = intensity
+
+        return MemoryTraits(
+            intelligence=intelligence,
+            has_confusion=has_confusion,
+            has_illness=has_illness,
+            fatigue_level=fatigue_level,
+            magic_memory_bonus=magic_memory_bonus,
+            location_familiarity=location_familiarity,
+        )
 
     def _force_player_visible(self, px: int, py: int) -> None:
         """Ensure the player's tile remains visible and explored after FOV."""

@@ -395,3 +395,119 @@ def test_game_map_set_light_channel_mask_invalidates_cache() -> None:
     game_map.set_light_channel_mask(2, 2, 0x0000FFFF)
     assert game_map.light_channel_mask[2, 2] == 0x0000FFFF
     assert game_map.scene_geometry_version == initial_version + 1
+
+
+def test_removed_light_subtracts_advanced_contribution() -> None:
+    """Removing a light subtracts the cached side-aware contribution."""
+    h = w = 9
+    opaque = np.zeros((h, w), dtype=np.bool_)
+    lights = [
+        LightSource(x=2, y=4, radius=4, color=(255, 0, 0), id=1),
+        LightSource(x=6, y=4, radius=4, color=(0, 0, 255), id=2),
+    ]
+    cache = LightContributionCache(h, w)
+
+    cache.update(lights, opaque, scene_seq=1)
+    combined_before = cache.side_rgba_view().copy()
+    removed_contribution = cache._contributions[2].copy()
+    after = cache.update([lights[0]], opaque, scene_seq=1)
+
+    assert 2 not in cache._contributions
+    expected = collapse_premult_rgba_to_rgb(combined_before - removed_contribution)
+    np.testing.assert_allclose(after, expected, atol=1e-5)
+
+
+def test_scene_geometry_version_invalidates_lighting_renderer_cache() -> None:
+    """GameMap geometry-version changes force renderer cache rebuilds."""
+    from engine.render_lighting import LightingRenderer
+    from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
+
+    h = w = 9
+    game_map = GameMap(w, h)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.ceiling_map[:, :] = 10
+    game_map.update_tile_transparency()
+    light = LightSource(x=2, y=4, radius=8, color=(255, 255, 255), id=1)
+    renderer = LightingRenderer()
+    lit_fg = np.zeros((h, w, 3), dtype=np.uint8)
+    lit_bg = np.zeros((h, w, 3), dtype=np.uint8)
+
+    _, _, before = renderer.apply_colored_lighting(
+        lit_fg.copy(),
+        lit_bg.copy(),
+        [light],
+        game_map,
+        viewport_x=0,
+        viewport_y=0,
+        vp_h=h,
+        vp_w=w,
+        scene_seq=None,
+    )
+
+    game_map.tiles[:, 5] = TILE_ID_WALL
+    game_map.update_tile_transparency()
+    _, _, after = renderer.apply_colored_lighting(
+        lit_fg.copy(),
+        lit_bg.copy(),
+        [light],
+        game_map,
+        viewport_x=0,
+        viewport_y=0,
+        vp_h=h,
+        vp_w=w,
+        scene_seq=None,
+    )
+
+    assert game_map.scene_geometry_version > 0
+    assert not np.array_equal(before, after)
+
+
+def test_viewport_output_is_deterministic_across_repeated_updates() -> None:
+    """Repeated viewport lighting updates with identical inputs are deterministic."""
+    h = w = 11
+    opaque = np.zeros((h, w), dtype=np.bool_)
+    lights = [
+        LightSource(x=3, y=3, radius=5, color=(255, 128, 64), id=1),
+        LightSource(x=8, y=8, radius=4, color=(64, 128, 255), id=2),
+    ]
+    cache = LightContributionCache(h, w)
+
+    first = cache.update(
+        lights,
+        opaque,
+        scene_seq=1,
+        viewport_x=2,
+        viewport_y=1,
+        vp_h=5,
+        vp_w=6,
+    )
+    second = cache.update(
+        lights,
+        opaque,
+        scene_seq=1,
+        viewport_x=2,
+        viewport_y=1,
+        vp_h=5,
+        vp_w=6,
+    )
+
+    np.testing.assert_array_equal(first, second)
+
+
+def test_omni_light_matches_additive_rgb_behavior() -> None:
+    """An omni light preserves the current additive RGB behavior at the source."""
+    h = w = 5
+    opaque = np.zeros((h, w), dtype=np.bool_)
+    contribution = _compute_single_light_contribution(
+        origin_x=2,
+        origin_y=2,
+        radius=3,
+        color_rgb=(120, 80, 40),
+        intensity=1.0,
+        opaque_grid=opaque,
+        scene_h=h,
+        scene_w=w,
+    )
+    rgb = collapse_premult_rgba_to_rgb(contribution)
+
+    np.testing.assert_allclose(rgb[2, 2], np.array([120.0, 80.0, 40.0]))

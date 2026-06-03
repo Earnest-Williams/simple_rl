@@ -296,3 +296,30 @@ def test_diagonal_leak_cases() -> None:
     # The wall is: (2, 4), (3, 3), (4, 2), (5, 1), (6, 0).
     # The source is at (1, 1). So (5, 5) is behind the wall and should not be visible.
     assert visible[5, 5] == 0
+
+
+def test_adjacent_blocker_clears_diagonal_cardinal_face_bit() -> None:
+    """A blocker adjacent to a diagonal target clears that target's cardinal face."""
+    h = w = 7
+    transparency = np.ones((h, w), dtype=np.float32)
+    transparency[1, 4] = 0.0
+    opaque = (transparency <= 0.0).astype(np.uint8)
+    visible = np.zeros((h, w), dtype=np.uint8)
+    dist = -np.ones((h, w), dtype=np.int32)
+    side_bits = np.zeros((h, w), dtype=np.uint8)
+
+    compute_fov_all_octants(
+        opaque,
+        transparency,
+        visible,
+        dist,
+        side_bits,
+        2,
+        2,
+        4,
+    )
+
+    assert visible[1, 3] == 1
+    assert (side_bits[1, 3] & SIDE_NE) != 0
+    assert (side_bits[1, 3] & SIDE_N) != 0
+    assert (side_bits[1, 3] & SIDE_E) == 0

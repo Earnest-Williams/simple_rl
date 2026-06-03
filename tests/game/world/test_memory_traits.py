@@ -221,3 +221,30 @@ def test_visible_tiles_refresh_to_full_memory() -> None:
     assert not needs_update_mask[0, 0]
     # memory_intensity should not be decayed (remains 1.0)
     assert memory_intensity[0, 0] == 1.0
+
+
+def test_forgotten_tiles_are_pruned_from_needs_update_mask() -> None:
+    """Tiles that fade to zero are removed from the update mask."""
+    last_seen_time = np.zeros((1, 1), dtype=np.int32)
+    memory_intensity = np.ones((1, 1), dtype=np.float32)
+    visible = np.zeros((1, 1), dtype=bool)
+    needs_update_mask = np.ones((1, 1), dtype=bool)
+    prev_visible = np.zeros((1, 1), dtype=bool)
+    memory_strength = np.zeros((1, 1), dtype=np.float32)
+    tile_modifiers = np.ones((1, 1), dtype=np.float32)
+
+    update_memory_fade(
+        current_time=10_000,
+        last_seen_time=last_seen_time,
+        memory_intensity=memory_intensity,
+        visible=visible,
+        needs_update_mask=needs_update_mask,
+        prev_visible=prev_visible,
+        memory_strength=memory_strength,
+        tile_modifiers=tile_modifiers,
+        steepness=1.0,
+        midpoint=1.0,
+    )
+
+    assert memory_intensity[0, 0] == 0.0
+    assert not needs_update_mask[0, 0]

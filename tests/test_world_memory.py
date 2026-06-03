@@ -7,7 +7,7 @@ import pytest
 from engine.render_base_layers import prepare_base_layers
 from game.game_state import GameState
 from game.world.game_map import GameMap
-from game.world.memory import update_memory_fade
+from game.world.memory import MemoryTraits, update_memory_fade
 
 
 def test_game_map_owns_tile_shaped_memory_arrays() -> None:
@@ -128,11 +128,18 @@ def test_game_state_update_fov_owns_turn_memory_lifecycle(
         assert state.game_map.visible[2, 2]
         assert state.game_map.explored[2, 2]
 
-    def fade_memory_spy(current_time: int, steepness: float, midpoint: float) -> None:
+    def fade_memory_spy(
+        current_time: int,
+        *,
+        traits: MemoryTraits,
+        base_steepness: float,
+        base_midpoint: float,
+    ) -> None:
         events.append("fade")
         assert current_time == state.turn_count
-        assert steepness == state.memory_fade_steepness
-        assert midpoint == state.memory_fade_midpoint
+        assert traits == state.memory_traits
+        assert base_steepness == state.memory_fade_steepness
+        assert base_midpoint == state.memory_fade_midpoint
 
     original_sync = state._sync_player_light_source
 

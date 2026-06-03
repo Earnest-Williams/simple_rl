@@ -50,15 +50,17 @@ Use `Dungeon/README.md` for algorithm details and generated debug-output notes.
 The core GOAP planner is integrated under `game/ai/goap.py`; `auto/` remains a
 tuning and simulation harness.
 
-## Lighting, FOV, and memory R&D
+## Lighting, FOV, and memory
 
 | Task | Command | Notes |
 | --- | --- | --- |
-| Run lighting testbed | `cd lights_dev && python main_game.py` | Compatibility entrypoint for the debug CLI. |
-| Compile the R&D module tree | `python -m compileall -q lights_dev` | Fast parser check for the standalone testbed. |
+| Run production light-leak diagnostic | `python complete_light_diagnostic.py` | Uses production `GameMap`, `LightContributionCache`, and `game.world.light_fov`. |
+| Run targeted production lighting/FOV/memory tests | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/game/world/test_memory_traits.py tests/test_world_memory.py` | Covers migration parity checks. |
+| Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support. |
 
-`lights_dev/` is active R&D. Production rendering and lighting integration live
-under `engine/` and `game/world/`.
+`lights_dev/` is frozen historical R&D pending deletion checks. Production
+rendering, light-aware FOV, and memory behavior live under `engine/` and
+`game/world/`; see `docs/LIGHTING_FOV_MEMORY_STATUS.md`.
 
 ## Arrow playback and visual tools
 
