@@ -58,9 +58,8 @@ tuning and simulation harness.
 | Run targeted production lighting/FOV/memory tests | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/game/world/test_memory_traits.py tests/test_world_memory.py` | Covers migration parity checks. |
 | Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support. |
 
-`lights_dev/` is frozen historical R&D pending deletion checks. Production
-rendering, light-aware FOV, and memory behavior live under `engine/` and
-`game/world/`; see `docs/LIGHTING_FOV_MEMORY_STATUS.md`.
+Production rendering, light-aware FOV, and memory behavior live under
+`engine/` and `game/world/`.
 
 ## Arrow playback and visual tools
 

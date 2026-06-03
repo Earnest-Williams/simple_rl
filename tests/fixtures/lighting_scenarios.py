@@ -1,6 +1,6 @@
 """Production lighting test scenarios and helpers.
 
-Uses production ``engine.render_lighting`` functions. No ``lights_dev`` imports.
+Uses production ``engine.render_lighting`` functions.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ LightCacheKey: TypeAlias = tuple[int, int, int, int, int, int, float]
 
 
 # ---------------------------------------------------------------------------
-# Minimal light-source dataclass for tests (no lights_dev dependency)
+# Minimal light-source dataclass for tests
 # ---------------------------------------------------------------------------
 
 

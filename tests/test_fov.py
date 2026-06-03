@@ -1,8 +1,7 @@
 """FOV tests using the production ``game.world.fov`` implementation.
 
-Migrated from the legacy ``lights_dev.fov`` dependency.  All scenarios use
-the production ``compute_visibility`` and related helpers from
-``game.world.fov``.  No ``lights_dev`` imports.
+All scenarios use the production ``compute_visibility`` and related helpers
+from ``game.world.fov``.
 """
 
 import numpy as np
@@ -32,7 +31,7 @@ def test_empty_room_center_source() -> None:
             assert (
                 cy + dy,
                 cx + dx,
-            ) in visible, f"Expected cardinal cell ({cy+dy},{cx+dx}) at distance {d} to be visible"
+            ) in visible, f"Expected cardinal cell ({cy + dy},{cx + dx}) at distance {d} to be visible"
 
 
 def test_single_blocker() -> None:

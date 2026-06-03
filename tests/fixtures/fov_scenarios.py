@@ -1,7 +1,7 @@
 """Production FOV test scenarios and helpers.
 
 Uses ``game.world.fov.compute_visibility`` — the production shadowcasting
-implementation.  No ``lights_dev`` imports.
+implementation.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from numpy.typing import NDArray
 
 # Fallback removed
 from game.world.fov import compute_visibility
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -92,7 +91,7 @@ def bresenham_line(x0: int, y0: int, x1: int, y1: int) -> Iterator[tuple[int, in
 
 
 # ---------------------------------------------------------------------------
-# Named scenarios (data only — no lights_dev dependency)
+# Named scenarios (data only)
 # ---------------------------------------------------------------------------
 
 

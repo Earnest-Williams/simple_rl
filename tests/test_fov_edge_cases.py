@@ -1,7 +1,7 @@
 """Production FOV edge-case tests.
 
 Covers diagonal walls, staggered walls, thin-wall gaps, and
-Bresenham-based light-leak detection.  No ``lights_dev`` imports.
+Bresenham-based light-leak detection.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from tests.fixtures.fov_scenarios import (
     make_open_room,
     make_walled_room,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

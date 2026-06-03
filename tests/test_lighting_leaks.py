@@ -2,7 +2,7 @@
 
 Validates that colored lights from ``engine.render_lighting`` and
 ``game.world.fov.compute_light_color_array`` do not leak through blockers.
-No ``lights_dev`` imports.
+Uses production lighting modules.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from tests.fixtures.lighting_scenarios import (
     scenario_two_colored_lights,
     scenario_varied_layout,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

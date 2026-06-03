@@ -1,7 +1,4 @@
-"""Tests for MemoryTraits and resolve_memory_decay_parameters.
-
-Conforms to Phase 3 requirements of the retire lights_dev plan.
-"""
+"""Tests for MemoryTraits and resolve_memory_decay_parameters."""
 
 from __future__ import annotations
 
