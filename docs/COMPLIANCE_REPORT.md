@@ -15,7 +15,7 @@ directory, a root-level `game_rng.py`, or a missing `dungeon_generator.py`.
 | Formatter config | Pass | `tool.black` and `tool.ruff` both use an 88-character line length and Python 3.11 target. |
 | Strict typing config | Pass | `tool.mypy` enables strict mode and related strictness checks. |
 | CI/workflows | Pass | `.github/workflows/llm_policy_sync_check.yml` and `.github/workflows/modernize.yml` exist. |
-| Canonical RNG | Pass | `utils/game_rng.py` is the implementation and `worldgen/game_rng.py` re-exports it for worldgen compatibility. |
+| Canonical RNG | Pass | `utils/game_rng.py` is the canonical implementation; worldgen imports it directly. |
 | Legacy dungeon-generator reference | Pass | No root-level `dungeon_generator.py` or `legacy/` tree exists in the current repository. |
 
 ## Deterministic-random status

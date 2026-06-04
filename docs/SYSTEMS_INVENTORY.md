@@ -558,7 +558,7 @@ Spell Definition (magic/work parser)
 
 **Notes:**
 - `utils/game_rng.py` is the canonical implementation and import location.
-- `worldgen/game_rng.py` is a compatibility re-export for world-generation modules.
+- World-generation modules import `GameRNG` directly from `utils.game_rng`.
 - There is no root-level `game_rng.py` in the current tree.
 
 ---
@@ -688,7 +688,7 @@ Repository root
 ├── magic/                   # Magic system (INTEGRATED)
 ├── simulation/              # Zone manager (INTEGRATED)
 ├── utils/                   # Utilities, including canonical GameRNG
-├── worldgen/                # World generation utilities and GameRNG re-export
+├── worldgen/                # World generation utilities
 ├── common/                  # Common constants/utilities
 ├── config/                  # Configuration files
 └── data/                    # Game data

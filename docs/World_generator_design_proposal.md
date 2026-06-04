@@ -340,7 +340,7 @@ This section captures the constraints that directly shape module design.
 
 1. Target Python 3.11+.
 2. Determinism rules:
-   1. Use `worldgen.game_rng.GameRNG` for any randomness in world logic.
+   1. Use `utils.game_rng.GameRNG` for any randomness in world logic.
    2. Do not use Python `random` or NumPy RNG in deterministic worldgen code paths.
    3. Use `worldgen.utils_coord.coord_hash(seed, lin)` for deterministic tie-breaking and hash-based jitter; do not rely on unordered iteration (`dict`, `set`) for determinism.
 3. Formatting: Black, 88-character lines.

@@ -9,14 +9,14 @@ Accepted.
 The codebase has historically included more than one path that exposes random
 number generation. Repository policy requires deterministic, saveable game-logic
 randomness and forbids direct use of Python, NumPy, OS, or UUID randomness in
-game logic. The current implementation provides `utils.game_rng.GameRNG` and a
-compatibility re-export at `worldgen.game_rng.GameRNG`.
+game logic. The current implementation provides `utils.game_rng.GameRNG` as the sole
+canonical randomness API.
 
 ## Decision
 
 `utils.game_rng.GameRNG` is the canonical randomness API for game logic.
-`worldgen/game_rng.py` remains a compatibility re-export only; it must not grow
-independent behavior or separate state semantics.
+Compatibility wrapper modules are intentionally avoided so RNG semantics do
+not drift across import paths.
 
 All gameplay, generation, AI, combat, item, skill, effect, and simulation code
 that needs randomness must accept or own an explicit `GameRNG` instance. Direct
@@ -27,8 +27,8 @@ when needed to implement the deterministic abstraction.
 ## Consequences
 
 - New code imports `GameRNG` from `utils.game_rng`.
-- Existing code that imports from `worldgen.game_rng` can continue to run, but
-  should be migrated when touched for unrelated work.
+- Existing code must import from `utils.game_rng`; legacy RNG wrapper modules
+    should be deleted rather than preserved.
 - `scripts/check_deterministic_random.py` is the repository gate for accidental
   nondeterministic randomness outside approved boundaries.
 - Any future RNG replacement must preserve state save/load and deterministic
