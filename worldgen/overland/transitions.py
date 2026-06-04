@@ -32,6 +32,43 @@ def generate_transition_requests(bundle: OverlandBundle) -> list[SurfaceTransiti
                 tags=(_target_for(transition_type),),
             )
         )
+    requests.extend(_feature_transition_requests(bundle, seed=seed))
+    return requests
+
+
+def _feature_transition_requests(
+    bundle: OverlandBundle,
+    *,
+    seed: int,
+) -> list[SurfaceTransitionRequest]:
+    requests: list[SurfaceTransitionRequest] = []
+    if bundle.features_df.is_empty():
+        return requests
+    tile_lookup = {
+        (int(row["x"]), int(row["y"])): row for row in bundle.tiles_df.iter_rows(named=True)
+    }
+    for row in bundle.features_df.iter_rows(named=True):
+        tags = str(row["tags"])
+        if not tags.startswith("settlement;"):
+            continue
+        x = int(row["x"])
+        y = int(row["y"])
+        tile = tile_lookup.get((x, y))
+        if tile is None:
+            continue
+        requests.append(
+            SurfaceTransitionRequest(
+                source_x=x,
+                source_y=y,
+                transition_type=TransitionType.SETTLEMENT_ENTRANCE,
+                target_kind="settlement",
+                hydro_role=HydroRole(int(tile["hydro_role"])),
+                biome=Biome(int(tile["biome"])),
+                material=int(tile["material"]),
+                seed=seed + x * 1_003 + y * 9_176 + int(row["target_id"]),
+                tags=tuple(part for part in tags.split(";") if part),
+            )
+        )
     return requests
 
 

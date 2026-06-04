@@ -86,6 +86,16 @@ def _wetness_glyph(wetness: Wetness) -> str:
 
 
 def _material_glyph(material: Material) -> str:
+    if material == Material.ROAD:
+        return "R"
+    if material == Material.DOCK:
+        return "D"
+    if material in {Material.BUILDING_FLOOR, Material.FIELD, Material.ORCHARD, Material.PASTURE}:
+        return "B" if material == Material.BUILDING_FLOOR else "a"
+    if material in {Material.WOOD_WALL, Material.STONE_WALL, Material.RUIN_WALL}:
+        return "#"
+    if material in {Material.BRIDGE, Material.BOARDWALK}:
+        return "="
     if material in {Material.SHALLOW_WATER, Material.DEEP_WATER, Material.SPRING_WATER}:
         return "~"
     if material in {Material.MUDFLAT, Material.MUD, Material.DEEP_MUD, Material.CRACKED_MUD}:

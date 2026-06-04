@@ -17,6 +17,7 @@ from worldgen.overland.schema import (
     TransitionType,
     Wetness,
 )
+from worldgen.overland.settlement_merge import merge_settlement_into_overland
 from worldgen.overland.transitions import generate_transition_requests
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "generate_overland_region",
     "generate_transition_requests",
     "load_worldgen_bundle",
+    "merge_settlement_into_overland",
     "overland_to_game_map",
     "render_overland_ascii",
     "write_overland_bundle",

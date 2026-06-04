@@ -7,6 +7,7 @@ import polars as pl
 
 from common.constants import Material
 from tools.generate_overland import generate_region
+from utils.game_rng import GameRNG
 from worldgen.overland import (
     Biome,
     HydroRole,
@@ -16,10 +17,12 @@ from worldgen.overland import (
     generate_overland_region,
     generate_transition_requests,
     load_worldgen_bundle,
+    merge_settlement_into_overland,
     overland_to_game_map,
     render_overland_ascii,
     write_overland_bundle,
 )
+from worldgen.settlements import generate_settlement, starting_port_from_overland
 
 
 def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
@@ -98,6 +101,62 @@ def test_headless_overland_generation_writes_inspectable_output(tmp_path) -> Non
     assert summary["tile_rows"] == 64 * 48
     assert pl.read_ipc(summary["artifacts"]["tiles_df"]).height == 64 * 48
     assert tmp_path.joinpath("overland_metadata.json").exists()
+
+
+def test_starting_port_merges_as_overland_surface_layer() -> None:
+    overland = generate_overland_region(
+        seed=991,
+        width=128,
+        height=96,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    config, region, origin = starting_port_from_overland(
+        overland,
+        width=80,
+        height=56,
+        population_target=900,
+    )
+    settlement = generate_settlement(config, rng=GameRNG(seed=991), region=region)
+
+    merged = merge_settlement_into_overland(overland, settlement, origin=origin)
+    material_view = render_overland_ascii(merged.tiles_df, view="material")
+
+    assert _count(merged.tiles_df, "material", Material.ROAD) > 0
+    assert _count(merged.tiles_df, "material", Material.DOCK) > 0
+    assert _count(merged.tiles_df, "material", Material.BUILDING_FLOOR) > 0
+    assert (
+        _count(merged.tiles_df, "material", Material.FIELD)
+        + _count(merged.tiles_df, "material", Material.ORCHARD)
+        + _count(merged.tiles_df, "material", Material.PASTURE)
+        > 0
+    )
+    assert "R" in material_view
+    assert "D" in material_view
+    assert "B" in material_view
+    assert merged.hydrology_df.height == overland.hydrology_df.height
+    transition_types = {
+        request.transition_type for request in generate_transition_requests(merged)
+    }
+    assert TransitionType.DOCK_ROUTE in transition_types
+    assert TransitionType.SETTLEMENT_ENTRANCE in transition_types
+    assert merged.metadata["settlements"][0]["kind"] == "port_town"
+
+
+def test_headless_overland_generation_can_merge_starting_port(tmp_path) -> None:
+    summary = generate_region(
+        seed=11,
+        width=96,
+        height=72,
+        out_dir=tmp_path,
+        overwrite=False,
+        with_starting_port=True,
+    )
+
+    assert "starting_port" in summary
+    assert summary["tile_rows"] == 96 * 72
+    loaded = load_worldgen_bundle(tmp_path)
+    assert _count(loaded["tiles_df"], "material", Material.DOCK) > 0
+    assert _count(loaded["tiles_df"], "material", Material.BUILDING_FLOOR) > 0
 
 
 def _count(df: pl.DataFrame, column: str, enum_value: object) -> int:

@@ -7,6 +7,19 @@ from numpy.typing import NDArray
 
 from common.constants import Material
 from settlegen import TerrainCode
+from worldgen.overland.rules import (
+    derive_blocks_sight,
+    derive_walkable,
+    surface_flag_mask,
+)
+from worldgen.overland.schema import (
+    Biome,
+    ElevationBand,
+    HydroRole,
+    Substrate,
+    SurfaceFlag,
+    Wetness,
+)
 
 
 class SettlementTile(IntEnum):
@@ -112,3 +125,157 @@ def terrain_to_shaped_columns(
         "walkable": walkable.astype(bool),
         "transparent": transparent.astype(bool),
     }
+
+
+_OVERLAND_MATERIAL_BY_TERRAIN: dict[TerrainCode, Material] = {
+    TerrainCode.VOID: Material.VOID,
+    TerrainCode.GRASS: Material.GRASS,
+    TerrainCode.FOREST: Material.FOREST_FLOOR,
+    TerrainCode.DENSE_FOREST: Material.FERN_UNDERSTORY,
+    TerrainCode.FARMLAND: Material.FIELD,
+    TerrainCode.ORCHARD: Material.ORCHARD,
+    TerrainCode.PASTURE: Material.PASTURE,
+    TerrainCode.FIELD: Material.FIELD,
+    TerrainCode.HILL: Material.GRAVEL,
+    TerrainCode.MOUNTAIN: Material.SCREE,
+    TerrainCode.ROAD: Material.ROAD,
+    TerrainCode.PLAZA: Material.BUILDING_FLOOR,
+    TerrainCode.WATER: Material.SHALLOW_WATER,
+    TerrainCode.DEEP_WATER: Material.DEEP_WATER,
+    TerrainCode.SHORE: Material.MUDFLAT,
+    TerrainCode.MARSH: Material.REEDBED,
+    TerrainCode.SWAMP: Material.BOG_WATER,
+    TerrainCode.BRIDGE: Material.BRIDGE,
+    TerrainCode.WALL: Material.STONE_WALL,
+    TerrainCode.PALISADE: Material.WOOD_WALL,
+    TerrainCode.GATE: Material.ROAD,
+    TerrainCode.BUILDING: Material.BUILDING_FLOOR,
+    TerrainCode.RUIN: Material.RUIN_FLOOR,
+    TerrainCode.CEMETERY: Material.GRASS,
+    TerrainCode.DOCK: Material.DOCK,
+    TerrainCode.DYKE: Material.STONE_WALL,
+    TerrainCode.MAGIC: Material.LIMESTONE_PAVEMENT,
+    TerrainCode.EMPTY_LOT: Material.DIRT,
+    TerrainCode.MOAT: Material.SHALLOW_WATER,
+}
+
+_OVERLAND_WETNESS_BY_TERRAIN: dict[TerrainCode, Wetness] = {
+    TerrainCode.WATER: Wetness.SHALLOW_FLOODED,
+    TerrainCode.DEEP_WATER: Wetness.DEEP_FLOODED,
+    TerrainCode.SHORE: Wetness.WET,
+    TerrainCode.MARSH: Wetness.SATURATED,
+    TerrainCode.SWAMP: Wetness.SATURATED,
+    TerrainCode.MOAT: Wetness.SHALLOW_FLOODED,
+    TerrainCode.DOCK: Wetness.DAMP,
+}
+
+_OVERLAND_SUBSTRATE_BY_TERRAIN: dict[TerrainCode, Substrate] = {
+    TerrainCode.WATER: Substrate.MUD,
+    TerrainCode.DEEP_WATER: Substrate.MUD,
+    TerrainCode.SHORE: Substrate.MUD,
+    TerrainCode.MARSH: Substrate.MUD,
+    TerrainCode.SWAMP: Substrate.PEAT,
+    TerrainCode.ROAD: Substrate.BUILT_STONE,
+    TerrainCode.PLAZA: Substrate.BUILT_STONE,
+    TerrainCode.BRIDGE: Substrate.WOOD,
+    TerrainCode.DOCK: Substrate.WOOD,
+    TerrainCode.WALL: Substrate.BUILT_STONE,
+    TerrainCode.PALISADE: Substrate.WOOD,
+    TerrainCode.GATE: Substrate.BUILT_STONE,
+    TerrainCode.BUILDING: Substrate.BUILT_STONE,
+    TerrainCode.RUIN: Substrate.BUILT_STONE,
+    TerrainCode.DYKE: Substrate.BUILT_STONE,
+    TerrainCode.MAGIC: Substrate.LIMESTONE,
+    TerrainCode.HILL: Substrate.SOIL,
+    TerrainCode.MOUNTAIN: Substrate.LIMESTONE,
+}
+
+_BUILT_TERRAIN: set[TerrainCode] = {
+    TerrainCode.ROAD,
+    TerrainCode.PLAZA,
+    TerrainCode.BRIDGE,
+    TerrainCode.WALL,
+    TerrainCode.PALISADE,
+    TerrainCode.GATE,
+    TerrainCode.BUILDING,
+    TerrainCode.RUIN,
+    TerrainCode.CEMETERY,
+    TerrainCode.DOCK,
+    TerrainCode.DYKE,
+    TerrainCode.MAGIC,
+    TerrainCode.MOAT,
+}
+
+
+def terrain_to_overland_columns(
+    combined_grid: NDArray[np.integer],
+    *,
+    biome: Biome = Biome.COASTAL_RAIN_FOREST,
+    elevation_band: ElevationBand = ElevationBand.LOWLAND,
+) -> dict[str, NDArray[np.generic]]:
+    material = np.zeros(combined_grid.shape, dtype=np.int16)
+    biome_grid = np.full(combined_grid.shape, int(biome), dtype=np.int16)
+    elevation = np.full(combined_grid.shape, int(elevation_band), dtype=np.int16)
+    hydro_role = np.zeros(combined_grid.shape, dtype=np.int16)
+    wetness = np.full(combined_grid.shape, int(Wetness.DAMP), dtype=np.int16)
+    substrate = np.full(combined_grid.shape, int(Substrate.SOIL), dtype=np.int16)
+    flags = np.zeros(combined_grid.shape, dtype=np.uint32)
+    walkable = np.zeros(combined_grid.shape, dtype=bool)
+    blocks_sight = np.zeros(combined_grid.shape, dtype=bool)
+
+    for y in range(combined_grid.shape[0]):
+        for x in range(combined_grid.shape[1]):
+            terrain = TerrainCode(int(combined_grid[y, x]))
+            mat = _OVERLAND_MATERIAL_BY_TERRAIN[terrain]
+            wet = _OVERLAND_WETNESS_BY_TERRAIN.get(terrain, Wetness.DAMP)
+            sub = _OVERLAND_SUBSTRATE_BY_TERRAIN.get(terrain, Substrate.SOIL)
+            flag_mask = _surface_flags_for_terrain(terrain)
+            material[y, x] = int(mat)
+            wetness[y, x] = int(wet)
+            substrate[y, x] = int(sub)
+            hydro_role[y, x] = int(_hydro_role_for_terrain(terrain))
+            flags[y, x] = flag_mask
+            walkable[y, x] = derive_walkable(mat, wet, flag_mask)
+            blocks_sight[y, x] = derive_blocks_sight(mat, flag_mask)
+
+    return {
+        "material": material,
+        "biome": biome_grid,
+        "elevation_band": elevation,
+        "hydro_role": hydro_role,
+        "wetness": wetness,
+        "substrate": substrate,
+        "walkable": walkable,
+        "blocks_sight": blocks_sight,
+        "surface_flags": flags,
+    }
+
+
+def _surface_flags_for_terrain(terrain: TerrainCode) -> int:
+    flags: list[SurfaceFlag] = []
+    if terrain in _BUILT_TERRAIN:
+        flags.append(SurfaceFlag.BUILT)
+    if terrain in {
+        TerrainCode.WATER,
+        TerrainCode.DEEP_WATER,
+        TerrainCode.SHORE,
+        TerrainCode.MARSH,
+        TerrainCode.SWAMP,
+        TerrainCode.MOAT,
+    }:
+        flags.append(SurfaceFlag.SEASONAL)
+    if terrain in {TerrainCode.MOAT, TerrainCode.MOUNTAIN}:
+        flags.append(SurfaceFlag.HAZARD)
+    if terrain in {TerrainCode.DENSE_FOREST, TerrainCode.SWAMP}:
+        flags.append(SurfaceFlag.VEGETATION_DENSE)
+    return surface_flag_mask(*flags)
+
+
+def _hydro_role_for_terrain(terrain: TerrainCode) -> HydroRole:
+    if terrain in {TerrainCode.WATER, TerrainCode.DEEP_WATER, TerrainCode.MOAT}:
+        return HydroRole.PERMANENT_POOL
+    if terrain in {TerrainCode.MARSH, TerrainCode.SWAMP}:
+        return HydroRole.TEMPORARY_POOL
+    if terrain == TerrainCode.SHORE:
+        return HydroRole.SEEP
+    return HydroRole.NONE

@@ -1,6 +1,10 @@
 """Settlement worldgen integration layer."""
 
-from worldgen.settlements.config import RegionConstraints, starting_port_config
+from worldgen.settlements.config import (
+    RegionConstraints,
+    starting_port_config,
+    starting_port_from_overland,
+)
 from worldgen.settlements.entrances import SubsurfaceEntrance, extract_entrances
 from worldgen.settlements.export import (
     SettlementBundle,
@@ -22,6 +26,7 @@ __all__ = [
     "extract_entrances",
     "generate_settlement",
     "starting_port_config",
+    "starting_port_from_overland",
     "terrain_to_settlement_tile",
     "terrain_to_shaped_columns",
     "to_simple_rl_bundle",

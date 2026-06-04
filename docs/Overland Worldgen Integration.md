@@ -159,6 +159,19 @@ python tools/generate_overland.py \
   --overwrite
 ```
 
+Generate the overland bundle with the starting port merged into the overland
+tile layer:
+
+```bash
+python tools/generate_overland.py \
+  --seed 20260604 \
+  --width 128 \
+  --height 96 \
+  --out-dir tmp/overland/merged_starting_port \
+  --with-starting-port \
+  --overwrite
+```
+
 Inspect it without UI:
 
 ```bash
@@ -205,12 +218,18 @@ It checks:
 
 Settlement integration tests remain in `tests/test_settlement_integration.py`.
 
-## Current Direction
+## Settlement Merge Direction
 
-The next architectural move is to make settlements emit overland-compatible
-surfaces instead of treating settlement tiles as a separate world. Roads, docks,
-boardwalks, walls, buildings, fields, orchards, and pastures should become
-settlement-produced overland tiles.
+Settlements now emit overland-compatible surfaces instead of only shaped-map
+rows. Roads, docks, bridges, walls, buildings, fields, orchards, and pastures
+can be merged into `overland_tiles.arrow` through
+`merge_settlement_into_overland(...)`.
+
+The merged bundle preserves the base overland hydrology table and adds
+settlement entrance features. Transition request generation consumes both tile
+materials and settlement feature rows, so a merged starting port can produce
+dock routes and settlement entrance requests alongside cave, ponor, spring, and
+lava-tube requests.
 
 The guiding rule is:
 

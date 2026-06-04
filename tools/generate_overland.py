@@ -20,8 +20,15 @@ def generate_region(
     height: int,
     out_dir: Path,
     overwrite: bool,
+    with_starting_port: bool = False,
 ) -> dict[str, object]:
-    from worldgen.overland import generate_overland_region, write_overland_bundle
+    from utils.game_rng import GameRNG
+    from worldgen.overland import (
+        generate_overland_region,
+        merge_settlement_into_overland,
+        write_overland_bundle,
+    )
+    from worldgen.settlements import generate_settlement, starting_port_from_overland
 
     bundle = generate_overland_region(
         seed=seed,
@@ -29,8 +36,31 @@ def generate_region(
         height=height,
         profile="KARST_TO_VOLCANIC_MOUNTAIN",
     )
+    starting_port: dict[str, object] | None = None
+    if with_starting_port:
+        port_width = min(80, max(56, width - 16))
+        port_height = min(56, max(40, height - 16))
+        config, region, origin = starting_port_from_overland(
+            bundle,
+            width=port_width,
+            height=port_height,
+            population_target=1400,
+        )
+        settlement = generate_settlement(
+            config,
+            rng=GameRNG(seed=seed),
+            region=region,
+        )
+        bundle = merge_settlement_into_overland(bundle, settlement, origin=origin)
+        starting_port = {
+            "name": settlement.metadata["name"],
+            "kind": settlement.metadata["kind"],
+            "origin": list(origin),
+            "width": settlement.metadata["width"],
+            "height": settlement.metadata["height"],
+        }
     paths = write_overland_bundle(bundle, out_dir, overwrite=overwrite)
-    return {
+    summary: dict[str, object] = {
         "seed": seed,
         "width": width,
         "height": height,
@@ -41,6 +71,9 @@ def generate_region(
         "affordance_rows": bundle.affordances_df.height,
         "artifacts": {key: str(path) for key, path in paths.items()},
     }
+    if starting_port is not None:
+        summary["starting_port"] = starting_port
+    return summary
 
 
 def main() -> None:
@@ -51,6 +84,7 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=96)
     parser.add_argument("--height", type=int, default=72)
     parser.add_argument("--out-dir", type=Path, default=Path("tmp/overland/karst_volcanic"))
+    parser.add_argument("--with-starting-port", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -62,6 +96,7 @@ def main() -> None:
                 height=args.height,
                 out_dir=args.out_dir,
                 overwrite=args.overwrite,
+                with_starting_port=args.with_starting_port,
             ),
             indent=2,
             sort_keys=True,

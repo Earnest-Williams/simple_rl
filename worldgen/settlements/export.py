@@ -11,7 +11,10 @@ import polars as pl
 from settlegen import Settlement
 from worldgen.settlements.config import RegionConstraints
 from worldgen.settlements.entrances import extract_entrances
-from worldgen.settlements.translate import terrain_to_shaped_columns
+from worldgen.settlements.translate import (
+    terrain_to_overland_columns,
+    terrain_to_shaped_columns,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +45,7 @@ def to_simple_rl_bundle(
 ) -> SettlementBundle:
     combined = settlement.combined_grid()
     shaped = terrain_to_shaped_columns(combined)
+    overland = terrain_to_overland_columns(combined)
     yy, xx = np.indices(combined.shape)
     ox, oy = origin
 
@@ -63,6 +67,14 @@ def to_simple_rl_bundle(
             "terrain_code": settlement.terrain.reshape(-1).astype(np.uint16),
             "overlay_code": settlement.overlay.reshape(-1).astype(np.uint16),
             "transparent": shaped["transparent"].reshape(-1),
+            "material": overland["material"].reshape(-1),
+            "biome": overland["biome"].reshape(-1),
+            "elevation_band": overland["elevation_band"].reshape(-1),
+            "hydro_role": overland["hydro_role"].reshape(-1),
+            "wetness": overland["wetness"].reshape(-1),
+            "substrate": overland["substrate"].reshape(-1),
+            "blocks_sight": overland["blocks_sight"].reshape(-1),
+            "surface_flags": overland["surface_flags"].reshape(-1),
         }
     )
 
