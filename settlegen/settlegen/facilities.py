@@ -1,0 +1,253 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Sequence
+
+from .config import (
+    BuildingMaterial,
+    DefenseStyle,
+    Facility,
+    MagicMode,
+    SettlementKind,
+    SettlementState,
+    TerrainFeature,
+    Wealth,
+)
+
+
+@dataclass(frozen=True)
+class FacilitySpec:
+    facility: Facility
+    min_size: tuple[int, int]
+    max_size: tuple[int, int]
+    base_weight: float = 1.0
+    unique: bool = False
+    district_affinity: tuple[str, ...] = ("residential", "market", "craft", "core")
+    terrain_affinity: tuple[TerrainFeature, ...] = tuple()
+    requires_water: bool = False
+    requires_hill: bool = False
+    material_hint: BuildingMaterial | None = None
+    tags: tuple[str, ...] = tuple()
+    occupants: tuple[int, int] = (0, 0)
+    workers: tuple[int, int] = (0, 0)
+
+
+REGISTRY: dict[Facility, FacilitySpec] = {
+    Facility.CITY_HALL: FacilitySpec(Facility.CITY_HALL, (5, 5), (9, 8), 0.4, True, ("core", "market"), workers=(6, 24), tags=("civic",)),
+    Facility.COUNCIL_HOUSE: FacilitySpec(Facility.COUNCIL_HOUSE, (4, 4), (7, 6), 0.6, True, ("core", "market"), workers=(4, 12), tags=("civic",)),
+    Facility.COURTHOUSE: FacilitySpec(Facility.COURTHOUSE, (5, 4), (9, 7), 0.25, True, ("core",), workers=(5, 18), tags=("legal",)),
+    Facility.TAX_OFFICE: FacilitySpec(Facility.TAX_OFFICE, (3, 3), (5, 4), 0.15, True, ("market", "core"), workers=(2, 8), tags=("civic",)),
+    Facility.ARCHIVE: FacilitySpec(Facility.ARCHIVE, (3, 4), (6, 6), 0.1, True, ("core", "academic"), workers=(1, 8), tags=("civic", "knowledge")),
+    Facility.CUSTOMS_HOUSE: FacilitySpec(Facility.CUSTOMS_HOUSE, (4, 4), (7, 5), 0.3, True, ("docks", "market"), requires_water=True, workers=(4, 14), tags=("port", "civic")),
+    Facility.KEEP: FacilitySpec(Facility.KEEP, (6, 6), (12, 10), 0.5, True, ("military", "noble", "core"), requires_hill=False, material_hint=BuildingMaterial.MOSTLY_STONE, occupants=(10, 80), workers=(10, 60), tags=("defense", "lordship")),
+    Facility.CASTLE: FacilitySpec(Facility.CASTLE, (10, 8), (18, 14), 0.2, True, ("military", "noble"), material_hint=BuildingMaterial.MOSTLY_STONE, occupants=(40, 180), workers=(30, 120), tags=("defense", "lordship")),
+    Facility.STONE_WALL: FacilitySpec(Facility.STONE_WALL, (1, 1), (1, 1), 0.4, True, ("edge",), material_hint=BuildingMaterial.MOSTLY_STONE, tags=("defense", "linear")),
+    Facility.PALISADE: FacilitySpec(Facility.PALISADE, (1, 1), (1, 1), 0.6, True, ("edge",), material_hint=BuildingMaterial.MOSTLY_WOOD, tags=("defense", "linear")),
+    Facility.TOWER: FacilitySpec(Facility.TOWER, (3, 3), (5, 5), 0.5, False, ("military", "edge"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(2, 8), tags=("defense",)),
+    Facility.WATCHTOWER: FacilitySpec(Facility.WATCHTOWER, (2, 2), (4, 4), 0.7, False, ("edge", "military"), material_hint=BuildingMaterial.MOSTLY_WOOD, workers=(1, 5), tags=("defense",)),
+    Facility.GATEHOUSE: FacilitySpec(Facility.GATEHOUSE, (3, 3), (6, 5), 0.7, False, ("edge",), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(2, 12), tags=("defense", "gate")),
+    Facility.BARRACKS: FacilitySpec(Facility.BARRACKS, (5, 4), (10, 7), 0.4, False, ("military",), occupants=(12, 80), workers=(5, 20), tags=("defense",)),
+    Facility.ARMORY: FacilitySpec(Facility.ARMORY, (3, 3), (6, 5), 0.2, True, ("military", "craft"), workers=(2, 8), tags=("defense",)),
+    Facility.PRISON: FacilitySpec(Facility.PRISON, (4, 4), (7, 6), 0.15, True, ("military", "civic"), workers=(2, 10), tags=("legal", "grim")),
+    Facility.MOAT: FacilitySpec(Facility.MOAT, (1, 1), (1, 1), 0.25, True, ("edge",), tags=("defense", "water", "linear")),
+    Facility.DYKE: FacilitySpec(Facility.DYKE, (1, 1), (1, 1), 0.5, True, ("edge",), tags=("waterwork", "linear")),
+    Facility.EARTHWORK: FacilitySpec(Facility.EARTHWORK, (1, 1), (1, 1), 0.3, True, ("edge",), tags=("defense", "linear")),
+    Facility.MARKET: FacilitySpec(Facility.MARKET, (5, 4), (12, 8), 1.0, True, ("market", "core"), workers=(8, 80), tags=("trade", "public")),
+    Facility.MARKET_SQUARE: FacilitySpec(Facility.MARKET_SQUARE, (6, 6), (14, 12), 1.0, True, ("market", "core"), workers=(6, 70), tags=("trade", "public", "open")),
+    Facility.INN: FacilitySpec(Facility.INN, (4, 4), (8, 6), 0.8, False, ("market", "gate", "road"), occupants=(2, 20), workers=(3, 12), tags=("trade", "lodging")),
+    Facility.TAVERN: FacilitySpec(Facility.TAVERN, (3, 3), (7, 5), 0.9, False, ("market", "residential", "docks"), workers=(2, 10), tags=("trade", "social")),
+    Facility.GUILDHALL: FacilitySpec(Facility.GUILDHALL, (5, 4), (9, 7), 0.35, False, ("craft", "market"), workers=(4, 20), tags=("trade", "craft")),
+    Facility.BANK: FacilitySpec(Facility.BANK, (4, 4), (8, 6), 0.08, True, ("market", "core"), workers=(4, 16), tags=("trade", "wealth")),
+    Facility.CARAVANSERAI: FacilitySpec(Facility.CARAVANSERAI, (7, 5), (14, 9), 0.25, True, ("gate", "market"), occupants=(10, 80), workers=(4, 16), tags=("travel", "trade")),
+    Facility.WAREHOUSE: FacilitySpec(Facility.WAREHOUSE, (5, 4), (10, 7), 0.7, False, ("docks", "market", "craft"), workers=(2, 12), tags=("storage", "trade")),
+    Facility.GRANARY: FacilitySpec(Facility.GRANARY, (4, 4), (8, 6), 0.8, False, ("farm", "market", "edge"), workers=(1, 8), tags=("storage", "food")),
+    Facility.BAZAAR: FacilitySpec(Facility.BAZAAR, (8, 5), (16, 9), 0.25, True, ("market",), workers=(15, 100), tags=("trade", "public")),
+    Facility.SHRINE: FacilitySpec(Facility.SHRINE, (2, 2), (4, 4), 1.0, False, ("temple", "residential", "edge"), workers=(0, 3), tags=("religion",)),
+    Facility.TEMPLE: FacilitySpec(Facility.TEMPLE, (5, 5), (10, 8), 0.5, False, ("temple", "core"), workers=(3, 16), tags=("religion",)),
+    Facility.CHURCH: FacilitySpec(Facility.CHURCH, (5, 6), (10, 12), 0.8, True, ("temple", "core", "residential"), workers=(3, 20), tags=("religion",)),
+    Facility.CATHEDRAL: FacilitySpec(Facility.CATHEDRAL, (10, 12), (20, 22), 0.08, True, ("temple", "core"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(20, 120), tags=("religion", "monument")),
+    Facility.MONASTERY: FacilitySpec(Facility.MONASTERY, (8, 8), (18, 14), 0.25, True, ("temple", "edge", "academic"), occupants=(20, 160), workers=(10, 80), tags=("religion", "self_sufficient")),
+    Facility.CEMETERY: FacilitySpec(Facility.CEMETERY, (6, 5), (14, 10), 0.8, False, ("edge", "temple"), material_hint=BuildingMaterial.MOSTLY_STONE, tags=("death", "open")),
+    Facility.OSSUARY: FacilitySpec(Facility.OSSUARY, (3, 3), (6, 5), 0.2, True, ("temple", "cemetery"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(1, 5), tags=("death",)),
+    Facility.LIBRARY: FacilitySpec(Facility.LIBRARY, (4, 4), (8, 6), 0.25, False, ("academic", "core"), workers=(2, 12), tags=("knowledge",)),
+    Facility.SCHOOL: FacilitySpec(Facility.SCHOOL, (4, 4), (8, 6), 0.25, False, ("academic", "residential"), workers=(2, 10), tags=("knowledge",)),
+    Facility.UNIVERSITY: FacilitySpec(Facility.UNIVERSITY, (10, 8), (20, 16), 0.04, True, ("academic", "core"), workers=(30, 200), occupants=(40, 400), tags=("knowledge", "monument")),
+    Facility.MAGE_TOWER: FacilitySpec(Facility.MAGE_TOWER, (4, 4), (7, 9), 0.12, False, ("academic", "noble", "edge"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(1, 8), tags=("magic",)),
+    Facility.ARCANE_ACADEMY: FacilitySpec(Facility.ARCANE_ACADEMY, (8, 6), (16, 12), 0.05, True, ("academic", "core"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(10, 80), occupants=(10, 120), tags=("magic", "knowledge")),
+    Facility.ALCHEMIST: FacilitySpec(Facility.ALCHEMIST, (3, 3), (6, 5), 0.25, False, ("market", "craft", "academic"), workers=(1, 6), tags=("magic", "craft")),
+    Facility.RUNESTONE_CIRCLE: FacilitySpec(Facility.RUNESTONE_CIRCLE, (5, 5), (12, 12), 0.25, False, ("edge", "temple", "magic"), material_hint=BuildingMaterial.MOSTLY_STONE, tags=("magic", "runes", "open")),
+    Facility.WARDING_OBELISK: FacilitySpec(Facility.WARDING_OBELISK, (2, 2), (4, 4), 0.3, False, ("edge", "core"), material_hint=BuildingMaterial.MOSTLY_STONE, tags=("magic", "ward")),
+    Facility.PORTAL: FacilitySpec(Facility.PORTAL, (4, 4), (8, 8), 0.05, True, ("magic", "core"), material_hint=BuildingMaterial.MOSTLY_STONE, tags=("magic", "dangerous")),
+    Facility.LEYLINE_WELL: FacilitySpec(Facility.LEYLINE_WELL, (3, 3), (6, 6), 0.08, True, ("magic", "edge"), tags=("magic", "resource")),
+    Facility.NECROPOLIS: FacilitySpec(Facility.NECROPOLIS, (8, 8), (18, 16), 0.03, True, ("cemetery", "edge"), material_hint=BuildingMaterial.RUINED_STONE, tags=("magic", "death", "dangerous")),
+    Facility.BLACKSMITH: FacilitySpec(Facility.BLACKSMITH, (3, 3), (6, 5), 0.9, False, ("craft", "market"), workers=(1, 6), tags=("craft",)),
+    Facility.FORGE: FacilitySpec(Facility.FORGE, (4, 4), (8, 6), 0.4, False, ("craft",), workers=(2, 14), tags=("craft", "hot")),
+    Facility.TANNERY: FacilitySpec(Facility.TANNERY, (4, 4), (8, 6), 0.25, False, ("craft", "edge", "river"), workers=(2, 12), tags=("craft", "stink")),
+    Facility.CARPENTER: FacilitySpec(Facility.CARPENTER, (3, 3), (7, 5), 0.5, False, ("craft",), workers=(1, 8), tags=("craft",)),
+    Facility.POTTER: FacilitySpec(Facility.POTTER, (3, 3), (7, 5), 0.35, False, ("craft",), workers=(1, 8), tags=("craft",)),
+    Facility.WEAVER: FacilitySpec(Facility.WEAVER, (3, 3), (7, 5), 0.45, False, ("craft", "residential"), workers=(1, 10), tags=("craft",)),
+    Facility.BAKERY: FacilitySpec(Facility.BAKERY, (3, 3), (6, 5), 0.65, False, ("market", "residential"), workers=(1, 6), tags=("food", "craft")),
+    Facility.BREWERY: FacilitySpec(Facility.BREWERY, (4, 4), (9, 6), 0.3, False, ("craft", "market"), workers=(2, 10), tags=("food", "craft")),
+    Facility.GLASSWORKS: FacilitySpec(Facility.GLASSWORKS, (4, 4), (8, 6), 0.08, False, ("craft",), workers=(2, 14), tags=("craft", "luxury")),
+    Facility.QUARRY: FacilitySpec(Facility.QUARRY, (7, 5), (16, 10), 0.2, False, ("edge",), requires_hill=True, workers=(5, 60), tags=("industry", "resource", "open")),
+    Facility.MINE: FacilitySpec(Facility.MINE, (5, 5), (12, 10), 0.25, False, ("edge",), requires_hill=True, workers=(10, 120), tags=("industry", "resource")),
+    Facility.KILN: FacilitySpec(Facility.KILN, (3, 3), (6, 5), 0.25, False, ("craft", "edge"), workers=(1, 8), tags=("craft", "hot")),
+    Facility.WELL: FacilitySpec(Facility.WELL, (2, 2), (3, 3), 1.0, False, ("residential", "market", "core"), workers=(0, 1), tags=("water",)),
+    Facility.CISTERN: FacilitySpec(Facility.CISTERN, (3, 3), (6, 5), 0.2, False, ("core", "residential"), material_hint=BuildingMaterial.MOSTLY_STONE, workers=(0, 3), tags=("water",)),
+    Facility.BATHHOUSE: FacilitySpec(Facility.BATHHOUSE, (5, 4), (9, 7), 0.15, False, ("core", "market"), workers=(3, 18), tags=("water", "public")),
+    Facility.BRIDGE: FacilitySpec(Facility.BRIDGE, (3, 1), (8, 3), 0.5, False, ("road", "river"), requires_water=True, tags=("travel", "linear")),
+    Facility.DOCKS: FacilitySpec(Facility.DOCKS, (6, 3), (16, 6), 1.0, False, ("docks",), requires_water=True, material_hint=BuildingMaterial.MOSTLY_WOOD, workers=(6, 80), tags=("port", "open")),
+    Facility.WHARF: FacilitySpec(Facility.WHARF, (4, 3), (12, 5), 0.8, False, ("docks",), requires_water=True, material_hint=BuildingMaterial.MOSTLY_WOOD, workers=(3, 40), tags=("port",)),
+    Facility.FISHERY: FacilitySpec(Facility.FISHERY, (4, 3), (9, 6), 1.0, False, ("docks",), requires_water=True, workers=(3, 40), tags=("food", "port")),
+    Facility.SHIPYARD: FacilitySpec(Facility.SHIPYARD, (8, 5), (18, 8), 0.25, False, ("docks",), requires_water=True, workers=(12, 120), tags=("port", "craft")),
+    Facility.LIGHTHOUSE: FacilitySpec(Facility.LIGHTHOUSE, (3, 3), (6, 6), 0.15, True, ("docks", "edge"), requires_water=True, material_hint=BuildingMaterial.MOSTLY_STONE, workers=(1, 5), tags=("port", "navigation")),
+    Facility.FERRY: FacilitySpec(Facility.FERRY, (3, 2), (8, 4), 0.35, False, ("docks", "road"), requires_water=True, workers=(1, 8), tags=("port", "travel")),
+    Facility.WATERMILL: FacilitySpec(Facility.WATERMILL, (4, 4), (8, 6), 0.6, False, ("river", "edge"), requires_water=True, workers=(2, 12), tags=("food", "industry")),
+    Facility.WINDMILL: FacilitySpec(Facility.WINDMILL, (3, 3), (6, 6), 0.5, False, ("farm", "edge"), workers=(1, 8), tags=("food", "industry")),
+    Facility.FARMSTEAD: FacilitySpec(Facility.FARMSTEAD, (4, 4), (8, 6), 1.0, False, ("farm", "edge"), occupants=(3, 12), workers=(2, 12), tags=("food", "rural")),
+    Facility.FIELD: FacilitySpec(Facility.FIELD, (7, 5), (18, 12), 1.0, False, ("farm", "edge"), tags=("food", "open", "rural")),
+    Facility.ORCHARD: FacilitySpec(Facility.ORCHARD, (6, 5), (16, 12), 0.6, False, ("farm", "edge"), tags=("food", "open", "rural")),
+    Facility.PASTURE: FacilitySpec(Facility.PASTURE, (7, 5), (18, 12), 0.6, False, ("farm", "edge"), tags=("food", "open", "rural", "animals")),
+    Facility.BARN: FacilitySpec(Facility.BARN, (4, 4), (8, 6), 0.7, False, ("farm", "edge"), workers=(0, 4), tags=("storage", "rural")),
+    Facility.STABLE: FacilitySpec(Facility.STABLE, (4, 4), (9, 6), 0.45, False, ("market", "gate", "farm"), workers=(1, 8), tags=("animals", "travel")),
+    Facility.APIARY: FacilitySpec(Facility.APIARY, (3, 3), (6, 5), 0.2, False, ("farm", "edge"), workers=(1, 4), tags=("food", "rural")),
+    Facility.VINEYARD: FacilitySpec(Facility.VINEYARD, (7, 5), (18, 12), 0.2, False, ("farm", "hill"), workers=(2, 20), tags=("food", "luxury", "rural")),
+    Facility.HOUSE: FacilitySpec(Facility.HOUSE, (3, 3), (6, 5), 5.0, False, ("residential",), occupants=(2, 8), tags=("housing",)),
+    Facility.TENEMENT: FacilitySpec(Facility.TENEMENT, (5, 4), (9, 7), 0.8, False, ("residential", "core"), occupants=(12, 60), tags=("housing", "dense")),
+    Facility.MANOR: FacilitySpec(Facility.MANOR, (6, 5), (12, 9), 0.2, False, ("noble", "edge"), occupants=(8, 50), workers=(4, 30), tags=("housing", "wealth")),
+    Facility.HOVEL: FacilitySpec(Facility.HOVEL, (2, 2), (4, 4), 1.0, False, ("residential", "edge"), occupants=(1, 5), tags=("housing", "poor")),
+    Facility.EMPTY_LOT: FacilitySpec(Facility.EMPTY_LOT, (3, 3), (8, 6), 0.3, False, ("residential", "edge"), tags=("open", "vacant")),
+    Facility.RUIN: FacilitySpec(Facility.RUIN, (3, 3), (12, 9), 0.3, False, ("ruins", "edge", "core"), material_hint=BuildingMaterial.RUINED_STONE, tags=("ruin", "dangerous")),
+    Facility.ANCIENT_VAULT: FacilitySpec(Facility.ANCIENT_VAULT, (5, 5), (12, 10), 0.05, True, ("ruins", "magic", "edge"), material_hint=BuildingMaterial.RUINED_STONE, tags=("ruin", "secret", "dungeon")),
+}
+
+
+KIND_DEFAULTS: dict[SettlementKind, tuple[Facility, ...]] = {
+    SettlementKind.HAMLET: (Facility.WELL, Facility.SHRINE, Facility.FARMSTEAD, Facility.FIELD, Facility.BARN),
+    SettlementKind.VILLAGE: (Facility.WELL, Facility.MARKET, Facility.CHURCH, Facility.BLACKSMITH, Facility.FARMSTEAD, Facility.FIELD, Facility.BARN, Facility.INN),
+    SettlementKind.FARMING_VILLAGE: (Facility.WELL, Facility.CHURCH, Facility.WINDMILL, Facility.GRANARY, Facility.FARMSTEAD, Facility.FIELD, Facility.ORCHARD, Facility.PASTURE, Facility.BARN, Facility.STABLE),
+    SettlementKind.FISHING_VILLAGE: (Facility.WELL, Facility.SHRINE, Facility.DOCKS, Facility.FISHERY, Facility.WHARF, Facility.MARKET, Facility.TAVERN, Facility.BARN),
+    SettlementKind.MINING_CAMP: (Facility.WELL, Facility.MINE, Facility.QUARRY, Facility.FORGE, Facility.BLACKSMITH, Facility.BARRACKS, Facility.TAVERN, Facility.WAREHOUSE),
+    SettlementKind.MONASTERY: (Facility.MONASTERY, Facility.SHRINE, Facility.CEMETERY, Facility.LIBRARY, Facility.FARMSTEAD, Facility.FIELD, Facility.ORCHARD, Facility.WELL),
+    SettlementKind.FORT: (Facility.KEEP, Facility.PALISADE, Facility.WATCHTOWER, Facility.BARRACKS, Facility.ARMORY, Facility.WELL, Facility.STABLE, Facility.GRANARY),
+    SettlementKind.MARKET_TOWN: (Facility.MARKET_SQUARE, Facility.COUNCIL_HOUSE, Facility.CHURCH, Facility.GUILDHALL, Facility.INN, Facility.TAVERN, Facility.BLACKSMITH, Facility.BAKERY, Facility.GRANARY, Facility.STABLE),
+    SettlementKind.TOWN: (Facility.MARKET_SQUARE, Facility.COUNCIL_HOUSE, Facility.CHURCH, Facility.CEMETERY, Facility.INN, Facility.TAVERN, Facility.GUILDHALL, Facility.BLACKSMITH, Facility.BAKERY, Facility.WELL, Facility.GRANARY),
+    SettlementKind.WALLED_TOWN: (Facility.STONE_WALL, Facility.GATEHOUSE, Facility.TOWER, Facility.MARKET_SQUARE, Facility.CITY_HALL, Facility.CHURCH, Facility.KEEP, Facility.BARRACKS, Facility.CEMETERY, Facility.INN, Facility.GUILDHALL, Facility.BLACKSMITH, Facility.BAKERY, Facility.GRANARY),
+    SettlementKind.PORT_TOWN: (Facility.DOCKS, Facility.WHARF, Facility.FISHERY, Facility.CUSTOMS_HOUSE, Facility.MARKET, Facility.WAREHOUSE, Facility.SHIPYARD, Facility.INN, Facility.TAVERN, Facility.CHURCH, Facility.LIGHTHOUSE),
+    SettlementKind.PORT_CITY: (Facility.DOCKS, Facility.WHARF, Facility.CUSTOMS_HOUSE, Facility.MARKET_SQUARE, Facility.CITY_HALL, Facility.COURTHOUSE, Facility.WAREHOUSE, Facility.SHIPYARD, Facility.LIGHTHOUSE, Facility.CATHEDRAL, Facility.GUILDHALL, Facility.BANK, Facility.BARRACKS, Facility.STONE_WALL),
+    SettlementKind.CITY: (Facility.MARKET_SQUARE, Facility.CITY_HALL, Facility.COURTHOUSE, Facility.CATHEDRAL, Facility.CEMETERY, Facility.GUILDHALL, Facility.BANK, Facility.UNIVERSITY, Facility.BARRACKS, Facility.PRISON, Facility.BATHHOUSE, Facility.GRANARY, Facility.WAREHOUSE, Facility.STONE_WALL),
+    SettlementKind.CAPITAL: (Facility.CASTLE, Facility.STONE_WALL, Facility.GATEHOUSE, Facility.CITY_HALL, Facility.COURTHOUSE, Facility.CATHEDRAL, Facility.UNIVERSITY, Facility.BANK, Facility.GUILDHALL, Facility.BARRACKS, Facility.PRISON, Facility.ARCHIVE, Facility.BATHHOUSE, Facility.MARKET_SQUARE),
+    SettlementKind.ANCIENT_CITY: (Facility.RUIN, Facility.ANCIENT_VAULT, Facility.STONE_WALL, Facility.CATHEDRAL, Facility.LIBRARY, Facility.RUNESTONE_CIRCLE, Facility.CEMETERY, Facility.MARKET_SQUARE),
+    SettlementKind.RUINED_CITY: (Facility.RUIN, Facility.ANCIENT_VAULT, Facility.STONE_WALL, Facility.CEMETERY, Facility.MARKET_SQUARE, Facility.TOWER, Facility.WELL),
+    SettlementKind.NOMAD_CAMP: (Facility.WELL, Facility.SHRINE, Facility.MARKET, Facility.PASTURE, Facility.STABLE),
+}
+
+
+MAGIC_DEFAULTS: dict[MagicMode, tuple[Facility, ...]] = {
+    MagicMode.NO_MAGIC: tuple(),
+    MagicMode.LOW_MAGIC: (Facility.ALCHEMIST, Facility.SHRINE),
+    MagicMode.HIGH_MAGIC: (Facility.ALCHEMIST, Facility.MAGE_TOWER, Facility.ARCANE_ACADEMY, Facility.WARDING_OBELISK, Facility.LEYLINE_WELL),
+    MagicMode.RUNIC_MAGIC: (Facility.RUNESTONE_CIRCLE, Facility.WARDING_OBELISK, Facility.LEYLINE_WELL),
+    MagicMode.DIVINE_MAGIC: (Facility.TEMPLE, Facility.SHRINE, Facility.MONASTERY, Facility.CEMETERY),
+    MagicMode.NECROMANTIC: (Facility.NECROPOLIS, Facility.OSSUARY, Facility.CEMETERY, Facility.ALCHEMIST),
+    MagicMode.WILD_MAGIC: (Facility.RUNESTONE_CIRCLE, Facility.LEYLINE_WELL, Facility.SHRINE),
+    MagicMode.TECHNO_ARCANE: (Facility.ARCANE_ACADEMY, Facility.ALCHEMIST, Facility.GLASSWORKS, Facility.PORTAL),
+}
+
+
+def default_facilities_for(kind: SettlementKind, magic: MagicMode, defense: DefenseStyle, state: SettlementState) -> tuple[Facility, ...]:
+    facilities: list[Facility] = list(KIND_DEFAULTS.get(kind, KIND_DEFAULTS[SettlementKind.TOWN]))
+    facilities.extend(MAGIC_DEFAULTS.get(magic, ()))
+    if defense == DefenseStyle.PALISADE:
+        facilities.extend([Facility.PALISADE, Facility.GATEHOUSE, Facility.WATCHTOWER])
+    elif defense in (DefenseStyle.STONE_WALL, DefenseStyle.CASTLE_WALL):
+        facilities.extend([Facility.STONE_WALL, Facility.GATEHOUSE, Facility.TOWER])
+    elif defense == DefenseStyle.DYKE:
+        facilities.append(Facility.DYKE)
+    elif defense == DefenseStyle.WATCHTOWERS:
+        facilities.append(Facility.WATCHTOWER)
+    elif defense == DefenseStyle.EARTHWORKS:
+        facilities.append(Facility.EARTHWORK)
+    elif defense == DefenseStyle.MAGIC_WARD:
+        facilities.append(Facility.WARDING_OBELISK)
+    if state in (SettlementState.RUINED, SettlementState.ANCIENT, SettlementState.GHOST_TOWN, SettlementState.WAR_TORN):
+        facilities.extend([Facility.RUIN, Facility.EMPTY_LOT])
+    # Stable dedup preserving order.
+    return tuple(dict.fromkeys(facilities))
+
+
+def desired_population(kind: SettlementKind, state: SettlementState, explicit: int | None = None) -> int:
+    if explicit is not None:
+        base = int(explicit)
+    else:
+        base_by_kind = {
+            SettlementKind.HAMLET: 55,
+            SettlementKind.VILLAGE: 280,
+            SettlementKind.FARMING_VILLAGE: 360,
+            SettlementKind.FISHING_VILLAGE: 300,
+            SettlementKind.MINING_CAMP: 420,
+            SettlementKind.MONASTERY: 180,
+            SettlementKind.FORT: 250,
+            SettlementKind.MARKET_TOWN: 1200,
+            SettlementKind.TOWN: 1800,
+            SettlementKind.WALLED_TOWN: 2500,
+            SettlementKind.PORT_TOWN: 2200,
+            SettlementKind.PORT_CITY: 9000,
+            SettlementKind.CITY: 12000,
+            SettlementKind.CAPITAL: 24000,
+            SettlementKind.ANCIENT_CITY: 2500,
+            SettlementKind.RUINED_CITY: 80,
+            SettlementKind.NOMAD_CAMP: 160,
+        }
+        base = base_by_kind.get(kind, 1200)
+    if state == SettlementState.GHOST_TOWN:
+        return 0
+    if state == SettlementState.SCARCELY_POPULATED:
+        return max(1, int(base * 0.15))
+    if state == SettlementState.RUINED:
+        return max(0, int(base * 0.04))
+    if state == SettlementState.DECLINING:
+        return int(base * 0.55)
+    if state == SettlementState.PLAGUE_STRUCK:
+        return int(base * 0.35)
+    if state == SettlementState.WAR_TORN:
+        return int(base * 0.45)
+    if state == SettlementState.THRIVING:
+        return int(base * 1.25)
+    if state == SettlementState.NEW:
+        return int(base * 0.65)
+    if state == SettlementState.OCCUPIED:
+        return int(base * 0.8)
+    return base
+
+
+def district_count_for(kind: SettlementKind, population: int, explicit: int | None = None) -> int:
+    if explicit is not None:
+        return max(1, int(explicit))
+    if kind in (SettlementKind.HAMLET, SettlementKind.NOMAD_CAMP):
+        return 2
+    if population < 250:
+        return 3
+    if population < 750:
+        return 4
+    if population < 2000:
+        return 6
+    if population < 6000:
+        return 9
+    if population < 15000:
+        return 13
+    return 18
+
+
+def material_for_palette(palette: BuildingMaterial, wealth: Wealth, facility: Facility, spec: FacilitySpec | None = None) -> BuildingMaterial:
+    if spec and spec.material_hint:
+        return spec.material_hint
+    if palette == BuildingMaterial.MIXED:
+        if facility in (Facility.CITY_HALL, Facility.COURTHOUSE, Facility.CHURCH, Facility.CATHEDRAL, Facility.KEEP, Facility.CASTLE, Facility.TOWER):
+            return BuildingMaterial.MOSTLY_STONE
+        if facility in (Facility.HOVEL, Facility.FARMSTEAD, Facility.BARN, Facility.FISHERY, Facility.DOCKS, Facility.WHARF):
+            return BuildingMaterial.MOSTLY_WOOD
+        if wealth in (Wealth.RICH, Wealth.IMPERIAL) and facility in (Facility.HOUSE, Facility.MANOR, Facility.GUILDHALL):
+            return BuildingMaterial.MOSTLY_BRICK
+        return BuildingMaterial.MIXED
+    return palette

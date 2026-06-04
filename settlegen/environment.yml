@@ -1,0 +1,10 @@
+# Mamba/Conda environment specification for settlegen
+# Generated/updated by sdc. Runtime Python package metadata is placed under pip:.
+name: settlegen
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - pip
+  - pip:
+      - numpy>=1.23

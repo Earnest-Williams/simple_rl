@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "settlegen"
+version = "0.1.0"
+description = "Drop-in procedural medieval/fantasy settlement generator for games"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "OpenAI ChatGPT"}]
+license = {text = "MIT"}
+dependencies = [
+  "numpy>=1.23"
+]
+
+[project.optional-dependencies]
+fast = ["numba>=0.59"]
+analytics = ["polars>=0.20"]
+dev = ["pytest>=7.0", "numba>=0.59", "polars>=0.20"]
+ui = ["fastapi", "uvicorn", "pydantic"]
+
+[project.scripts]
+settlegen-demo = "settlegen.cli:main"
+settlegen-ui = "settlegen.ui.server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["settlegen*"]

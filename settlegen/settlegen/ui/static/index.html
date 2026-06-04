@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settlegen UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar glass-panel">
+            <header>
+                <h1>Settlegen</h1>
+                <p>Procedural Settlement Generator</p>
+            </header>
+            
+            <form id="config-form">
+                <div class="form-group">
+                    <label for="seed">Seed</label>
+                    <input type="number" id="seed" name="seed" value="42" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="width">Width</label>
+                        <input type="number" id="width" name="width" value="128" min="32">
+                    </div>
+                    <div class="form-group">
+                        <label for="height">Height</label>
+                        <input type="number" id="height" name="height" value="96" min="24">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="kind">Settlement Kind</label>
+                    <select id="kind" name="kind">
+                        <option value="hamlet">Hamlet</option>
+                        <option value="village">Village</option>
+                        <option value="farming_village">Farming Village</option>
+                        <option value="fishing_village">Fishing Village</option>
+                        <option value="mining_camp">Mining Camp</option>
+                        <option value="monastery">Monastery</option>
+                        <option value="fort">Fort</option>
+                        <option value="market_town">Market Town</option>
+                        <option value="town" selected>Town</option>
+                        <option value="walled_town">Walled Town</option>
+                        <option value="port_town">Port Town</option>
+                        <option value="port_city">Port City</option>
+                        <option value="city">City</option>
+                        <option value="capital">Capital</option>
+                        <option value="ancient_city">Ancient City</option>
+                        <option value="ruined_city">Ruined City</option>
+                        <option value="nomad_camp">Nomad Camp</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="state">State</label>
+                    <select id="state" name="state">
+                        <option value="new">New</option>
+                        <option value="thriving">Thriving</option>
+                        <option value="ordinary" selected>Ordinary</option>
+                        <option value="declining">Declining</option>
+                        <option value="scarcely_populated">Scarcely Populated</option>
+                        <option value="ghost_town">Ghost Town</option>
+                        <option value="ruined">Ruined</option>
+                        <option value="ancient">Ancient</option>
+                        <option value="occupied">Occupied</option>
+                        <option value="plague_struck">Plague Struck</option>
+                        <option value="war_torn">War Torn</option>
+                        <option value="flooded">Flooded</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="magic">Magic</label>
+                    <select id="magic" name="magic">
+                        <option value="no_magic">No Magic</option>
+                        <option value="low_magic" selected>Low Magic</option>
+                        <option value="high_magic">High Magic</option>
+                        <option value="runic_magic">Runic Magic</option>
+                        <option value="divine_magic">Divine Magic</option>
+                        <option value="necromantic">Necromantic</option>
+                        <option value="wild_magic">Wild Magic</option>
+                        <option value="techno_arcane">Techno Arcane</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="material">Material</label>
+                    <select id="material" name="material">
+                        <option value="mostly_wood">Mostly Wood</option>
+                        <option value="mostly_stone">Mostly Stone</option>
+                        <option value="mostly_adobe">Mostly Adobe</option>
+                        <option value="mostly_thatch">Mostly Thatch</option>
+                        <option value="mostly_brick">Mostly Brick</option>
+                        <option value="mixed" selected>Mixed</option>
+                        <option value="ruined_stone">Ruined Stone</option>
+                        <option value="canvas_and_hide">Canvas & Hide</option>
+                        <option value="ice_and_bone">Ice & Bone</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="layout">Layout</label>
+                    <select id="layout" name="layout">
+                        <option value="organic" selected>Organic</option>
+                        <option value="radial">Radial</option>
+                        <option value="grid">Grid</option>
+                        <option value="linear_road">Linear Road</option>
+                        <option value="river_straddling">River Straddling</option>
+                        <option value="coastal">Coastal</option>
+                        <option value="hillfort">Hillfort</option>
+                        <option value="monastic">Monastic</option>
+                        <option value="fortress">Fortress</option>
+                        <option value="ruins_overgrown">Ruins Overgrown</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="defense">Defense</label>
+                    <select id="defense" name="defense">
+                        <option value="none" selected>None</option>
+                        <option value="ditch">Ditch</option>
+                        <option value="palisade">Palisade</option>
+                        <option value="stone_wall">Stone Wall</option>
+                        <option value="castle_wall">Castle Wall</option>
+                        <option value="watchtowers">Watchtowers</option>
+                        <option value="earthworks">Earthworks</option>
+                        <option value="dyke">Dyke</option>
+                        <option value="magic_ward">Magic Ward</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="wealth">Wealth</label>
+                    <select id="wealth" name="wealth">
+                        <option value="destitute">Destitute</option>
+                        <option value="poor">Poor</option>
+                        <option value="modest" selected>Modest</option>
+                        <option value="prosperous">Prosperous</option>
+                        <option value="rich">Rich</option>
+                        <option value="imperial">Imperial</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Terrain Features</label>
+                    <div class="checkbox-grid" id="terrain-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Facilities</label>
+                    <div class="checkbox-grid" id="facilities-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="generate-btn">
+                    <span class="btn-text">Generate Settlement</span>
+                    <span class="btn-loader"></span>
+                </button>
+            </form>
+        </aside>
+        
+        <main class="content">
+            <div class="results-header glass-panel">
+                <h2 id="out-name">Unnamed Settlement</h2>
+                <div class="stats">
+                    <div class="stat-box">
+                        <span class="stat-label">Population</span>
+                        <span class="stat-value" id="out-pop">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Buildings</span>
+                        <span class="stat-value" id="out-buildings">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Districts</span>
+                        <span class="stat-value" id="out-districts">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="map-container glass-panel">
+                <pre id="ascii-map">Hit Generate to create a settlement...</pre>
+            </div>
+        </main>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
