@@ -9,6 +9,8 @@ from common.constants import Material
 from settlegen import TerrainCode
 from worldgen.overland.rules import (
     derive_blocks_sight,
+    derive_movement_cost,
+    derive_traversal_class,
     derive_walkable,
     surface_flag_mask,
 )
@@ -222,6 +224,8 @@ def terrain_to_overland_columns(
     flags = np.zeros(combined_grid.shape, dtype=np.uint32)
     walkable = np.zeros(combined_grid.shape, dtype=bool)
     blocks_sight = np.zeros(combined_grid.shape, dtype=bool)
+    movement_cost = np.zeros(combined_grid.shape, dtype=np.float32)
+    traversal_class = np.zeros(combined_grid.shape, dtype=np.int16)
 
     for y in range(combined_grid.shape[0]):
         for x in range(combined_grid.shape[1]):
@@ -237,6 +241,8 @@ def terrain_to_overland_columns(
             flags[y, x] = flag_mask
             walkable[y, x] = derive_walkable(mat, wet, flag_mask)
             blocks_sight[y, x] = derive_blocks_sight(mat, flag_mask)
+            movement_cost[y, x] = derive_movement_cost(mat, wet, flag_mask)
+            traversal_class[y, x] = int(derive_traversal_class(mat, wet, flag_mask))
 
     return {
         "material": material,
@@ -247,6 +253,8 @@ def terrain_to_overland_columns(
         "substrate": substrate,
         "walkable": walkable,
         "blocks_sight": blocks_sight,
+        "movement_cost": movement_cost,
+        "traversal_class": traversal_class,
         "surface_flags": flags,
     }
 

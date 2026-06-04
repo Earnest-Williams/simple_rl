@@ -7,12 +7,20 @@ from typing import Any
 import polars as pl
 
 from worldgen.overland.schema import OverlandBundle
+from worldgen.overland.transitions import (
+    generate_transition_requests,
+    transition_requests_to_df,
+)
 
 OVERLAND_FILES: dict[str, str] = {
     "tiles_df": "overland_tiles.arrow",
     "hydrology_df": "overland_hydrology.arrow",
     "features_df": "overland_features.arrow",
     "affordances_df": "overland_affordances.arrow",
+}
+
+COMPUTED_OVERLAND_FILES: dict[str, str] = {
+    "transitions_df": "overland_transitions.arrow",
 }
 
 
@@ -29,6 +37,12 @@ def write_overland_bundle(
         _check_writable(path, overwrite=overwrite)
         getattr(bundle, attr).write_ipc(path)
         paths[attr] = path
+    transitions_path = out_dir / COMPUTED_OVERLAND_FILES["transitions_df"]
+    _check_writable(transitions_path, overwrite=overwrite)
+    transition_requests_to_df(generate_transition_requests(bundle)).write_ipc(
+        transitions_path
+    )
+    paths["transitions_df"] = transitions_path
     metadata_path = out_dir / "overland_metadata.json"
     _check_writable(metadata_path, overwrite=overwrite)
     metadata_path.write_text(
@@ -49,6 +63,7 @@ def load_worldgen_bundle(out_dir: Path) -> dict[str, Any]:
     payload: dict[str, Any] = {"path": out_dir}
     for key, filename in {
         **OVERLAND_FILES,
+        **COMPUTED_OVERLAND_FILES,
         "settlement_map_df": "settlement_map.arrow",
         "settlement_entrances_df": "settlement_entrances.arrow",
     }.items():

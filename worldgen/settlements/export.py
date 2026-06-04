@@ -74,6 +74,8 @@ def to_simple_rl_bundle(
             "wetness": overland["wetness"].reshape(-1),
             "substrate": overland["substrate"].reshape(-1),
             "blocks_sight": overland["blocks_sight"].reshape(-1),
+            "movement_cost": overland["movement_cost"].reshape(-1),
+            "traversal_class": overland["traversal_class"].reshape(-1),
             "surface_flags": overland["surface_flags"].reshape(-1),
         }
     )

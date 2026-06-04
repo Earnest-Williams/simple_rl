@@ -4,6 +4,12 @@ import polars as pl
 
 from common.constants import Material
 from worldgen.overland.affordances import generate_affordances
+from worldgen.overland.rules import (
+    derive_blocks_sight,
+    derive_movement_cost,
+    derive_traversal_class,
+    derive_walkable,
+)
 from worldgen.overland.schema import HydroRole, HydroState, OverlandBundle, Wetness
 
 
@@ -25,20 +31,8 @@ def apply_hydrology_state(bundle: OverlandBundle, state: HydroState) -> Overland
         _wetness_expr(state, is_sinking_lake, is_estavelle, is_ponor, is_fish_trail).alias(
             "wetness"
         ),
-    ).with_columns(
-        (pl.col("material").is_not_null() & pl.col("wetness").is_not_null()).alias(
-            "walkable"
-        )
     )
-    # Keep gameplay truth conservative after the state transform.
-    tiles = tiles.with_columns(
-        pl.when(pl.col("wetness") == int(Wetness.DEEP_FLOODED))
-        .then(False)
-        .when(pl.col("material").is_in([int(Material.DEEP_WATER), int(Material.LIMESTONE_CLIFF)]))
-        .then(False)
-        .otherwise(True)
-        .alias("walkable")
-    )
+    tiles = _recompute_gameplay_columns(tiles)
     transformed = OverlandBundle(
         tiles_df=tiles,
         hydrology_df=hydro,
@@ -141,3 +135,16 @@ def _wetness_expr(
         .then(int(Wetness.DRY))
         .otherwise(pl.col("wetness"))
     )
+
+
+def _recompute_gameplay_columns(tiles: pl.DataFrame) -> pl.DataFrame:
+    rows = tiles.to_dicts()
+    for row in rows:
+        material = Material(int(row["material"]))
+        wetness = Wetness(int(row["wetness"]))
+        flags = int(row["surface_flags"])
+        row["walkable"] = derive_walkable(material, wetness, flags)
+        row["blocks_sight"] = derive_blocks_sight(material, flags)
+        row["movement_cost"] = derive_movement_cost(material, wetness, flags)
+        row["traversal_class"] = int(derive_traversal_class(material, wetness, flags))
+    return pl.DataFrame(rows, schema=tiles.schema)

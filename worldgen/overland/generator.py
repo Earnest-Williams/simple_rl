@@ -10,6 +10,8 @@ from utils.game_rng import GameRNG
 from worldgen.overland.affordances import generate_affordances
 from worldgen.overland.rules import (
     derive_blocks_sight,
+    derive_movement_cost,
+    derive_traversal_class,
     derive_walkable,
     surface_flag_mask,
 )
@@ -95,7 +97,9 @@ def generate_overland_region(
         height=height,
     )
 
-    walkable, blocks_sight = _derive_gameplay_layers(material, wetness, flags)
+    walkable, blocks_sight, movement_cost, traversal_class = _derive_gameplay_layers(
+        material, wetness, flags
+    )
     tiles_df = _tiles_df(
         material=material,
         biome=biome,
@@ -105,6 +109,8 @@ def generate_overland_region(
         substrate=substrate,
         walkable=walkable,
         blocks_sight=blocks_sight,
+        movement_cost=movement_cost,
+        traversal_class=traversal_class,
         flags=flags,
     )
     hydrology_df = _hydrology_df(
@@ -375,9 +381,11 @@ def _derive_gameplay_layers(
     material: np.ndarray,
     wetness: np.ndarray,
     flags: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     walkable = np.zeros(material.shape, dtype=bool)
     blocks_sight = np.zeros(material.shape, dtype=bool)
+    movement_cost = np.zeros(material.shape, dtype=np.float32)
+    traversal_class = np.zeros(material.shape, dtype=np.int16)
     for y in range(material.shape[0]):
         for x in range(material.shape[1]):
             mat = Material(int(material[y, x]))
@@ -385,7 +393,9 @@ def _derive_gameplay_layers(
             flag_mask = int(flags[y, x])
             walkable[y, x] = derive_walkable(mat, wet, flag_mask)
             blocks_sight[y, x] = derive_blocks_sight(mat, flag_mask)
-    return walkable, blocks_sight
+            movement_cost[y, x] = derive_movement_cost(mat, wet, flag_mask)
+            traversal_class[y, x] = int(derive_traversal_class(mat, wet, flag_mask))
+    return walkable, blocks_sight, movement_cost, traversal_class
 
 
 def _tiles_df(
@@ -398,6 +408,8 @@ def _tiles_df(
     substrate: np.ndarray,
     walkable: np.ndarray,
     blocks_sight: np.ndarray,
+    movement_cost: np.ndarray,
+    traversal_class: np.ndarray,
     flags: np.ndarray,
 ) -> pl.DataFrame:
     yy, xx = np.indices(material.shape)
@@ -413,6 +425,8 @@ def _tiles_df(
             "substrate": substrate.reshape(-1).astype(np.int16),
             "walkable": walkable.reshape(-1),
             "blocks_sight": blocks_sight.reshape(-1),
+            "movement_cost": movement_cost.reshape(-1).astype(np.float32),
+            "traversal_class": traversal_class.reshape(-1).astype(np.int16),
             "surface_flags": flags.reshape(-1).astype(np.uint32),
         }
     )

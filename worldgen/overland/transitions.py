@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import polars as pl
+
 from common.constants import Material
 from worldgen.overland.schema import (
     Biome,
@@ -34,6 +36,41 @@ def generate_transition_requests(bundle: OverlandBundle) -> list[SurfaceTransiti
         )
     requests.extend(_feature_transition_requests(bundle, seed=seed))
     return requests
+
+
+def transition_requests_to_df(
+    requests: list[SurfaceTransitionRequest],
+) -> pl.DataFrame:
+    schema = {
+        "source_x": pl.Int64,
+        "source_y": pl.Int64,
+        "transition_type": pl.Int64,
+        "target_kind": pl.Utf8,
+        "hydro_role": pl.Int64,
+        "biome": pl.Int64,
+        "material": pl.Int64,
+        "seed": pl.Int64,
+        "tags": pl.Utf8,
+    }
+    if not requests:
+        return pl.DataFrame(schema=schema)
+    return pl.DataFrame(
+        [
+            {
+                "source_x": request.source_x,
+                "source_y": request.source_y,
+                "transition_type": int(request.transition_type),
+                "target_kind": request.target_kind,
+                "hydro_role": int(request.hydro_role),
+                "biome": int(request.biome),
+                "material": request.material,
+                "seed": request.seed,
+                "tags": ";".join(request.tags),
+            }
+            for request in requests
+        ],
+        schema=schema,
+    )
 
 
 def _feature_transition_requests(

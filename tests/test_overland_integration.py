@@ -3,21 +3,27 @@ from __future__ import annotations
 import hashlib
 import json
 
+import numpy as np
 import polars as pl
 
 from common.constants import Material
 from tools.generate_overland import generate_region
 from utils.game_rng import GameRNG
 from worldgen.overland import (
+    ActorTraversalProfile,
     Biome,
     HydroRole,
     HydroState,
     TransitionType,
+    TraversalClass,
     apply_hydrology_state,
+    build_actor_cost_grid,
+    can_actor_enter,
     generate_overland_region,
     generate_transition_requests,
     load_worldgen_bundle,
     merge_settlement_into_overland,
+    movement_cost_for_actor,
     overland_to_game_map,
     render_overland_ascii,
     write_overland_bundle,
@@ -40,10 +46,14 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert paths["hydrology_df"].exists()
     assert paths["features_df"].exists()
     assert paths["affordances_df"].exists()
+    assert paths["transitions_df"].exists()
     assert metadata["seed"] == 20260604
     assert metadata["profile"] == "KARST_TO_VOLCANIC_MOUNTAIN"
     assert metadata["schema_version"] == "overland-1"
     assert loaded["tiles_df"].height == 96 * 72
+    assert "movement_cost" in loaded["tiles_df"].columns
+    assert "traversal_class" in loaded["tiles_df"].columns
+    assert loaded["transitions_df"].height > 0
 
     tiles = bundle.tiles_df
     hydrology = bundle.hydrology_df
@@ -63,6 +73,8 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert _checksum(mud.tiles_df) != _checksum(bundle.tiles_df)
     assert _count(dry.tiles_df, "material", Material.CRACKED_MUD) > 0
     assert _count(mud.tiles_df, "material", Material.MUDFLAT) > 0
+    assert _count(dry.tiles_df, "traversal_class", TraversalClass.SLOW) > 0
+    assert dry.tiles_df.get_column("movement_cost").max() >= 2.5
 
     transitions = generate_transition_requests(dry)
     transition_types = {request.transition_type for request in transitions}
@@ -100,6 +112,7 @@ def test_headless_overland_generation_writes_inspectable_output(tmp_path) -> Non
     )
     assert summary["tile_rows"] == 64 * 48
     assert pl.read_ipc(summary["artifacts"]["tiles_df"]).height == 64 * 48
+    assert pl.read_ipc(summary["artifacts"]["transitions_df"]).height > 0
     assert tmp_path.joinpath("overland_metadata.json").exists()
 
 
@@ -157,10 +170,59 @@ def test_headless_overland_generation_can_merge_starting_port(tmp_path) -> None:
     loaded = load_worldgen_bundle(tmp_path)
     assert _count(loaded["tiles_df"], "material", Material.DOCK) > 0
     assert _count(loaded["tiles_df"], "material", Material.BUILDING_FLOOR) > 0
+    assert _count(
+        loaded["transitions_df"],
+        "transition_type",
+        TransitionType.SETTLEMENT_ENTRANCE,
+    ) > 0
+
+
+def test_actor_traversal_profiles_respond_to_hydrology_state() -> None:
+    bundle = generate_overland_region(
+        seed=202,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    wet = apply_hydrology_state(bundle, HydroState.WET_SEASON)
+    dry = apply_hydrology_state(bundle, HydroState.DRY_SEASON)
+
+    wet_lake = _first_row(wet.tiles_df, "hydro_role", HydroRole.SINKING_LAKE)
+    dry_lake = _first_row(dry.tiles_df, "hydro_role", HydroRole.SINKING_LAKE)
+    wet_fish_trail = _first_row(wet.tiles_df, "material", Material.SHALLOW_WATER)
+    dry_fish_trail = _first_row(dry.tiles_df, "material", Material.FISH_TRAIL)
+
+    assert not can_actor_enter(wet_lake, ActorTraversalProfile.HUMAN_ON_FOOT)
+    assert can_actor_enter(wet_lake, ActorTraversalProfile.BOAT)
+    assert can_actor_enter(wet_lake, ActorTraversalProfile.SWIMMER)
+    assert can_actor_enter(wet_lake, ActorTraversalProfile.SMALL_AMPHIBIOUS)
+
+    assert can_actor_enter(dry_lake, ActorTraversalProfile.HUMAN_ON_FOOT)
+    assert not can_actor_enter(dry_lake, ActorTraversalProfile.BOAT)
+    assert movement_cost_for_actor(
+        dry_lake, ActorTraversalProfile.HUMAN_ON_FOOT
+    ) > 1.0
+
+    assert movement_cost_for_actor(
+        wet_fish_trail, ActorTraversalProfile.SMALL_AMPHIBIOUS
+    ) < movement_cost_for_actor(wet_fish_trail, ActorTraversalProfile.HUMAN_ON_FOOT)
+    assert can_actor_enter(dry_fish_trail, ActorTraversalProfile.HUMAN_ON_FOOT)
+
+    human_costs = build_actor_cost_grid(dry.tiles_df, ActorTraversalProfile.HUMAN_ON_FOOT)
+    boat_costs = build_actor_cost_grid(wet.tiles_df, ActorTraversalProfile.BOAT)
+    assert human_costs.shape == (72, 96)
+    assert boat_costs.shape == (72, 96)
+    assert np.isfinite(human_costs).sum() > np.isfinite(boat_costs).sum()
 
 
 def _count(df: pl.DataFrame, column: str, enum_value: object) -> int:
     return df.filter(pl.col(column) == int(enum_value)).height
+
+
+def _first_row(df: pl.DataFrame, column: str, enum_value: object) -> dict[str, object]:
+    rows = df.filter(pl.col(column) == int(enum_value)).head(1).to_dicts()
+    assert rows
+    return rows[0]
 
 
 def _checksum(df: pl.DataFrame) -> str:

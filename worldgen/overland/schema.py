@@ -83,6 +83,16 @@ class SurfaceFlag(IntEnum):
     SEASONAL = auto()
 
 
+class TraversalClass(IntEnum):
+    NORMAL = auto()
+    SLOW = auto()
+    WADE = auto()
+    SWIM_OR_BOAT = auto()
+    BLOCKED = auto()
+    HAZARDOUS = auto()
+    TRANSITION = auto()
+
+
 class FeatureType(IntEnum):
     CAVE_MOUTH = auto()
     PONOR = auto()

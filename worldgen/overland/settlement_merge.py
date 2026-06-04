@@ -19,6 +19,8 @@ _OVERLAND_COLUMNS: tuple[str, ...] = (
     "substrate",
     "walkable",
     "blocks_sight",
+    "movement_cost",
+    "traversal_class",
     "surface_flags",
 )
 

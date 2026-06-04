@@ -25,6 +25,7 @@ def generate_region(
     from utils.game_rng import GameRNG
     from worldgen.overland import (
         generate_overland_region,
+        generate_transition_requests,
         merge_settlement_into_overland,
         write_overland_bundle,
     )
@@ -60,6 +61,7 @@ def generate_region(
             "height": settlement.metadata["height"],
         }
     paths = write_overland_bundle(bundle, out_dir, overwrite=overwrite)
+    transition_count = len(generate_transition_requests(bundle))
     summary: dict[str, object] = {
         "seed": seed,
         "width": width,
@@ -69,6 +71,7 @@ def generate_region(
         "hydrology_rows": bundle.hydrology_df.height,
         "feature_rows": bundle.features_df.height,
         "affordance_rows": bundle.affordances_df.height,
+        "transition_rows": transition_count,
         "artifacts": {key: str(path) for key, path in paths.items()},
     }
     if starting_port is not None:
