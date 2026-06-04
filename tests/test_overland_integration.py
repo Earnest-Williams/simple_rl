@@ -12,6 +12,7 @@ from utils.game_rng import GameRNG
 from worldgen.overland import (
     ActorTraversalProfile,
     Biome,
+    FeatureType,
     HydroRole,
     HydroState,
     TransitionType,
@@ -19,6 +20,9 @@ from worldgen.overland import (
     apply_hydrology_state,
     build_actor_cost_grid,
     can_actor_enter,
+    find_feature,
+    find_nearest_feature,
+    find_overland_path,
     generate_overland_region,
     generate_transition_requests,
     load_worldgen_bundle,
@@ -215,6 +219,101 @@ def test_actor_traversal_profiles_respond_to_hydrology_state() -> None:
     assert np.isfinite(human_costs).sum() > np.isfinite(boat_costs).sum()
 
 
+def test_seasonal_overland_routes_are_profile_specific() -> None:
+    bundle = generate_overland_region(
+        seed=303,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    wet = apply_hydrology_state(bundle, HydroState.WET_SEASON)
+    dry = apply_hydrology_state(bundle, HydroState.DRY_SEASON)
+
+    spring = find_feature(bundle, FeatureType.SPRING)
+    assert spring is not None
+    ponor = find_nearest_feature(
+        bundle,
+        (int(spring["x"]), int(spring["y"])),
+        FeatureType.PONOR,
+    )
+    assert ponor is not None
+    start = (int(spring["x"]), int(spring["y"]))
+    goal = (int(ponor["x"]), int(ponor["y"]))
+
+    wet_human = find_overland_path(
+        wet,
+        start,
+        goal,
+        ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    dry_human = find_overland_path(
+        dry,
+        start,
+        goal,
+        ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    amphibious = find_overland_path(
+        wet,
+        start,
+        goal,
+        ActorTraversalProfile.SMALL_AMPHIBIOUS,
+    )
+
+    assert wet_human.found
+    assert dry_human.found
+    assert amphibious.found
+    assert amphibious.total_cost < wet_human.total_cost
+
+    lake_start = (20, 21)
+    lake_goal = (33, 21)
+    wet_lake_human = find_overland_path(
+        wet,
+        lake_start,
+        lake_goal,
+        ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    dry_lake_human = find_overland_path(
+        dry,
+        lake_start,
+        lake_goal,
+        ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    wet_boat = find_overland_path(
+        wet,
+        lake_start,
+        lake_goal,
+        ActorTraversalProfile.BOAT,
+    )
+    dry_boat = find_overland_path(
+        dry,
+        lake_start,
+        lake_goal,
+        ActorTraversalProfile.BOAT,
+    )
+    assert not wet_lake_human.found
+    assert dry_lake_human.found
+    assert wet_boat.found
+    assert not dry_boat.found
+    assert _route_uses_any_material(dry, dry_lake_human.path, {Material.CRACKED_MUD})
+
+    same_wet = apply_hydrology_state(
+        generate_overland_region(
+            seed=303,
+            width=96,
+            height=72,
+            profile="KARST_TO_VOLCANIC_MOUNTAIN",
+        ),
+        HydroState.WET_SEASON,
+    )
+    same_route = find_overland_path(
+        same_wet,
+        start,
+        goal,
+        ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    assert _route_checksum(wet_human.path) == _route_checksum(same_route.path)
+
+
 def _count(df: pl.DataFrame, column: str, enum_value: object) -> int:
     return df.filter(pl.col(column) == int(enum_value)).height
 
@@ -228,3 +327,21 @@ def _first_row(df: pl.DataFrame, column: str, enum_value: object) -> dict[str, o
 def _checksum(df: pl.DataFrame) -> str:
     payload = json.dumps(df.to_dict(as_series=False), sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _route_checksum(path: tuple[tuple[int, int], ...]) -> str:
+    payload = json.dumps(path)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _route_uses_any_material(
+    bundle: object,
+    path: tuple[tuple[int, int], ...],
+    materials: set[Material],
+) -> bool:
+    wanted = {int(material) for material in materials}
+    material_lookup = {
+        (int(row["x"]), int(row["y"])): int(row["material"])
+        for row in bundle.tiles_df.iter_rows(named=True)
+    }
+    return any(material_lookup.get(coord) in wanted for coord in path)

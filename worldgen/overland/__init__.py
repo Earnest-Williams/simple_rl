@@ -12,9 +12,19 @@ from worldgen.overland.export import load_worldgen_bundle, write_overland_bundle
 from worldgen.overland.generator import generate_overland_region
 from worldgen.overland.hydrology import apply_hydrology_state
 from worldgen.overland.inspect import render_overland_ascii
+from worldgen.overland.pathfinding import OverlandRoute, find_overland_path
+from worldgen.overland.queries import (
+    find_feature,
+    find_nearest_feature,
+    find_tiles_by_hydro_role,
+    find_tiles_by_material,
+    first_tile_by_hydro_role,
+    first_tile_by_material,
+)
 from worldgen.overland.schema import (
     Affordance,
     Biome,
+    FeatureType,
     HydroRole,
     HydroState,
     OverlandBundle,
@@ -34,9 +44,11 @@ __all__ = [
     "Affordance",
     "ActorTraversalProfile",
     "Biome",
+    "FeatureType",
     "HydroRole",
     "HydroState",
     "OverlandBundle",
+    "OverlandRoute",
     "Substrate",
     "SurfaceTransitionRequest",
     "TransitionType",
@@ -48,11 +60,18 @@ __all__ = [
     "generate_affordances",
     "generate_overland_region",
     "generate_transition_requests",
-    "transition_requests_to_df",
+    "find_feature",
+    "find_nearest_feature",
+    "find_overland_path",
+    "find_tiles_by_hydro_role",
+    "find_tiles_by_material",
+    "first_tile_by_hydro_role",
+    "first_tile_by_material",
     "load_worldgen_bundle",
     "merge_settlement_into_overland",
     "movement_cost_for_actor",
     "overland_to_game_map",
     "render_overland_ascii",
+    "transition_requests_to_df",
     "write_overland_bundle",
 ]
