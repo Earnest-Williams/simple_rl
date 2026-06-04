@@ -75,6 +75,9 @@ game/systems/
         ↓
 game/ai/
   ├─ GOAP adapter
+  ├─ scheduler-facing actor policy
+  ├─ sparse perception facts
+  ├─ morale / assignment action selection
   ├─ production behavior selection
   ├─ perception snapshots
   └─ future morale-aware labor/planning hooks
@@ -92,8 +95,15 @@ engine/
   ├─ render base
   ├─ render entities
   ├─ render lighting
-  ├─ render overlays for roads, scents, survey, memory, research, morale
+  ├─ viewport visual composition
+  ├─ render overlays for roads, scents, survey, memory, research, morale, travel, and survey confidence
   └─ UI affordances via window/action handling
+
+game/runtime/ + engine composition/
+  ├─ energy scheduler owns authoritative simulation time
+  ├─ `EventBatch` and `TurnResult` describe mutations
+  ├─ dirty arrays / dirty rects drive derived updates
+  └─ renderer consumes draw-ready viewport arrays rather than gameplay state directly
 ```
 
 ---
@@ -134,6 +144,12 @@ Recommended:
 
 Avoid broad object hierarchies unless they remove real duplication.
 
+Do not introduce a Python object per map cell.
+
+Prefer dense planes, typed compact batches, small dataclasses at module boundaries,
+array kernels, version counters, dirty masks, dirty rects, and sparse tables for
+events, animations, perception facts, and long-lived records.
+
 ## 3.3 Save/Load
 
 Every proposed system needs serializable state:
@@ -162,6 +178,123 @@ Every system should expose clues through:
 - UI overlays only where useful.
 
 Opaque simulation is not a goal.
+
+## 3.5 Turn-Authoritative Runtime
+
+Simulation time should be owned by an authoritative energy scheduler.
+
+The player taking a manual keypress, a hunter following a scent trail, a torch
+burning down, a poison cloud spreading, a door closing after delay, a field party
+traveling, a base worker completing labor, and a fast-forwarded rest all advance
+through the same simulation path:
+
+```text
+input / runtime policy
+-> scheduler step
+-> action resolution
+-> authoritative state mutation
+-> `EventBatch`
+-> dirty arrays / dirty rects
+-> FOV / lighting / perception / memory updates
+-> viewport composition
+-> platform drawing
+```
+
+Realtime presentation must not become a second rules engine.
+
+The invariant:
+
+- Realtime mode calls the same scheduler more often.
+- It does not introduce per-frame gameplay rules.
+
+Runtime modes are policies over scheduler stepping, not separate game modes:
+
+- MANUAL
+- AUTO_WAIT
+- TRAVEL
+- REST
+- FAST_FORWARD
+- PAUSED
+- ANIMATION_ONLY
+
+When the player schedulable reaches the front of the queue:
+
+- MANUAL -> pause and request input
+- AUTO_WAIT -> inject WaitAction
+- REST -> inject WaitAction until rest target or interruption
+- TRAVEL -> inject next path movement until blocked or interrupted
+- FAST_FORWARD -> run correct scheduler steps with sparse rendering
+- PAUSED -> do not advance simulation
+- ANIMATION_ONLY -> advance only presentation state
+
+This enables deliberate turn play and fast simulation without duplicating combat,
+AI, visibility, movement, lighting, status, or environmental rules.
+
+## 3.6 Event Batches, Turn Results, and Dirty State
+
+Every authoritative action should emit structured event data and dirty metadata.
+Avoid a long stream of Python event objects in hot paths.
+
+Use a compact event spine:
+
+```text
+EventBatch:
+    event_type: uint16[n]
+    actor_id: int32[n]
+    target_id: int32[n]
+    x0, y0, x1, y1: int16[n]
+    importance: uint8[n]
+    visibility: uint8[n]
+    animation_hint: uint16[n]
+    sound_hint: uint16[n]
+    message_id: uint16[n]
+    payload_offset: int32[n]
+    payload_len: int16[n]
+```
+
+Use typed side tables, event-specific arrays, or a compact payload slab for
+variable payloads. Do not use generic dictionaries for high-volume event payloads.
+
+The result of resolving one scheduled action should be representable as:
+
+```text
+TurnResult:
+    current_tick
+    acting_sched_actor_id
+    acting_entity_id
+    action_type
+    consumed_delay
+    changed_entity_ids
+    changed_xy
+    changed_rects
+    dirty_light_ids
+    dirty_reason_mask
+    events
+```
+
+Events feed:
+
+- message log
+- sound playback
+- AI perception facts
+- runtime interruption policy
+- animation
+- dirty rendering
+- debug replay
+- save replay
+- tests
+
+Dirty state should be array-oriented:
+
+- changed_xy: int16[n, 2]
+- changed_rects: int16[m, 4]
+- dirty_reason_mask: uint32[h, w]
+- dirty_light_ids: int32[k]
+- dirty_entity_ids: int32[e]
+- dirty_observer_ids: int32[o]
+- scene_geometry_version: int64
+
+Avoid Python set[Vec2] or renderer-side gameplay queries in hot paths.
 
 ---
 
@@ -385,12 +518,14 @@ Storage(
 
 ## Existing System Integration
 
-- `engine/renderer.py`: displays physical base state.
+- `engine/renderer.py`: displays physical base state from viewport render inputs.
 - `engine/render_lighting.py`: handles camp lighting, night watch, hidden-light lantern effects.
 - `game/systems/sound.py`: ambient and event sound.
 - `game/systems/research_system.py`: Archive facility.
 - `game/systems/morale_system.py`: visible grief/refusal states.
 - `game/entities/registry.py`: base facility entities and storage.
+- Runtime scheduler: base labor, guard shifts, construction, grief behavior, nightly events, torch fuel, and delayed consequences become scheduled actions rather than ad hoc frame or broad-turn updates.
+- `EventBatch`: facility work, storage changes, grief events, camp alarms, and visible construction changes produce structured events for logs, AI, sound, and rendering.
 
 ## Minimum Viable Version
 
@@ -577,6 +712,9 @@ Waystation(
 - `game/systems/overland_threat_system.py`: scent and threat pressure.
 - `game/entities/registry.py`: road markers, blockages, and Waystation entities.
 - `engine/renderer.py`: visible road state and Waystation overlays.
+- Runtime scheduler: travel, road clearing, delayed blockages, repair work, patrols, supply carriers, and Waystation maintenance are scheduled actions.
+- Dirty state: road or bridge changes mutate movement-cost, walkability, scent, and visibility-related arrays only where affected.
+- `EventBatch`: blockage, clearing, ambush, repair, supply arrival, and route discovery events can pause travel/rest/fast-forward through importance thresholds.
 
 ## Minimum Viable Version
 
@@ -660,6 +798,9 @@ ThreatIntent(
 - `game/systems/sound.py`: animal calls and warning cues.
 - `game/systems/infrastructure_system.py`: Waystations as scent sources.
 - `engine/renderer.py`: optional tracks/traces overlays.
+- Runtime scheduler: scent field diffusion, predator sampling, stalking, attacks, and clue generation are scheduled at explicit ticks.
+- Dense perception fields: scent and noise remain dense or regional arrays, while AI consumes sparse facts such as heard sound, smelled supply route, saw campfire, found carcass, or lost trail.
+- `EventBatch`: predator pressure emits visible and non-visible events with importance levels, allowing travel/rest/fast-forward to pause on tracks, calls, damage, missing supplies, or hostile sightings.
 
 ## Minimum Viable Version
 
@@ -742,6 +883,8 @@ GriefState(
 - `auto/`: can remain a tuning harness for morale-aware GOAP prototypes.
 - `ai/`: community AI R&D can inform later promoted behavior.
 - `game/systems/expedition_assignment_system.py`: blocks or modifies assignments.
+- `EventBatch`: death, injury, fear, refusal, discovery, and argument events drive morale updates.
+- Runtime scheduler: grief, refusal, recovery, guard duty, field travel, and base labor all consume explicit simulation time.
 
 ## Minimum Viable Version
 
@@ -1191,6 +1334,8 @@ CaveEvidence(
 - `pathfinding/perception_systems.py`: sound/scent cave behavior.
 - `research_system.py`: cave evidence into knowledge.
 - `expedition_assignment_system.py`: specialists affect survey quality.
+- Dense opacity and height planes: smoke, glass, mist, foliage, cave mouths, low ceilings, shafts, large creatures, and partial barriers should affect visibility without replacing the map with cell objects.
+- Side-aware lighting: cave walls, ledges, openings, and carved surfaces can receive directional light and memory tinting, producing clearer scenes in visually dense caves.
 
 ## Minimum Viable Version
 
@@ -1614,7 +1759,449 @@ SurveyTask(
 
 ---
 
-# 23. Proposed System: Savegame and State Serialization Requirements
+# 23. Proposed System: Turn-Authoritative Array Runtime and Visual Composition
+
+## Purpose
+
+Give the Lost Continent Expedition engine a single deterministic runtime path that
+supports manual turns, variable actor speeds, rest, travel, observation mode,
+fast-forward simulation, deterministic replay, dynamic lighting, fog of war,
+memory, scent, sound, perception fields, and smooth visual transitions.
+
+This is not a separate content feature. It is the implementation spine that lets
+the other proposed systems become visually rich and performant without creating
+renderer-owned gameplay rules or per-frame simulation shortcuts.
+
+The architecture should make visually complex scenes cheaper and more legible:
+
+- Campfires, hidden-light lanterns, Archive lamps, torches, smoke, Waystation markers, cave shafts, remembered terrain, moving entities, predator clues, and UI overlays can compose into one viewport output.
+- FOV, lighting, sound, scent, memory, and pathing can share dense arrays and dirty regions instead of each scanning gameplay objects independently.
+- Travel, rest, and fast-forward can run many correct simulation steps while coalescing cosmetic presentation work.
+
+## Source of Truth
+
+- Runtime scheduler owns authoritative simulation time.
+- `game/` systems own authoritative state mutation.
+- `game/world/` owns map planes, FOV, LOS, visibility, memory, and world-derived arrays.
+- `game/entities/registry.py` owns entities and component records.
+- `pathfinding/perception_systems.py` owns reusable sound/scent/flow concepts.
+- `engine/` owns composition, lighting presentation, overlays, and platform drawing.
+- `utils.game_rng.GameRNG` remains the canonical randomness API for all stochastic gameplay.
+
+## Proposed Modules
+
+- `game/runtime/scheduler.py`
+- `game/runtime/policy.py`
+- `game/runtime/events.py`
+- `game/runtime/turn_result.py`
+- `game/runtime/dirty_state.py`
+- `game/world/opacity.py`
+- `game/world/perception_fields.py`
+- `game/world/knowledge_planes.py`
+- `engine/viewport_input.py`
+- `engine/visual_composer.py`
+- `engine/animation_tables.py`
+
+Existing modules should be adapted gradually; this proposal does not require a
+single rewrite.
+
+## Scheduler Model
+
+Use a deterministic next-tick energy scheduler with compact state:
+
+```text
+sched_actor_id: int32[n]
+entity_id: int32[n] # -1 for non-entity schedulables
+kind: uint16[n] # player, monster, environmental, zone, timed effect
+next_tick: int64[n]
+base_speed: int16[n]
+status_speed_delta: int16[n]
+is_active: bool[n]
+sequence: int64[n] # deterministic tie-breaker
+```
+
+The scheduler selects the active row with the lowest (next_tick, sequence) pair.
+
+After an action resolves:
+
+```text
+next_tick += action_delay
+sequence += 1
+```
+
+Action delays can represent:
+
+- wait
+- floor movement
+- rubble movement
+- quick weapon attack
+- heavy weapon attack
+- torch fuel burn
+- poison tick
+- fire spread
+- predator scent sample
+- road repair work
+- field-party travel
+- zone update
+
+Effective speed modifies delay:
+
+```text
+effective_delay = base_action_delay * BASE_SPEED / effective_speed
+```
+
+This supports haste, slow, encumbrance, terrain costs, weapon speed, casting time,
+labor cadence, travel pacing, recovery time, paralysis, delayed effects, and
+environmental timing through one deterministic model.
+
+## Runtime Policies
+
+Runtime policy should be scalar data, not separate simulation loops:
+
+```text
+mode: uint8
+auto_wait_player: bool
+auto_continue_path: bool
+turns_per_second: float32
+max_steps_per_frame: int16
+render_every_n_steps: int16
+pause_threshold: uint8
+pause_flags: uint32
+allow_animation_skip: bool
+```
+
+Important events interrupt automation:
+
+- TRIVIAL = 0
+- AMBIENT = 1
+- INTERESTING = 2
+- THREATENING = 3
+- CRITICAL = 4
+
+Examples:
+
+```text
+REST:
+  inject WaitAction until target complete
+  pause on hostile seen, damage, nearby hazard, important sound, visible terrain change
+
+TRAVEL:
+  inject next path MoveAction
+  pause on path blocked, hostile seen, new item, trap, damage, manual input
+
+FAST_FORWARD:
+  run real scheduler steps
+  coalesce cosmetic animation
+  render every N steps
+  always pause/render on important event
+```
+
+## Authoritative State Layout
+
+Map state should remain array-backed:
+
+- tiles: uint16[h, w]
+- feature_type: uint16[h, w]
+- walkable: bool[h, w]
+- transparent: bool[h, w]
+- terrain_opacity: float32[h, w]
+- entity_opacity: float32[h, w]
+- effect_opacity: float32[h, w]
+- total_opacity: float32[h, w]
+- height_map: int16[h, w]
+- ceiling_map: int16[h, w]
+- light_channel_mask: uint32[h, w]
+- movement_cost: uint16[h, w]
+- terrain_flags: uint32[h, w]
+- scene_geometry_version: int64
+
+Compatibility with current boolean transparency:
+
+```text
+transparent = total_opacity < OPAQUE_THRESHOLD
+```
+
+The key transition is from wall/floor transparency alone to layered opacity:
+
+```text
+terrain opacity + entity opacity + effect opacity
+```
+
+This enables smoke, glass, mist, foliage, large monsters blocking partial sight,
+force barriers, magic-only occlusion, sound-blocking but light-transparent
+surfaces, and telepathy ignoring ordinary opacity without turning the map into an
+object grid.
+
+Entity state should continue to use registry/table ownership, with hot spatial
+data mirrored as arrays:
+
+- entity_id: int32[n]
+- x: int16[n]
+- y: int16[n]
+- z_or_height: int16[n]
+- glyph: uint16[n]
+- fg_rgb: uint8[n, 3]
+- blocks_movement: bool[n]
+- opacity: float32[n]
+- light_id: int32[n]
+- ai_type: uint16[n]
+- is_active: bool[n]
+- hp: int16[n]
+- max_hp: int16[n]
+
+Derived occupancy planes should be updated incrementally:
+
+- entity_block_count: uint16[h, w]
+- entity_opacity: float32[h, w]
+- top_entity_id: int32[h, w]
+
+Movement touches only old and new cells, marks those cells dirty, updates opacity
+if needed, and emits an `EntityMoved` event.
+
+## Lighting, FOV, and Perception
+
+Lighting should remain array-based and preserve side-aware, per-light cached
+directional behavior.
+
+Light source table:
+
+- light_id: int32[n]
+- owner_entity_id: int32[n]
+- x: int16[n]
+- y: int16[n]
+- height: float32[n]
+- radius: int16[n]
+- intensity: float32[n]
+- rgb: uint8[n, 3]
+- direction: float32[n]
+- cone_angle: float32[n]
+- cone_softness: float32[n]
+- channels: uint32[n]
+- layer: uint8[n]
+- param_version: int64[n]
+- is_active: bool[n]
+
+Separate lighting layers:
+
+- SIMULATION # gameplay-relevant visibility and detection
+- TRANSIENT # presentation-only flashes, sparks, flares
+- UI # targeting, path, cursor, survey overlays
+
+Only SIMULATION lights affect gameplay unless a presentation effect is explicitly
+promoted into a simulation event.
+
+Visibility output should be dense:
+
+- visible_mask: bool[h, w]
+- visibility_coeff: float32[h, w]
+- visible_sides: uint8[h, w]
+- distance: int16[h, w]
+
+Special senses should use channel-filtered opacity arrays rather than one-off
+visibility algorithms:
+
+- ordinary vision -> opacity includes walls/smoke
+- telepathy -> opacity ignores ordinary terrain
+- sound -> opacity uses sound-blocking materials
+- scent -> opacity uses scent flow rules
+- magic sight -> opacity uses magic-channel barriers
+
+Dense propagation fields should be separated from sparse AI facts:
+
+- player_visible: bool[h, w]
+- player_visibility_coeff: float32[h, w]
+- player_visible_sides: uint8[h, w]
+- noise_cost: int32[num_flows, h, w]
+- scent_when: int32[h, w]
+
+- observer_id: int32[n]
+- subject_id: int32[n]
+- fact_type: uint16[n]
+- x: int16[n]
+- y: int16[n]
+- confidence: float32[n]
+- channel: uint16[n]
+- last_observed_tick: int64[n]
+- flags: uint32[n]
+
+AI should consume sparse facts and selected dense fields, not renderer state.
+
+## Knowledge and Memory Planes
+
+Player knowledge should be planes plus tables:
+
+- known: bool[h, w]
+- currently_visible: bool[h, w]
+- remembered_tile: uint16[h, w]
+- remembered_feature: uint16[h, w]
+- remembered_height: int16[h, w]
+- last_seen_tick: int64[h, w]
+- memory_intensity: float32[h, w]
+- memory_strength: float32[h, w]
+- memory_flags: uint32[h, w]
+
+Visual fading is presentation state. Gameplay memory is simulation state. A fade
+animation must not erase authoritative expedition knowledge unless memory decay is
+an intentional rule.
+
+## Viewport Visual Composition
+
+The renderer should move toward consuming a viewport input snapshot rather than
+querying `GameState` and registries directly:
+
+```python
+@dataclass(slots=True)
+class ViewportRenderInput:
+    tiles: np.ndarray
+    glyphs: np.ndarray
+    fg: np.ndarray
+    bg: np.ndarray
+    visible: np.ndarray
+    known: np.ndarray
+    memory_intensity: np.ndarray
+    height: np.ndarray
+    light_rgb: np.ndarray
+    side_rgba: np.ndarray | None
+    animation_overlay_rgba: np.ndarray | None
+    ui_overlay_rgba: np.ndarray | None
+    dirty_mask: np.ndarray | None
+```
+
+Composition order:
+
+1. out-of-bounds
+2. unknown
+3. remembered terrain
+4. visible terrain
+5. visible item/entity
+6. simulation lighting
+7. shadow/height/side tint
+8. transient animation overlay
+9. UI overlay
+10. temporal interpolation
+
+Final platform-facing arrays:
+
+- glyph_or_tile: uint16[vp_h, vp_w]
+- foreground_rgb: uint8[vp_h, vp_w, 3]
+- background_rgb: uint8[vp_h, vp_w, 3]
+- alpha: uint8[vp_h, vp_w]
+
+Animations should be sparse tables plus overlay buffers. The simulation result
+exists immediately; animation controls presentation only. Animation blocks input or
+simulation only by explicit policy.
+
+## Simulation-Derived Update Order
+
+After each authoritative action, update derived systems in deterministic order:
+
+1. occupancy and opacity planes
+2. scene geometry version / dirty geometry
+3. light source position and dirty light IDs
+4. player/observer FOV if relevant
+5. knowledge and memory planes
+6. sound/scent/perception fields if relevant
+7. AI perception facts if relevant
+8. visual dirty masks/rects
+9. event-derived animation queues
+
+Dirty reasons decide which steps run. Not every action recomputes every derived
+field.
+
+## Migration Plan
+
+Do not rewrite the engine around this in one pass.
+
+### Phase A: Event Batch Spine
+
+Add `EventBatch` and event importance.
+
+Adapt current action handling to emit structured events while preserving current
+behavior.
+
+Bridge existing systems:
+
+- message log reads events
+- sound reads events
+- dirty rendering reads events
+- noise/scent can still use current queues initially
+
+### Phase B: TurnResult Wrapper
+
+Wrap current action + world advance in `TurnResult`.
+
+Current behavior remains:
+
+- player action
+- advance_turn
+- render
+
+But outputs become structured:
+
+- events
+- changed entities
+- changed cells
+- dirty reasons
+- dirty lights
+
+### Phase C: Split Broad Turn Advancement
+
+Break broad turn advancement into named deterministic stages:
+
+- process_timed_events
+- process_resources
+- update_fov
+- update_perception_fields
+- step_community
+- dispatch_ai
+- process_zones
+- update_sound_context
+
+Do not change semantics yet.
+
+### Phase D: Introduce Scheduler Incrementally
+
+1. Add environmental, timed, and zone schedulables.
+2. Move AI actors into the scheduler.
+3. Move player input into queued scheduler intent.
+4. Add runtime policies for manual, auto-wait, rest, travel, fast-forward, and paused.
+
+### Phase E: Renderer Input Snapshot
+
+Introduce `ViewportRenderInput`.
+
+Move renderer code gradually away from direct `GameState` and registry inspection.
+
+### Phase F: Opacity and Channel Expansion
+
+Add float opacity planes behind the current `transparent` API.
+
+Migrate lighting, FOV, and perception to channel-filtered opacity views where
+useful.
+
+## Minimum Viable Version
+
+- `EventBatch` with event importance.
+- `TurnResult` returned by existing player action / world advancement path.
+- Dirty changed-cell and changed-entity arrays.
+- Initial scheduler for timed/environmental actions.
+- Renderer adapter that can accept `ViewportRenderInput` while preserving current rendered output.
+- Boolean transparency remains compatible through `total_opacity < OPAQUE_THRESHOLD`.
+
+## Later Expansion
+
+- Full player/AI/environment energy scheduler.
+- Travel, rest, observe, and fast-forward policies.
+- Dense layered opacity.
+- Channel-filtered FOV/perception.
+- Incremental per-light dirty updates.
+- Memory intensity visual fading.
+- Animation overlay tables.
+- Deterministic replay from initial state, scheduler state, RNG state, and event batches.
+
+---
+
+# 24. Proposed System: Savegame and State Serialization Requirements
 
 ## Purpose
 
@@ -1622,6 +2209,12 @@ Ensure proposed systems can persist deterministically.
 
 ## Required Persistent State
 
+- Scheduler arrays, current tick, active schedulables, and deterministic tie-breaker sequence.
+- Pending player intent / automation policy if saving during travel, rest, observe, or fast-forward.
+- Event queues or replay-relevant event batches.
+- Dirty state only if required for exact mid-frame restoration; otherwise it may be reconstructed from authoritative state.
+- Runtime mode if saving mid-flow.
+- Animation state only when mid-animation saves are supported.
 - Roster, roles, bonds, mental state, availability.
 - BaseCamp resource state and facilities.
 - Active assignments and projects.
@@ -1632,6 +2225,9 @@ Ensure proposed systems can persist deterministically.
 - Wildness/phase region state.
 - Ghost Term load.
 - Cave survey and stratigraphy records.
+- Map planes: terrain, features, walkability, transparency/opacity, movement cost, height, ceiling, terrain flags, and scene geometry version.
+- Knowledge/memory planes: known, currently visible, remembered terrain/features, last seen tick, memory intensity, and memory flags.
+- Light source table and gameplay-relevant light state.
 - Site history knowledge and reveal flags.
 - Practical magical tool state.
 - RNG state.
@@ -1651,7 +2247,7 @@ Ensure proposed systems can persist deterministically.
 
 ---
 
-# 24. Proposed System Priority
+# 25. Proposed System Priority
 
 Recommended implementation order:
 
@@ -1664,6 +2260,13 @@ Recommended implementation order:
 5. Simple morale state.
 6. Simple field party availability.
 
+## Phase 1.5: Runtime Spine
+
+1. `EventBatch`.
+2. `TurnResult`.
+3. Dirty changed-cell / changed-entity arrays.
+4. Initial timed/environmental scheduler.
+
 ## Phase 2: Walkable Harbor and Archive Shell
 
 1. Ruined harbor base map.
@@ -1672,6 +2275,8 @@ Recommended implementation order:
 4. KnowledgeFragment pickup/deposit.
 5. First Eureka recipe.
 6. First practical magical tool.
+7. `ViewportRenderInput` adapter for current renderer.
+8. Camp lighting and memory overlay through draw-ready viewport arrays.
 
 ## Phase 3: Roads and Local Survey
 
@@ -1681,6 +2286,8 @@ Recommended implementation order:
 4. First Waystation.
 5. Route travel modifiers.
 6. Map knowledge.
+7. Travel policy over scheduler stepping.
+8. Dirty movement-cost / scent / visibility updates for changed route cells.
 
 ## Phase 4: Scent Threats and Consequences
 
@@ -1690,6 +2297,8 @@ Recommended implementation order:
 4. Tracks/warnings.
 5. Scent masking action.
 6. Threat-to-camp event.
+7. Sparse AI perception facts generated from dense scent/noise fields.
+8. Event-importance interruption for travel, rest, and fast-forward.
 
 ## Phase 5: Caves and Knowledge Depth
 
@@ -1699,6 +2308,9 @@ Recommended implementation order:
 4. Stratigraphy tags.
 5. Deep-time KnowledgeFragments.
 6. Petra-like cave settlement prototype.
+7. Layered opacity for smoke, mist, shafts, glass, foliage, and partial barriers.
+8. Side-aware lighting and memory tinting for cave readability.
+9. Channel-filtered perception for sound/scent/magic-sight experiments.
 
 ## Phase 6: Magic Cosmology
 
@@ -1708,20 +2320,32 @@ Recommended implementation order:
 4. Archive reveals Ghost Term.
 5. Doom Engine Gradient clue chain.
 6. Persistent scar rules.
+7. Magic-channel opacity and simulation-light separation.
+8. Replay/debug traces from scheduler state and event batches.
+
+## Phase 7: Continuous Presentation
+
+1. Movement animation table.
+2. Transient flare table.
+3. UI overlay buffers.
+4. Temporal cell transitions.
+5. Fast-forward animation coalescing.
 
 ---
 
-# 25. Implementation Guardrails
+# 26. Implementation Guardrails
 
-## 25.1 Do Not Duplicate Existing Ownership
+## 26.1 Do Not Duplicate Existing Ownership
 
 - New production AI goes under `game/ai/`, not top-level `ai/`.
 - `auto/` may be used for tuning, not production runtime.
 - Sound/scent propagation concepts should extend or reuse `pathfinding/perception_systems.py`.
 - Production FOV/LOS/light calls should use `game/world/` and `engine/render_lighting.py`.
+- Runtime logic should not live in renderer code.
+- Renderer code should consume composed viewport arrays, not own gameplay rules.
 - Deterministic randomness must use `utils.game_rng.GameRNG`.
 
-## 25.2 Keep Systems Independently Useful
+## 26.2 Keep Systems Independently Useful
 
 Each proposed system should be playable in a minimal form.
 
@@ -1734,7 +2358,7 @@ Examples:
 - Scent threats work with one predator before ecology simulation exists.
 - Cave survey works with tags before procedural archaeology exists.
 
-## 25.3 Avoid Backend-First Design
+## 26.3 Avoid Backend-First Design
 
 Do not build a massive simulation before there is a player decision.
 
@@ -1745,12 +2369,28 @@ Every system needs:
 3. A deterministic fallback.
 4. A current repo integration point.
 
+## 26.4 Preserve One Simulation Path
+
+Do not create separate logic for manual turns, realtime display, travel, rest,
+observation, and fast-forward.
+
+These modes should differ only in scheduler policy, step budget, rendering cadence,
+and interruption thresholds.
+
+## 26.5 Preserve Presentation / Simulation Separation
+
+Presentation can interpolate, fade, flash, tint, and animate.
+
+Presentation must not mutate authoritative gameplay state unless it emits or
+promotes a simulation event that is resolved by normal game systems.
+
 ---
 
-# 26. Summary Matrix
+# 27. Summary Matrix
 
 | Proposed System | Primary New Module | Existing Integration Points | Player-Facing Purpose |
 | --- | --- | --- | --- |
+| Turn-Authoritative Runtime / Visual Composition | `game/runtime/scheduler.py`, `game/runtime/events.py`, `engine/visual_composer.py` | `game/world`, `engine`, `game/ai`, `pathfinding`, `utils.game_rng` | Manual turns, travel, rest, fast-forward, rich lighting, memory, and perception through one deterministic path |
 | Expedition Roster / Couples Draft | `game/expedition/couples_draft.py` | `game/entities`, `utils.game_rng`, `game/ai` | Choose expedition strengths and failure modes |
 | Assignment System | `game/systems/expedition_assignment_system.py` | `game_state`, `entities`, `ai_system` | Leadership opportunity cost |
 | Base Camp Consequence Engine | `game/systems/base_camp_system.py` | `game/world`, `engine`, `entities` | Physical settlement change |
@@ -1774,7 +2414,7 @@ Every system needs:
 
 ---
 
-# 27. Closing Design Statement
+# 28. Closing Design Statement
 
 The software architecture should make the Lost Continent Expedition vision executable without losing the strengths of the current Simple RL codebase.
 
@@ -1793,6 +2433,12 @@ Every new system should reinforce the same core loop:
 9. The Doom Engine Gradient and Ghost Term reveal that magic is moving from rigid order into wildness.
 10. The player decides what to risk, what to preserve, what to exploit, and what to tell the east.
 
-The implementation should remain deterministic, data-driven, modular, and performance-conscious, but the player-facing goal is not technical spectacle.
+The implementation should remain deterministic, data-driven, modular, and
+performance-conscious.
+
+The runtime should be energy-scheduled in simulation, array-backed in state,
+event-batched in communication, policy-driven in flow, deterministic in replay,
+layered in visibility and perception, incremental in lighting, memory-driven in
+rendering, and continuous only in presentation.
 
 The player-facing goal is responsibility under uncertainty.
