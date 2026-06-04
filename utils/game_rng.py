@@ -1,6 +1,7 @@
 """Integrated GameRNG module.
 
 Platform Requirements & Quirks:
+Version: 2.5
 - Built for NumPy 1.24+ (uses default_rng and BitGenerator state structures).
 - Fallback support: Detects and handles NumPy runtimes lacking 'endpoint' kwarg.
 - JSON Compatibility: get_state() returns lists instead of ndarrays for JSON safety.
