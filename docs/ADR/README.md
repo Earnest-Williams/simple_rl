@@ -12,6 +12,8 @@ being mistaken for canonical implementation paths.
 | [0002-ai-boundaries.md](0002-ai-boundaries.md) | Production AI versus R&D AI boundaries. |
 | [0003-skill-system-boundaries.md](0003-skill-system-boundaries.md) | `game/skills/` and top-level `skills/` ownership. |
 | [0004-perception-fov-boundaries.md](0004-perception-fov-boundaries.md) | Production FOV, LOS, perception, and lighting boundaries. |
+| [0005-cave-connectivity-repair.md](0005-cave-connectivity-repair.md) | Cave connectivity repair ownership after cellular automata. |
+| [0006-debug-viewer-pipeline-boundaries.md](0006-debug-viewer-pipeline-boundaries.md) | Dungeon debug viewer and orchestrator pipeline boundaries. |
 
 ## Status values
 
