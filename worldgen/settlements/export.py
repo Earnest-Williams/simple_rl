@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -21,6 +23,15 @@ class SettlementBundle:
     roads_df: pl.DataFrame
     entrances_df: pl.DataFrame
     metadata: dict[str, Any]
+
+
+_BUNDLE_FILES: dict[str, str] = {
+    "map_df": "settlement_map.arrow",
+    "buildings_df": "settlement_buildings.arrow",
+    "districts_df": "settlement_districts.arrow",
+    "roads_df": "settlement_roads.arrow",
+    "entrances_df": "settlement_entrances.arrow",
+}
 
 
 def to_simple_rl_bundle(
@@ -92,6 +103,37 @@ def to_simple_rl_bundle(
     )
 
 
+def write_settlement_bundle(
+    bundle: SettlementBundle,
+    out_dir: Path,
+    *,
+    overwrite: bool = False,
+) -> dict[str, Path]:
+    """Write a generated settlement bundle as headless inspectable artifacts."""
+
+    if out_dir.exists() and not out_dir.is_dir():
+        raise NotADirectoryError(f"{out_dir} is not a directory")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    paths: dict[str, Path] = {}
+    for attr_name, filename in _BUNDLE_FILES.items():
+        path = out_dir / filename
+        _check_writable(path, overwrite=overwrite)
+        df = getattr(bundle, attr_name)
+        df.write_ipc(path)
+        paths[attr_name] = path
+
+    metadata_path = out_dir / "settlement_metadata.json"
+    _check_writable(metadata_path, overwrite=overwrite)
+    payload = {
+        **bundle.metadata,
+        "artifacts": {name: path.name for name, path in paths.items()},
+    }
+    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    paths["metadata"] = metadata_path
+    return paths
+
+
 def _buildings_df(settlement: Settlement) -> pl.DataFrame:
     rows = list(settlement.iter_building_records())
     if not rows:
@@ -160,3 +202,8 @@ def _region_payload(region: RegionConstraints | None) -> dict[str, Any]:
         "trade_route_importance": region.trade_route_importance,
         "distance_from_starting_port": region.distance_from_starting_port,
     }
+
+
+def _check_writable(path: Path, *, overwrite: bool) -> None:
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"Refusing to overwrite existing artifact: {path}")
