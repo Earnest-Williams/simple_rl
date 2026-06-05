@@ -170,6 +170,20 @@ class GameState:
         self.fov_radius = player_fov_radius
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
         self.discovered_evidence: dict[str, list[int]] = {}
+        
+        # Initialize seasonal hydrology state
+        from worldgen.overland.schema import HydroState
+        self.hydro_state: HydroState = HydroState.DRY_SEASON
+        metadata = getattr(self.game_map, "overland_metadata", None)
+        if metadata is not None and getattr(metadata, "starting_contract", None) is not None:
+            raw_state = metadata.starting_contract.get("seasonal_state")
+            if raw_state:
+                try:
+                    self.hydro_state = HydroState[raw_state.upper()]
+                except KeyError:
+                    pass
+                except AttributeError:
+                    pass
         # Messages generated while their subjects are outside FOV are stored here.
         self.message_queue: list[tuple[int, str, tuple[int, int, int]]] = []
         self.turn_count: int = 0

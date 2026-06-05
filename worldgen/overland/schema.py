@@ -224,6 +224,7 @@ class OverlandMapMetadata:
     transitions: dict[tuple[int, int], list[dict[str, Any]]]
     affordances: dict[tuple[int, int], list[dict[str, Any]]]
     starting_contract: dict[str, Any]
+    surface_flags_grid: Any = None
 
 
 @dataclass(frozen=True, slots=True)

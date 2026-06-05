@@ -667,6 +667,24 @@ def process_player_action(
                 gs.add_message("Repair what?", (255, 100, 100))
                 player_acted = False
 
+        case "change_season":
+            season_name = action.get("season")
+            if season_name:
+                from worldgen.overland.schema import HydroState
+                try:
+                    new_season = HydroState[season_name.upper()]
+                    from game.systems.seasons import apply_seasonal_state
+                    apply_seasonal_state(gs, new_season)
+                    player_acted = True
+                except (KeyError, AttributeError):
+                    log.warning("Unknown season name received", name=season_name)
+                    gs.add_message(f"Unknown season: {season_name}", (255, 100, 100))
+                    player_acted = False
+            else:
+                from game.systems.seasons import cycle_season
+                cycle_season(gs)
+                player_acted = True
+
         case _:
             log.warning(
                 "Unknown action type received",

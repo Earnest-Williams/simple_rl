@@ -72,6 +72,11 @@ def overland_to_game_map(
         transitions=_transition_lookup(overland_bundle, metadata),
         affordances=_affordance_lookup(overland_bundle.affordances_df),
         starting_contract=metadata.get("starting_region_contract", {}),
+        surface_flags_grid=(
+            _grid_from_column(tiles_df, "surface_flags", width, height, np.uint32)
+            if "surface_flags" in tiles_df.columns
+            else np.zeros((height, width), dtype=np.uint32)
+        ),
     )
     game_map.overland_metadata = sidecar
     return game_map, sidecar
