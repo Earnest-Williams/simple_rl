@@ -188,8 +188,10 @@ Tests:
 
 ## Step 4: Add Overland-Aware GameMap Metadata
 
-Current `GameMap` conversion still reduces overland to floor/wall tiles. Keep
-that simple visual map, but add a sidecar metadata structure for gameplay.
+Completed. `GameMap` conversion still keeps the simple floor/wall runtime tile
+map, but `overland_to_game_map(bundle, with_metadata=True)` now returns a
+sidecar metadata structure for gameplay and attaches the same sidecar to
+`GameMap.overland_metadata`.
 
 Options:
 
@@ -197,7 +199,7 @@ Options:
 - attach read-only overland arrays to `GameMap`
 - expose a separate `OverlandRuntimeMap`
 
-Required runtime data:
+Runtime data:
 
 - material grid
 - biome grid

@@ -2,7 +2,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, NamedTuple
+from typing import Any, Final, NamedTuple
 
 import numpy as np
 import structlog
@@ -204,6 +204,8 @@ class GameMap:
         self._scene_geometry_version: int = 0
         # Vertical transitions like stairs or shafts
         self.vertical_transitions: list[dict[str, int | str]] = []
+        # Optional runtime sidecar attached by overland conversion.
+        self.overland_metadata: Any | None = None
         # Environmental storytelling hooks (annotations on the map)
         self.story_hooks: list[dict[str, str | int]] = []
         log.debug("GameMap arrays initialized", shape=(height, width))

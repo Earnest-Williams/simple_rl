@@ -193,12 +193,14 @@ class OverlandMapMetadata:
     biome_grid: Any
     hydro_grid: Any
     wetness_grid: Any
+    movement_cost_grid: Any
+    traversal_class_grid: Any
     route_segments: list[
         dict[str, Any]
     ]  # state, repair_cost, evidence_tags, last_modified, etc.
     evidence_tags: dict[str, list[EvidenceTag]]
-    transitions: dict[str, Any]
-    affordances: dict[str, Any]
+    transitions: dict[tuple[int, int], list[dict[str, Any]]]
+    affordances: dict[tuple[int, int], list[dict[str, Any]]]
     starting_contract: dict[str, Any]
 
 

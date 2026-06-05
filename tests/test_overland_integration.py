@@ -118,6 +118,31 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     gm, metadata = result
     assert isinstance(gm, GameMap)
     assert isinstance(metadata, OverlandMapMetadata)
+    assert gm.overland_metadata is metadata
+    assert metadata.material_grid.shape == (
+        dry.tiles_df["y"].max() + 1,
+        dry.tiles_df["x"].max() + 1,
+    )
+    assert metadata.biome_grid.shape == metadata.material_grid.shape
+    assert metadata.hydro_grid.shape == metadata.material_grid.shape
+    assert metadata.wetness_grid.shape == metadata.material_grid.shape
+    assert metadata.movement_cost_grid.shape == metadata.material_grid.shape
+    assert metadata.traversal_class_grid.shape == metadata.material_grid.shape
+    sample = dry.tiles_df.row(0, named=True)
+    sample_x = int(sample["x"])
+    sample_y = int(sample["y"])
+    assert metadata.material_grid[sample_y, sample_x] == int(sample["material"])
+    assert metadata.biome_grid[sample_y, sample_x] == int(sample["biome"])
+    assert metadata.hydro_grid[sample_y, sample_x] == int(sample["hydro_role"])
+    assert metadata.wetness_grid[sample_y, sample_x] == int(sample["wetness"])
+    assert metadata.movement_cost_grid[sample_y, sample_x] == float(
+        sample["movement_cost"]
+    )
+    assert metadata.traversal_class_grid[sample_y, sample_x] == int(
+        sample["traversal_class"]
+    )
+    assert metadata.transitions
+    assert metadata.affordances
     assert len(metadata.route_segments) >= 1
     assert metadata.route_segments[0]["state"] == int(RouteSegmentState.BLOCKED)
     assert "repair_cost" in metadata.route_segments[0]
