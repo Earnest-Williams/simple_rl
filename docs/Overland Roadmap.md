@@ -7,10 +7,26 @@ planet-scale intent in [World Generator Design Proposal](./World%20Generator%20D
 to the current overland implementation described in
 [Overland Generation](./Overland%20Generation.md).
 
+This document is aspirational unless it explicitly says a behavior is current.
+[Overland Generation](./Overland%20Generation.md) is the authoritative reference
+for implemented artifacts, schemas, commands, and tests.
+
 The roadmap is generator-owned. It defines planned terrain, hydrology, route,
 site, settlement, cave-transition, resource, and metadata outputs. Runtime
 expedition gameplay, base assignments, threats, map knowledge, and local
 simulation systems are downstream consumers, not part of this generator scope.
+
+## Current Vs Planned
+
+| Area | Current status | Roadmap status |
+| --- | --- | --- |
+| Overland artifacts | `overland_tiles.arrow`, `overland_hydrology.arrow`, `overland_features.arrow`, `overland_affordances.arrow`, `overland_transitions.arrow`, `overland_routes.arrow`, and `overland_metadata.json` are the current implemented contract. | Extend these artifacts narrowly or add sidecars only when a phase requires it. |
+| `flow_group` | `overland_hydrology.arrow` has a `flow_group` column. | Stable connected-system semantics are planned for Phase 1. |
+| Connected hydrology | Representative springs, ponors, estavelles, sinking basins, seasonal states, and underground flags exist. | Continuous drainage networks and meaningful underground connectivity are planned for Phase 1. |
+| Route segment state | Selected debug routes are emitted in `overland_routes.arrow`. | Road segment state, blockages, repair state, and route endpoints for the starting region are planned. |
+| Cave payloads | Transition records currently include source, type, target kind, terrain context, seed, and tags. | Rich cave handoff payloads for dungeon generation are planned. |
+| Evidence hooks | Terrain features and transitions can carry tags. | Historical, archaeological, ruin, repair, and prior-expedition evidence hooks are planned. |
+| Runtime sidecar | `GameMap` conversion exists, but overland semantics are not yet preserved as a dedicated runtime metadata sidecar. | Runtime-facing overland metadata is planned for a later phase. |
 
 ## Design Target
 
@@ -170,6 +186,8 @@ is one producer merged into it.
 
 Add continuous surface drainage and stable `flow_group` semantics. This is the
 current tactical next slice in [Overland Next Steps](./Overland%20Next%20Steps.md).
+Keep this PR scoped to hydrology continuity. Do not include ruins, roads,
+runtime metadata, site history, or richer cave payloads in this slice.
 
 Expected direction:
 

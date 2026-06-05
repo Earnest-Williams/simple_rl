@@ -6,6 +6,12 @@ Overland generation is the primary terrain contract for the game world. It
 describes the surface as semantic terrain first, then derives gameplay
 interpretation from that terrain.
 
+This document is the authoritative reference for what is currently implemented:
+artifact files, schema columns, generation commands, and test coverage. Planned
+or aspirational overland work belongs in
+[Overland Roadmap](./Overland%20Roadmap.md) until it is implemented and this
+contract is updated.
+
 The core design rule is:
 
 ```text
@@ -19,8 +25,8 @@ seasonal wetlands are all overland surface producers.
 
 [Overland Roadmap](./Overland%20Roadmap.md) is the canonical planning document
 for long-term overland generator direction and the near-term start-of-game
-contract. This document remains the current artifact, schema, command, and test
-reference for the implemented `worldgen/overland` surface.
+contract. Treat roadmap phases as planned work, not current guarantees, unless
+the implemented contract below says otherwise.
 
 ## Tile Schema
 
