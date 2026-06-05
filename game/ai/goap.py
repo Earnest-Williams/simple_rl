@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
 import structlog
 
+from game.ai.contracts import (
+    EntityRow,
+    GOAPPerception,
+    is_structured_perception,
+    priority_signal,
+    require_row_int,
+)
 from game.systems import movement_system
 from game.systems.pathfinding.flowfield import FlowFieldPathfinder
 from game.world.game_map import TILE_TYPES
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    import numpy as np
-
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -27,7 +32,12 @@ log = structlog.get_logger()
 
 # Possible movement directions (x, y offsets)
 
-directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+DIRECTIONS: TypeAlias = list[tuple[int, int]]
+GOAPAction: TypeAlias = Callable[
+    [EntityRow, "GameState", "GameRNG", GOAPPerception], bool
+]
+
+directions: DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 
 def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
@@ -57,36 +67,25 @@ def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
 
 
 def _action_move_attack(
-    entity_row: Any,
+    entity_row: EntityRow,
     game_state: GameState,
     rng: GameRNG,
-    perception: Any,
+    perception: GOAPPerception,
 ) -> bool:
     """Basic behaviour: move toward priority signal or wander."""
-    entity_id = int(entity_row["entity_id"])
-    x, y = int(entity_row["x"]), int(entity_row["y"])
+    entity_id = require_row_int(entity_row, "entity_id")
+    x = require_row_int(entity_row, "x")
+    y = require_row_int(entity_row, "y")
 
     move: tuple[int, int] | None = None
     target_pos: tuple[int, int] | None = None
     active_signal: str = "none"
 
     # Consume structured perception facts based on strict priority
-    if hasattr(perception, "entity_facts"):
-        fact = perception.entity_facts.get(entity_id)
-        if fact:
-            if fact.visible_targets:
-                first_target = fact.visible_targets[0]
-                target_pos = (int(first_target.get("x")), int(first_target.get("y")))
-                active_signal = "visual"
-            elif fact.heard_source:
-                target_pos = fact.heard_source
-                active_signal = "audio"
-            elif fact.scent_position:
-                target_pos = fact.scent_position
-                active_signal = "scent"
-            elif fact.last_known_position:
-                target_pos = fact.last_known_position
-                active_signal = "memory"
+    structured = perception if is_structured_perception(perception) else None
+    signal = priority_signal(entity_id, structured)
+    if signal is not None:
+        active_signal, target_pos = signal
 
     # 1. Move towards highest-priority target
     if target_pos is not None:
@@ -127,20 +126,22 @@ def _action_move_attack(
 
 
 def _action_seek_cover(
-    entity_row,
+    entity_row: EntityRow,
     game_state: GameState,
     rng: GameRNG,
-    perception: Any,
+    perception: GOAPPerception,
 ) -> bool:
     """Intermediate behaviour: attempt to move to a tile out of sight."""
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
-    if hasattr(perception, "los_map"):
-        noise_map = perception.debug_noise_map
-        scent_map = perception.debug_scent_map
+    del rng
+    entity_id = require_row_int(entity_row, "entity_id")
+    x = require_row_int(entity_row, "x")
+    y = require_row_int(entity_row, "y")
+    if is_structured_perception(perception):
         los_map = perception.los_map
     else:
-        noise_map, scent_map, los_map = perception
+        if perception is None:
+            return False
+        _noise_map, _scent_map, los_map = perception
     if not los_map[y, x]:
         return False
     for dx, dy in directions:
@@ -156,18 +157,19 @@ def _action_seek_cover(
 
 
 def _action_coordinate(
-    entity_row,
+    entity_row: EntityRow,
     game_state: GameState,
     rng: GameRNG,
-    perception: Any,
+    perception: GOAPPerception,
 ) -> bool:
     """Advanced behaviour: coordinate with allies (placeholder)."""
+    del rng, perception
     # For now we simply record that coordination was attempted.
-    game_state.last_coordination = entity_row["entity_id"]
+    game_state.last_coordination = require_row_int(entity_row, "entity_id")
     return True
 
 
-ACTION_TIERS: list[list[Callable]] = [
+ACTION_TIERS: list[list[GOAPAction]] = [
     [_action_move_attack],
     [_action_seek_cover, _action_move_attack],
     [_action_coordinate, _action_seek_cover, _action_move_attack],
@@ -175,12 +177,12 @@ ACTION_TIERS: list[list[Callable]] = [
 
 
 def take_turn(
-    entity_row,
+    entity_row: EntityRow,
     game_state: GameState,
     rng: GameRNG,
-    perception: Any,
+    perception: GOAPPerception,
     plan_depth: int = 1,
-    **kwargs,
+    **kwargs: object,
 ) -> None:
     """Execute one turn for an entity using the GOAP AI system.
 

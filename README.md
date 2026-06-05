@@ -13,7 +13,7 @@ This project is structured into several key component directories, each with its
 * **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph → Processing → Shaping). Outputs Polars DataFrames with preserved 3D depth information. ([See README](./Dungeon/README.md))
 * **`ai/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./ai/README.md))
 * **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
-* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. ([See README](./pathfinding/README.md))
+* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. Production AI now consumes visual, audio, scent, and memory-priority perception signals through these systems. ([See README](./pathfinding/README.md))
 * **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. `worldgen/game_rng.py` re-exports the same class for world-generation compatibility. ([See README](./utils/README.md))
 * **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, designed as a foundation for the **game's spell system**. Currently in development; basic effect system is functional.
 * **`game/`**: Main game engine integrating all production systems including combat, movement, equipment, AI, effects, entities, and world management.
@@ -35,7 +35,7 @@ This project is **under active development**. The core game systems are integrat
 * **Dungeon Generation**: 3D cave networks with 2D rasterization (fully integrated)
 * **Rendering Pipeline**: Tile-based rendering with lighting, FOV, and memory fade
 * **Combat & Movement**: Complete systems with equipment, stats, and collision
-* **AI Systems**: GOAP planner and strategy-based behaviors for NPCs/monsters
+* **AI Systems**: GOAP planner and strategy-based behaviors for NPCs/monsters, including structured visual/audio/scent/memory perception priority
 * **Perception**: Sound and scent propagation systems feeding AI decisions
 * **Effects System**: Comprehensive effect handlers and status management
 

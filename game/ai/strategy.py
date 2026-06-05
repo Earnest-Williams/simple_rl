@@ -9,15 +9,21 @@ scheduler.
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
 
+from game.ai.contracts import (
+    EntityRow,
+    StructuredPerceptionLike,
+    priority_signal,
+    require_row_int,
+    row_int,
+    row_str,
+)
 from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    from polars import series
-
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 
@@ -41,70 +47,58 @@ def _step_towards(src: tuple[int, int], dst: tuple[int, int]) -> tuple[int, int]
     return dx, dy
 
 
-def _move(entity_row: series, dx: int, dy: int, game_state: GameState) -> None:
-    movement_system.try_move(entity_row["entity_id"], dx, dy, game_state)
+def _move(entity_row: EntityRow, dx: int, dy: int, game_state: GameState) -> None:
+    movement_system.try_move(
+        require_row_int(entity_row, "entity_id"), dx, dy, game_state
+    )
 
 
 def _get_priority_signal(
-    entity_id: int, perception: Any
+    entity_id: int, perception: StructuredPerceptionLike | None
 ) -> tuple[str, tuple[int, int]] | None:
     """Return the highest priority signal type and its target coordinate."""
-    if not hasattr(perception, "entity_facts"):
-        return None
-
-    fact = perception.entity_facts.get(int(entity_id))
-    if not fact:
-        return None
-
-    if fact.visible_targets:
-        first = fact.visible_targets[0]
-        return "visual", (int(first.get("x")), int(first.get("y")))
-    if fact.heard_source:
-        return "audio", fact.heard_source
-    if fact.scent_position:
-        return "scent", fact.scent_position
-    if fact.last_known_position:
-        return "memory", fact.last_known_position
-
-    return None
+    return priority_signal(int(entity_id), perception)
 
 
 def charge_behavior(
-    entity_row: series,
+    entity_row: EntityRow,
     game_state: GameState,
-    perception: Any,
+    perception: StructuredPerceptionLike | None,
 ) -> None:
-    entity_id = int(entity_row["entity_id"])
+    entity_id = require_row_int(entity_row, "entity_id")
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
 
-    signal_type, target_pos = signal
-    dx, dy = _step_towards(
-        (int(entity_row.get("x")), int(entity_row.get("y"))), target_pos
-    )
+    _signal_type, target_pos = signal
+    x = require_row_int(entity_row, "x")
+    y = require_row_int(entity_row, "y")
+    dx, dy = _step_towards((x, y), target_pos)
     _move(entity_row, dx, dy, game_state)
 
 
-def home_behavior(entity_row: series, game_state: GameState) -> None:
-    home_x = entity_row.get("home_x", 0)
-    home_y = entity_row.get("home_y", 0)
-    dx, dy = _step_towards((entity_row.get("x"), entity_row.get("y")), (home_x, home_y))
+def home_behavior(entity_row: EntityRow, game_state: GameState) -> None:
+    x = require_row_int(entity_row, "x")
+    y = require_row_int(entity_row, "y")
+    home_x = row_int(entity_row, "home_x") or 0
+    home_y = row_int(entity_row, "home_y") or 0
+    dx, dy = _step_towards((x, y), (home_x, home_y))
     _move(entity_row, dx, dy, game_state)
 
 
 def flee_behavior(
-    entity_row: series,
+    entity_row: EntityRow,
     game_state: GameState,
-    perception: Any,
+    perception: StructuredPerceptionLike | None,
 ) -> None:
-    entity_id = int(entity_row["entity_id"])
+    entity_id = require_row_int(entity_row, "entity_id")
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
 
-    signal_type, target_pos = signal
-    sx, sy = int(entity_row.get("x")), int(entity_row.get("y"))
+    _signal_type, target_pos = signal
+    sx = require_row_int(entity_row, "x")
+    sy = require_row_int(entity_row, "y")
     tx, ty = target_pos
     dx = 0 if tx == sx else (-1 if tx > sx else 1)
     dy = 0 if ty == sy else (-1 if ty > sy else 1)
@@ -112,12 +106,12 @@ def flee_behavior(
 
 
 def smart_kobold_behavior(
-    entity_row: series,
+    entity_row: EntityRow,
     game_state: GameState,
-    perception: Any,
+    perception: StructuredPerceptionLike | None,
 ) -> None:
-    hp = entity_row.get("hp", 1)
-    max_hp = entity_row.get("max_hp", hp)
+    hp = row_int(entity_row, "hp") or 1
+    max_hp = row_int(entity_row, "max_hp") or hp
     if hp / max_hp < 0.3:
         flee_behavior(entity_row, game_state, perception)
     else:
@@ -125,14 +119,15 @@ def smart_kobold_behavior(
 
 
 def dispatch_strategy(
-    entity_row: series,
+    entity_row: EntityRow,
     game_state: GameState,
     rng: GameRNG,
-    perception: Any,
-    **kwargs,
+    perception: StructuredPerceptionLike | None,
+    **kwargs: object,
 ) -> None:
     """Dispatch behaviour based on the entity's ``strategy_state``."""
-    state = entity_row.get("strategy_state")
+    del rng, kwargs
+    state = row_str(entity_row, "strategy_state")
     if state is None:
         return
     try:
