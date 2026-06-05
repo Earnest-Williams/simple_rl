@@ -41,7 +41,8 @@ def write_overland_bundle(
         paths[attr] = path
     transitions_path = out_dir / COMPUTED_OVERLAND_FILES["transitions_df"]
     _check_writable(transitions_path, overwrite=overwrite)
-    transition_requests_to_df(generate_transition_requests(bundle)).write_ipc(
+    transition_reqs = generate_transition_requests(bundle)
+    transition_requests_to_df(transition_reqs).write_ipc(
         transitions_path
     )
     paths["transitions_df"] = transitions_path
@@ -51,12 +52,46 @@ def write_overland_bundle(
     paths["routes_df"] = routes_path
     metadata_path = out_dir / "overland_metadata.json"
     _check_writable(metadata_path, overwrite=overwrite)
+
+    serialized_transitions = [
+        {
+            "source_x": req.source_x,
+            "source_y": req.source_y,
+            "transition_type": int(req.transition_type),
+            "target_kind": req.target_kind,
+            "hydro_role": int(req.hydro_role),
+            "biome": int(req.biome),
+            "material": req.material,
+            "seed": req.seed,
+            "tags": list(req.tags),
+            "cave_type": req.cave_type,
+            "seasonal_state": req.seasonal_state,
+            "flow_group": req.flow_group,
+            "connected_to_underground": req.connected_to_underground,
+            "substrate": req.substrate,
+            "elevation_band": req.elevation_band,
+            "nearby_affordances": list(req.nearby_affordances),
+            "handoff_tags": list(req.handoff_tags),
+            "evidence_tags": list(req.evidence_tags),
+        }
+        for req in transition_reqs
+    ]
+
+    metadata_payload = {
+        **bundle.metadata,
+        "transitions": serialized_transitions,
+        "artifacts": {key: path.name for key, path in paths.items()},
+    }
+
+    # Ensure route_segments is at the top level of the metadata payload
+    if "route_segments" not in metadata_payload:
+        metadata_payload["route_segments"] = bundle.metadata.get(
+            "starting_region_contract", {}
+        ).get("route_segments", [])
+
     metadata_path.write_text(
         json.dumps(
-            {
-                **bundle.metadata,
-                "artifacts": {key: path.name for key, path in paths.items()},
-            },
+            metadata_payload,
             indent=2,
             sort_keys=True,
         )

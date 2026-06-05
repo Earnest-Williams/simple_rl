@@ -186,6 +186,7 @@ This keeps seasonal terrain changes visible to gameplay.
 - `elevation_band`
 - `nearby_affordances`
 - `handoff_tags`
+- `evidence_tags`
 
 Transition request types include:
 
@@ -206,9 +207,9 @@ transition requests include settlement entrances as well as terrain transitions.
 For cave-like transitions, the additive handoff columns distinguish ordinary
 caves, ponor descents, karst windows, spring sources, lava-tube skylights, and
 collapsed lava tubes. They also preserve hydrology, seasonal state, flow group,
-substrate, elevation band, nearby affordances, and compact handoff tags for
-downstream dungeon generation. The overland generator does not generate the
-dungeon internals.
+substrate, elevation band, nearby affordances, compact handoff tags, and
+historical/archaeological `evidence_tags` for downstream dungeon generation. The
+overland generator does not generate the dungeon internals.
 
 ## Route Artifacts
 
@@ -228,6 +229,7 @@ Columns:
 - `y`
 - `cost_so_far`
 - `tags`
+- `evidence_tags`
 
 Route helpers:
 
@@ -263,6 +265,10 @@ The overland bundle writes:
 first expedition region. That contract references feature rows and tile
 surfaces for the ruined harbor, local survey zone, resource sites, inland road,
 clearable blockage, waystation candidate, inland site, and ordinary cave.
+
+To provide a single stable source for downstream tools, `overland_metadata.json`
+also exposes `route_segments` and `transitions` at the top level, matching the
+same `evidence_tags` shape (list of integers).
 
 The loader `load_worldgen_bundle(out_dir)` reads any present overland and
 settlement artifacts. This keeps the loader bundle-agnostic.

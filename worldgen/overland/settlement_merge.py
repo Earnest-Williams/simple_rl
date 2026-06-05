@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from worldgen.overland.affordances import generate_affordances
-from worldgen.overland.schema import OverlandBundle, RouteSegmentState
+from worldgen.overland.schema import (
+    EvidenceTag,
+    OverlandBundle,
+    RouteSegmentState,
+)
 
 if TYPE_CHECKING:
     from worldgen.settlements.export import SettlementBundle
@@ -130,6 +134,7 @@ def _merge_settlement_features(
                 "feature_type": 0,
                 "target_id": int(row["id"]),
                 "tags": f"settlement;{row['kind']};{row['target']}",
+                "evidence_tags": [int(EvidenceTag.RECENT_LOCAL_OCCUPATION)],
             }
         )
     if not rows:

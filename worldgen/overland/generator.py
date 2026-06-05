@@ -178,6 +178,7 @@ def generate_overland_region(
         "profile": profile,
         "schema_version": SCHEMA_VERSION,
         "starting_region_contract": starting_region,
+        "route_segments": starting_region.get("route_segments", []),
     }
     bundle = OverlandBundle(
         tiles_df=tiles_df,
@@ -609,8 +610,9 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
             "point": list(points["ruined_harbor"]),
             "state": "ruined_dead_port",
             "evidence_tags": [
+                int(EvidenceTag.LATE_COLONIAL_OCCUPATION),
                 int(EvidenceTag.RUINED),
-                int(EvidenceTag.ANCIENT_OCCUPATION),
+                int(EvidenceTag.OVERGROWN),
             ],
         },
         "local_survey_zone": {
@@ -628,8 +630,11 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "blockage": "road_landslip_01",
                 "repair_cost": 45,  # base effort to clear/repair
                 "evidence_tags": [
+                    int(EvidenceTag.EARLY_COLONIAL_OCCUPATION),
+                    int(EvidenceTag.ROAD_ENGINEERING),
                     int(EvidenceTag.RECENT_COLLAPSE),
-                    int(EvidenceTag.OVERGROWN),
+                    int(EvidenceTag.PRIOR_EXPEDITION),
+                    int(EvidenceTag.PARTIAL_REPAIR),
                 ],
                 "last_modified": 0,  # seed-relative timestamp for lifecycle
                 "profile_costs": {
@@ -647,7 +652,10 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "point": list(points["clearable_blockage"]),
                 "state": "clearable",
                 "blocks_route": "ancient_road_harbor_to_inland_site",
-                "evidence_tags": [int(EvidenceTag.RECENT_COLLAPSE)],
+                "evidence_tags": [
+                    int(EvidenceTag.RECENT_COLLAPSE),
+                    int(EvidenceTag.SUBSIDENCE_DAMAGE),
+                ],
             }
         ],
         "resource_sites": [
@@ -678,8 +686,9 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "point": list(points["waystation_candidate"]),
                 "route": "ancient_road_harbor_to_inland_site",
                 "evidence_tags": [
+                    int(EvidenceTag.RECENT_LOCAL_OCCUPATION),
+                    int(EvidenceTag.WAYSTATION_REMAINS),
                     int(EvidenceTag.PARTIAL_REPAIR),
-                    int(EvidenceTag.ANCIENT_OCCUPATION),
                 ],
             }
         ],
@@ -688,7 +697,12 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "site_id": "first_inland_site",
                 "point": list(points["inland_site"]),
                 "kind": "ruin_or_settlement_candidate",
-                "evidence_tags": [int(EvidenceTag.RUINED), int(EvidenceTag.OVERGROWN)],
+                "evidence_tags": [
+                    int(EvidenceTag.PRECURSOR_OCCUPATION),
+                    int(EvidenceTag.MAUSOLEUM_COMPLEX),
+                    int(EvidenceTag.RUINED),
+                    int(EvidenceTag.OVERGROWN),
+                ],
             }
         ],
         "cave_refs": [
@@ -698,7 +712,7 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "kind": "ordinary_cave",
                 "transition": "cave_entrance",
                 "evidence_tags": [
-                    int(EvidenceTag.ANCIENT_OCCUPATION),
+                    int(EvidenceTag.PRECURSOR_OCCUPATION),
                     int(EvidenceTag.PRIOR_EXPEDITION),
                 ],
             }
@@ -1042,105 +1056,190 @@ def _features_df(
         return _point(width, height, x_frac, y_frac)
 
     feature_specs = [
-        (*point(0.20, 0.37), FeatureType.PONOR, 1, "karst;seasonal;descent"),
-        (*point(0.40, 0.43), FeatureType.ESTAVELLE, 2, "karst;reversible"),
-        (*point(0.55, 0.34), FeatureType.SPRING, 3, "spring;refuge"),
-        (*point(0.62, 0.55), FeatureType.CAVE_MOUTH, 4, "cave;limestone"),
-        (*point(0.58, 0.50), FeatureType.KARST_WINDOW, 5, "karst;window"),
-        (*point(0.55, 0.82), FeatureType.LAVA_TUBE_SKYLIGHT, 6, "lava_tube;vertical"),
-        (*point(0.72, 0.86), FeatureType.COLLAPSED_LAVA_TUBE, 7, "lava_tube;collapse"),
-        (*point(0.47, 0.45), FeatureType.FISH_TRAIL, 8, "fish;seasonal"),
-        (
-            *_metadata_point(starting_region["harbor"], "point"),
-            FeatureType.RUINED_HARBOR,
-            100,
-            "starting_region;harbor;ruined;dead_port",
-        ),
-        (
-            *_metadata_point(
+        {
+            "point": point(0.20, 0.37),
+            "feature_type": FeatureType.PONOR,
+            "target_id": 1,
+            "tags": "karst;seasonal;descent",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.40, 0.43),
+            "feature_type": FeatureType.ESTAVELLE,
+            "target_id": 2,
+            "tags": "karst;reversible",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.55, 0.34),
+            "feature_type": FeatureType.SPRING,
+            "target_id": 3,
+            "tags": "spring;refuge",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.62, 0.55),
+            "feature_type": FeatureType.CAVE_MOUTH,
+            "target_id": 4,
+            "tags": "cave;limestone",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.58, 0.50),
+            "feature_type": FeatureType.KARST_WINDOW,
+            "target_id": 5,
+            "tags": "karst;window",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.55, 0.82),
+            "feature_type": FeatureType.LAVA_TUBE_SKYLIGHT,
+            "target_id": 6,
+            "tags": "lava_tube;vertical",
+            "evidence_tags": [],
+        },
+        {
+            "point": point(0.72, 0.86),
+            "feature_type": FeatureType.COLLAPSED_LAVA_TUBE,
+            "target_id": 7,
+            "tags": "lava_tube;collapse",
+            "evidence_tags": [
+                int(EvidenceTag.STRUCTURAL_COLLAPSE),
+                int(EvidenceTag.VOLCANIC_BURIAL),
+            ],
+        },
+        {
+            "point": point(0.47, 0.45),
+            "feature_type": FeatureType.FISH_TRAIL,
+            "target_id": 8,
+            "tags": "fish;seasonal",
+            "evidence_tags": [],
+        },
+        {
+            "point": _metadata_point(starting_region["harbor"], "point"),
+            "feature_type": FeatureType.RUINED_HARBOR,
+            "target_id": 100,
+            "tags": "starting_region;harbor;ruined;dead_port",
+            "evidence_tags": [
+                int(EvidenceTag.LATE_COLONIAL_OCCUPATION),
+                int(EvidenceTag.RUINED),
+                int(EvidenceTag.OVERGROWN),
+            ],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_item(starting_region, "resource_sites", "fresh_water"),
                 "point",
             ),
-            FeatureType.FRESH_WATER_SITE,
-            101,
-            "starting_region;resource;fresh_water",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.FRESH_WATER_SITE,
+            "target_id": 101,
+            "tags": "starting_region;resource;fresh_water",
+            "evidence_tags": [],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_item(
                     starting_region, "resource_sites", "reeds_and_mud"
                 ),
                 "point",
             ),
-            FeatureType.RESOURCE_SITE,
-            102,
-            "starting_region;resource;reeds_and_mud",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.RESOURCE_SITE,
+            "target_id": 102,
+            "tags": "starting_region;resource;reeds_and_mud",
+            "evidence_tags": [],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_item(starting_region, "resource_sites", "timber"),
                 "point",
             ),
-            FeatureType.RESOURCE_SITE,
-            103,
-            "starting_region;resource;timber",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.RESOURCE_SITE,
+            "target_id": 103,
+            "tags": "starting_region;resource;timber",
+            "evidence_tags": [],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_item(starting_region, "resource_sites", "stone"),
                 "point",
             ),
-            FeatureType.RESOURCE_SITE,
-            104,
-            "starting_region;resource;stone",
-        ),
-        (
-            *_metadata_point(starting_region["route_segments"][0], "from_point"),
-            FeatureType.ANCIENT_ROAD,
-            105,
-            "starting_region;route;ancient_road;endpoint",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.RESOURCE_SITE,
+            "target_id": 104,
+            "tags": "starting_region;resource;stone",
+            "evidence_tags": [int(EvidenceTag.QUARRIED_STONE)],
+        },
+        {
+            "point": _metadata_point(starting_region["route_segments"][0], "from_point"),
+            "feature_type": FeatureType.ANCIENT_ROAD,
+            "target_id": 105,
+            "tags": "starting_region;route;ancient_road;endpoint",
+            "evidence_tags": [
+                int(EvidenceTag.EARLY_COLONIAL_OCCUPATION),
+                int(EvidenceTag.ROAD_ENGINEERING),
+                int(EvidenceTag.ABANDONED),
+                int(EvidenceTag.OVERGROWN),
+            ],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_list_item(starting_region, "blockages"), "point"
             ),
-            FeatureType.CLEARABLE_BLOCKAGE,
-            106,
-            "starting_region;route;blockage;clearable",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.CLEARABLE_BLOCKAGE,
+            "target_id": 106,
+            "tags": "starting_region;route;blockage;clearable",
+            "evidence_tags": [int(EvidenceTag.RECENT_COLLAPSE)],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_list_item(starting_region, "waystation_candidates"),
                 "point",
             ),
-            FeatureType.WAYSTATION_CANDIDATE,
-            107,
-            "starting_region;waystation_candidate",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.WAYSTATION_CANDIDATE,
+            "target_id": 107,
+            "tags": "starting_region;waystation_candidate",
+            "evidence_tags": [
+                int(EvidenceTag.RECENT_LOCAL_OCCUPATION),
+                int(EvidenceTag.WAYSTATION_REMAINS),
+                int(EvidenceTag.PARTIAL_REPAIR),
+            ],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_list_item(starting_region, "inland_sites"), "point"
             ),
-            FeatureType.INLAND_SITE,
-            108,
-            "starting_region;inland_site;ruin_or_settlement_candidate",
-        ),
-        (
-            *_metadata_point(
+            "feature_type": FeatureType.INLAND_SITE,
+            "target_id": 108,
+            "tags": "starting_region;inland_site;ruin_or_settlement_candidate",
+            "evidence_tags": [
+                int(EvidenceTag.PRECURSOR_OCCUPATION),
+                int(EvidenceTag.MAUSOLEUM_COMPLEX),
+                int(EvidenceTag.RUINED),
+                int(EvidenceTag.OVERGROWN),
+            ],
+        },
+        {
+            "point": _metadata_point(
                 _first_metadata_list_item(starting_region, "cave_refs"), "point"
             ),
-            FeatureType.ORDINARY_CAVE,
-            109,
-            "starting_region;cave;ordinary",
-        ),
+            "feature_type": FeatureType.ORDINARY_CAVE,
+            "target_id": 109,
+            "tags": "starting_region;cave;ordinary",
+            "evidence_tags": [
+                int(EvidenceTag.PRECURSOR_OCCUPATION),
+                int(EvidenceTag.PRIOR_EXPEDITION),
+            ],
+        },
     ]
     return pl.DataFrame(
         {
-            "x": [spec[0] for spec in feature_specs],
-            "y": [spec[1] for spec in feature_specs],
-            "feature_type": [int(spec[2]) for spec in feature_specs],
-            "target_id": [int(spec[3]) for spec in feature_specs],
-            "tags": [str(spec[4]) for spec in feature_specs],
+            "x": [int(spec["point"][0]) for spec in feature_specs],
+            "y": [int(spec["point"][1]) for spec in feature_specs],
+            "feature_type": [int(spec["feature_type"]) for spec in feature_specs],
+            "target_id": [int(spec["target_id"]) for spec in feature_specs],
+            "tags": [str(spec["tags"]) for spec in feature_specs],
+            "evidence_tags": [
+                list(spec["evidence_tags"]) for spec in feature_specs
+            ],
         }
     )
 

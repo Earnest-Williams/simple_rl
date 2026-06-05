@@ -181,6 +181,7 @@ def test_debug_overland_routes_emit_artifact_rows() -> None:
         "y",
         "cost_so_far",
         "tags",
+        "evidence_tags",
     } == set(routes_df.columns)
     assert routes_df.get_column("step_index").min() == 0
     assert routes_df.get_column("cost_so_far").min() == 0.0
@@ -205,6 +206,7 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
         "elevation_band",
         "nearby_affordances",
         "handoff_tags",
+        "evidence_tags",
     } <= set(transitions_df.columns)
 
     ordinary_cave = bundle.metadata["starting_region_contract"]["cave_refs"][0]
@@ -215,6 +217,10 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
     assert ordinary["flow_group"] == 0
     assert not ordinary["connected_to_underground"]
     assert "ordinary" in ordinary["handoff_tags"]
+    assert set(ordinary["evidence_tags"]) == {
+        int(EvidenceTag.PRECURSOR_OCCUPATION),
+        int(EvidenceTag.PRIOR_EXPEDITION),
+    }
 
     ponor = (
         transitions_df.filter(
@@ -228,6 +234,10 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
     assert ponor["connected_to_underground"]
     assert ponor["seasonal_state"] != ""
     assert "karst_subsurface" in ponor["handoff_tags"]
+    assert set(ponor["evidence_tags"]) >= {
+        int(EvidenceTag.SUBSIDENCE_DAMAGE),
+        int(EvidenceTag.FLOOD_DAMAGE),
+    }
 
     lava = (
         transitions_df.filter(
@@ -239,6 +249,17 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
     assert lava["cave_type"] == "lava_tube_skylight"
     assert lava["target_kind"] == "lava_tube"
     assert "basalt" in lava["handoff_tags"]
+    assert set(lava["evidence_tags"]) >= {
+        int(EvidenceTag.VOLCANIC_BURIAL),
+        int(EvidenceTag.STRUCTURAL_COLLAPSE),
+    }
+
+    loaded = load_worldgen_bundle(tmp_path)
+    assert loaded["overland_metadata"]["starting_region_contract"]["route_segments"][0][
+        "evidence_tags"
+    ] == bundle.metadata["starting_region_contract"]["route_segments"][0][
+        "evidence_tags"
+    ]
 
 
 def test_karst_hydrology_flow_group_is_connected() -> None:
@@ -344,26 +365,31 @@ def test_starting_region_contract_emits_required_surface_features() -> None:
     # Phase 4 evidence tags (generator outputs only)
     assert "evidence_tags" in contract["harbor"]
     assert set(contract["harbor"]["evidence_tags"]) == {
+        int(EvidenceTag.LATE_COLONIAL_OCCUPATION),
         int(EvidenceTag.RUINED),
-        int(EvidenceTag.ANCIENT_OCCUPATION),
+        int(EvidenceTag.OVERGROWN),
     }
     assert "evidence_tags" in contract["blockages"][0]
-    assert contract["blockages"][0]["evidence_tags"] == [
-        int(EvidenceTag.RECENT_COLLAPSE)
-    ]
+    assert set(contract["blockages"][0]["evidence_tags"]) == {
+        int(EvidenceTag.RECENT_COLLAPSE),
+        int(EvidenceTag.SUBSIDENCE_DAMAGE),
+    }
     assert "evidence_tags" in contract["waystation_candidates"][0]
     assert set(contract["waystation_candidates"][0]["evidence_tags"]) == {
+        int(EvidenceTag.RECENT_LOCAL_OCCUPATION),
+        int(EvidenceTag.WAYSTATION_REMAINS),
         int(EvidenceTag.PARTIAL_REPAIR),
-        int(EvidenceTag.ANCIENT_OCCUPATION),
     }
     assert "evidence_tags" in contract["inland_sites"][0]
     assert set(contract["inland_sites"][0]["evidence_tags"]) == {
+        int(EvidenceTag.PRECURSOR_OCCUPATION),
+        int(EvidenceTag.MAUSOLEUM_COMPLEX),
         int(EvidenceTag.RUINED),
         int(EvidenceTag.OVERGROWN),
     }
     assert "evidence_tags" in contract["cave_refs"][0]
     assert set(contract["cave_refs"][0]["evidence_tags"]) == {
-        int(EvidenceTag.ANCIENT_OCCUPATION),
+        int(EvidenceTag.PRECURSOR_OCCUPATION),
         int(EvidenceTag.PRIOR_EXPEDITION),
     }
 
@@ -373,6 +399,13 @@ def test_starting_region_contract_emits_required_surface_features() -> None:
     assert route["blockage"] == contract["blockages"][0]["blockage_id"]
     assert "repair_cost" in route and route["repair_cost"] > 0
     assert "evidence_tags" in route
+    assert set(route["evidence_tags"]) == {
+        int(EvidenceTag.EARLY_COLONIAL_OCCUPATION),
+        int(EvidenceTag.ROAD_ENGINEERING),
+        int(EvidenceTag.RECENT_COLLAPSE),
+        int(EvidenceTag.PRIOR_EXPEDITION),
+        int(EvidenceTag.PARTIAL_REPAIR),
+    }
     assert "last_modified" in route
     assert set(route["profile_costs"]) == {
         "HUMAN_ON_FOOT",
@@ -400,6 +433,29 @@ def test_starting_region_contract_emits_required_surface_features() -> None:
         ).iter_rows(named=True)
     }
     assert required_features <= emitted_features
+    assert "evidence_tags" in bundle.features_df.columns
+
+    ruined_harbor = bundle.features_df.filter(
+        pl.col("feature_type") == int(FeatureType.RUINED_HARBOR)
+    ).to_dicts()[0]
+    assert set(ruined_harbor["evidence_tags"]) == {
+        int(EvidenceTag.LATE_COLONIAL_OCCUPATION),
+        int(EvidenceTag.RUINED),
+        int(EvidenceTag.OVERGROWN),
+    }
+
+    ancient_road = bundle.features_df.filter(
+        pl.col("feature_type") == int(FeatureType.ANCIENT_ROAD)
+    ).to_dicts()[0]
+    assert set(ancient_road["evidence_tags"]) == {
+        int(EvidenceTag.EARLY_COLONIAL_OCCUPATION),
+        int(EvidenceTag.ROAD_ENGINEERING),
+        int(EvidenceTag.ABANDONED),
+        int(EvidenceTag.OVERGROWN),
+    }
+
+    stone_site = bundle.features_df.filter(pl.col("target_id") == 104).to_dicts()[0]
+    assert stone_site["evidence_tags"] == [int(EvidenceTag.QUARRIED_STONE)]
 
     assert _count(bundle.tiles_df, "material", Material.ROAD) > 0
     assert _count(bundle.tiles_df, "material", Material.DOCK) > 0
@@ -417,6 +473,7 @@ def test_starting_region_contract_emits_required_surface_features() -> None:
         and (request.source_x, request.source_y) == cave_point
         for request in transitions
     )
+    assert any(request.evidence_tags for request in transitions)
 
 
 def test_headless_overland_generation_writes_inspectable_output(tmp_path) -> None:
@@ -470,6 +527,12 @@ def test_starting_port_merges_as_overland_surface_layer() -> None:
     assert TransitionType.DOCK_ROUTE in transition_types
     assert TransitionType.SETTLEMENT_ENTRANCE in transition_types
     assert merged.metadata["settlements"][0]["kind"] == "port_town"
+    routes_df = overland_routes_to_df(generate_debug_routes(merged))
+    assert "evidence_tags" in routes_df.columns
+    assert any(
+        int(EvidenceTag.RECENT_LOCAL_OCCUPATION) in row["evidence_tags"]
+        for row in routes_df.iter_rows(named=True)
+    )
 
 
 def test_headless_overland_generation_can_merge_starting_port(tmp_path) -> None:
@@ -761,3 +824,76 @@ def _route_uses_any_material(
         for row in bundle.tiles_df.iter_rows(named=True)
     }
     return any(material_lookup.get(coord) in wanted for coord in path)
+
+
+def test_metadata_contains_route_segments_and_transitions_with_evidence_tags_shape(tmp_path) -> None:
+    bundle = generate_overland_region(
+        seed=123,
+        width=64,
+        height=48,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    paths = write_overland_bundle(bundle, tmp_path)
+    loaded_metadata = json.loads(paths["metadata"].read_text(encoding="utf-8"))
+
+    # Assert top-level keys are present in metadata JSON
+    assert "route_segments" in loaded_metadata
+    assert "transitions" in loaded_metadata
+
+    # Assert route segments have evidence_tags as list of ints
+    route_segs = loaded_metadata["route_segments"]
+    assert len(route_segs) > 0
+    for seg in route_segs:
+        assert "evidence_tags" in seg
+        assert isinstance(seg["evidence_tags"], list)
+        assert all(isinstance(tag, int) for tag in seg["evidence_tags"])
+
+    # Assert transitions have evidence_tags as list of ints
+    transitions = loaded_metadata["transitions"]
+    assert len(transitions) > 0
+    for trans in transitions:
+        assert "evidence_tags" in trans
+        assert isinstance(trans["evidence_tags"], list)
+        assert all(isinstance(tag, int) for tag in trans["evidence_tags"])
+
+    # Verify that overland_to_game_map loads sidecar with route_segments & transitions correctly
+    # when using the loaded metadata (with-metadata path)
+    from worldgen.overland.convert import overland_to_game_map
+    from worldgen.overland.schema import OverlandMapMetadata
+    from game.world.game_map import GameMap
+
+    gm, sidecar = overland_to_game_map(bundle, with_metadata=True)
+    assert isinstance(gm, GameMap)
+    assert isinstance(sidecar, OverlandMapMetadata)
+    assert len(sidecar.route_segments) > 0
+    assert len(sidecar.transitions) > 0
+
+    # Test that the sidecar transitions match what was in the metadata
+    for trans in transitions:
+        coord = (trans["source_x"], trans["source_y"])
+        assert coord in sidecar.transitions
+        for payload in sidecar.transitions[coord]:
+            assert "source_x" not in payload
+            assert "source_y" not in payload
+
+
+def test_inspect_overland_evidence_view_runs(tmp_path) -> None:
+    bundle = generate_overland_region(
+        seed=124,
+        width=32,
+        height=32,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    write_overland_bundle(bundle, tmp_path)
+
+    # Invoke inspect_overland.py via subprocess
+    import subprocess
+    import sys
+
+    cmd = [sys.executable, "tools/inspect_overland.py", str(tmp_path), "--view", "evidence"]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+    assert "=== FEATURES WITH EVIDENCE TAGS ===" in result.stdout
+    assert "=== TRANSITIONS WITH EVIDENCE TAGS ===" in result.stdout
+    assert "=== ROUTE SEGMENTS WITH EVIDENCE TAGS ===" in result.stdout
+

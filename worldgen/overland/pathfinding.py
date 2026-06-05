@@ -21,6 +21,7 @@ class OverlandRoute:
     path: tuple[tuple[int, int], ...]
     total_cost: float
     failure_reason: str | None = None
+    evidence_tags: tuple[int, ...] = ()
 
     @property
     def found(self) -> bool:

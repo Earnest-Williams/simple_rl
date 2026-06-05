@@ -44,7 +44,7 @@ def overland_to_game_map(
     if not with_metadata or metadata is None:
         return game_map
 
-    route_segments = metadata.get("starting_region_contract", {}).get(
+    route_segments = metadata.get("route_segments") or metadata.get("starting_region_contract", {}).get(
         "route_segments", []
     )
     sidecar = OverlandMapMetadata(
@@ -69,7 +69,7 @@ def overland_to_game_map(
         ),
         route_segments=route_segments,
         evidence_tags=metadata.get("evidence_tags", {}),
-        transitions=_transition_lookup(overland_bundle),
+        transitions=_transition_lookup(overland_bundle, metadata),
         affordances=_affordance_lookup(overland_bundle.affordances_df),
         starting_contract=metadata.get("starting_region_contract", {}),
     )
@@ -94,7 +94,19 @@ def _grid_from_column(
 
 def _transition_lookup(
     bundle: OverlandBundle | None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[tuple[int, int], list[dict[str, Any]]]:
+    if metadata is not None and "transitions" in metadata:
+        lookup: dict[tuple[int, int], list[dict[str, Any]]] = {}
+        for trans in metadata["transitions"]:
+            x = int(trans["source_x"])
+            y = int(trans["source_y"])
+            payload = dict(trans)
+            payload.pop("source_x", None)
+            payload.pop("source_y", None)
+            lookup.setdefault((x, y), []).append(payload)
+        return lookup
+
     if bundle is None:
         return {}
     transitions_df = transition_requests_to_df(generate_transition_requests(bundle))

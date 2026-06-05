@@ -136,16 +136,38 @@ class EvidenceTag(IntEnum):
     """
 
     NONE = 0
-    ANCIENT_OCCUPATION = auto()
-    RECENT_COLLAPSE = auto()
-    PARTIAL_REPAIR = auto()
-    ABANDONED = auto()
+    PRECURSOR_OCCUPATION = auto()
+    EARLY_COLONIAL_OCCUPATION = auto()
+    LATE_COLONIAL_OCCUPATION = auto()
+    RECENT_LOCAL_OCCUPATION = auto()
     PRIOR_EXPEDITION = auto()
+    BURIAL_MOUNDS = auto()
+    BARROW_FIELD = auto()
+    MAUSOLEUM_COMPLEX = auto()
+    SHRINE_MARKERS = auto()
+    WAYSTATION_REMAINS = auto()
+    ROAD_ENGINEERING = auto()
+    BRIDGE_FOOTINGS = auto()
+    TERRACED_GROUND = auto()
+    QUARRIED_STONE = auto()
+    ABANDONED = auto()
     RUINED = auto()
     OVERGROWN = auto()
+    BURIED = auto()
+    LOOTED = auto()
+    SEALED = auto()
+    RECENT_COLLAPSE = auto()
+    STRUCTURAL_COLLAPSE = auto()
+    PARTIAL_REPAIR = auto()
+    RECENT_REPAIR = auto()
+    REUSED_AS_SHELTER = auto()
+    CAMP_REMAINS = auto()
+    MARKED_TRAIL = auto()
     FLOOD_DAMAGE = auto()
     FIRE_SCARS = auto()
     VOLCANIC_BURIAL = auto()
+    SUBSIDENCE_DAMAGE = auto()
+    ANCIENT_OCCUPATION = PRECURSOR_OCCUPATION
 
 
 class TransitionType(IntEnum):
@@ -223,3 +245,4 @@ class SurfaceTransitionRequest:
     elevation_band: int = 0
     nearby_affordances: tuple[str, ...] = ()
     handoff_tags: tuple[str, ...] = ()
+    evidence_tags: tuple[int, ...] = ()

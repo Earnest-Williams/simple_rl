@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from dataclasses import replace
 
 import polars as pl
 
@@ -31,11 +32,14 @@ def generate_debug_routes(bundle: OverlandBundle) -> list[OverlandRoute]:
     spring = _feature_point(bundle, FeatureType.SPRING)
     if coast and spring:
         routes.append(
-            find_overland_path(
+            _route_with_evidence(
                 bundle,
-                coast,
-                spring,
-                ActorTraversalProfile.HUMAN_ON_FOOT,
+                find_overland_path(
+                    bundle,
+                    coast,
+                    spring,
+                    ActorTraversalProfile.HUMAN_ON_FOOT,
+                ),
             )
         )
 
@@ -43,22 +47,28 @@ def generate_debug_routes(bundle: OverlandBundle) -> list[OverlandRoute]:
     gorge = _first_tile_by_biome(bundle, Biome.LIMESTONE_GORGE)
     if starting_port and gorge:
         routes.append(
-            find_overland_path(
+            _route_with_evidence(
                 bundle,
-                starting_port,
-                gorge,
-                ActorTraversalProfile.HUMAN_ON_FOOT,
+                find_overland_path(
+                    bundle,
+                    starting_port,
+                    gorge,
+                    ActorTraversalProfile.HUMAN_ON_FOOT,
+                ),
             )
         )
 
     lava_skylight = _feature_point(bundle, FeatureType.LAVA_TUBE_SKYLIGHT)
     if starting_port and lava_skylight:
         routes.append(
-            find_overland_path(
+            _route_with_evidence(
                 bundle,
-                starting_port,
-                lava_skylight,
-                ActorTraversalProfile.HUMAN_ON_FOOT,
+                find_overland_path(
+                    bundle,
+                    starting_port,
+                    lava_skylight,
+                    ActorTraversalProfile.HUMAN_ON_FOOT,
+                ),
             )
         )
 
@@ -66,11 +76,14 @@ def generate_debug_routes(bundle: OverlandBundle) -> list[OverlandRoute]:
     ponor = _feature_point(bundle, FeatureType.PONOR)
     if sinking_lake and ponor:
         routes.append(
-            find_overland_path(
+            _route_with_evidence(
                 bundle,
-                sinking_lake,
-                ponor,
-                ActorTraversalProfile.SMALL_AMPHIBIOUS,
+                find_overland_path(
+                    bundle,
+                    sinking_lake,
+                    ponor,
+                    ActorTraversalProfile.SMALL_AMPHIBIOUS,
+                ),
             )
         )
 
@@ -156,6 +169,7 @@ def overland_routes_to_df(routes: list[OverlandRoute]) -> pl.DataFrame:
             "y": pl.Int64,
             "cost_so_far": pl.Float64,
             "tags": pl.String,
+            "evidence_tags": pl.List(pl.Int64),
         },
     )
 
@@ -178,9 +192,71 @@ def _route_rows(route_id: str, route: OverlandRoute) -> list[dict[str, object]]:
                 "y": point[1],
                 "cost_so_far": cost_so_far,
                 "tags": "debug;found",
+                "evidence_tags": list(route.evidence_tags),
             }
         )
     return rows
+
+
+def _route_with_evidence(
+    bundle: OverlandBundle,
+    route: OverlandRoute,
+) -> OverlandRoute:
+    return replace(route, evidence_tags=_route_evidence_tags(bundle, route))
+
+
+def _route_evidence_tags(
+    bundle: OverlandBundle,
+    route: OverlandRoute,
+) -> tuple[int, ...]:
+    if not route.path:
+        return ()
+
+    feature_evidence_tags: dict[tuple[int, int], set[int]] = {}
+    for row in bundle.features_df.iter_rows(named=True):
+        key = (int(row["x"]), int(row["y"]))
+        evidence = row.get("evidence_tags", [])
+        if evidence is None:
+            continue
+        feature_evidence_tags.setdefault(key, set()).update(int(value) for value in evidence)
+
+    tile_lookup = {
+        (int(row["x"]), int(row["y"])): row for row in bundle.tiles_df.iter_rows(named=True)
+    }
+
+    values: set[int] = set()
+    for point in route.path:
+        values.update(feature_evidence_tags.get(point, set()))
+        tile = tile_lookup.get(point)
+        if tile is None:
+            continue
+        material = Material(int(tile["material"]))
+        if material == Material.ROAD:
+            values.update(
+                {
+                    int(EvidenceTag.EARLY_COLONIAL_OCCUPATION),
+                    int(EvidenceTag.ROAD_ENGINEERING),
+                    int(EvidenceTag.ABANDONED),
+                    int(EvidenceTag.OVERGROWN),
+                }
+            )
+        elif material == Material.DOCK:
+            values.update(
+                {
+                    int(EvidenceTag.RECENT_LOCAL_OCCUPATION),
+                    int(EvidenceTag.ROAD_ENGINEERING),
+                }
+            )
+        elif material == Material.COLLAPSED_LAVA_TUBE:
+            values.update(
+                {
+                    int(EvidenceTag.VOLCANIC_BURIAL),
+                    int(EvidenceTag.STRUCTURAL_COLLAPSE),
+                    int(EvidenceTag.RECENT_COLLAPSE),
+                }
+            )
+
+    return tuple(sorted(values))
 
 
 def _route_id(route: OverlandRoute, index: int) -> str:
