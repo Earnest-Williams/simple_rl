@@ -66,7 +66,7 @@ def write_overland_bundle(
 
 
 def load_worldgen_bundle(out_dir: Path) -> dict[str, Any]:
-    payload: dict[str, Any] = {"path": out_dir}
+    payload: dict[str, Any] = {"path": str(out_dir)}
     for key, filename in {
         **OVERLAND_FILES,
         **COMPUTED_OVERLAND_FILES,

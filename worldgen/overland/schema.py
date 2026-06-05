@@ -113,6 +113,41 @@ class FeatureType(IntEnum):
     ORDINARY_CAVE = auto()
 
 
+class RouteSegmentState(IntEnum):
+    """Lifecycle states for route segments (roads, trails, causeways).
+
+    Generator outputs only. Runtime repair/clearing systems will consume
+    these. Follows pattern of EvidenceTag/FeatureType.
+    """
+
+    CLEAR = auto()
+    BLOCKED = auto()
+    REPAIRED = auto()
+    OVERGROWN = auto()
+    RUINED = auto()
+    COLLAPSED = auto()
+
+
+class EvidenceTag(IntEnum):
+    """Compact historical/archaeological tags for generator metadata.
+
+    These are generator outputs only. Runtime survey/knowledge systems
+    will interpret them later. Follows pattern of FeatureType/SurfaceFlag.
+    """
+
+    NONE = 0
+    ANCIENT_OCCUPATION = auto()
+    RECENT_COLLAPSE = auto()
+    PARTIAL_REPAIR = auto()
+    ABANDONED = auto()
+    PRIOR_EXPEDITION = auto()
+    RUINED = auto()
+    OVERGROWN = auto()
+    FLOOD_DAMAGE = auto()
+    FIRE_SCARS = auto()
+    VOLCANIC_BURIAL = auto()
+
+
 class TransitionType(IntEnum):
     CAVE_ENTRANCE = auto()
     PONOR_DESCENT = auto()
@@ -143,6 +178,28 @@ class OverlandBundle:
     features_df: pl.DataFrame
     affordances_df: pl.DataFrame
     metadata: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class OverlandMapMetadata:
+    """Runtime sidecar for overland data passed to GameMap.
+
+    Generator outputs rich metadata (including RouteSegmentState, evidence_tags,
+    repair_costs). Runtime repair/simulation systems consume this without
+    altering the core floor/wall GameMap. Follows pattern of OverlandBundle.
+    """
+
+    material_grid: Any  # np.ndarray or Polars-compatible
+    biome_grid: Any
+    hydro_grid: Any
+    wetness_grid: Any
+    route_segments: list[
+        dict[str, Any]
+    ]  # state, repair_cost, evidence_tags, last_modified, etc.
+    evidence_tags: dict[str, list[EvidenceTag]]
+    transitions: dict[str, Any]
+    affordances: dict[str, Any]
+    starting_contract: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)

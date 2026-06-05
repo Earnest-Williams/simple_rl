@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+from typing import Any
+
 import polars as pl
 
 from common.constants import Material
+from utils.game_rng import GameRNG
 from worldgen.overland.actor_traversal import ActorTraversalProfile
 from worldgen.overland.pathfinding import OverlandRoute, find_overland_path
-from worldgen.overland.schema import Biome, FeatureType, HydroRole, OverlandBundle
+from worldgen.overland.schema import (
+    Biome,
+    EvidenceTag,
+    FeatureType,
+    HydroRole,
+    OverlandBundle,
+    RouteSegmentState,
+)
 
 
 def generate_debug_routes(bundle: OverlandBundle) -> list[OverlandRoute]:
-    """Generate a small set of inspectable routes for regression/debug output."""
+    """Generate a small set of inspectable routes for regression/debug output.
+
+    Routes now carry RouteSegmentState from the starting contract for repair
+    simulation.
+    """
 
     routes: list[OverlandRoute] = []
 
@@ -61,6 +75,64 @@ def generate_debug_routes(bundle: OverlandBundle) -> list[OverlandRoute]:
         )
 
     return routes
+
+
+def simulate_route_repair(bundle: OverlandBundle, rng: GameRNG) -> OverlandBundle:
+    """Deterministic simulation of route repair/clearing using GameRNG.
+
+    Mutates a copy of the bundle's metadata route_segments. BLOCKED segments
+    have a chance to become REPAIRED based on repair_cost and RNG roll.
+    Advances settlement roads toward CLEAR/REPAIRED states. Returns new bundle
+    (immutable pattern).
+    """
+    metadata = dict(bundle.metadata)  # shallow copy for new bundle
+    contract = metadata.get("starting_region_contract", {})
+    if "route_segments" not in contract:
+        return bundle  # type: ignore[return-value]
+
+    segments: list[dict[str, Any]] = []
+    for seg in contract.get("route_segments", []):
+        seg = dict(seg)  # copy
+        state = RouteSegmentState(seg.get("state", 0))
+        if state == RouteSegmentState.BLOCKED:
+            # Deterministic roll: lower repair_cost = higher success chance (0-100)
+            roll = rng.get_int(0, 100)
+            if roll < (100 - seg.get("repair_cost", 50)):
+                seg["state"] = int(RouteSegmentState.REPAIRED)
+                seg["evidence_tags"] = seg.get("evidence_tags", []) + [
+                    int(EvidenceTag.PARTIAL_REPAIR)
+                ]
+                seg["last_modified"] = 1  # simulation tick
+        segments.append(seg)
+
+    contract = dict(contract)
+    contract["route_segments"] = segments
+    metadata["starting_region_contract"] = contract
+    # Also update top-level route_segments if present for sidecar
+    if "route_segments" in metadata:
+        metadata["route_segments"] = segments
+
+    return OverlandBundle(
+        tiles_df=bundle.tiles_df,
+        hydrology_df=bundle.hydrology_df,
+        features_df=bundle.features_df,
+        affordances_df=bundle.affordances_df,
+        metadata=metadata,
+    )
+
+
+def _update_route_state_in_features(
+    features_df: pl.DataFrame, route_id: str, new_state: int
+) -> pl.DataFrame:
+    """Helper to propagate route state changes to features_df (for settlement roads)."""
+    if features_df.is_empty():
+        return features_df
+    return features_df.with_columns(
+        pl.when(pl.col("tags").str.contains(route_id))
+        .then(new_state)
+        .otherwise(pl.col("feature_type"))
+        .alias("feature_type")  # reuse for state hint in runtime
+    )
 
 
 def overland_routes_to_df(routes: list[OverlandRoute]) -> pl.DataFrame:

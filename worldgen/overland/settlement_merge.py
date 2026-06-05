@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from worldgen.overland.affordances import generate_affordances
-from worldgen.overland.schema import OverlandBundle
+from worldgen.overland.schema import OverlandBundle, RouteSegmentState
 
 if TYPE_CHECKING:
     from worldgen.settlements.export import SettlementBundle
@@ -57,6 +57,9 @@ def merge_settlement_into_overland(
                 "origin": [ox, oy],
                 "width": settlement.metadata["width"],
                 "height": settlement.metadata["height"],
+                "road_state": int(
+                    RouteSegmentState.CLEAR
+                ),  # settlement roads start repaired/cleared
             },
         ],
     }

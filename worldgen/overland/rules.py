@@ -67,8 +67,10 @@ def derive_walkable(material: Material, wetness: Wetness, flags: int = 0) -> boo
 
 
 def derive_blocks_sight(material: Material, flags: int = 0) -> bool:
-    return material in _SIGHT_BLOCKERS or material in _DENSE_VEGETATION or has_surface_flag(
-        flags, SurfaceFlag.VEGETATION_DENSE
+    return (
+        material in _SIGHT_BLOCKERS
+        or material in _DENSE_VEGETATION
+        or has_surface_flag(flags, SurfaceFlag.VEGETATION_DENSE)
     )
 
 

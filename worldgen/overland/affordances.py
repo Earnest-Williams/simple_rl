@@ -37,9 +37,17 @@ def _affordances_for_tile(
             }
         )
 
-    if material in {int(Material.FISH_TRAIL), int(Material.MUDFLAT), int(Material.SHALLOW_WATER)}:
+    if material in {
+        int(Material.FISH_TRAIL),
+        int(Material.MUDFLAT),
+        int(Material.SHALLOW_WATER),
+    }:
         add(Affordance.FISH_MIGRATION, 0.8)
-    if material in {int(Material.MUDFLAT), int(Material.MUD), int(Material.SHALLOW_WATER)}:
+    if material in {
+        int(Material.MUDFLAT),
+        int(Material.MUD),
+        int(Material.SHALLOW_WATER),
+    }:
         add(Affordance.MUDFLAT_SUNNING, 0.55)
     if material in {int(Material.DEEP_MUD), int(Material.MUDFLAT), int(Material.CLAY)}:
         add(Affordance.BURROWING_MUD, 0.65)

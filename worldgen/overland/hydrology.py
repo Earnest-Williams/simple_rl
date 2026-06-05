@@ -15,7 +15,9 @@ from worldgen.overland.schema import HydroRole, HydroState, OverlandBundle, Wetn
 
 def apply_hydrology_state(bundle: OverlandBundle, state: HydroState) -> OverlandBundle:
     tiles = bundle.tiles_df
-    hydro = bundle.hydrology_df.with_columns(pl.lit(state.name.lower()).alias("seasonal_state"))
+    hydro = bundle.hydrology_df.with_columns(
+        pl.lit(state.name.lower()).alias("seasonal_state")
+    )
 
     role = pl.col("hydro_role")
     material = pl.col("material")
@@ -25,12 +27,12 @@ def apply_hydrology_state(bundle: OverlandBundle, state: HydroState) -> Overland
     is_fish_trail = material == int(Material.FISH_TRAIL)
 
     tiles = tiles.with_columns(
-        _material_expr(state, is_sinking_lake, is_estavelle, is_ponor, is_fish_trail).alias(
-            "material"
-        ),
-        _wetness_expr(state, is_sinking_lake, is_estavelle, is_ponor, is_fish_trail).alias(
-            "wetness"
-        ),
+        _material_expr(
+            state, is_sinking_lake, is_estavelle, is_ponor, is_fish_trail
+        ).alias("material"),
+        _wetness_expr(
+            state, is_sinking_lake, is_estavelle, is_ponor, is_fish_trail
+        ).alias("wetness"),
     )
     tiles = _recompute_gameplay_columns(tiles)
     transformed = OverlandBundle(

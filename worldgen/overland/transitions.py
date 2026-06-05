@@ -16,7 +16,9 @@ from worldgen.overland.schema import (
 )
 
 
-def generate_transition_requests(bundle: OverlandBundle) -> list[SurfaceTransitionRequest]:
+def generate_transition_requests(
+    bundle: OverlandBundle,
+) -> list[SurfaceTransitionRequest]:
     seed = int(bundle.metadata["seed"])
     requests: list[SurfaceTransitionRequest] = []
     context = _transition_context(bundle)
@@ -109,7 +111,8 @@ def _feature_transition_requests(
     if bundle.features_df.is_empty():
         return requests
     tile_lookup = {
-        (int(row["x"]), int(row["y"])): row for row in bundle.tiles_df.iter_rows(named=True)
+        (int(row["x"]), int(row["y"])): row
+        for row in bundle.tiles_df.iter_rows(named=True)
     }
     for row in bundle.features_df.iter_rows(named=True):
         tags = str(row["tags"])
@@ -159,7 +162,9 @@ def _transition_context(bundle: OverlandBundle) -> dict[str, object]:
             part for part in str(row["tags"]).split(";") if part
         )
         try:
-            feature_types.setdefault(key, set()).add(FeatureType(int(row["feature_type"])))
+            feature_types.setdefault(key, set()).add(
+                FeatureType(int(row["feature_type"]))
+            )
         except ValueError:
             continue
     return {

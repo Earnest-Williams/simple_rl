@@ -249,14 +249,18 @@ class GameMap:
             self.ceiling_map[y, x] = np.int16(height)
             self._scene_geometry_version += 1
 
-    def set_height_region(self, x0: int, y0: int, x1: int, y1: int, height: int) -> None:
+    def set_height_region(
+        self, x0: int, y0: int, x1: int, y1: int, height: int
+    ) -> None:
         """Set the floor height for a region and increment geometry version."""
         x0, x1 = max(0, min(x0, x1)), min(self._width, max(x0, x1))
         y0, y1 = max(0, min(y0, y1)), min(self._height, max(y0, y1))
         self.height_map[y0:y1, x0:x1] = np.int16(height)
         self._scene_geometry_version += 1
 
-    def set_ceiling_region(self, x0: int, y0: int, x1: int, y1: int, height: int) -> None:
+    def set_ceiling_region(
+        self, x0: int, y0: int, x1: int, y1: int, height: int
+    ) -> None:
         """Set the ceiling height for a region and increment geometry version."""
         x0, x1 = max(0, min(x0, x1)), min(self._width, max(x0, x1))
         y0, y1 = max(0, min(y0, y1)), min(self._height, max(y0, y1))

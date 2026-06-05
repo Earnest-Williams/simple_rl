@@ -25,7 +25,9 @@ def find_nearest_feature(
     origin: tuple[int, int],
     feature_type: FeatureType,
 ) -> dict[str, object] | None:
-    rows = bundle.features_df.filter(pl.col("feature_type") == int(feature_type)).to_dicts()
+    rows = bundle.features_df.filter(
+        pl.col("feature_type") == int(feature_type)
+    ).to_dicts()
     if not rows:
         return None
     ox, oy = origin

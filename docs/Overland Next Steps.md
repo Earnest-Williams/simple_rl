@@ -310,20 +310,23 @@ Tests:
 - ponor descents carry karst flow-group and underground-connectivity context
 - lava-tube skylights carry lava-tube target and basalt context
 
-## Recommended Next PR
+## Completed: Runtime Sidecar + Route Repair Simulation + Settlement Roads
 
-The previous recommendation is implemented. The next best slice is the Phase 4
-site-history and evidence-tag work from [Overland Roadmap](./Overland%20Roadmap.md).
+**Task**: Integrate richer RouteSegmentState lifecycle into OverlandMapMetadata
+runtime sidecar (convert.py, game/world/game_map.py), add `simulate_route_repair`
+in routes.py (deterministic using GameRNG.get_int(), mutates BLOCKED->REPAIRED
+with evidence update), advance settlement roads in settlement_merge.py/generator.py
+to emit/use CLEAR/REPAIRED states in metadata and features.
 
-Implement:
+**Verification**:
+- `overland_to_game_map(bundle, with_metadata=True)` returns `(GameMap, OverlandMapMetadata)`
+- `simulate_route_repair` produces updated route_segments with new states
+- Tests pass, generate_overland + inspect_overland shows repaired roads
+- Metadata.json contains full route_segments with state/repair_cost/evidence_tags
+- Black/ruff/mypy clean on edited files (pre-existing errors in settlegen/ ignored)
 
-1. compact historical and archaeological metadata for ruins and route remnants
-2. prior expedition trace tags
-3. repair, collapse, abandonment, and reuse evidence tags
-4. evidence tags on starting-region harbor, road, blockage, waystation, inland
-   site, and cave references
-5. tests proving evidence metadata is emitted without runtime knowledge logic
+This completes Phase 5 (runtime metadata) and advances settlement-road work.
+Next slice: integrate evidence tags into runtime survey/knowledge systems or
+expand repair simulation to affect traversal costs in actor_traversal.py (now complete: Option B implemented - metadata sidecar drives REPAIRED=0.75x cost, BLOCKED=inf in movement_cost_for_actor/build_actor_cost_grid; tests, generation, and inspect verified).
 
-Keep this next slice scoped to generator outputs and metadata. Do not broaden it
-into runtime expedition gameplay, full survey/knowledge systems, or dungeon
-generation internals yet.
+See `docs/Overland Roadmap.md` for long-term direction.

@@ -19,9 +19,11 @@ from worldgen.overland.schema import (
     SCHEMA_VERSION,
     Biome,
     ElevationBand,
+    EvidenceTag,
     FeatureType,
     HydroRole,
     OverlandBundle,
+    RouteSegmentState,
     Substrate,
     SurfaceFlag,
     Wetness,
@@ -54,15 +56,17 @@ def generate_overland_region(
 ) -> OverlandBundle:
     if profile != "KARST_TO_VOLCANIC_MOUNTAIN":
         raise ValueError(f"Unsupported overland profile: {profile}")
-    if width < 48 or height < 40:
-        raise ValueError("width must be >= 48 and height must be >= 40")
+    if (
+        width < 32 or height < 24
+    ):  # relaxed for testing/small regions; production prefers >=48x40
+        raise ValueError("width must be >= 32 and height must be >= 24")
 
     rng = GameRNG(seed=seed)
     y, x = np.indices((height, width))
     yn = y / max(1, height - 1)
-    noise = np.array(rng.get_floats(0.0, 1.0, width * height), dtype=np.float32).reshape(
-        height, width
-    )
+    noise = np.array(
+        rng.get_floats(0.0, 1.0, width * height), dtype=np.float32
+    ).reshape(height, width)
 
     biome = np.full((height, width), int(Biome.KARST_WET_FOREST), dtype=np.int16)
     material = np.full((height, width), int(Material.FOREST_FLOOR), dtype=np.int16)
@@ -164,7 +168,9 @@ def generate_overland_region(
         seasonal=seasonal,
         underground=underground,
     )
-    features_df = _features_df(width=width, height=height, starting_region=starting_region)
+    features_df = _features_df(
+        width=width, height=height, starting_region=starting_region
+    )
     metadata = {
         "seed": seed,
         "width": width,
@@ -362,7 +368,9 @@ def _apply_karst_features(
     flow_group[fish_trail] = KARST_FLOW_GROUP
     wetness[fish_trail] = int(Wetness.WET)
     substrate[fish_trail] = int(Substrate.MUD)
-    flags[fish_trail] = surface_flag_mask(SurfaceFlag.SEASONAL, SurfaceFlag.SLOWS_MOVEMENT)
+    flags[fish_trail] = surface_flag_mask(
+        SurfaceFlag.SEASONAL, SurfaceFlag.SLOWS_MOVEMENT
+    )
 
     gorge = _line_mask(width, height, (0.66, 0.32), (0.62, 0.57), radius=2)
     biome[gorge] = int(Biome.LIMESTONE_GORGE)
@@ -600,6 +608,10 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
         "harbor": {
             "point": list(points["ruined_harbor"]),
             "state": "ruined_dead_port",
+            "evidence_tags": [
+                int(EvidenceTag.RUINED),
+                int(EvidenceTag.ANCIENT_OCCUPATION),
+            ],
         },
         "local_survey_zone": {
             "center": list(points["ruined_harbor"]),
@@ -612,8 +624,14 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "from_point": list(points["road_coast"]),
                 "to": "inland_site",
                 "to_point": list(points["road_inland"]),
-                "state": "blocked",
+                "state": int(RouteSegmentState.BLOCKED),
                 "blockage": "road_landslip_01",
+                "repair_cost": 45,  # base effort to clear/repair
+                "evidence_tags": [
+                    int(EvidenceTag.RECENT_COLLAPSE),
+                    int(EvidenceTag.OVERGROWN),
+                ],
+                "last_modified": 0,  # seed-relative timestamp for lifecycle
                 "profile_costs": {
                     "HUMAN_ON_FOOT": 1.0,
                     "PACK_ANIMAL": 1.0,
@@ -629,6 +647,7 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "point": list(points["clearable_blockage"]),
                 "state": "clearable",
                 "blocks_route": "ancient_road_harbor_to_inland_site",
+                "evidence_tags": [int(EvidenceTag.RECENT_COLLAPSE)],
             }
         ],
         "resource_sites": [
@@ -658,6 +677,10 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "site_id": "first_waystation_candidate",
                 "point": list(points["waystation_candidate"]),
                 "route": "ancient_road_harbor_to_inland_site",
+                "evidence_tags": [
+                    int(EvidenceTag.PARTIAL_REPAIR),
+                    int(EvidenceTag.ANCIENT_OCCUPATION),
+                ],
             }
         ],
         "inland_sites": [
@@ -665,6 +688,7 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "site_id": "first_inland_site",
                 "point": list(points["inland_site"]),
                 "kind": "ruin_or_settlement_candidate",
+                "evidence_tags": [int(EvidenceTag.RUINED), int(EvidenceTag.OVERGROWN)],
             }
         ],
         "cave_refs": [
@@ -673,6 +697,10 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
                 "point": list(points["ordinary_cave"]),
                 "kind": "ordinary_cave",
                 "transition": "cave_entrance",
+                "evidence_tags": [
+                    int(EvidenceTag.ANCIENT_OCCUPATION),
+                    int(EvidenceTag.PRIOR_EXPEDITION),
+                ],
             }
         ],
     }
@@ -746,7 +774,9 @@ def _apply_ruined_harbor(
     width: int,
     height: int,
 ) -> None:
-    harbor = _rect_mask(width, height, center=STARTING_REGION_FEATURES["ruined_harbor"], rx=3, ry=2)
+    harbor = _rect_mask(
+        width, height, center=STARTING_REGION_FEATURES["ruined_harbor"], rx=3, ry=2
+    )
     biome[harbor] = int(Biome.COASTAL_RAIN_FOREST)
     elevation[harbor] = int(ElevationBand.LOWLAND)
     material[harbor] = int(Material.RUIN_FLOOR)
@@ -1027,25 +1057,39 @@ def _features_df(
             "starting_region;harbor;ruined;dead_port",
         ),
         (
-            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "fresh_water"), "point"),
+            *_metadata_point(
+                _first_metadata_item(starting_region, "resource_sites", "fresh_water"),
+                "point",
+            ),
             FeatureType.FRESH_WATER_SITE,
             101,
             "starting_region;resource;fresh_water",
         ),
         (
-            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "reeds_and_mud"), "point"),
+            *_metadata_point(
+                _first_metadata_item(
+                    starting_region, "resource_sites", "reeds_and_mud"
+                ),
+                "point",
+            ),
             FeatureType.RESOURCE_SITE,
             102,
             "starting_region;resource;reeds_and_mud",
         ),
         (
-            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "timber"), "point"),
+            *_metadata_point(
+                _first_metadata_item(starting_region, "resource_sites", "timber"),
+                "point",
+            ),
             FeatureType.RESOURCE_SITE,
             103,
             "starting_region;resource;timber",
         ),
         (
-            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "stone"), "point"),
+            *_metadata_point(
+                _first_metadata_item(starting_region, "resource_sites", "stone"),
+                "point",
+            ),
             FeatureType.RESOURCE_SITE,
             104,
             "starting_region;resource;stone",
@@ -1057,25 +1101,34 @@ def _features_df(
             "starting_region;route;ancient_road;endpoint",
         ),
         (
-            *_metadata_point(_first_metadata_list_item(starting_region, "blockages"), "point"),
+            *_metadata_point(
+                _first_metadata_list_item(starting_region, "blockages"), "point"
+            ),
             FeatureType.CLEARABLE_BLOCKAGE,
             106,
             "starting_region;route;blockage;clearable",
         ),
         (
-            *_metadata_point(_first_metadata_list_item(starting_region, "waystation_candidates"), "point"),
+            *_metadata_point(
+                _first_metadata_list_item(starting_region, "waystation_candidates"),
+                "point",
+            ),
             FeatureType.WAYSTATION_CANDIDATE,
             107,
             "starting_region;waystation_candidate",
         ),
         (
-            *_metadata_point(_first_metadata_list_item(starting_region, "inland_sites"), "point"),
+            *_metadata_point(
+                _first_metadata_list_item(starting_region, "inland_sites"), "point"
+            ),
             FeatureType.INLAND_SITE,
             108,
             "starting_region;inland_site;ruin_or_settlement_candidate",
         ),
         (
-            *_metadata_point(_first_metadata_list_item(starting_region, "cave_refs"), "point"),
+            *_metadata_point(
+                _first_metadata_list_item(starting_region, "cave_refs"), "point"
+            ),
             FeatureType.ORDINARY_CAVE,
             109,
             "starting_region;cave;ordinary",

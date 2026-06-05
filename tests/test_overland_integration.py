@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-from collections import deque
 import hashlib
 import json
+from collections import deque
 
 import numpy as np
 import polars as pl
 
 from common.constants import Material
+from game.world.game_map import GameMap
 from tools.generate_overland import generate_region
 from utils.game_rng import GameRNG
 from worldgen.overland import (
     ActorTraversalProfile,
     Biome,
+    EvidenceTag,
     FeatureType,
     HydroRole,
     HydroState,
+    OverlandMapMetadata,
+    RouteSegmentState,
     TransitionType,
     TraversalClass,
     apply_hydrology_state,
@@ -30,8 +34,8 @@ from worldgen.overland import (
     load_worldgen_bundle,
     merge_settlement_into_overland,
     movement_cost_for_actor,
-    overland_to_game_map,
     overland_routes_to_df,
+    overland_to_game_map,
     render_overland_ascii,
     write_overland_bundle,
 )
@@ -104,8 +108,19 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert "." in actor_view
 
     game_map = overland_to_game_map(dry.tiles_df)
+    assert isinstance(game_map, GameMap)
     assert game_map.width == 96
     assert game_map.height == 72
+
+    # Test new runtime sidecar (with_metadata=True)
+    result = overland_to_game_map(dry, with_metadata=True)
+    assert isinstance(result, tuple)
+    gm, metadata = result
+    assert isinstance(gm, GameMap)
+    assert isinstance(metadata, OverlandMapMetadata)
+    assert len(metadata.route_segments) >= 1
+    assert metadata.route_segments[0]["state"] == int(RouteSegmentState.BLOCKED)
+    assert "repair_cost" in metadata.route_segments[0]
 
     same = generate_overland_region(
         seed=20260604,
@@ -176,18 +191,26 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
     assert not ordinary["connected_to_underground"]
     assert "ordinary" in ordinary["handoff_tags"]
 
-    ponor = transitions_df.filter(
-        pl.col("transition_type") == int(TransitionType.PONOR_DESCENT)
-    ).head(1).to_dicts()[0]
+    ponor = (
+        transitions_df.filter(
+            pl.col("transition_type") == int(TransitionType.PONOR_DESCENT)
+        )
+        .head(1)
+        .to_dicts()[0]
+    )
     assert ponor["cave_type"] == "ponor_descent"
     assert ponor["flow_group"] == 1
     assert ponor["connected_to_underground"]
     assert ponor["seasonal_state"] != ""
     assert "karst_subsurface" in ponor["handoff_tags"]
 
-    lava = transitions_df.filter(
-        pl.col("transition_type") == int(TransitionType.LAVA_TUBE_SKYLIGHT)
-    ).head(1).to_dicts()[0]
+    lava = (
+        transitions_df.filter(
+            pl.col("transition_type") == int(TransitionType.LAVA_TUBE_SKYLIGHT)
+        )
+        .head(1)
+        .to_dicts()[0]
+    )
     assert lava["cave_type"] == "lava_tube_skylight"
     assert lava["target_kind"] == "lava_tube"
     assert "basalt" in lava["handoff_tags"]
@@ -293,10 +316,39 @@ def test_starting_region_contract_emits_required_surface_features() -> None:
     assert len(contract["inland_sites"]) == 1
     assert len(contract["cave_refs"]) == 1
 
+    # Phase 4 evidence tags (generator outputs only)
+    assert "evidence_tags" in contract["harbor"]
+    assert set(contract["harbor"]["evidence_tags"]) == {
+        int(EvidenceTag.RUINED),
+        int(EvidenceTag.ANCIENT_OCCUPATION),
+    }
+    assert "evidence_tags" in contract["blockages"][0]
+    assert contract["blockages"][0]["evidence_tags"] == [
+        int(EvidenceTag.RECENT_COLLAPSE)
+    ]
+    assert "evidence_tags" in contract["waystation_candidates"][0]
+    assert set(contract["waystation_candidates"][0]["evidence_tags"]) == {
+        int(EvidenceTag.PARTIAL_REPAIR),
+        int(EvidenceTag.ANCIENT_OCCUPATION),
+    }
+    assert "evidence_tags" in contract["inland_sites"][0]
+    assert set(contract["inland_sites"][0]["evidence_tags"]) == {
+        int(EvidenceTag.RUINED),
+        int(EvidenceTag.OVERGROWN),
+    }
+    assert "evidence_tags" in contract["cave_refs"][0]
+    assert set(contract["cave_refs"][0]["evidence_tags"]) == {
+        int(EvidenceTag.ANCIENT_OCCUPATION),
+        int(EvidenceTag.PRIOR_EXPEDITION),
+    }
+
     route = contract["route_segments"][0]
     assert route["route_id"] == "ancient_road_harbor_to_inland_site"
-    assert route["state"] == "blocked"
+    assert route["state"] == int(RouteSegmentState.BLOCKED)
     assert route["blockage"] == contract["blockages"][0]["blockage_id"]
+    assert "repair_cost" in route and route["repair_cost"] > 0
+    assert "evidence_tags" in route
+    assert "last_modified" in route
     assert set(route["profile_costs"]) == {
         "HUMAN_ON_FOOT",
         "PACK_ANIMAL",
@@ -580,7 +632,9 @@ def _transition_at(df: pl.DataFrame, point: tuple[int, int]) -> dict[str, object
 def _flow_groups_for_role(df: pl.DataFrame, hydro_role: HydroRole) -> set[int]:
     return {
         int(row["flow_group"])
-        for row in df.filter(pl.col("hydro_role") == int(hydro_role)).iter_rows(named=True)
+        for row in df.filter(pl.col("hydro_role") == int(hydro_role)).iter_rows(
+            named=True
+        )
     }
 
 
@@ -614,10 +668,7 @@ def _hydrology_cells(
     query = df.filter(pl.col("flow_group") == flow_group)
     if hydro_role is not None:
         query = query.filter(pl.col("hydro_role") == int(hydro_role))
-    return {
-        (int(row["x"]), int(row["y"]))
-        for row in query.iter_rows(named=True)
-    }
+    return {(int(row["x"]), int(row["y"])) for row in query.iter_rows(named=True)}
 
 
 def _cells_connected(
