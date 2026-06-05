@@ -6,6 +6,24 @@
 
 ---
 
+## Current Hot-Loop Direction
+
+Recent `advance_turn()` profiling shows the dominant cost is live entity mutation
+through Polars collection and DataFrame rebuilding, not FOV.
+
+The next optimization target is the entity registry storage model:
+
+- Replace Polars as the authoritative mutable entity store.
+- Store hot runtime fields in NumPy arrays and Python lists.
+- Keep Polars as a cached snapshot/reporting view.
+- Add occupancy-grid collision lookup.
+- Migrate movement, turn processing, perception, and AI adapters away from
+  DataFrame-shaped hot-loop reads.
+
+See `docs/Entity Store Migration.md`.
+
+---
+
 ## Executive Summary
 
 This analysis identified **critical performance bottlenecks** across four major categories:
