@@ -1,5 +1,10 @@
 # Overland Next Steps
 
+This document is the tactical implementation queue beneath
+[Overland Roadmap](./Overland%20Roadmap.md). It tracks concrete engineering
+slices for the current `worldgen/overland` implementation; the roadmap owns the
+longer-term generator direction and start-of-game contract.
+
 ## Current State
 
 The overland generator now has a stable first-pass terrain contract:

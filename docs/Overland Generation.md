@@ -15,6 +15,13 @@ material + wetness + surface_flags -> traversal and gameplay behavior
 Settlements, roads, docks, caves, ponors, springs, lava tubes, fish trails, and
 seasonal wetlands are all overland surface producers.
 
+## Roadmap
+
+[Overland Roadmap](./Overland%20Roadmap.md) is the canonical planning document
+for long-term overland generator direction and the near-term start-of-game
+contract. This document remains the current artifact, schema, command, and test
+reference for the implemented `worldgen/overland` surface.
+
 ## Tile Schema
 
 `overland_tiles.arrow` contains one row per tile:
