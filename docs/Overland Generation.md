@@ -302,6 +302,8 @@ They cover:
 - required karst, volcanic, hydrology, and transition features
 - hydrology state transforms
 - derived movement and traversal columns
+- actor-specific traversal cost grids
+- seasonal actor-specific pathfinding
 - transition artifact output
 - route artifact output
 - affordance output

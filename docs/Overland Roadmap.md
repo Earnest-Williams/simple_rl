@@ -24,7 +24,7 @@ simulation systems are downstream consumers, not part of this generator scope.
 | `flow_group` | `overland_hydrology.arrow` has a `flow_group` column. | Stable connected-system semantics are planned for Phase 1. |
 | Connected hydrology | Representative springs, ponors, estavelles, sinking basins, seasonal states, and underground flags exist. | Continuous drainage networks and meaningful underground connectivity are planned for Phase 1. |
 | Route segment state | Selected debug routes are emitted in `overland_routes.arrow`. | Road segment state, blockages, repair state, and route endpoints for the starting region are planned. |
-| Cave payloads | Transition records currently include source, type, target kind, terrain context, seed, and tags. | Rich cave handoff payloads for dungeon generation are planned. |
+| Cave payloads | Transition records currently include source, type, target kind, `hydro_role`, `biome`, `material`, seed, and tags. | Rich cave handoff payloads for dungeon generation are planned. |
 | Evidence hooks | Terrain features and transitions can carry tags. | Historical, archaeological, ruin, repair, and prior-expedition evidence hooks are planned. |
 | Runtime sidecar | `GameMap` conversion exists, but overland semantics are not yet preserved as a dedicated runtime metadata sidecar. | Runtime-facing overland metadata is planned for a later phase. |
 
