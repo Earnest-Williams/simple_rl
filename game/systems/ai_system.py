@@ -27,7 +27,7 @@ log = structlog.get_logger()
 
 
 def dispatch_ai(
-    entities: Mapping[str, Any] | Iterable[Mapping[str, Any]],
+    entities: int | Mapping[str, Any] | Iterable[int | Mapping[str, Any]],
     *,
     game_state: GameState,
     rng: GameRNG,
@@ -35,25 +35,33 @@ def dispatch_ai(
     batch_size: int = 4,
     deterministic: bool = True,
 ) -> None:
-    """Execute AI adapters for a batch of entities in parallel."""
+    """Execute AI adapters for a batch of entities in parallel by their IDs."""
 
-    if not isinstance(entities, Iterable) or hasattr(entities, "get"):
-        entity_rows = [entities]
+    if isinstance(entities, int):
+        entity_ids = [entities]
+    elif isinstance(entities, Mapping):
+        entity_ids = [int(entities["entity_id"])]
+    elif isinstance(entities, Iterable):
+        entity_ids = []
+        for e in entities:
+            if isinstance(e, Mapping):
+                entity_ids.append(int(e["entity_id"]))
+            else:
+                entity_ids.append(int(e))
     else:
-        entity_rows = list(entities)
+        entity_ids = [int(entities)]
 
     if deterministic:
-        entity_rows = sorted(
-            entity_rows, key=lambda row: int(row.get("entity_id", 0) or 0)
-        )
+        entity_ids.sort()
 
-    def _invoke(row: Mapping[str, Any], local_rng: GameRNG) -> None:
-        species = row.get("species")
-        intelligence = row.get("intelligence")
+    def _invoke(entity_id: int, local_rng: GameRNG) -> None:
+        registry = game_state.entity_registry
+        species = registry.species_of(entity_id)
+        intelligence = registry.intelligence_of(entity_id)
         species_map = game_state.ai_config.get("species_mapping", {})
         goap_tiers = game_state.ai_config.get("intelligence_tiers", {})
 
-        ai_type = row.get("ai_type")
+        ai_type = registry.ai_type_of(entity_id)
         plan_depth = None
         if not ai_type:
             if species and species in species_map:
@@ -75,11 +83,11 @@ def dispatch_ai(
             ai_type=ai_type,
             species=species,
             intelligence=intelligence,
-            entity_id=row.get("entity_id"),
+            entity_id=entity_id,
             plan_depth=plan_depth,
         )
         adapter(
-            row,
+            entity_id,
             game_state,
             local_rng,
             perception,
@@ -87,25 +95,25 @@ def dispatch_ai(
             intelligence=intelligence,
         )
 
-    def _invoke_with_rng(args: tuple[Mapping[str, Any], GameRNG]) -> None:
-        row, local_rng = args
-        _invoke(row, local_rng)
+    def _invoke_with_rng(args: tuple[int, GameRNG]) -> None:
+        entity_id, local_rng = args
+        _invoke(entity_id, local_rng)
 
-    seeds = [rng.get_int(0, 2**32 - 1) for _ in range(len(entity_rows))]
+    seeds = [rng.get_int(0, 2**32 - 1) for _ in range(len(entity_ids))]
     if deterministic or batch_size <= 1:
-        for row, seed in zip(entity_rows, seeds, strict=False):
+        for entity_id, seed in zip(entity_ids, seeds, strict=False):
             local_rng = GameRNG(seed=seed, metrics=False)
-            _invoke(row, local_rng)
+            _invoke(entity_id, local_rng)
         return
 
-    for i in range(0, len(entity_rows), batch_size):
-        batch = entity_rows[i : i + batch_size]
+    for i in range(0, len(entity_ids), batch_size):
+        batch = entity_ids[i : i + batch_size]
         batch_seeds = seeds[i : i + batch_size]
         with ThreadPool(len(batch)) as pool:
             pool.map(
                 _invoke_with_rng,
                 [
-                    (row, GameRNG(seed=seed, metrics=False))
-                    for row, seed in zip(batch, batch_seeds, strict=False)
+                    (entity_id, GameRNG(seed=seed, metrics=False))
+                    for entity_id, seed in zip(batch, batch_seeds, strict=False)
                 ],
             )

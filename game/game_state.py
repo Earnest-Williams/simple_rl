@@ -543,7 +543,7 @@ class GameState:
 
     def process_turn(
         self,
-    ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    ) -> tuple[list[int], list[int]]:
         """Handle per-turn updates like status effects and resources."""
         # Timed events scheduled for this turn
         while self.timed_events and self.timed_events[0][0] <= self.turn_count:
@@ -553,8 +553,8 @@ class GameState:
             except Exception as err:
                 log.error("Timed event callback failed", error=str(err))
 
-        active_rows: list[dict[str, object]] = []
-        ai_entities: list[dict[str, object]] = []
+        active_ids: list[int] = []
+        ai_ids: list[int] = []
         self.spatial_index.clear()
 
         registry = self.entity_registry
@@ -573,14 +573,13 @@ class GameState:
             self._process_status_effects_for_entity(entity_id)
             self._process_resources_for_entity(entity_id)
 
-            row = registry.row_dict_at(int(idx))
-            active_rows.append(row)
+            active_ids.append(entity_id)
 
-            if row.get("ai_type"):
-                ai_entities.append(row)
+            if registry.ai_type_of(entity_id):
+                ai_ids.append(entity_id)
 
         self._consume_player_fuel()
-        return active_rows, ai_entities
+        return active_ids, ai_ids
 
     def _terrain_map_for_perception(self) -> NDArray[np.int32]:
         """Return a FeatureType terrain map for production perception fields."""
@@ -777,18 +776,18 @@ class GameState:
         from the player.  Perception data is omitted for performance; AI
         adapters receive ``None`` for the perception argument.
         """
-        for row in self.entity_registry.entities_df.iter_rows(named=True):
-            if not row.get("is_active", False):
-                continue
-            if row.get("community_ai") is not None:
-                continue
-            if self.zone_manager.get_zone(row.get("x"), row.get("y")) != zone:
-                continue
-            entity_id = row["entity_id"]
+        registry = self.entity_registry
+        for idx in registry.active_indices():
+            entity_id = registry.entity_id_at(int(idx))
             if entity_id == self.player_id:
                 continue
+            if registry.get_component_at(int(idx), "community_ai") is not None:
+                continue
+            pos = registry.xy_at(int(idx))
+            if self.zone_manager.get_zone(pos[0], pos[1]) != zone:
+                continue
             dispatch_ai(
-                row,
+                entity_id,
                 game_state=self,
                 rng=self.rng_instance,
                 perception=None,
@@ -800,7 +799,7 @@ class GameState:
         log.debug("Turn advanced", turn=self.turn_count)
 
         # Handle generic per-turn processing
-        active_rows, ai_entities = self.process_turn()
+        active_entity_ids, ai_entity_ids = self.process_turn()
 
         player_pos = self.player_position
 
@@ -808,14 +807,16 @@ class GameState:
             player_pos
         )
 
+        registry = self.entity_registry
+
         # Schedule distant zones for AI updates
-        for row in active_rows:
-            if not row.get("is_active", False):
-                continue
-            entity_id = row["entity_id"]
+        for entity_id in active_entity_ids:
             if entity_id == self.player_id:
                 continue
-            zone = self.zone_manager.get_zone(row.get("x"), row.get("y"))
+            pos = registry.xy_of(entity_id)
+            if pos is None:
+                continue
+            zone = self.zone_manager.get_zone(pos[0], pos[1])
             if zone not in active_zones:
                 self.zone_manager.schedule_zone_event(
                     zone, lambda gs, z=zone: gs._process_zone(z)
@@ -834,19 +835,21 @@ class GameState:
             apply_perception_memory_updates(self, perception)
 
             log.debug("Processing AI-controlled entities")
-            ai_rows = []
-            for row in ai_entities:
-                if row.get("entity_id") == self.player_id:
+            nearby_ai_ids = []
+            for entity_id in ai_entity_ids:
+                if entity_id == self.player_id:
                     continue
-                if row.get("community_ai") is not None:
+                if registry.get_entity_component(entity_id, "community_ai") is not None:
                     continue
-                zone = self.zone_manager.get_zone(row.get("x"), row.get("y"))
-                if zone not in active_zones:
+                pos = registry.xy_of(entity_id)
+                if pos is None:
                     continue
-                ai_rows.append(row)
-            if ai_rows:
+                zone = self.zone_manager.get_zone(pos[0], pos[1])
+                if zone in active_zones:
+                    nearby_ai_ids.append(entity_id)
+            if nearby_ai_ids:
                 dispatch_ai(
-                    ai_rows,
+                    nearby_ai_ids,
                     game_state=self,
                     rng=self.rng_instance,
                     perception=perception,

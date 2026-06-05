@@ -34,7 +34,7 @@ log = structlog.get_logger()
 
 DIRECTIONS: TypeAlias = list[tuple[int, int]]
 GOAPAction: TypeAlias = Callable[
-    [EntityRow, "GameState", "GameRNG", GOAPPerception], bool
+    [int, "GameState", "GameRNG", GOAPPerception], bool
 ]
 
 directions: DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -67,15 +67,18 @@ def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
 
 
 def _action_move_attack(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Basic behaviour: move toward priority signal or wander."""
-    entity_id = require_row_int(entity_row, "entity_id")
-    x = require_row_int(entity_row, "x")
-    y = require_row_int(entity_row, "y")
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
+        return False
+    x, y = pos
 
     move: tuple[int, int] | None = None
     target_pos: tuple[int, int] | None = None
@@ -156,16 +159,19 @@ def _fallback_cardinal_step(
 
 
 def _action_seek_cover(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Intermediate behaviour: attempt to move to a tile out of sight."""
     del rng
-    entity_id = require_row_int(entity_row, "entity_id")
-    x = require_row_int(entity_row, "x")
-    y = require_row_int(entity_row, "y")
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
+        return False
+    x, y = pos
     if is_structured_perception(perception):
         los_map = perception.los_map
     else:
@@ -187,15 +193,17 @@ def _action_seek_cover(
 
 
 def _action_coordinate(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Advanced behaviour: coordinate with allies (placeholder)."""
     del rng, perception
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
     # For now we simply record that coordination was attempted.
-    game_state.last_coordination = require_row_int(entity_row, "entity_id")
+    game_state.last_coordination = entity_id
     return True
 
 
@@ -207,7 +215,7 @@ ACTION_TIERS: list[list[GOAPAction]] = [
 
 
 def take_turn(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
@@ -222,9 +230,11 @@ def take_turn(
         Determines the level of intelligence available to the agent. Higher
         values unlock more sophisticated actions.
     """
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
     tier = ACTION_TIERS[min(max(plan_depth, 1), len(ACTION_TIERS)) - 1]
     for action in tier:
-        if action(entity_row, game_state, rng, perception):
+        if action(entity_id, game_state, rng, perception):
             game_state._last_goap_action = action.__name__
             return
 

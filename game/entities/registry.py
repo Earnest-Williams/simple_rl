@@ -443,6 +443,54 @@ class EntityRegistry:
     def row_dict_at(self, idx: int) -> dict[str, object]:
         return self._store.row_dict_at(idx)
 
+    def ai_type_of(self, entity_id: int) -> str | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return self._store.ai_type[idx]
+
+    def species_of(self, entity_id: int) -> str | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return self._store.species[idx]
+
+    def intelligence_of(self, entity_id: int) -> int | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return int(self._store.intelligence[idx])
+
+    def faction_of(self, entity_id: int) -> str | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return self._store.faction[idx]
+
+    def xy_of(self, entity_id: int) -> tuple[int, int] | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return int(self._store.x[idx]), int(self._store.y[idx])
+
+    def hp_of(self, entity_id: int) -> int | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return int(self._store.hp[idx])
+
+    def max_hp_of(self, entity_id: int) -> int | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return int(self._store.max_hp[idx])
+
+    def strategy_state_of(self, entity_id: int) -> str | None:
+        idx = self._store.index_of(entity_id)
+        if idx is None or not self._store.is_active[idx]:
+            return None
+        return self._store.strategy_state[idx]
+
     def active_non_player_indices(self, player_id: int) -> np.ndarray:
         return self._store.active_non_player_indices(player_id)
 

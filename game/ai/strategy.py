@@ -47,10 +47,8 @@ def _step_towards(src: tuple[int, int], dst: tuple[int, int]) -> tuple[int, int]
     return dx, dy
 
 
-def _move(entity_row: EntityRow, dx: int, dy: int, game_state: GameState) -> None:
-    movement_system.try_move(
-        require_row_int(entity_row, "entity_id"), dx, dy, game_state
-    )
+def _move(entity_id: int, dx: int, dy: int, game_state: GameState) -> None:
+    movement_system.try_move(entity_id, dx, dy, game_state)
 
 
 def _get_priority_signal(
@@ -61,65 +59,85 @@ def _get_priority_signal(
 
 
 def charge_behavior(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    entity_id = require_row_int(entity_row, "entity_id")
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
 
     _signal_type, target_pos = signal
-    x = require_row_int(entity_row, "x")
-    y = require_row_int(entity_row, "y")
+    registry = game_state.entity_registry
+    pos = registry.xy_of(entity_id)
+    if pos is None:
+        return
+    x, y = pos
     dx, dy = _step_towards((x, y), target_pos)
-    _move(entity_row, dx, dy, game_state)
+    _move(entity_id, dx, dy, game_state)
 
 
-def home_behavior(entity_row: EntityRow, game_state: GameState) -> None:
-    x = require_row_int(entity_row, "x")
-    y = require_row_int(entity_row, "y")
-    home_x = row_int(entity_row, "home_x") or 0
-    home_y = row_int(entity_row, "home_y") or 0
+def home_behavior(entity_id: int | EntityRow, game_state: GameState) -> None:
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
+    registry = game_state.entity_registry
+    pos = registry.xy_of(entity_id)
+    if pos is None:
+        return
+    x, y = pos
+    home_x = registry.get_entity_component(entity_id, "home_x") or 0
+    home_y = registry.get_entity_component(entity_id, "home_y") or 0
     dx, dy = _step_towards((x, y), (home_x, home_y))
-    _move(entity_row, dx, dy, game_state)
+    _move(entity_id, dx, dy, game_state)
 
 
 def flee_behavior(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    entity_id = require_row_int(entity_row, "entity_id")
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
 
     _signal_type, target_pos = signal
-    sx = require_row_int(entity_row, "x")
-    sy = require_row_int(entity_row, "y")
+    registry = game_state.entity_registry
+    pos = registry.xy_of(entity_id)
+    if pos is None:
+        return
+    sx, sy = pos
     tx, ty = target_pos
     dx = 0 if tx == sx else (-1 if tx > sx else 1)
     dy = 0 if ty == sy else (-1 if ty > sy else 1)
-    _move(entity_row, dx, dy, game_state)
+    _move(entity_id, dx, dy, game_state)
 
 
 def smart_kobold_behavior(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    hp = row_int(entity_row, "hp") or 1
-    max_hp = row_int(entity_row, "max_hp") or hp
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
+    registry = game_state.entity_registry
+    hp = registry.hp_of(entity_id)
+    if hp is None:
+        hp = 1
+    max_hp = registry.max_hp_of(entity_id)
+    if max_hp is None or max_hp <= 0:
+        max_hp = hp
     if hp / max_hp < 0.3:
-        flee_behavior(entity_row, game_state, perception)
+        flee_behavior(entity_id, game_state, perception)
     else:
-        charge_behavior(entity_row, game_state, perception)
+        charge_behavior(entity_id, game_state, perception)
 
 
 def dispatch_strategy(
-    entity_row: EntityRow,
+    entity_id: int | EntityRow,
     game_state: GameState,
     rng: GameRNG,
     perception: StructuredPerceptionLike | None,
@@ -127,7 +145,10 @@ def dispatch_strategy(
 ) -> None:
     """Dispatch behaviour based on the entity's ``strategy_state``."""
     del rng, kwargs
-    state = row_str(entity_row, "strategy_state")
+    if not isinstance(entity_id, int):
+        entity_id = int(entity_id["entity_id"])
+    registry = game_state.entity_registry
+    state = registry.strategy_state_of(entity_id)
     if state is None:
         return
     try:
@@ -136,13 +157,13 @@ def dispatch_strategy(
         log.debug("Unknown strategy state", state=state)
         return
     if strat is StrategyState.CHARGE:
-        charge_behavior(entity_row, game_state, perception)
+        charge_behavior(entity_id, game_state, perception)
     elif strat is StrategyState.HOME:
-        home_behavior(entity_row, game_state)
+        home_behavior(entity_id, game_state)
     elif strat is StrategyState.SMART_KOBOLD:
-        smart_kobold_behavior(entity_row, game_state, perception)
+        smart_kobold_behavior(entity_id, game_state, perception)
     elif strat is StrategyState.FLEE:
-        flee_behavior(entity_row, game_state, perception)
+        flee_behavior(entity_id, game_state, perception)
 
 
 __all__ = ["StrategyState", "dispatch_strategy"]

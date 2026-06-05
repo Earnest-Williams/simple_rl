@@ -47,10 +47,10 @@ def test_process_turn_does_not_materialize_entities_df(monkeypatch) -> None:
         property(lambda self: fail_entities_df()),
     )
 
-    active_rows, ai_rows = state.process_turn()
+    active_ids, ai_ids = state.process_turn()
 
-    assert active_rows
-    assert ai_rows
+    assert active_ids
+    assert ai_ids
 
 
 def test_process_turn_populates_spatial_index_from_store() -> None:
@@ -72,7 +72,7 @@ def test_process_turn_populates_spatial_index_from_store() -> None:
     ]
 
 
-def test_process_turn_returns_ai_compatibility_rows() -> None:
+def test_process_turn_returns_ai_entity_ids() -> None:
     state = _make_state()
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -85,11 +85,6 @@ def test_process_turn_returns_ai_compatibility_rows() -> None:
         faction="monsters",
     )
 
-    _active_rows, ai_rows = state.process_turn()
+    _active_ids, ai_ids = state.process_turn()
 
-    row = next(row for row in ai_rows if row["entity_id"] == enemy_id)
-    assert row["x"] == 4
-    assert row["y"] == 5
-    assert row["ai_type"] == "goap"
-    assert row["species"] == "enemy"
-    assert row["faction"] == "monsters"
+    assert enemy_id in ai_ids
