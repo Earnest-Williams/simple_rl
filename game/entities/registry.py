@@ -8,6 +8,7 @@ import polars as pl
 import structlog
 
 from game.entities.components import Position
+from game.entities.store import EntityStore
 from skills.models import Skill, SkillProgress, SkillTrainingConfig, TrainingMode
 from skills.registry_integration import SKILL_TABLE_SCHEMA, SkillSystemMixin
 
@@ -95,8 +96,20 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
 
 
 class EntityRegistry:
+    @property
+    def entities_df(self) -> pl.DataFrame:
+        if self._entities_df_cache is None or self._store.dirty_polars_snapshot:
+            self._entities_df_cache = self._store.to_polars()
+            self._store.dirty_polars_snapshot = False
+        return self._entities_df_cache
+
+    @entities_df.setter
+    def entities_df(self, value: pl.DataFrame) -> None:
+        self._store = EntityStore.from_polars(value)
+        self._entities_df_cache = value
+        self._store.dirty_polars_snapshot = False
+
     def __init__(self: Self):
-        # (Initialization unchanged)
         log.info("Initializing EntityRegistry with body_plan schema")
         global ENTITY_SCHEMA
         if "equipped_item_ids" in ENTITY_SCHEMA and not isinstance(
@@ -113,7 +126,9 @@ class EntityRegistry:
                     {"id": pl.Utf8, "duration": pl.Int16, "intensity": pl.Float32}
                 )
             )
-        self.entities_df: pl.DataFrame = pl.DataFrame(schema=ENTITY_SCHEMA)
+
+        self._store = EntityStore()
+        self._entities_df_cache = None
         self._next_entity_id: int = 0
 
         # Migrate existing entities_df to include any new columns from ENTITY_SCHEMA
@@ -176,7 +191,6 @@ class EntityRegistry:
                 )
 
     def _get_next_id(self: Self) -> int:
-        # (Implementation unchanged)
         current_id = self._next_entity_id
         self._next_entity_id += 1
         if self._next_entity_id > 2**32 - 1:
@@ -219,7 +233,6 @@ class EntityRegistry:
         vulnerabilities: dict[str, float] | None = None,
         drop_table: list[dict] | None = None,
     ) -> int:
-        # (Implementation unchanged - uses direct schema on creation)
         new_id = self._get_next_id()
         log_context = {"name": name, "pos": (x, y), "glyph": glyph, "hp": hp}
         log.debug("Attempting to create entity", **log_context)
@@ -262,78 +275,62 @@ class EntityRegistry:
                     validated_initial = initial_body_plan
             body_plan.update(validated_initial)
 
-        entity_data = {
-            "entity_id": [new_id],
-            "is_active": [True],
-            "x": [x],
-            "y": [y],
-            "glyph": [glyph],
-            "color_fg_r": [color_fg[0]],
-            "color_fg_g": [color_fg[1]],
-            "color_fg_b": [color_fg[2]],
-            "name": [name],
-            "ai_type": [ai_type],
-            "species": [species],
-            "intelligence": [intelligence],
-            "blocks_movement": [blocks_movement],
-            "faction": [faction],
-            "strategy_state": [strategy_state],
-            "hp": [hp],
-            "max_hp": [max_hp],
-            "strength": [strength],
-            "defense": [defense],
-            "armor": [armor],
-            "xp": [xp],
-            "xp_reward": [xp_reward],
-            "inventory_capacity": [inventory_capacity],
-            "carried_weight": [carried_weight],
-            "weight_capacity": [weight_capacity],
-            "status_effects": [status_effects if status_effects is not None else []],
-            "mana": [mana],
-            "max_mana": [max_mana],
-            "fullness": [fullness],
-            "max_fullness": [max_fullness],
-            "fuel": [fuel],
-            "max_fuel": [max_fuel],
-            "equipped_item_ids": [[]],
-            "body_plan": [body_plan],
-            "resistances": [resistances if resistances is not None else {}],
-            "vulnerabilities": [vulnerabilities if vulnerabilities is not None else {}],
-            "drop_table": [drop_table if drop_table is not None else []],
-            "linked_positions": [[]],
-            "target_map": [None],
-            # Resource tracking components default to empty lists
-            "seal_tags": [[]],
-            "font_sources": [[]],
-            "vent_targets": [[]],
-            "community_ai": [None],
-            "community_profile": [None],
-            # Skill system defaults
-            "skills": [{}],  # Empty skills dict
-            "skill_training": [None],  # Will be initialized when needed
-            "active_manuals": [{}],  # No active manuals
-            "shapeshifted_form": [None],  # Normal form
-            "training_mode": [
-                TrainingMode.MANUAL.value
-            ],  # Default to manual training mode
-        }
         try:
-            new_entity_df = pl.DataFrame(entity_data, schema=ENTITY_SCHEMA)
-            if self.entities_df.height == 0:
-                self.entities_df = new_entity_df
-            else:
-                self.entities_df = pl.concat(
-                    [self.entities_df, new_entity_df.select(self.entities_df.columns)],
-                    how="vertical",
-                )
+            self._store.create_entity(
+                entity_id=new_id,
+                x=x,
+                y=y,
+                glyph=glyph,
+                color_fg=color_fg,
+                name=name,
+                blocks_movement=blocks_movement,
+                ai_type=ai_type,
+                species=species,
+                intelligence=intelligence,
+                faction=faction,
+                strategy_state=strategy_state,
+                hp=hp,
+                max_hp=max_hp,
+                strength=strength,
+                defense=defense,
+                armor=armor,
+                xp=xp,
+                xp_reward=xp_reward,
+                inventory_capacity=inventory_capacity,
+                carried_weight=carried_weight,
+                weight_capacity=weight_capacity,
+                status_effects=status_effects if status_effects is not None else [],
+                mana=mana,
+                max_mana=max_mana,
+                fullness=fullness,
+                max_fullness=max_fullness,
+                fuel=fuel,
+                max_fuel=max_fuel,
+                equipped_item_ids=[],
+                body_plan=body_plan,
+                resistances=resistances if resistances is not None else {},
+                vulnerabilities=vulnerabilities if vulnerabilities is not None else {},
+                drop_table=drop_table if drop_table is not None else [],
+                linked_positions=[],
+                target_map=None,
+                seal_tags=[],
+                font_sources=[],
+                vent_targets=[],
+                community_ai=None,
+                community_profile=None,
+                skills={},
+                skill_training=None,
+                active_manuals={},
+                shapeshifted_form=None,
+                training_mode=TrainingMode.MANUAL.value,
+            )
             log.info("Entity created successfully", entity_id=new_id, **log_context)
             return new_id
         except Exception as e:
             log.error(
-                "Failed to create entity DataFrame or append",
+                "Failed to create entity",
                 error=str(e),
                 exc_info=True,
-                entity_data=entity_data,
             )
             raise
 
@@ -342,66 +339,22 @@ class EntityRegistry:
     ) -> Any | None:
         """Retrieves the value of a specific component for a given *active* entity."""
         log_context = {"entity_id": entity_id, "component": component_name}
-        if component_name not in self.entities_df.columns:
+        if component_name not in ENTITY_SCHEMA:
             log.warning("Component does not exist", **log_context)
             raise ValueError(
                 f"Component '{component_name}' does not exist in ENTITY_SCHEMA."
             )
-
-        try:
-            # Filter first
-            entity_df = self.entities_df.filter(
-                (pl.col("entity_id") == entity_id) & pl.col("is_active")
-            )
-
-            if entity_df.height == 0:
-                return None
-
-            # Select the single column *after* filtering
-            result_series = entity_df.select(component_name)[
-                component_name
-            ]  # Select column Series
-
-            if (
-                result_series.is_empty()
-            ):  # Should not happen if height > 0, but safety check
-                return None
-
-            # --- MODIFICATION START ---
-            # Check the target data type from the schema
-            target_dtype = ENTITY_SCHEMA[component_name]
-
-            # Extract value, handling List types specifically
-            if _is_list_dtype(target_dtype):
-                # For list types, accessing the first element of the Series
-                # and then converting to list should yield the Python list.
-                # Polars Series.item() often returns the first element directly.
-                list_value = result_series.to_list()[0]
-                return list_value if isinstance(list_value, list) else []
-            else:
-                # For other types, .item() should return the scalar value
-                return result_series.item()
-            # --- MODIFICATION END ---
-
-        except Exception as e:
-            log.error(
-                "Error getting entity component",
-                error=str(e),
-                exc_info=True,
-                **log_context,
-            )
-            return None
+        return self._store.get_component(entity_id, component_name)
 
     def set_entity_component(
         self: Self, entity_id: int, component_name: str, value: Any
     ) -> bool:
-        # (Implementation unchanged)
         log_context = {
             "entity_id": entity_id,
             "component": component_name,
             "new_value": value,
         }
-        if component_name not in self.entities_df.columns:
+        if component_name not in ENTITY_SCHEMA:
             log.warning("Component does not exist", **log_context)
             raise ValueError(
                 f"Component '{component_name}' does not exist in ENTITY_SCHEMA."
@@ -409,83 +362,22 @@ class EntityRegistry:
         if component_name in ("entity_id", "is_active"):
             log.warning("Attempted to set protected component", **log_context)
             raise ValueError(f"Cannot directly set '{component_name}' component.")
-        try:
-            target_dtype = ENTITY_SCHEMA[component_name]
-            try:
-                if target_dtype == pl.Object and not isinstance(
-                    value, dict | list | type(None)
-                ):
-                    log.warning(
-                        f"Potentially incompatible type for Object column '{component_name}'",
-                        type=type(value),
-                        **log_context,
-                    )
-                lit_value = pl.lit(value).cast(target_dtype, strict=False)
-            except Exception as cast_err:
-                log.error(
-                    f"Type error setting component '{component_name}'. Expected compatible with {target_dtype}.",
-                    value_type=type(value),
-                    error=cast_err,
-                    **log_context,
-                )
-                return False
-            entity_active = (
-                self.entities_df.lazy()
-                .filter((pl.col("entity_id") == entity_id) & pl.col("is_active"))
-                .select(pl.lit(1))
-                .head(1)
-                .collect()
-                .height
-                > 0
-            )
-            if not entity_active:
-                log.debug(
-                    "Entity not found or inactive, cannot set component", **log_context
-                )
-                return False
-            self.entities_df = self.entities_df.with_columns(
-                pl.when((pl.col("entity_id") == entity_id) & pl.col("is_active"))
-                .then(lit_value)
-                .otherwise(pl.col(component_name))
-                .alias(component_name)
-                .cast(target_dtype, strict=False)
-            )
-            return True
-        except Exception as e:
-            log.error(
-                "Error setting entity component",
-                error=str(e),
-                exc_info=True,
-                **log_context,
-            )
-            return False
+        return self._store.set_component(entity_id, component_name, value)
 
     def get_position(self: Self, entity_id: int) -> Position | None:
         """Return the Position component for an entity if available."""
-        entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
-        if entity_df.height == 0:
-            return None
-        row = entity_df.row(0, named=True)
-        x, y = row.get("x"), row.get("y")
-        return Position(int(x), int(y)) if x is not None and y is not None else None
+        return self._store.get_position(entity_id)
 
     def get_entity_components(
         self: Self, entity_id: int, component_names: list[str]
     ) -> dict[str, Any]:
-        entity_df = self.entities_df.filter(pl.col("entity_id") == entity_id)
-        if entity_df.height == 0:
-            return {}
-        row = entity_df.row(0, named=True)
-        return {name: row.get(name) for name in component_names}
+        return self._store.get_components(entity_id, component_names)
 
     def set_position(self: Self, entity_id: int, position: Position) -> bool:
         """Update an entity's position component."""
-        success_x = self.set_entity_component(entity_id, "x", position.x)
-        success_y = self.set_entity_component(entity_id, "y", position.y)
-        return success_x and success_y
+        return self._store.set_position(entity_id, position)
 
     def get_entities_at(self: Self, x: int, y: int) -> pl.DataFrame:
-        # (Implementation unchanged)
         try:
             return (
                 self.entities_df.lazy()
@@ -502,7 +394,6 @@ class EntityRegistry:
             return pl.DataFrame(schema=ENTITY_SCHEMA)
 
     def get_blocking_entity_at(self: Self, x: int, y: int) -> int | None:
-        # (Implementation unchanged)
         try:
             result = (
                 self.entities_df.lazy()
@@ -526,40 +417,21 @@ class EntityRegistry:
             return None
 
     def delete_entity(self: Self, entity_id: int) -> bool:
-        # (Implementation unchanged)
         log_context = {"entity_id": entity_id}
         log.debug("Deleting entity (marking inactive)", **log_context)
-        try:
-            entity_active_mask = (pl.col("entity_id") == entity_id) & pl.col(
-                "is_active"
-            )
-            if self.entities_df.filter(entity_active_mask).height == 0:
-                log.debug("Entity already inactive or does not exist", **log_context)
-                return False
-            self.entities_df = self.entities_df.with_columns(
-                pl.when(entity_active_mask)
-                .then(pl.lit(False))
-                .otherwise(pl.col("is_active"))
-                .alias("is_active")
-            )
+        success = self._store.delete_entity(entity_id)
+        if success:
             log.info("Entity marked as inactive", **log_context)
-            return True
-        except Exception as e:
-            log.error(
-                "Error deleting entity (marking inactive)",
-                error=str(e),
-                exc_info=True,
-                **log_context,
-            )
-            return False
+        else:
+            log.debug("Entity already inactive or does not exist", **log_context)
+        return success
 
     def compact_registry(self: Self) -> None:
-        # (Implementation unchanged)
         log.info("Compacting entity registry...")
         try:
-            initial_count = self.entities_df.height
-            self.entities_df = self.entities_df.filter(pl.col("is_active"))
-            final_count = self.entities_df.height
+            initial_count = self._store.count
+            self._store.compact_store()
+            final_count = self._store.count
             removed_count = initial_count - final_count
             log.info(
                 "Registry compacted",
@@ -571,7 +443,6 @@ class EntityRegistry:
             log.error("Error compacting registry", error=str(e), exc_info=True)
 
     def get_active_entities(self: Self) -> pl.DataFrame:
-        # (Implementation unchanged)
         try:
             return self.entities_df.filter(pl.col("is_active"))
         except Exception as e:
