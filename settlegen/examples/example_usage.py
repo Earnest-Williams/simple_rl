@@ -15,7 +15,6 @@ from settlegen import (
 from settlegen.export import write_bundle
 from settlegen.renderers.ascii import render_ascii
 
-
 config = SettlementConfig(
     kind=SettlementKind.PORT_CITY,
     width=140,

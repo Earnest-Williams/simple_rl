@@ -3,11 +3,10 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
-from .model import Settlement, TERRAIN_NAMES
+from .model import TERRAIN_NAMES, Settlement
 
 try:  # optional Rust-backed analytics/export dependency
     import polars as pl
@@ -18,14 +17,16 @@ except Exception:  # pragma: no cover - depends on environment
     POLARS_AVAILABLE = False
 
 
-def settlement_to_polars(settlement: Settlement):
+def settlement_to_polars(settlement: Settlement) -> dict[str, pl.DataFrame]:
     """Return Polars DataFrames for buildings, districts, and summary.
 
     This function imports Polars lazily. Games that do not use analytics can
     avoid the optional dependency entirely.
     """
     if not POLARS_AVAILABLE:
-        raise RuntimeError("Polars is not installed. Install with: pip install settlegen[analytics]")
+        raise RuntimeError(
+            "Polars is not installed. Install with: pip install settlegen[analytics]"
+        )
     buildings = pl.DataFrame(list(settlement.iter_building_records()))
     districts = pl.DataFrame(
         [
@@ -53,10 +54,15 @@ def settlement_to_polars(settlement: Settlement):
     return {"buildings": buildings, "districts": districts, "summary": summary}
 
 
-def write_json(settlement: Settlement, path: str | Path, *, include_grids: bool = False) -> Path:
+def write_json(
+    settlement: Settlement, path: str | Path, *, include_grids: bool = False
+) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(settlement.to_dict(include_grids=include_grids), indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(settlement.to_dict(include_grids=include_grids), indent=2),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -92,7 +98,9 @@ def write_buildings_csv(settlement: Settlement, path: str | Path) -> Path:
 def write_tile_legend(path: str | Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = [{"code": code, "name": name} for code, name in sorted(TERRAIN_NAMES.items())]
+    rows = [
+        {"code": code, "name": name} for code, name in sorted(TERRAIN_NAMES.items())
+    ]
     if POLARS_AVAILABLE:
         pl.DataFrame(rows).write_csv(path)
     else:
@@ -103,12 +111,16 @@ def write_tile_legend(path: str | Path) -> Path:
     return path
 
 
-def write_bundle(settlement: Settlement, directory: str | Path, *, include_json_grids: bool = False) -> dict[str, Path]:
+def write_bundle(
+    settlement: Settlement, directory: str | Path, *, include_json_grids: bool = False
+) -> dict[str, Path]:
     """Write a game-friendly bundle: metadata JSON, compressed grids, CSV tables."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     return {
-        "json": write_json(settlement, directory / "settlement.json", include_grids=include_json_grids),
+        "json": write_json(
+            settlement, directory / "settlement.json", include_grids=include_json_grids
+        ),
         "grids": write_grids_npz(settlement, directory / "grids.npz"),
         "buildings": write_buildings_csv(settlement, directory / "buildings.csv"),
         "legend": write_tile_legend(directory / "tile_legend.csv"),

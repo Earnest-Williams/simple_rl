@@ -5,15 +5,22 @@ from typing import Literal
 import polars as pl
 
 from common.constants import Material
-from worldgen.overland.schema import Biome, HydroRole, Wetness
+from worldgen.overland.actor_traversal import (
+    ActorTraversalProfile,
+    movement_cost_for_actor,
+)
+from worldgen.overland.schema import Biome, HydroRole, TraversalClass, Wetness
 
-OverlandInspectView = Literal["material", "biome", "hydro", "wetness", "traversal"]
+OverlandInspectView = Literal[
+    "material", "biome", "hydro", "wetness", "traversal", "actor"
+]
 
 
 def render_overland_ascii(
     tiles_df: pl.DataFrame,
     *,
     view: OverlandInspectView = "material",
+    profile: ActorTraversalProfile = ActorTraversalProfile.HUMAN_ON_FOOT,
 ) -> str:
     width = int(tiles_df.get_column("x").max()) + 1
     height = int(tiles_df.get_column("y").max()) + 1
@@ -21,17 +28,23 @@ def render_overland_ascii(
     for row in tiles_df.iter_rows(named=True):
         x = int(row["x"])
         y = int(row["y"])
-        grid[y][x] = _glyph(row, view)
+        grid[y][x] = _glyph(row, view, profile)
     return "\n".join("".join(row) for row in grid)
 
 
-def _glyph(row: dict[str, object], view: OverlandInspectView) -> str:
+def _glyph(
+    row: dict[str, object],
+    view: OverlandInspectView,
+    profile: ActorTraversalProfile,
+) -> str:
     if view == "biome":
         return _biome_glyph(Biome(int(row["biome"])))
     if view == "hydro":
         return _hydro_glyph(HydroRole(int(row["hydro_role"])))
     if view == "wetness":
         return _wetness_glyph(Wetness(int(row["wetness"])))
+    if view == "actor":
+        return _actor_glyph(row, profile)
     if view == "traversal":
         if not bool(row["walkable"]):
             return "#"
@@ -39,6 +52,26 @@ def _glyph(row: dict[str, object], view: OverlandInspectView) -> str:
             return "%"
         return "."
     return _material_glyph(Material(int(row["material"])))
+
+
+def _actor_glyph(
+    row: dict[str, object],
+    profile: ActorTraversalProfile,
+) -> str:
+    if not movement_cost_for_actor(row, profile) < float("inf"):
+        return "#"
+    traversal = TraversalClass(int(row["traversal_class"]))
+    if traversal == TraversalClass.TRANSITION:
+        return "*"
+    if traversal == TraversalClass.HAZARDOUS:
+        return "!"
+    if traversal == TraversalClass.SWIM_OR_BOAT:
+        return "~"
+    if traversal == TraversalClass.WADE:
+        return "w"
+    if traversal == TraversalClass.SLOW:
+        return ","
+    return "."
 
 
 def _biome_glyph(biome: Biome) -> str:
@@ -90,7 +123,12 @@ def _material_glyph(material: Material) -> str:
         return "R"
     if material == Material.DOCK:
         return "D"
-    if material in {Material.BUILDING_FLOOR, Material.FIELD, Material.ORCHARD, Material.PASTURE}:
+    if material in {
+        Material.BUILDING_FLOOR,
+        Material.FIELD,
+        Material.ORCHARD,
+        Material.PASTURE,
+    }:
         return "B" if material == Material.BUILDING_FLOOR else "a"
     if material in {Material.WOOD_WALL, Material.STONE_WALL, Material.RUIN_WALL}:
         return "#"
@@ -98,7 +136,12 @@ def _material_glyph(material: Material) -> str:
         return "="
     if material in {Material.SHALLOW_WATER, Material.DEEP_WATER, Material.SPRING_WATER}:
         return "~"
-    if material in {Material.MUDFLAT, Material.MUD, Material.DEEP_MUD, Material.CRACKED_MUD}:
+    if material in {
+        Material.MUDFLAT,
+        Material.MUD,
+        Material.DEEP_MUD,
+        Material.CRACKED_MUD,
+    }:
         return "m"
     if material in {Material.LIMESTONE_CLIFF, Material.BASALT_CLIFF}:
         return "#"

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import polars as pl
@@ -25,7 +24,7 @@ class SettlementBundle:
     districts_df: pl.DataFrame
     roads_df: pl.DataFrame
     entrances_df: pl.DataFrame
-    metadata: dict[str, Any]
+    metadata: dict[str, object]
 
 
 _BUNDLE_FILES: dict[str, str] = {
@@ -81,7 +80,9 @@ def to_simple_rl_bundle(
     )
 
     entrances = extract_entrances(settlement)
-    entrance_rows = [asdict(entrance) for entrance in entrances]
+    entrance_rows: list[dict[str, object]] = [
+        asdict(entrance) for entrance in entrances
+    ]
     if region is not None:
         for x, y in region.cave_entrances:
             entrance_rows.append(
@@ -94,10 +95,14 @@ def to_simple_rl_bundle(
                     "target": "Dungeon",
                 }
             )
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "name": settlement.name,
         "seed": settlement.seed,
-        "kind": settlement.config.kind.value,
+        "kind": (
+            settlement.config.kind.value
+            if hasattr(settlement.config.kind, "value")
+            else str(settlement.config.kind)
+        ),
         "population": settlement.population,
         "width": settlement.width,
         "height": settlement.height,
@@ -158,7 +163,7 @@ def _buildings_df(settlement: Settlement) -> pl.DataFrame:
 
 
 def _districts_df(settlement: Settlement) -> pl.DataFrame:
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, object]] = []
     for district in settlement.districts:
         rows.append(
             {
@@ -175,7 +180,7 @@ def _districts_df(settlement: Settlement) -> pl.DataFrame:
 
 
 def _roads_df(settlement: Settlement) -> pl.DataFrame:
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, object]] = []
     for road in settlement.roads:
         rows.append(
             {
@@ -189,7 +194,7 @@ def _roads_df(settlement: Settlement) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
-def _entrances_df(rows: list[dict[str, Any]]) -> pl.DataFrame:
+def _entrances_df(rows: list[dict[str, object]]) -> pl.DataFrame:
     schema = {
         "id": pl.Int64,
         "x": pl.Int64,
@@ -203,7 +208,7 @@ def _entrances_df(rows: list[dict[str, Any]]) -> pl.DataFrame:
     return pl.DataFrame(rows, schema=schema)
 
 
-def _region_payload(region: RegionConstraints | None) -> dict[str, Any]:
+def _region_payload(region: RegionConstraints | None) -> dict[str, object]:
     if region is None:
         return {}
     return {

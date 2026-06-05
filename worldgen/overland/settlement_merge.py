@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
 from worldgen.overland.affordances import generate_affordances
 from worldgen.overland.schema import OverlandBundle
-from worldgen.settlements.export import SettlementBundle
+
+if TYPE_CHECKING:
+    from worldgen.settlements.export import SettlementBundle
 
 _OVERLAND_COLUMNS: tuple[str, ...] = (
     "x",
@@ -82,7 +84,9 @@ def _settlement_overland_tiles(
 ) -> pl.DataFrame:
     missing = set(_OVERLAND_COLUMNS) - set(settlement.map_df.columns)
     if missing:
-        raise ValueError(f"Settlement map is missing overland columns: {sorted(missing)}")
+        raise ValueError(
+            f"Settlement map is missing overland columns: {sorted(missing)}"
+        )
     return (
         settlement.map_df.select(_OVERLAND_COLUMNS)
         .with_columns(
@@ -102,7 +106,9 @@ def _replace_tiles(*, base: pl.DataFrame, overlay: pl.DataFrame) -> pl.DataFrame
         how="anti",
     )
     columns = list(base.columns)
-    return pl.concat([untouched.select(columns), overlay.select(columns)]).sort(["y", "x"])
+    return pl.concat([untouched.select(columns), overlay.select(columns)]).sort(
+        ["y", "x"]
+    )
 
 
 def _merge_settlement_features(

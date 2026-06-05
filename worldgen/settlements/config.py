@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -16,7 +17,9 @@ from settlegen import (
     TerrainFeature,
     Wealth,
 )
-from worldgen.overland.schema import OverlandBundle
+
+if TYPE_CHECKING:
+    from worldgen.overland.schema import OverlandBundle
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,8 +106,8 @@ def starting_port_from_overland(
         )
     region = RegionConstraints(
         coastline="south",
-        river_mouth=river_mouth,
-        road_endpoints=((origin[0] + width // 2, 0),),
+        river_mouth=(river_mouth[0] - origin[0], river_mouth[1] - origin[1]),
+        road_endpoints=((width // 2, -origin[1]),),
         cave_entrances=cave_entrances,
         biome="coastal_rain_forest",
         faction="port_authority",

@@ -21,6 +21,7 @@ from worldgen.overland.queries import (
     first_tile_by_hydro_role,
     first_tile_by_material,
 )
+from worldgen.overland.routes import generate_debug_routes, overland_routes_to_df
 from worldgen.overland.schema import (
     Affordance,
     Biome,
@@ -58,6 +59,7 @@ __all__ = [
     "build_actor_cost_grid",
     "can_actor_enter",
     "generate_affordances",
+    "generate_debug_routes",
     "generate_overland_region",
     "generate_transition_requests",
     "find_feature",
@@ -71,6 +73,7 @@ __all__ = [
     "merge_settlement_into_overland",
     "movement_cost_for_actor",
     "overland_to_game_map",
+    "overland_routes_to_df",
     "render_overland_ascii",
     "transition_requests_to_df",
     "write_overland_bundle",

@@ -13,9 +13,10 @@ The overland generator now has a stable first-pass terrain contract:
 - feature and tile query helpers
 - transition request generation
 - transition Arrow artifact output
+- selected route Arrow artifact output
 - wildlife affordance output
 - settlement-to-overland merge path
-- headless generation and ASCII inspection
+- headless generation and actor-aware ASCII inspection
 
 The system can generate a dynamic overland region, merge a starting port into
 that region, write inspectable Arrow artifacts, and derive traversal behavior
@@ -75,7 +76,7 @@ they operate on the bundle DataFrames directly.
 
 ## Step 1: Add Route Artifacts
 
-Next, add optional route output:
+Completed. Bundle writing now emits selected route output:
 
 ```text
 overland_routes.arrow
@@ -95,7 +96,8 @@ Suggested columns:
 - `cost_so_far`
 - `tags`
 
-Do not write every possible route. Start with selected debug/regression routes:
+The route writer does not write every possible route. It starts with selected
+debug/regression routes:
 
 - coast to spring garden
 - starting port to limestone gorge
@@ -109,6 +111,16 @@ Use the completed feature helpers to choose endpoints:
 - ponor
 - lava-tube skylight
 - starting port
+
+Implemented helpers:
+
+```python
+generate_debug_routes(bundle)
+overland_routes_to_df(routes)
+```
+
+`write_overland_bundle(...)` writes `overland_routes.arrow`, and
+`load_worldgen_bundle(...)` loads it as `routes_df` when present.
 
 ## Step 2: Improve Hydrology Continuity
 
@@ -132,8 +144,9 @@ Tests:
 
 ## Step 3: Make Settlement Placement More Regional
 
-The starting port is currently derived from overland dimensions and coarse
-coastal context. Improve this so settlement config responds to actual terrain.
+Partially completed. The starting port now passes regional spatial constraints
+into `settlegen` and uses deterministic placement contracts for coastline,
+river mouth, road endpoints, and nearby cave entrances.
 
 Inputs to use:
 
@@ -148,14 +161,16 @@ Behavior:
 
 - port docks should align with water/shore
 - roads should point toward inland route candidates
-- fields should prefer dry lowland or damp fertile ground
+- explicit rural facilities should reliably place on available lowland/farmable
+  terrain
 - avoid placing dense town blocks on deep water or cliffs
 
 Tests:
 
 - merged port always has dock material adjacent to water material
 - road or trail exits point inland
-- building floors do not overwrite lava-tube skylights, ponors, or cave mouths
+- merged port exports road, dock, building-floor, and rural field/orchard/pasture
+  surface materials
 - settlement merge preserves critical hydrology and transition features
 
 ## Step 4: Add Overland-Aware GameMap Metadata
@@ -184,7 +199,7 @@ Do not flatten overland semantics into dungeon-style tiles permanently.
 
 ## Step 5: Add Actor-Aware Debug Views
 
-Extend ASCII inspection with actor traversal modes:
+Completed. ASCII inspection supports actor traversal modes:
 
 ```bash
 python tools/inspect_overland.py out_dir --view actor --profile HUMAN_ON_FOOT
@@ -236,12 +251,17 @@ Avoid making a settlement-only gameplay path that bypasses the overland schema.
 
 ## Recommended Next PR
 
+The previous recommendation is implemented. The next best slice is Step 2:
+hydrology continuity.
+
 Implement:
 
-1. `overland_routes.arrow`
-2. a route generation helper for selected debug/regression routes
-3. route loading support in `load_worldgen_bundle`
-4. ASCII actor traversal debug view in `tools/inspect_overland.py`
+1. continuous surface drainage between springs, sinking basins, ponors, and
+   estavelles
+2. distinct visible surface channels and underground channels
+3. stable `flow_group` IDs for connected hydrology systems
+4. path/transition tests proving ponors, springs, and dry-season cave mouths are
+   connected meaningfully
 
-This is the smallest next slice that turns pathfinding from an in-memory helper
-into inspectable, CI-friendly route artifacts.
+This turns representative karst features into a connected drainage network that
+routes, transitions, and encounters can reason about.

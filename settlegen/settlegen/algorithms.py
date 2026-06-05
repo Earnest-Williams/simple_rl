@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from heapq import heappop, heappush
+from typing import TypeVar
+
+T = TypeVar("T")
 from math import atan2, cos, pi, sin, sqrt
-from typing import Iterable, Sequence
 
 import numpy as np
 
 from .acceleration import stamp_disk
 from .model import Rect, TerrainCode
-
 
 WATER_CODES = {
     TerrainCode.WATER,
@@ -58,7 +60,7 @@ def bresenham(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
 
 def polyline(points: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
     out: list[tuple[int, int]] = []
-    for a, b in zip(points, points[1:]):
+    for a, b in zip(points, points[1:], strict=False):
         segment = bresenham(a[0], a[1], b[0], b[1])
         if out:
             segment = segment[1:]
@@ -66,7 +68,12 @@ def polyline(points: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
     return out
 
 
-def draw_points(grid: np.ndarray, points: Iterable[tuple[int, int]], code: TerrainCode | int, radius: int = 0) -> None:
+def draw_points(
+    grid: np.ndarray,
+    points: Iterable[tuple[int, int]],
+    code: TerrainCode | int,
+    radius: int = 0,
+) -> None:
     h, w = grid.shape
     c = int(code)
     for x, y in points:
@@ -77,7 +84,15 @@ def draw_points(grid: np.ndarray, points: Iterable[tuple[int, int]], code: Terra
             stamp_disk(grid, int(x), int(y), int(radius), c)
 
 
-def ellipse_ring(cx: int, cy: int, rx: int, ry: int, samples: int = 256, jitter: float = 0.0, rng=None) -> list[tuple[int, int]]:
+def ellipse_ring(
+    cx: int,
+    cy: int,
+    rx: int,
+    ry: int,
+    samples: int = 256,
+    jitter: float = 0.0,
+    rng: np.random.Generator | None = None,
+) -> list[tuple[int, int]]:
     pts: list[tuple[int, int]] = []
     for i in range(samples):
         a = 2.0 * pi * i / samples
@@ -95,13 +110,15 @@ def rect_ring(rect: Rect) -> list[tuple[int, int]]:
     return polyline([(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)])
 
 
-def weighted_choice(rng: np.random.Generator, items: Sequence, weights: Sequence[float]):
+def weighted_choice(
+    rng: np.random.Generator, items: Sequence[T], weights: Sequence[float]
+) -> T:
     total = float(sum(max(0.0, w) for w in weights))
     if total <= 0:
         return items[int(rng.integers(0, len(items)))]
     r = float(rng.random()) * total
     c = 0.0
-    for item, weight in zip(items, weights):
+    for item, weight in zip(items, weights, strict=False):
         c += max(0.0, float(weight))
         if r <= c:
             return item
@@ -118,7 +135,9 @@ def nearest_cell(cells: np.ndarray, target: tuple[int, int]) -> tuple[int, int]:
     return (int(cells[idx, 1]), int(cells[idx, 0]))
 
 
-def cells_within_radius(width: int, height: int, center: tuple[int, int], radius: int) -> np.ndarray:
+def cells_within_radius(
+    width: int, height: int, center: tuple[int, int], radius: int
+) -> np.ndarray:
     cx, cy = center
     y0, y1 = max(0, cy - radius), min(height, cy + radius + 1)
     x0, x1 = max(0, cx - radius), min(width, cx + radius + 1)
@@ -133,11 +152,11 @@ def passable_mask(terrain: np.ndarray, *, allow_water: bool = False) -> np.ndarr
         mask &= terrain != int(TerrainCode.WATER)
         mask &= terrain != int(TerrainCode.DEEP_WATER)
         mask &= terrain != int(TerrainCode.MOAT)
-    return mask
+    return mask  # type: ignore[no-any-return]
 
 
 def water_mask(terrain: np.ndarray) -> np.ndarray:
-    return (
+    return (  # type: ignore[no-any-return]
         (terrain == int(TerrainCode.WATER))
         | (terrain == int(TerrainCode.DEEP_WATER))
         | (terrain == int(TerrainCode.MARSH))
@@ -160,14 +179,20 @@ def shore_mask(terrain: np.ndarray) -> np.ndarray:
             xs2 = slice(max(0, -dx), w - max(0, dx))
             shifted[ys, xs] = water[ys2, xs2]
             shore |= shifted
-    return shore & ~water
+    return shore & ~water  # type: ignore[no-any-return]
 
 
 def find_shore_cells(terrain: np.ndarray) -> np.ndarray:
     return np.argwhere(shore_mask(terrain))
 
 
-def rect_is_clear(rect: Rect, terrain: np.ndarray, overlay: np.ndarray, *, allow_on: set[int] | None = None) -> bool:
+def rect_is_clear(
+    rect: Rect,
+    terrain: np.ndarray,
+    overlay: np.ndarray,
+    *,
+    allow_on: set[int] | None = None,
+) -> bool:
     h, w = terrain.shape
     if rect.x < 1 or rect.y < 1 or rect.x2 >= w - 1 or rect.y2 >= h - 1:
         return False
@@ -184,7 +209,9 @@ def stamp_rect(grid: np.ndarray, rect: Rect, code: TerrainCode | int) -> None:
     grid[rect.y : rect.y2, rect.x : rect.x2] = int(code)
 
 
-def border_points(width: int, height: int, side: str, margin: int = 4) -> list[tuple[int, int]]:
+def border_points(
+    width: int, height: int, side: str, margin: int = 4
+) -> list[tuple[int, int]]:
     side = side.lower()
     if side == "north":
         return [(x, margin) for x in range(margin, width - margin)]
@@ -198,7 +225,11 @@ def border_points(width: int, height: int, side: str, margin: int = 4) -> list[t
 
 
 def path_cost(code: int, allow_bridges: bool) -> float:
-    c = TerrainCode(int(code)) if int(code) in [t.value for t in TerrainCode] else TerrainCode.GRASS
+    c = (
+        TerrainCode(int(code))
+        if int(code) in [t.value for t in TerrainCode]
+        else TerrainCode.GRASS
+    )
     if c == TerrainCode.DEEP_WATER:
         return 40.0 if allow_bridges else 9999.0
     if c == TerrainCode.WATER:
@@ -211,7 +242,12 @@ def path_cost(code: int, allow_bridges: bool) -> float:
         return 3.0
     if c in (TerrainCode.FOREST, TerrainCode.DENSE_FOREST):
         return 3.5
-    if c in (TerrainCode.FARMLAND, TerrainCode.FIELD, TerrainCode.PASTURE, TerrainCode.ORCHARD):
+    if c in (
+        TerrainCode.FARMLAND,
+        TerrainCode.FIELD,
+        TerrainCode.PASTURE,
+        TerrainCode.ORCHARD,
+    ):
         return 1.3
     if c == TerrainCode.ROAD:
         return 0.4

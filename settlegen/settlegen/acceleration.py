@@ -9,8 +9,12 @@ try:  # optional dependency; the generator works without it
 except Exception:  # pragma: no cover - depends on environment
     NUMBA_AVAILABLE = False
 
-    def njit(*args, **kwargs):  # type: ignore
-        def wrap(fn):
+    from typing import Any, Callable, TypeVar
+
+    F = TypeVar("F", bound=Callable[..., Any])
+
+    def njit(*args: Any, **kwargs: Any) -> Any:
+        def wrap(fn: F) -> F:
             return fn
 
         if args and callable(args[0]):
@@ -18,7 +22,7 @@ except Exception:  # pragma: no cover - depends on environment
         return wrap
 
 
-@njit(cache=True)
+@njit(cache=True)  # type: ignore[misc]
 def _smooth2d_numba(values: np.ndarray, passes: int) -> np.ndarray:
     h, w = values.shape
     cur = values.copy()
@@ -69,12 +73,14 @@ def smooth2d(values: np.ndarray, passes: int = 4) -> np.ndarray:
         return values.astype(np.float32, copy=True)
     values = values.astype(np.float32, copy=False)
     if NUMBA_AVAILABLE:
-        return _smooth2d_numba(values, int(passes)).astype(np.float32)
+        return _smooth2d_numba(values, int(passes)).astype(np.float32)  # type: ignore[no-any-return]
     return _smooth2d_numpy(values, int(passes))
 
 
-@njit(cache=True)
-def _stamp_disk_numba(grid: np.ndarray, cx: int, cy: int, radius: int, code: int) -> None:
+@njit(cache=True)  # type: ignore[misc]
+def _stamp_disk_numba(
+    grid: np.ndarray, cx: int, cy: int, radius: int, code: int
+) -> None:
     h, w = grid.shape
     r2 = radius * radius
     for y in range(cy - radius, cy + radius + 1):

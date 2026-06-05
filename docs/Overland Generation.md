@@ -170,6 +170,43 @@ The transition artifact is derived at write time from overland tiles and
 features. Merged settlements add settlement feature rows, so generated
 transition requests include settlement entrances as well as terrain transitions.
 
+## Route Artifacts
+
+`overland_routes.arrow` is generated from a small selected set of debug routes.
+It is not a complete all-pairs route cache.
+
+Columns:
+
+- `route_id`
+- `profile`
+- `source_x`
+- `source_y`
+- `target_x`
+- `target_y`
+- `step_index`
+- `x`
+- `y`
+- `cost_so_far`
+- `tags`
+
+Route helpers:
+
+```python
+generate_debug_routes(bundle)
+overland_routes_to_df(routes)
+```
+
+Current debug routes include feature-to-feature and starting-port routes when
+their endpoints exist:
+
+- coast to spring garden
+- starting port to limestone gorge
+- starting port to lava-tube skylight
+- sinking lake edge to ponor
+
+The route artifact is written by `write_overland_bundle(...)` and loaded by
+`load_worldgen_bundle(out_dir)` as `routes_df`.
+
 ## Artifacts
 
 The overland bundle writes:
@@ -179,6 +216,7 @@ The overland bundle writes:
 - `overland_features.arrow`
 - `overland_affordances.arrow`
 - `overland_transitions.arrow`
+- `overland_routes.arrow`
 - `overland_metadata.json`
 
 The loader `load_worldgen_bundle(out_dir)` reads any present overland and
@@ -237,6 +275,8 @@ python tools/inspect_overland.py tmp/overland/merged_starting_port --view biome
 python tools/inspect_overland.py tmp/overland/merged_starting_port --view hydro
 python tools/inspect_overland.py tmp/overland/merged_starting_port --view wetness
 python tools/inspect_overland.py tmp/overland/merged_starting_port --view traversal
+python tools/inspect_overland.py tmp/overland/merged_starting_port --view actor --profile HUMAN_ON_FOOT
+python tools/inspect_overland.py tmp/overland/merged_starting_port --view actor --profile BOAT
 ```
 
 ## Test Coverage
@@ -250,9 +290,11 @@ They cover:
 - hydrology state transforms
 - derived movement and traversal columns
 - transition artifact output
+- route artifact output
 - affordance output
 - headless generation
 - merged starting-port generation
+- actor-specific ASCII inspection
 - `GameMap` conversion
 
 The current tests intentionally validate relationships, not visual beauty.

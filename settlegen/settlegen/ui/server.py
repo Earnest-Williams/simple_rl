@@ -38,13 +38,13 @@ class GenerateRequest(BaseModel):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def get_index():
-    with open(STATIC_DIR / "index.html", "r", encoding="utf-8") as f:
+async def get_index() -> str:
+    with open(STATIC_DIR / "index.html", encoding="utf-8") as f:
         return f.read()
 
 
 @app.post("/api/generate")
-async def generate(req: GenerateRequest):
+async def generate(req: GenerateRequest) -> dict[str, object]:
     # Prepare the config
     cfg = SettlementConfig(
         kind=req.kind,
@@ -75,7 +75,7 @@ async def generate(req: GenerateRequest):
     }
 
 
-def main():
+def main() -> None:
     print("Starting UI server on http://127.0.0.1:8000")
     webbrowser.open("http://127.0.0.1:8000")
     uvicorn.run("settlegen.ui.server:app", host="127.0.0.1", port=8000, reload=True)

@@ -6,6 +6,7 @@ from typing import Any
 
 import polars as pl
 
+from worldgen.overland.routes import generate_debug_routes, overland_routes_to_df
 from worldgen.overland.schema import OverlandBundle
 from worldgen.overland.transitions import (
     generate_transition_requests,
@@ -21,6 +22,7 @@ OVERLAND_FILES: dict[str, str] = {
 
 COMPUTED_OVERLAND_FILES: dict[str, str] = {
     "transitions_df": "overland_transitions.arrow",
+    "routes_df": "overland_routes.arrow",
 }
 
 
@@ -43,6 +45,10 @@ def write_overland_bundle(
         transitions_path
     )
     paths["transitions_df"] = transitions_path
+    routes_path = out_dir / COMPUTED_OVERLAND_FILES["routes_df"]
+    _check_writable(routes_path, overwrite=overwrite)
+    overland_routes_to_df(generate_debug_routes(bundle)).write_ipc(routes_path)
+    paths["routes_df"] = routes_path
     metadata_path = out_dir / "overland_metadata.json"
     _check_writable(metadata_path, overwrite=overwrite)
     metadata_path.write_text(

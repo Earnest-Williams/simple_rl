@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterable, Optional, Sequence, Union
+from typing import Any, TypeVar
+
+_E = TypeVar("_E", bound=Enum)
 
 
 class TextEnum(str, Enum):
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 def _norm_text(value: object) -> str:
     return str(value).strip().lower().replace(" ", "_").replace("-", "_")
 
 
-def _coerce(value, enum_type):
+def _coerce(value: object, enum_type: type[_E]) -> _E:
     if isinstance(value, enum_type):
         return value
     text = _norm_text(value)
@@ -28,7 +31,7 @@ def _coerce(value, enum_type):
     raise ValueError(f"Unknown {enum_type.__name__}: {value!r}. Valid values: {valid}")
 
 
-def _coerce_tuple(values: Iterable, enum_type) -> tuple:
+def _coerce_tuple(values: Iterable[object], enum_type: type[_E]) -> tuple[_E, ...]:
     return tuple(_coerce(v, enum_type) for v in values)
 
 
@@ -52,7 +55,7 @@ class SettlementKind(TextEnum):
     NOMAD_CAMP = "nomad_camp"
 
 
-SettlementKind._ALIASES = {
+SettlementKind._ALIASES = {  # type: ignore[attr-defined]
     "fortified_outpost": "fort",
     "outpost": "fort",
     "monastery_town": "monastery",
@@ -84,7 +87,7 @@ class TerrainFeature(TextEnum):
     VOLCANIC = "volcanic"
 
 
-TerrainFeature._ALIASES = {
+TerrainFeature._ALIASES = {  # type: ignore[attr-defined]
     "lake": "lakeside",
     "old_growth": "dense_forest",
     "mountains": "mountain_pass",
@@ -116,7 +119,7 @@ class MagicMode(TextEnum):
     INDUSTRIAL_ARCANE = "techno_arcane"
 
 
-MagicMode._ALIASES = {
+MagicMode._ALIASES = {  # type: ignore[attr-defined]
     "none": "no_magic",
     "no": "no_magic",
     "low": "low_magic",
@@ -146,7 +149,7 @@ class SettlementState(TextEnum):
     RECENTLY_BURNED = "war_torn"
 
 
-SettlementState._ALIASES = {
+SettlementState._ALIASES = {  # type: ignore[attr-defined]
     "normal": "ordinary",
     "populated": "ordinary",
     "scarce": "scarcely_populated",
@@ -166,7 +169,7 @@ class PopulationMode(TextEnum):
     REFUGEE_SWOLLEN = "refugee_swollen"
 
 
-PopulationMode._ALIASES = {
+PopulationMode._ALIASES = {  # type: ignore[attr-defined]
     "populated": "normal",
     "scarcely_populated": "scarce",
     "sparse": "scarce",
@@ -185,7 +188,7 @@ class BuildingMaterial(TextEnum):
     ICE_AND_BONE = "ice_and_bone"
 
 
-BuildingMaterial._ALIASES = {
+BuildingMaterial._ALIASES = {  # type: ignore[attr-defined]
     "stone": "mostly_stone",
     "wood": "mostly_wood",
     "adobe": "mostly_adobe",
@@ -215,7 +218,7 @@ class LayoutStyle(TextEnum):
     CHAOTIC = "organic"
 
 
-LayoutStyle._ALIASES = {
+LayoutStyle._ALIASES = {  # type: ignore[attr-defined]
     "spine": "linear_road",
     "canal": "river_straddling",
     "terraced": "hillfort",
@@ -244,7 +247,7 @@ class Wealth(TextEnum):
     IMPERIAL = "imperial"
 
 
-Wealth._ALIASES = {
+Wealth._ALIASES = {  # type: ignore[attr-defined]
     "0": "destitute",
     "1": "poor",
     "2": "modest",
@@ -369,7 +372,7 @@ class Facility(TextEnum):
     CISTERN = "cistern"
 
 
-Facility._ALIASES = {
+Facility._ALIASES = {  # type: ignore[attr-defined]
     "court_house": "court_house",
     "wizard_tower": "mage_tower",
     "rune_circle": "runestone_circle",
@@ -404,28 +407,38 @@ RoadStyle = LayoutStyle
 
 
 @dataclass(frozen=True)
+class SpatialConstraints:
+    coastline: str | None = None
+    river_mouth: tuple[int, int] | None = None
+    road_endpoints: tuple[tuple[int, int], ...] = ()
+    cave_entrances: tuple[tuple[int, int], ...] = ()
+
+
+@dataclass(frozen=True)
 class SettlementConfig:
-    kind: Union[SettlementKind, str] = SettlementKind.TOWN
+    kind: SettlementKind | str = SettlementKind.TOWN
     width: int = 96
     height: int = 72
-    population_target: Optional[int] = None
-    population: Optional[int] = None
-    population_mode: Union[PopulationMode, str] = PopulationMode.NORMAL
-    state: Union[SettlementState, str] = SettlementState.ORDINARY
-    condition: Optional[Union[SettlementState, str]] = None
-    magic: Union[MagicMode, str] = MagicMode.LOW_MAGIC
-    material: Union[BuildingMaterial, str] = BuildingMaterial.MIXED
-    layout: Union[LayoutStyle, str] = LayoutStyle.ORGANIC
-    road_style: Optional[Union[LayoutStyle, str]] = None
-    defense: Union[DefenseStyle, str] = DefenseStyle.NONE
-    wealth: Union[Wealth, str] = Wealth.MODEST
-    terrain: Sequence[Union[TerrainFeature, str]] = field(default_factory=lambda: (TerrainFeature.PLAIN,))
-    terrain_features: Sequence[Union[TerrainFeature, str]] = field(default_factory=tuple)
-    facilities: Sequence[Union[Facility, str]] = field(default_factory=tuple)
-    required_facilities: Sequence[Union[Facility, str]] = field(default_factory=tuple)
-    forbidden_facilities: Sequence[Union[Facility, str]] = field(default_factory=tuple)
-    banned_facilities: Sequence[Union[Facility, str]] = field(default_factory=tuple)
-    district_count: Optional[int] = None
+    population_target: int | None = None
+    population: int | None = None
+    population_mode: PopulationMode | str = PopulationMode.NORMAL
+    state: SettlementState | str = SettlementState.ORDINARY
+    condition: SettlementState | str | None = None
+    magic: MagicMode | str = MagicMode.LOW_MAGIC
+    material: BuildingMaterial | str = BuildingMaterial.MIXED
+    layout: LayoutStyle | str = LayoutStyle.ORGANIC
+    road_style: LayoutStyle | str | None = None
+    defense: DefenseStyle | str = DefenseStyle.NONE
+    wealth: Wealth | str = Wealth.MODEST
+    terrain: Sequence[TerrainFeature | str] = field(
+        default_factory=lambda: (TerrainFeature.PLAIN,)
+    )
+    terrain_features: Sequence[TerrainFeature | str] = field(default_factory=tuple)
+    facilities: Sequence[Facility | str] = field(default_factory=tuple)
+    required_facilities: Sequence[Facility | str] = field(default_factory=tuple)
+    forbidden_facilities: Sequence[Facility | str] = field(default_factory=tuple)
+    banned_facilities: Sequence[Facility | str] = field(default_factory=tuple)
+    district_count: int | None = None
     building_density: float = 1.0
     farmland_density: float = 0.8
     water_level: float = 0.45
@@ -437,25 +450,37 @@ class SettlementConfig:
     allow_bridges: bool = True
     allow_subterranean: bool = False
     allow_secret_features: bool = True
-    name: Optional[str] = None
+    name: str | None = None
     tags: Sequence[str] = field(default_factory=tuple)
-    walls: Optional[bool] = None
-    palisade: Optional[bool] = None
-    moat: Optional[bool] = None
-    dyke: Optional[bool] = None
+    walls: bool | None = None
+    palisade: bool | None = None
+    moat: bool | None = None
+    dyke: bool | None = None
+    spatial: SpatialConstraints | None = None
 
-    def normalized(self) -> "SettlementConfig":
+    def normalized(self) -> SettlementConfig:
         kind = _coerce(self.kind, SettlementKind)
-        state = _coerce(self.condition if self.condition is not None else self.state, SettlementState)
+        state = _coerce(
+            self.condition if self.condition is not None else self.state,
+            SettlementState,
+        )
         magic = _coerce(self.magic, MagicMode)
         material = _coerce(self.material, BuildingMaterial)
-        layout = _coerce(self.road_style if self.road_style is not None else self.layout, LayoutStyle)
+        layout = _coerce(
+            self.road_style if self.road_style is not None else self.layout, LayoutStyle
+        )
         defense = _coerce(self.defense, DefenseStyle)
         wealth = _coerce(self.wealth, Wealth)
         population_mode = _coerce(self.population_mode, PopulationMode)
-        terrain = _coerce_tuple(tuple(self.terrain) + tuple(self.terrain_features), TerrainFeature)
-        facilities = _coerce_tuple(tuple(self.facilities) + tuple(self.required_facilities), Facility)
-        forbidden = _coerce_tuple(tuple(self.forbidden_facilities) + tuple(self.banned_facilities), Facility)
+        terrain = _coerce_tuple(
+            tuple(self.terrain) + tuple(self.terrain_features), TerrainFeature
+        )
+        facilities = _coerce_tuple(
+            tuple(self.facilities) + tuple(self.required_facilities), Facility
+        )
+        forbidden = _coerce_tuple(
+            tuple(self.forbidden_facilities) + tuple(self.banned_facilities), Facility
+        )
 
         if self.population is not None:
             pop_target = int(self.population)
@@ -466,7 +491,10 @@ class SettlementConfig:
 
         if self.walls is True and defense == DefenseStyle.NONE:
             defense = DefenseStyle.STONE_WALL
-        if self.walls is False and defense in (DefenseStyle.STONE_WALL, DefenseStyle.CASTLE_WALL):
+        if self.walls is False and defense in (
+            DefenseStyle.STONE_WALL,
+            DefenseStyle.CASTLE_WALL,
+        ):
             defense = DefenseStyle.NONE
         if self.palisade is True:
             defense = DefenseStyle.PALISADE
@@ -500,8 +528,17 @@ class SettlementConfig:
             road_width=max(1, int(self.road_width)),
             wall_margin=max(3, int(self.wall_margin)),
             tags=tuple(dict.fromkeys(self.tags)),
+            spatial=self.spatial,
         )
 
     @staticmethod
-    def from_strings(*, kind: str = "town", terrain: Iterable[str] = ("plain",), facilities: Iterable[str] = (), **kwargs) -> "SettlementConfig":
-        return SettlementConfig(kind=kind, terrain=tuple(terrain), facilities=tuple(facilities), **kwargs).normalized()
+    def from_strings(
+        *,
+        kind: str = "town",
+        terrain: Iterable[str] = ("plain",),
+        facilities: Iterable[str] = (),
+        **kwargs: Any,
+    ) -> SettlementConfig:
+        return SettlementConfig(
+            kind=kind, terrain=tuple(terrain), facilities=tuple(facilities), **kwargs
+        ).normalized()

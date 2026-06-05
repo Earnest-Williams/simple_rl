@@ -18,11 +18,21 @@ from .config import (
     SettlementConfig,
     SettlementKind,
     SettlementState,
+    SpatialConstraints,
     TerrainFeature,
     Wealth,
 )
 from .generator import SettlementGenerator
-from .model import Building, District, MagicSite, RoadSegment, Settlement, TerrainCode
+from .model import (
+    Building,
+    District,
+    FailedFacility,
+    GenerationReport,
+    MagicSite,
+    RoadSegment,
+    Settlement,
+    TerrainCode,
+)
 
 __all__ = [
     "Building",
@@ -30,6 +40,8 @@ __all__ = [
     "DefenseStyle",
     "District",
     "Facility",
+    "FailedFacility",
+    "GenerationReport",
     "LayoutStyle",
     "MagicMode",
     "MagicSite",
@@ -43,6 +55,7 @@ __all__ = [
     "SettlementGenerator",
     "SettlementKind",
     "SettlementState",
+    "SpatialConstraints",
     "TerrainCode",
     "TerrainFeature",
     "Wealth",

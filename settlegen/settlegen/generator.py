@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import sin, pi
-from typing import Optional
+from math import pi, sin
 
 import numpy as np
 
@@ -46,7 +45,17 @@ from .facilities import (
     district_count_for,
     material_for_palette,
 )
-from .model import Building, District, MagicSite, Rect, RoadSegment, Settlement, TerrainCode
+from .model import (
+    Building,
+    District,
+    FailedFacility,
+    GenerationReport,
+    MagicSite,
+    Rect,
+    RoadSegment,
+    Settlement,
+    TerrainCode,
+)
 
 WATER_FEATURES = {
     TerrainFeature.RIVER,
@@ -89,6 +98,20 @@ OPEN_FACILITIES = {
     Facility.EMPTY_LOT,
 }
 
+RURAL_FACILITIES = {
+    Facility.FIELD,
+    Facility.ORCHARD,
+    Facility.PASTURE,
+    Facility.FARMSTEAD,
+    Facility.BARN,
+}
+
+RURAL_OPEN_FACILITIES = {
+    Facility.FIELD,
+    Facility.ORCHARD,
+    Facility.PASTURE,
+}
+
 HOUSING_FACILITIES = {Facility.HOUSE, Facility.HOVEL, Facility.TENEMENT, Facility.MANOR}
 
 
@@ -100,7 +123,7 @@ class SettlementGenerator:
     boundaries.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         if seed is None:
             seed = int(np.random.SeedSequence().generate_state(1)[0])
         self.seed = int(seed)
@@ -112,16 +135,29 @@ class SettlementGenerator:
         cfg = self._augment_config(config.normalized())
         self._building_id = 0
         self._road_id = 0
+        self._failed_placements: dict[Facility, str] = {}
 
-        design_population = desired_population(cfg.kind, SettlementState.ORDINARY, cfg.population_target)
+        kind = cfg.kind
+        assert isinstance(kind, SettlementKind)
+        state = cfg.state
+        assert isinstance(state, SettlementState)
+        pop_mode = cfg.population_mode
+        assert isinstance(pop_mode, PopulationMode)
+
+        design_population = desired_population(
+            kind, SettlementState.ORDINARY, cfg.population_target
+        )
         actual_population = self._apply_population_switches(
-            desired_population(cfg.kind, cfg.state, cfg.population_target), cfg.population_mode
+            desired_population(kind, state, cfg.population_target),
+            pop_mode,
         )
 
         terrain = self._generate_terrain(cfg)
         overlay = np.zeros_like(terrain, dtype=np.int16)
         anchor = self._choose_anchor(cfg, terrain)
-        self._clear_buildable_area(terrain, anchor, max(10, min(cfg.width, cfg.height) // 5))
+        self._clear_buildable_area(
+            terrain, anchor, max(10, min(cfg.width, cfg.height) // 5)
+        )
         districts = self._generate_districts(cfg, terrain, anchor, design_population)
 
         roads: list[RoadSegment] = []
@@ -130,27 +166,110 @@ class SettlementGenerator:
         buildings: list[Building] = []
 
         roads.extend(self._draw_external_roads(cfg, terrain, overlay, anchor))
-        wall_points = self._draw_defenses(cfg, terrain, overlay, anchor, design_population, gates)
+        wall_points = self._draw_defenses(
+            cfg,
+            terrain,
+            overlay,
+            anchor,
+            design_population,
+            gates,
+            external_roads=roads,
+        )
         roads.extend(self._draw_gate_roads(cfg, terrain, overlay, anchor, gates))
         for gx, gy in gates:
             stamp_disk(overlay, gx, gy, max(1, cfg.road_width), int(TerrainCode.GATE))
 
         facilities = self._facility_plan(cfg)
         self._place_core_open_space(cfg, terrain, overlay, anchor, buildings, districts)
-        docks.extend(self._place_waterfront(cfg, terrain, overlay, anchor, buildings, districts, facilities))
-        self._place_facilities(cfg, terrain, overlay, anchor, districts, buildings, facilities, design_population)
-        self._place_rural_belt(cfg, terrain, overlay, anchor, districts, buildings, design_population)
-        self._place_housing(cfg, terrain, overlay, anchor, districts, buildings, design_population, actual_population)
+        docks.extend(
+            self._place_waterfront(
+                cfg, terrain, overlay, anchor, buildings, districts, facilities
+            )
+        )
+        self._place_facilities(
+            cfg,
+            terrain,
+            overlay,
+            anchor,
+            districts,
+            buildings,
+            facilities,
+            design_population,
+        )
+        self._place_rural_belt(
+            cfg, terrain, overlay, anchor, districts, buildings, design_population
+        )
+        self._place_housing(
+            cfg,
+            terrain,
+            overlay,
+            anchor,
+            districts,
+            buildings,
+            design_population,
+            actual_population,
+        )
         self._apply_decline_and_ruin(cfg, overlay, buildings)
         magic_sites = self._place_magic(cfg, terrain, overlay, anchor, buildings)
         self._repair_connectivity(cfg, terrain, overlay, anchor, buildings, roads)
 
-        if cfg.state == SettlementState.GHOST_TOWN or cfg.population_mode == PopulationMode.UNPOPULATED:
+        if (
+            cfg.state == SettlementState.GHOST_TOWN
+            or cfg.population_mode == PopulationMode.UNPOPULATED
+        ):
             final_population = 0
             for b in buildings:
                 b.occupants = 0
         else:
             final_population = max(0, int(actual_population))
+
+        placed_facilities = {b.facility for b in buildings}
+        failed_facilities_legacy = [
+            f.value if isinstance(f, Facility) else f
+            for f in cfg.facilities
+            if (f if isinstance(f, Facility) else Facility(f)) not in placed_facilities
+        ]
+
+        placed_facility_values = sorted(
+            list(dict.fromkeys(b.facility.value for b in buildings))
+        )
+
+        forbidden = set(cfg.forbidden_facilities)
+        if cfg.magic == MagicMode.NO_MAGIC:
+            forbidden |= MAGIC_FACILITIES
+
+        # Build typed failure list.
+        failed_map: dict[str, str] = {}
+        for f in cfg.facilities:
+            f_val = f.value if hasattr(f, "value") else str(f)
+            if f in forbidden:
+                failed_map[f_val] = "forbidden"
+
+        for f, reason in self._failed_placements.items():
+            f_val = f.value if hasattr(f, "value") else str(f)
+            failed_map[f_val] = reason
+
+        for f in cfg.facilities:
+            f_val = f.value if hasattr(f, "value") else str(f)
+            if f_val not in placed_facility_values and f_val not in failed_map:
+                failed_map[f_val] = "no_clear_site"
+
+        # Remove facilities that were ultimately placed successfully.
+        for f_val in placed_facility_values:
+            failed_map.pop(f_val, None)
+
+        generation_report = GenerationReport(
+            requested_facilities=tuple(
+                sorted(
+                    f.value if hasattr(f, "value") else str(f) for f in cfg.facilities
+                )
+            ),
+            placed_facilities=tuple(placed_facility_values),
+            failed_facilities=tuple(
+                FailedFacility(facility=f_val, reason=reason)
+                for f_val, reason in sorted(failed_map.items())
+            ),
+        )
 
         return Settlement(
             config=cfg,
@@ -165,7 +284,16 @@ class SettlementGenerator:
             docks=docks,
             magic_sites=magic_sites,
             population=final_population,
-            metadata=self._metadata(cfg, design_population, final_population, anchor, wall_points),
+            generation_report=generation_report,
+            metadata=self._metadata(
+                cfg,
+                design_population,
+                final_population,
+                anchor,
+                wall_points,
+                failed_facilities_legacy,
+                generation_report,
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -174,21 +302,44 @@ class SettlementGenerator:
 
     def _augment_config(self, cfg: SettlementConfig) -> SettlementConfig:
         terrain = set(cfg.terrain)
-        if cfg.kind in (SettlementKind.FISHING_VILLAGE, SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY):
-            if not terrain & WATER_FEATURES:
-                terrain.add(TerrainFeature.BAY)
+        if cfg.kind in (
+            SettlementKind.FISHING_VILLAGE,
+            SettlementKind.PORT_TOWN,
+            SettlementKind.PORT_CITY,
+        ) and not (terrain & WATER_FEATURES):
+            terrain.add(TerrainFeature.BAY)
         if cfg.kind == SettlementKind.MINING_CAMP:
             terrain.add(TerrainFeature.HILL)
-        if cfg.kind in (SettlementKind.FARMING_VILLAGE, SettlementKind.HAMLET, SettlementKind.VILLAGE):
+        if cfg.kind in (
+            SettlementKind.FARMING_VILLAGE,
+            SettlementKind.HAMLET,
+            SettlementKind.VILLAGE,
+        ):
             terrain.add(TerrainFeature.FERTILE_VALLEY)
         if cfg.kind in (SettlementKind.ANCIENT_CITY, SettlementKind.RUINED_CITY):
             terrain.add(TerrainFeature.FOREST)
-        if cfg.kind in (SettlementKind.WALLED_TOWN, SettlementKind.CITY, SettlementKind.CAPITAL, SettlementKind.PORT_CITY):
-            if cfg.defense == DefenseStyle.NONE:
-                cfg = replace(cfg, defense=DefenseStyle.STONE_WALL)
+        if (
+            cfg.kind
+            in (
+                SettlementKind.WALLED_TOWN,
+                SettlementKind.CITY,
+                SettlementKind.CAPITAL,
+                SettlementKind.PORT_CITY,
+            )
+            and cfg.defense == DefenseStyle.NONE
+        ):
+            cfg = replace(cfg, defense=DefenseStyle.STONE_WALL)
         if cfg.kind == SettlementKind.FORT and cfg.defense == DefenseStyle.NONE:
             cfg = replace(cfg, defense=DefenseStyle.PALISADE)
-        return replace(cfg, terrain=tuple(sorted(terrain, key=lambda t: t.value)))
+        return replace(
+            cfg,
+            terrain=tuple(
+                sorted(
+                    terrain,
+                    key=lambda t: t.value if isinstance(t, TerrainFeature) else t,
+                )
+            ),
+        )
 
     def _generate_terrain(self, cfg: SettlementConfig) -> np.ndarray:
         h, w = cfg.height, cfg.width
@@ -198,7 +349,9 @@ class SettlementGenerator:
 
         forest_threshold = max(0.35, 0.82 - cfg.forest_density)
         terrain[moisture > forest_threshold] = int(TerrainCode.FOREST)
-        terrain[moisture > min(0.96, forest_threshold + 0.16)] = int(TerrainCode.DENSE_FOREST)
+        terrain[moisture > min(0.96, forest_threshold + 0.16)] = int(
+            TerrainCode.DENSE_FOREST
+        )
         terrain[height > 0.78] = int(TerrainCode.HILL)
         terrain[height > 0.91] = int(TerrainCode.MOUNTAIN)
 
@@ -213,17 +366,21 @@ class SettlementGenerator:
             terrain[moisture > 0.48] = int(TerrainCode.FOREST)
             terrain[moisture > 0.65] = int(TerrainCode.DENSE_FOREST)
         if TerrainFeature.HILL in features:
-            terrain[smooth2d(self.rng.random((h, w), dtype=np.float32), 4) > 0.70] = int(TerrainCode.HILL)
+            terrain[smooth2d(self.rng.random((h, w), dtype=np.float32), 4) > 0.70] = (
+                int(TerrainCode.HILL)
+            )
         if TerrainFeature.MOUNTAIN_PASS in features:
             self._apply_mountain_pass(terrain)
         if TerrainFeature.COAST in features or TerrainFeature.BAY in features:
-            self._apply_coast_or_bay(terrain, bay=TerrainFeature.BAY in features)
+            self._apply_coast_or_bay(
+                terrain, bay=TerrainFeature.BAY in features, cfg=cfg
+            )
         if TerrainFeature.ISLAND in features:
             self._apply_island(terrain)
         if TerrainFeature.LAKESIDE in features or TerrainFeature.OASIS in features:
             self._apply_lake(terrain, oasis=TerrainFeature.OASIS in features)
         if TerrainFeature.RIVER in features or TerrainFeature.DELTA in features:
-            self._apply_river(terrain, wide=TerrainFeature.DELTA in features)
+            self._apply_river(terrain, wide=TerrainFeature.DELTA in features, cfg=cfg)
         if TerrainFeature.STREAM in features:
             self._apply_stream(terrain)
         if TerrainFeature.SWAMP in features or TerrainFeature.MARSH in features:
@@ -235,21 +392,46 @@ class SettlementGenerator:
         self._mark_shores(terrain)
         return terrain
 
-    def _apply_coast_or_bay(self, terrain: np.ndarray, *, bay: bool) -> None:
+    def _apply_coast_or_bay(
+        self, terrain: np.ndarray, *, bay: bool, cfg: SettlementConfig
+    ) -> None:
         h, w = terrain.shape
-        side = str(self.rng.choice(["west", "east", "north", "south"]))
+        spatial = cfg.spatial
+        if spatial and spatial.coastline:
+            side = spatial.coastline
+        else:
+            side = str(self.rng.choice(["west", "east", "north", "south"]))
         depth = int(self.rng.integers(max(8, min(w, h) // 10), max(12, min(w, h) // 4)))
         for y in range(h):
             for x in range(w):
-                wave = int(4 * sin((y if side in ("west", "east") else x) / 8.0) + self.rng.normal(0, 1.2))
+                wave = int(
+                    4 * sin((y if side in ("west", "east") else x) / 8.0)
+                    + self.rng.normal(0, 1.2)
+                )
                 if side == "west" and x < depth + wave:
-                    terrain[y, x] = int(TerrainCode.DEEP_WATER if x < depth + wave - 5 else TerrainCode.WATER)
+                    terrain[y, x] = int(
+                        TerrainCode.DEEP_WATER
+                        if x < depth + wave - 5
+                        else TerrainCode.WATER
+                    )
                 elif side == "east" and x > w - depth - wave:
-                    terrain[y, x] = int(TerrainCode.DEEP_WATER if x > w - depth - wave + 5 else TerrainCode.WATER)
+                    terrain[y, x] = int(
+                        TerrainCode.DEEP_WATER
+                        if x > w - depth - wave + 5
+                        else TerrainCode.WATER
+                    )
                 elif side == "north" and y < depth + wave:
-                    terrain[y, x] = int(TerrainCode.DEEP_WATER if y < depth + wave - 5 else TerrainCode.WATER)
+                    terrain[y, x] = int(
+                        TerrainCode.DEEP_WATER
+                        if y < depth + wave - 5
+                        else TerrainCode.WATER
+                    )
                 elif side == "south" and y > h - depth - wave:
-                    terrain[y, x] = int(TerrainCode.DEEP_WATER if y > h - depth - wave + 5 else TerrainCode.WATER)
+                    terrain[y, x] = int(
+                        TerrainCode.DEEP_WATER
+                        if y > h - depth - wave + 5
+                        else TerrainCode.WATER
+                    )
         if bay:
             cx = int(self.rng.integers(w // 4, 3 * w // 4))
             cy = int(self.rng.integers(h // 4, 3 * h // 4))
@@ -276,32 +458,74 @@ class SettlementGenerator:
         water = ((xx - cx) / max(1, rx)) ** 2 + ((yy - cy) / max(1, ry)) ** 2 < 1.0
         terrain[water] = int(TerrainCode.WATER)
         if oasis:
-            green = ((xx - cx) / max(1, rx + 8)) ** 2 + ((yy - cy) / max(1, ry + 8)) ** 2 < 1.0
+            green = ((xx - cx) / max(1, rx + 8)) ** 2 + (
+                (yy - cy) / max(1, ry + 8)
+            ) ** 2 < 1.0
             terrain[green & ~water] = int(TerrainCode.GRASS)
 
-    def _apply_river(self, terrain: np.ndarray, *, wide: bool) -> None:
+    def _apply_river(
+        self, terrain: np.ndarray, *, wide: bool, cfg: SettlementConfig
+    ) -> None:
         h, w = terrain.shape
         horizontal = bool(self.rng.random() < 0.5)
+
+        spatial = cfg.spatial
+        if spatial and spatial.river_mouth:
+            rm_x, rm_y = spatial.river_mouth
+            if rm_x <= 2 or rm_x >= w - 3:
+                horizontal = True
+            elif rm_y <= 2 or rm_y >= h - 3:
+                horizontal = False
+
         amp = int(self.rng.integers(6, max(8, min(w, h) // 5)))
         phase = float(self.rng.random() * 2 * pi)
         points: list[tuple[int, int]] = []
         if horizontal:
             cy = int(self.rng.integers(h // 4, 3 * h // 4))
+            if spatial and spatial.river_mouth:
+                rm_x, rm_y = spatial.river_mouth
+                cy = rm_y - int(sin(rm_x / max(8.0, w / 10.0) + phase) * amp)
+
             for x in range(0, w, max(2, w // 32)):
-                y = cy + int(sin(x / max(8.0, w / 10.0) + phase) * amp + self.rng.normal(0, 2.0))
+                y = cy + int(
+                    sin(x / max(8.0, w / 10.0) + phase) * amp + self.rng.normal(0, 2.0)
+                )
                 points.append((x, clamp(y, 2, h - 3)))
         else:
             cx = int(self.rng.integers(w // 4, 3 * w // 4))
+            if spatial and spatial.river_mouth:
+                rm_x, rm_y = spatial.river_mouth
+                cx = rm_x - int(sin(rm_y / max(8.0, h / 10.0) + phase) * amp)
+
             for y in range(0, h, max(2, h // 32)):
-                x = cx + int(sin(y / max(8.0, h / 10.0) + phase) * amp + self.rng.normal(0, 2.0))
+                x = cx + int(
+                    sin(y / max(8.0, h / 10.0) + phase) * amp + self.rng.normal(0, 2.0)
+                )
                 points.append((clamp(x, 2, w - 3), y))
-        draw_points(terrain, polyline(points), TerrainCode.WATER, radius=3 if wide else 2)
+
+        if spatial and spatial.river_mouth:
+            if points and (
+                points[0][0] == spatial.river_mouth[0]
+                or points[0][1] == spatial.river_mouth[1]
+                or distance(points[0], spatial.river_mouth)
+                < distance(points[-1], spatial.river_mouth)
+            ):
+                points.insert(0, spatial.river_mouth)
+            else:
+                points.append(spatial.river_mouth)
+
+        draw_points(
+            terrain, polyline(points), TerrainCode.WATER, radius=3 if wide else 2
+        )
 
     def _apply_stream(self, terrain: np.ndarray) -> None:
         h, w = terrain.shape
         start = (int(self.rng.integers(0, w)), 0)
         end = (int(self.rng.integers(0, w)), h - 1)
-        mid = (int(self.rng.integers(w // 4, 3 * w // 4)), int(self.rng.integers(h // 4, 3 * h // 4)))
+        mid = (
+            int(self.rng.integers(w // 4, 3 * w // 4)),
+            int(self.rng.integers(h // 4, 3 * h // 4)),
+        )
         draw_points(terrain, polyline([start, mid, end]), TerrainCode.WATER, radius=1)
 
     def _apply_swamp(self, terrain: np.ndarray, *, heavy: bool) -> None:
@@ -309,10 +533,17 @@ class SettlementGenerator:
         for _ in range(6 if heavy else 3):
             cx = int(self.rng.integers(5, w - 5))
             cy = int(self.rng.integers(5, h - 5))
-            radius = int(self.rng.integers(max(4, min(w, h) // 14), max(6, min(w, h) // 7)))
+            radius = int(
+                self.rng.integers(max(4, min(w, h) // 14), max(6, min(w, h) // 7))
+            )
             for yy, xx in cells_within_radius(w, h, (cx, cy), radius):
-                if terrain[yy, xx] not in (int(TerrainCode.DEEP_WATER), int(TerrainCode.MOUNTAIN)):
-                    terrain[yy, xx] = int(TerrainCode.SWAMP if heavy else TerrainCode.MARSH)
+                if terrain[yy, xx] not in (
+                    int(TerrainCode.DEEP_WATER),
+                    int(TerrainCode.MOUNTAIN),
+                ):
+                    terrain[yy, xx] = int(
+                        TerrainCode.SWAMP if heavy else TerrainCode.MARSH
+                    )
 
     def _apply_mountain_pass(self, terrain: np.ndarray) -> None:
         h, w = terrain.shape
@@ -325,7 +556,9 @@ class SettlementGenerator:
             pass_y = h // 2 + int(self.rng.normal(0, h // 12))
             dist = np.abs(yy - pass_y - np.sin(xx / max(10.0, w / 8.0)) * h / 12)
         terrain[dist > min(w, h) * 0.23] = int(TerrainCode.MOUNTAIN)
-        terrain[(dist > min(w, h) * 0.14) & (dist <= min(w, h) * 0.23)] = int(TerrainCode.HILL)
+        terrain[(dist > min(w, h) * 0.14) & (dist <= min(w, h) * 0.23)] = int(
+            TerrainCode.HILL
+        )
         terrain[dist < min(w, h) * 0.08] = int(TerrainCode.GRASS)
 
     def _apply_cliff(self, terrain: np.ndarray) -> None:
@@ -339,7 +572,10 @@ class SettlementGenerator:
         h, w = terrain.shape
         cx = int(self.rng.integers(w // 4, 3 * w // 4))
         cy = int(self.rng.integers(h // 4, 3 * h // 4))
-        for r, code in [(min(w, h) // 7, TerrainCode.MOUNTAIN), (min(w, h) // 5, TerrainCode.HILL)]:
+        for r, code in [
+            (min(w, h) // 7, TerrainCode.MOUNTAIN),
+            (min(w, h) // 5, TerrainCode.HILL),
+        ]:
             for yy, xx in cells_within_radius(w, h, (cx, cy), r):
                 terrain[yy, xx] = int(code)
 
@@ -348,37 +584,67 @@ class SettlementGenerator:
         land = ~np.isin(terrain, [int(TerrainCode.MOUNTAIN), int(TerrainCode.HILL)])
         terrain[mask & land] = int(TerrainCode.SHORE)
 
-    def _choose_anchor(self, cfg: SettlementConfig, terrain: np.ndarray) -> tuple[int, int]:
+    def _choose_anchor(
+        self, cfg: SettlementConfig, terrain: np.ndarray
+    ) -> tuple[int, int]:
         h, w = terrain.shape
         centre = (w // 2, h // 2)
         shore_cells = find_shore_cells(terrain)
-        if cfg.kind in (SettlementKind.FISHING_VILLAGE, SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY) or cfg.layout == LayoutStyle.COASTAL:
-            if shore_cells.size:
-                return nearest_cell(shore_cells, centre)
-        if TerrainFeature.RIVER in cfg.terrain or cfg.layout == LayoutStyle.RIVER_STRADDLING:
-            if shore_cells.size:
-                return nearest_cell(shore_cells, centre)
+        if (
+            cfg.kind
+            in (
+                SettlementKind.FISHING_VILLAGE,
+                SettlementKind.PORT_TOWN,
+                SettlementKind.PORT_CITY,
+            )
+            or cfg.layout == LayoutStyle.COASTAL
+        ) and shore_cells.size:
+            return nearest_cell(shore_cells, centre)
+        if (
+            TerrainFeature.RIVER in cfg.terrain
+            or cfg.layout == LayoutStyle.RIVER_STRADDLING
+        ) and shore_cells.size:
+            return nearest_cell(shore_cells, centre)
         passable = np.argwhere(passable_mask(terrain))
         if passable.size == 0:
             return centre
         return nearest_cell(passable, centre)
 
-    def _clear_buildable_area(self, terrain: np.ndarray, anchor: tuple[int, int], radius: int) -> None:
+    def _clear_buildable_area(
+        self, terrain: np.ndarray, anchor: tuple[int, int], radius: int
+    ) -> None:
         h, w = terrain.shape
         for yy, xx in cells_within_radius(w, h, anchor, radius):
-            if terrain[yy, xx] in (int(TerrainCode.MOUNTAIN), int(TerrainCode.DENSE_FOREST)):
-                terrain[yy, xx] = int(TerrainCode.HILL if self.rng.random() < 0.12 else TerrainCode.GRASS)
-            elif terrain[yy, xx] == int(TerrainCode.FOREST) and self.rng.random() < 0.65:
+            if terrain[yy, xx] in (
+                int(TerrainCode.MOUNTAIN),
+                int(TerrainCode.DENSE_FOREST),
+            ):
+                terrain[yy, xx] = int(
+                    TerrainCode.HILL if self.rng.random() < 0.12 else TerrainCode.GRASS
+                )
+            elif (
+                terrain[yy, xx] == int(TerrainCode.FOREST) and self.rng.random() < 0.65
+            ):
                 terrain[yy, xx] = int(TerrainCode.GRASS)
 
     # ------------------------------------------------------------------
     # Districts, roads, defenses
     # ------------------------------------------------------------------
 
-    def _generate_districts(self, cfg: SettlementConfig, terrain: np.ndarray, anchor: tuple[int, int], design_population: int) -> list[District]:
-        count = district_count_for(cfg.kind, design_population, cfg.district_count)
+    def _generate_districts(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        anchor: tuple[int, int],
+        design_population: int,
+    ) -> list[District]:
+        kind = cfg.kind
+        assert isinstance(kind, SettlementKind)
+        count = district_count_for(kind, design_population, cfg.district_count)
         h, w = terrain.shape
-        base_radius = int(max(9, min(w, h) * (0.13 + min(0.22, design_population / 70000.0))))
+        base_radius = int(
+            max(9, min(w, h) * (0.13 + min(0.22, design_population / 70000.0)))
+        )
         kinds = self._district_kind_sequence(cfg, count)
         districts: list[District] = []
         for i, kind in enumerate(kinds):
@@ -386,71 +652,207 @@ class SettlementGenerator:
                 center = anchor
             elif kind == "docks":
                 shore_cells = find_shore_cells(terrain)
-                center = nearest_cell(shore_cells, anchor) if shore_cells.size else random_point_in_annulus(self.rng, anchor, 6, base_radius * 1.3, w, h)
+                center = (
+                    nearest_cell(shore_cells, anchor)
+                    if shore_cells.size
+                    else random_point_in_annulus(
+                        self.rng, anchor, 6, base_radius * 1.3, w, h
+                    )
+                )
             elif cfg.layout == LayoutStyle.GRID:
                 cols = max(2, int(np.ceil(np.sqrt(count))))
                 row, col = divmod(i, cols)
                 step = max(8, base_radius // 2)
-                center = (clamp(anchor[0] + (col - cols // 2) * step, 2, w - 3), clamp(anchor[1] + (row - cols // 2) * step, 2, h - 3))
+                center = (
+                    clamp(anchor[0] + (col - cols // 2) * step, 2, w - 3),
+                    clamp(anchor[1] + (row - cols // 2) * step, 2, h - 3),
+                )
             elif cfg.layout in (LayoutStyle.LINEAR_ROAD, LayoutStyle.RIVER_STRADDLING):
                 t = (i - count / 2) * max(5, base_radius // 4)
-                center = (clamp(anchor[0] + int(t), 2, w - 3), clamp(anchor[1] + int(self.rng.normal(0, base_radius / 6)), 2, h - 3))
+                center = (
+                    clamp(anchor[0] + int(t), 2, w - 3),
+                    clamp(
+                        anchor[1] + int(self.rng.normal(0, base_radius / 6)), 2, h - 3
+                    ),
+                )
             elif kind in ("farm", "cemetery", "edge", "ruins"):
-                center = random_point_in_annulus(self.rng, anchor, base_radius * 0.85, base_radius * 1.8, w, h)
+                center = random_point_in_annulus(
+                    self.rng, anchor, base_radius * 0.85, base_radius * 1.8, w, h
+                )
             elif kind in ("noble", "military", "temple", "academic", "magic"):
-                center = random_point_in_annulus(self.rng, anchor, base_radius * 0.25, base_radius * 0.9, w, h)
+                center = random_point_in_annulus(
+                    self.rng, anchor, base_radius * 0.25, base_radius * 0.9, w, h
+                )
             else:
-                center = random_point_in_annulus(self.rng, anchor, base_radius * 0.25, base_radius * 1.25, w, h)
-            radius = int(self.rng.integers(max(6, base_radius // 3), max(8, base_radius)))
-            districts.append(District(i, kind, center, radius, self._district_wealth(cfg, kind), tags=self._district_tags(cfg, kind)))
+                center = random_point_in_annulus(
+                    self.rng, anchor, base_radius * 0.25, base_radius * 1.25, w, h
+                )
+            radius = int(
+                self.rng.integers(max(6, base_radius // 3), max(8, base_radius))
+            )
+            districts.append(
+                District(
+                    i,
+                    kind,
+                    center,
+                    radius,
+                    self._district_wealth(cfg, kind),
+                    tags=self._district_tags(cfg, kind),
+                )
+            )
         return districts
 
     def _district_kind_sequence(self, cfg: SettlementConfig, count: int) -> list[str]:
         base = ["core", "market", "residential", "craft", "temple", "farm", "edge"]
-        if cfg.kind in (SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY, SettlementKind.FISHING_VILLAGE):
-            base = ["core", "docks", "market", "residential", "craft", "farm", "temple", "edge"]
+        if cfg.kind in (
+            SettlementKind.PORT_TOWN,
+            SettlementKind.PORT_CITY,
+            SettlementKind.FISHING_VILLAGE,
+        ):
+            base = [
+                "core",
+                "docks",
+                "market",
+                "residential",
+                "craft",
+                "farm",
+                "temple",
+                "edge",
+            ]
         elif cfg.kind in (SettlementKind.FARMING_VILLAGE, SettlementKind.HAMLET):
             base = ["core", "farm", "residential", "temple", "edge"]
-        elif cfg.kind in (SettlementKind.FORT, SettlementKind.WALLED_TOWN, SettlementKind.CAPITAL):
-            base = ["core", "military", "market", "residential", "temple", "craft", "noble", "edge"]
+        elif cfg.kind in (
+            SettlementKind.FORT,
+            SettlementKind.WALLED_TOWN,
+            SettlementKind.CAPITAL,
+        ):
+            base = [
+                "core",
+                "military",
+                "market",
+                "residential",
+                "temple",
+                "craft",
+                "noble",
+                "edge",
+            ]
         elif cfg.kind == SettlementKind.MONASTERY:
             base = ["core", "temple", "academic", "farm", "cemetery", "edge"]
         elif cfg.kind == SettlementKind.MINING_CAMP:
             base = ["core", "craft", "edge", "residential", "market", "military"]
         elif cfg.kind in (SettlementKind.ANCIENT_CITY, SettlementKind.RUINED_CITY):
-            base = ["core", "ruins", "temple", "cemetery", "edge", "residential", "market"]
-        if cfg.magic in (MagicMode.HIGH_MAGIC, MagicMode.RUNIC_MAGIC, MagicMode.WILD_MAGIC, MagicMode.TECHNO_ARCANE):
+            base = [
+                "core",
+                "ruins",
+                "temple",
+                "cemetery",
+                "edge",
+                "residential",
+                "market",
+            ]
+        if cfg.magic in (
+            MagicMode.HIGH_MAGIC,
+            MagicMode.RUNIC_MAGIC,
+            MagicMode.WILD_MAGIC,
+            MagicMode.TECHNO_ARCANE,
+        ):
             base.insert(min(4, len(base)), "magic")
         return [base[i % len(base)] for i in range(count)]
 
     def _district_wealth(self, cfg: SettlementConfig, kind: str) -> str:
-        if kind in ("noble", "core") and cfg.wealth in (Wealth.RICH, Wealth.IMPERIAL, Wealth.PROSPEROUS):
-            return cfg.wealth.value
+        wealth = cfg.wealth
+        assert isinstance(wealth, Wealth)
+        if kind in ("noble", "core") and wealth in (
+            Wealth.RICH,
+            Wealth.IMPERIAL,
+            Wealth.PROSPEROUS,
+        ):
+            return wealth.value
         if kind in ("edge", "farm"):
-            return Wealth.POOR.value if cfg.wealth != Wealth.DESTITUTE else Wealth.DESTITUTE.value
-        if kind == "docks" and cfg.wealth in (Wealth.RICH, Wealth.IMPERIAL):
+            return (
+                Wealth.POOR.value
+                if wealth != Wealth.DESTITUTE
+                else Wealth.DESTITUTE.value
+            )
+        if kind == "docks" and wealth in (Wealth.RICH, Wealth.IMPERIAL):
             return Wealth.PROSPEROUS.value
-        return cfg.wealth.value
+        return wealth.value
 
     def _district_tags(self, cfg: SettlementConfig, kind: str) -> tuple[str, ...]:
         tags = [kind]
-        if cfg.state in (SettlementState.RUINED, SettlementState.ANCIENT, SettlementState.GHOST_TOWN):
+        if cfg.state in (
+            SettlementState.RUINED,
+            SettlementState.ANCIENT,
+            SettlementState.GHOST_TOWN,
+        ):
             tags.append("decayed")
+        magic = cfg.magic
+        assert isinstance(magic, MagicMode)
         if kind == "magic":
-            tags.append(cfg.magic.value)
+            tags.append(magic.value)
         if kind == "docks":
             tags.append("waterfront")
         return tuple(tags)
 
-    def _draw_external_roads(self, cfg: SettlementConfig, terrain: np.ndarray, overlay: np.ndarray, anchor: tuple[int, int]) -> list[RoadSegment]:
+    def _draw_external_roads(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        anchor: tuple[int, int],
+    ) -> list[RoadSegment]:
         h, w = terrain.shape
-        road_count = 1 if cfg.kind in (SettlementKind.HAMLET, SettlementKind.MONASTERY, SettlementKind.NOMAD_CAMP) else 2
-        if cfg.kind in (SettlementKind.TOWN, SettlementKind.WALLED_TOWN, SettlementKind.PORT_TOWN, SettlementKind.MARKET_TOWN):
-            road_count = 3
-        if cfg.kind in (SettlementKind.CITY, SettlementKind.CAPITAL, SettlementKind.PORT_CITY):
-            road_count = 4
-        sides = list(self.rng.choice(["north", "south", "west", "east"], size=road_count, replace=False))
         roads: list[RoadSegment] = []
+
+        spatial = cfg.spatial
+        if spatial and spatial.road_endpoints:
+            for endpoint in spatial.road_endpoints:
+                ex, ey = endpoint
+                if ey <= 1:
+                    side = "north"
+                elif ey >= h - 2:
+                    side = "south"
+                elif ex <= 1:
+                    side = "west"
+                else:
+                    side = "east"
+
+                path = astar_path(
+                    terrain, anchor, endpoint, allow_bridges=cfg.allow_bridges
+                )
+                self._draw_road_path(cfg, terrain, overlay, path)
+                roads.append(self._road("external", path, tags=(side, "constrained")))
+            return roads
+
+        road_count = (
+            1
+            if cfg.kind
+            in (
+                SettlementKind.HAMLET,
+                SettlementKind.MONASTERY,
+                SettlementKind.NOMAD_CAMP,
+            )
+            else 2
+        )
+        if cfg.kind in (
+            SettlementKind.TOWN,
+            SettlementKind.WALLED_TOWN,
+            SettlementKind.PORT_TOWN,
+            SettlementKind.MARKET_TOWN,
+        ):
+            road_count = 3
+        if cfg.kind in (
+            SettlementKind.CITY,
+            SettlementKind.CAPITAL,
+            SettlementKind.PORT_CITY,
+        ):
+            road_count = 4
+        sides = list(
+            self.rng.choice(
+                ["north", "south", "west", "east"], size=road_count, replace=False
+            )
+        )
+        roads = []
         for side in sides:
             if side == "north":
                 goal = (int(self.rng.integers(w // 5, 4 * w // 5)), 1)
@@ -465,7 +867,13 @@ class SettlementGenerator:
             roads.append(self._road("external", path, tags=(str(side),)))
         return roads
 
-    def _draw_road_path(self, cfg: SettlementConfig, terrain: np.ndarray, overlay: np.ndarray, path: list[tuple[int, int]]) -> None:
+    def _draw_road_path(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        path: list[tuple[int, int]],
+    ) -> None:
         radius = max(0, cfg.road_width - 1)
         for x, y in path:
             if terrain[y, x] in (int(TerrainCode.WATER), int(TerrainCode.DEEP_WATER)):
@@ -481,9 +889,21 @@ class SettlementGenerator:
         anchor: tuple[int, int],
         design_population: int,
         gates: list[tuple[int, int]],
+        external_roads: list[RoadSegment] | None = None,
     ) -> list[tuple[int, int]]:
-        facilities = set(default_facilities_for(cfg.kind, cfg.magic, cfg.defense, cfg.state)) | set(cfg.facilities)
-        defense = cfg.defense
+        kind = cfg.kind
+        assert isinstance(kind, SettlementKind)
+        magic = cfg.magic
+        assert isinstance(magic, MagicMode)
+        defense_val = cfg.defense
+        assert isinstance(defense_val, DefenseStyle)
+        state = cfg.state
+        assert isinstance(state, SettlementState)
+
+        facilities = set(default_facilities_for(kind, magic, defense_val, state)) | set(
+            cfg.facilities
+        )
+        defense = defense_val
         if Facility.STONE_WALL in facilities:
             defense = DefenseStyle.STONE_WALL
         if Facility.PALISADE in facilities and defense == DefenseStyle.NONE:
@@ -492,13 +912,24 @@ class SettlementGenerator:
             return []
 
         h, w = terrain.shape
-        rx = clamp(int(10 + design_population ** 0.45 + cfg.wall_margin), 10, max(12, w // 2 - 4))
-        ry = clamp(int(8 + design_population ** 0.42 + cfg.wall_margin), 8, max(10, h // 2 - 4))
+        rx = clamp(
+            int(10 + design_population**0.45 + cfg.wall_margin), 10, max(12, w // 2 - 4)
+        )
+        ry = clamp(
+            int(8 + design_population**0.42 + cfg.wall_margin), 8, max(10, h // 2 - 4)
+        )
         if cfg.layout == LayoutStyle.GRID or defense == DefenseStyle.CASTLE_WALL:
-            rect = Rect(clamp(anchor[0] - rx, 2, w - 4), clamp(anchor[1] - ry, 2, h - 4), min(rx * 2, w - 5), min(ry * 2, h - 5))
+            rect = Rect(
+                clamp(anchor[0] - rx, 2, w - 4),
+                clamp(anchor[1] - ry, 2, h - 4),
+                min(rx * 2, w - 5),
+                min(ry * 2, h - 5),
+            )
             ring = rect_ring(rect)
         else:
-            ring = ellipse_ring(anchor[0], anchor[1], rx, ry, samples=320, jitter=0.06, rng=self.rng)
+            ring = ellipse_ring(
+                anchor[0], anchor[1], rx, ry, samples=320, jitter=0.06, rng=self.rng
+            )
 
         if defense in (DefenseStyle.STONE_WALL, DefenseStyle.CASTLE_WALL):
             code = TerrainCode.WALL
@@ -510,13 +941,37 @@ class SettlementGenerator:
             code = TerrainCode.PALISADE
         draw_points(overlay, ring, code, radius=0)
 
-        gate_targets = [(anchor[0], anchor[1] - ry), (anchor[0] + rx, anchor[1]), (anchor[0], anchor[1] + ry), (anchor[0] - rx, anchor[1])]
+        # 1. Determine gate points
+        gate_points = []
+        gate_targets = [
+            (anchor[0], anchor[1] - ry),
+            (anchor[0] + rx, anchor[1]),
+            (anchor[0], anchor[1] + ry),
+            (anchor[0] - rx, anchor[1]),
+        ]
         for gx, gy in gate_targets:
-            gx, gy = clamp(gx, 1, w - 2), clamp(gy, 1, h - 2)
+            gate_points.append((clamp(gx, 1, w - 2), clamp(gy, 1, h - 2)))
+
+        # Also add any points where an external road intersects the wall ring:
+        ring_set = set(ring)
+        roads_list = external_roads if external_roads is not None else []
+        for road in roads_list:
+            intersections = [pt for pt in road.points if pt in ring_set]
+            if intersections:
+                # Use the intersection point closest to the middle of the overlap
+                gp = intersections[len(intersections) // 2]
+                gate_points.append(gp)
+
+        # Draw the gates:
+        for gx, gy in gate_points:
             gates.append((gx, gy))
             stamp_disk(overlay, gx, gy, max(1, cfg.road_width), int(TerrainCode.GATE))
 
-        if defense in (DefenseStyle.WATCHTOWERS, DefenseStyle.STONE_WALL, DefenseStyle.CASTLE_WALL):
+        if defense in (
+            DefenseStyle.WATCHTOWERS,
+            DefenseStyle.STONE_WALL,
+            DefenseStyle.CASTLE_WALL,
+        ):
             stride = max(1, len(ring) // 8)
             for tx, ty in ring[::stride]:
                 rect = Rect(clamp(tx - 1, 1, w - 4), clamp(ty - 1, 1, h - 4), 3, 3)
@@ -524,7 +979,14 @@ class SettlementGenerator:
                     stamp_rect(overlay, rect, TerrainCode.BUILDING)
         return ring
 
-    def _draw_gate_roads(self, cfg: SettlementConfig, terrain: np.ndarray, overlay: np.ndarray, anchor: tuple[int, int], gates: list[tuple[int, int]]) -> list[RoadSegment]:
+    def _draw_gate_roads(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        anchor: tuple[int, int],
+        gates: list[tuple[int, int]],
+    ) -> list[RoadSegment]:
         roads: list[RoadSegment] = []
         for gate in gates:
             path = astar_path(terrain, gate, anchor, allow_bridges=cfg.allow_bridges)
@@ -532,22 +994,125 @@ class SettlementGenerator:
             roads.append(self._road("gate", path, tags=("defense",)))
         return roads
 
-    def _road(self, kind: str, points: list[tuple[int, int]], tags: tuple[str, ...] = tuple()) -> RoadSegment:
+    def _road(
+        self, kind: str, points: list[tuple[int, int]], tags: tuple[str, ...] = tuple()
+    ) -> RoadSegment:
         road = RoadSegment(self._road_id, kind, points, tags)
         self._road_id += 1
         return road
 
     # ------------------------------------------------------------------
-    # Facilities and buildings
+    # Tag-based facility biasing
     # ------------------------------------------------------------------
 
+    # Mapping from faction keyword fragments to FacilitySpec tag affinities.
+    _FACTION_AFFINITIES: dict[str, frozenset[str]] = {
+        "military": frozenset({"defense", "lordship"}),
+        "religious": frozenset({"religion"}),
+        "academic": frozenset({"knowledge", "magic"}),
+        "merchant": frozenset({"trade", "storage", "port"}),
+        "criminal": frozenset({"grim", "secret"}),
+        "noble": frozenset({"lordship", "wealth", "civic"}),
+    }
+
+    # Facilities injected when a trade route tag is present.
+    _TRADE_ROUTE_FACILITIES: tuple[Facility, ...] = (
+        Facility.CARAVANSERAI,
+        Facility.STABLE,
+        Facility.INN,
+        Facility.WAREHOUSE,
+        Facility.TAVERN,
+    )
+
+    # Facilities injected for specific faction affinity keywords.
+    _FACTION_INJECT: dict[str, tuple[Facility, ...]] = {
+        "military": (Facility.BARRACKS, Facility.ARMORY, Facility.WATCHTOWER),
+        "religious": (Facility.TEMPLE, Facility.SHRINE, Facility.CEMETERY),
+        "academic": (Facility.LIBRARY, Facility.SCHOOL),
+        "merchant": (Facility.GUILDHALL, Facility.WAREHOUSE, Facility.BANK),
+    }
+
+    def _tag_facility_multiplier(
+        self, cfg: SettlementConfig, spec: FacilitySpec
+    ) -> float:
+        """Return a weight multiplier for *spec* based on settlement tags.
+
+        Values > 1.0 boost the facility count; < 1.0 suppress it.
+        The multiplier stacks across multiple matching tag categories.
+        """
+        multiplier = 1.0
+        tags = set(cfg.tags)
+        spec_tags = set(spec.tags)
+
+        # --- Trade route bias ---
+        trade_level = 1.0
+        if "trade_route:high" in tags:
+            trade_level = 2.0
+        elif "trade_route:medium" in tags:
+            trade_level = 1.5
+        elif "trade_route:low" in tags:
+            trade_level = 1.2
+
+        trade_affinity = {"trade", "lodging", "travel", "storage"}
+        if trade_level > 1.0 and spec_tags & trade_affinity:
+            multiplier *= trade_level
+
+        # --- Faction bias ---
+        for tag in tags:
+            if not tag.startswith("faction:"):
+                continue
+            faction_name = tag.split(":", 1)[1]
+            for keyword, affinity_tags in self._FACTION_AFFINITIES.items():
+                if keyword in faction_name and spec_tags & affinity_tags:
+                    multiplier *= 1.5
+                    break  # one match per faction tag
+
+        return multiplier
+
     def _facility_plan(self, cfg: SettlementConfig) -> tuple[Facility, ...]:
-        facilities = list(default_facilities_for(cfg.kind, cfg.magic, cfg.defense, cfg.state))
-        facilities.extend(cfg.facilities)
+        kind = cfg.kind
+        assert isinstance(kind, SettlementKind)
+        magic = cfg.magic
+        assert isinstance(magic, MagicMode)
+        defense = cfg.defense
+        assert isinstance(defense, DefenseStyle)
+        state = cfg.state
+        assert isinstance(state, SettlementState)
+
+        facilities = list(default_facilities_for(kind, magic, defense, state))
+        facilities.extend(
+            [f if isinstance(f, Facility) else Facility(f) for f in cfg.facilities]
+        )
+
+        # --- Tag-based facility injection ---
+        tags = set(cfg.tags)
+        existing = set(facilities)
+
+        # Trade route: inject travel/commerce facilities.
+        if any(t.startswith("trade_route") for t in tags):
+            for f in self._TRADE_ROUTE_FACILITIES:
+                if f not in existing:
+                    facilities.append(f)
+                    existing.add(f)
+
+        # Faction: inject faction-aligned facilities.
+        for tag in tags:
+            if not tag.startswith("faction:"):
+                continue
+            faction_name = tag.split(":", 1)[1]
+            for keyword, inject_list in self._FACTION_INJECT.items():
+                if keyword in faction_name:
+                    for f in inject_list:
+                        if f not in existing:
+                            facilities.append(f)
+                            existing.add(f)
+
         forbidden = set(cfg.forbidden_facilities)
-        if cfg.magic == MagicMode.NO_MAGIC:
+        if magic == MagicMode.NO_MAGIC:
             forbidden |= MAGIC_FACILITIES
-        out = [f for f in facilities if f not in forbidden and f not in LINEAR_FACILITIES]
+        out = [
+            f for f in facilities if f not in forbidden and f not in LINEAR_FACILITIES
+        ]
         return tuple(dict.fromkeys(out))
 
     def _place_core_open_space(
@@ -559,15 +1124,39 @@ class SettlementGenerator:
         buildings: list[Building],
         districts: list[District],
     ) -> None:
-        if cfg.kind in (SettlementKind.HAMLET, SettlementKind.MONASTERY, SettlementKind.FORT, SettlementKind.NOMAD_CAMP):
+        if cfg.kind in (
+            SettlementKind.HAMLET,
+            SettlementKind.MONASTERY,
+            SettlementKind.FORT,
+            SettlementKind.NOMAD_CAMP,
+        ):
             facility = Facility.WELL
             size = 3
         else:
             facility = Facility.MARKET_SQUARE
             size = int(self.rng.integers(5, 10))
-        rect = Rect(clamp(anchor[0] - size // 2, 2, terrain.shape[1] - size - 2), clamp(anchor[1] - size // 2, 2, terrain.shape[0] - size - 2), size, size)
-        stamp_rect(overlay, rect, TerrainCode.PLAZA if facility == Facility.MARKET_SQUARE else TerrainCode.ROAD)
-        b = self._make_building(cfg, facility, rect, self._nearest_district_id(districts, rect.center), open_space=True)
+        rect = Rect(
+            clamp(anchor[0] - size // 2, 2, terrain.shape[1] - size - 2),
+            clamp(anchor[1] - size // 2, 2, terrain.shape[0] - size - 2),
+            size,
+            size,
+        )
+        stamp_rect(
+            overlay,
+            rect,
+            (
+                TerrainCode.PLAZA
+                if facility == Facility.MARKET_SQUARE
+                else TerrainCode.ROAD
+            ),
+        )
+        b = self._make_building(
+            cfg,
+            facility,
+            rect,
+            self._nearest_district_id(districts, rect.center),
+            open_space=True,
+        )
         b.tags += ("core", "always_present")
         buildings.append(b)
 
@@ -584,23 +1173,79 @@ class SettlementGenerator:
         waterfront: list[tuple[int, int]] = []
         shore_cells = find_shore_cells(terrain)
         if shore_cells.size == 0:
+            for f in (
+                Facility.DOCKS,
+                Facility.WHARF,
+                Facility.FISHERY,
+                Facility.SHIPYARD,
+                Facility.LIGHTHOUSE,
+            ):
+                if f in facilities:
+                    self._failed_placements[f] = "no_water"
             return waterfront
-        wants_port = cfg.kind in (SettlementKind.FISHING_VILLAGE, SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY) or any(
-            f in facilities for f in (Facility.DOCKS, Facility.WHARF, Facility.FISHERY, Facility.SHIPYARD, Facility.LIGHTHOUSE)
+        wants_port = cfg.kind in (
+            SettlementKind.FISHING_VILLAGE,
+            SettlementKind.PORT_TOWN,
+            SettlementKind.PORT_CITY,
+        ) or any(
+            f in facilities
+            for f in (
+                Facility.DOCKS,
+                Facility.WHARF,
+                Facility.FISHERY,
+                Facility.SHIPYARD,
+                Facility.LIGHTHOUSE,
+            )
         )
         if not wants_port:
             return waterfront
-        counts = 1 if cfg.kind == SettlementKind.FISHING_VILLAGE else 2 if cfg.kind == SettlementKind.PORT_TOWN else 4 if cfg.kind == SettlementKind.PORT_CITY else 1
+        counts = (
+            1
+            if cfg.kind == SettlementKind.FISHING_VILLAGE
+            else (
+                2
+                if cfg.kind == SettlementKind.PORT_TOWN
+                else 4 if cfg.kind == SettlementKind.PORT_CITY else 1
+            )
+        )
         for i in range(counts):
             sx, sy = nearest_cell(shore_cells, (anchor[0] + i * 9, anchor[1]))
             bw = int(self.rng.integers(5, 12))
             bh = int(self.rng.integers(3, 5))
-            rect = Rect(clamp(sx - bw // 2, 1, terrain.shape[1] - bw - 1), clamp(sy - bh // 2, 1, terrain.shape[0] - bh - 1), bw, bh)
+            rect = Rect(
+                clamp(sx - bw // 2, 1, terrain.shape[1] - bw - 1),
+                clamp(sy - bh // 2, 1, terrain.shape[0] - bh - 1),
+                bw,
+                bh,
+            )
             stamp_rect(overlay, rect, TerrainCode.DOCK)
-            facility = Facility.DOCKS if i == 0 else weighted_choice(self.rng, [Facility.WHARF, Facility.FISHERY, Facility.WAREHOUSE], [0.45, 0.35, 0.20])
-            buildings.append(self._make_building(cfg, facility, rect, self._nearest_district_id(districts, rect.center), open_space=True))
+            facility = (
+                Facility.DOCKS
+                if i == 0
+                else weighted_choice(
+                    self.rng,
+                    [Facility.WHARF, Facility.FISHERY, Facility.WAREHOUSE],
+                    [0.45, 0.35, 0.20],
+                )
+            )
+            buildings.append(
+                self._make_building(
+                    cfg,
+                    facility,
+                    rect,
+                    self._nearest_district_id(districts, rect.center),
+                    open_space=True,
+                )
+            )
             waterfront.append(rect.center)
-            self._draw_road_path(cfg, terrain, overlay, astar_path(terrain, rect.center, anchor, allow_bridges=cfg.allow_bridges))
+            self._draw_road_path(
+                cfg,
+                terrain,
+                overlay,
+                astar_path(
+                    terrain, rect.center, anchor, allow_bridges=cfg.allow_bridges
+                ),
+            )
         return waterfront
 
     def _place_facilities(
@@ -617,7 +1262,13 @@ class SettlementGenerator:
         explicit = set(cfg.facilities)
         ordered = sorted(facilities, key=self._facility_priority)
         for facility in ordered:
-            if facility in HOUSING_FACILITIES or facility in {Facility.FIELD, Facility.ORCHARD, Facility.PASTURE, Facility.FARMSTEAD, Facility.BARN}:
+            if facility in HOUSING_FACILITIES or facility in {
+                Facility.FIELD,
+                Facility.ORCHARD,
+                Facility.PASTURE,
+                Facility.FARMSTEAD,
+                Facility.BARN,
+            }:
                 continue
             # Core square and waterfront have dedicated logic.
             if facility in (Facility.MARKET_SQUARE, Facility.DOCKS, Facility.WHARF):
@@ -625,13 +1276,29 @@ class SettlementGenerator:
             spec = REGISTRY.get(facility)
             if spec is None:
                 continue
-            count = self._target_count(cfg, facility, spec, design_population, is_explicit=facility in explicit)
+            count = self._target_count(
+                cfg, facility, spec, design_population, is_explicit=facility in explicit
+            )
+            # Apply tag-based biasing (trade route, faction).
+            multiplier = self._tag_facility_multiplier(cfg, spec)
+            if multiplier != 1.0 and count > 0:
+                count = max(1, int(count * multiplier + 0.5))
             for _ in range(count):
-                rect = self._find_site_for_facility(cfg, terrain, overlay, anchor, districts, spec)
+                rect, reason = self._find_site_for_facility(
+                    cfg, terrain, overlay, anchor, districts, spec
+                )
                 if rect is None:
+                    self._failed_placements[facility] = reason
                     continue
                 stamp_rect(overlay, rect, self._overlay_code_for(facility))
-                buildings.append(self._make_building(cfg, facility, rect, self._nearest_district_id(districts, rect.center)))
+                buildings.append(
+                    self._make_building(
+                        cfg,
+                        facility,
+                        rect,
+                        self._nearest_district_id(districts, rect.center),
+                    )
+                )
 
     def _place_rural_belt(
         self,
@@ -643,25 +1310,94 @@ class SettlementGenerator:
         buildings: list[Building],
         design_population: int,
     ) -> None:
-        rural_bias = 2.2 if cfg.kind in (SettlementKind.FARMING_VILLAGE, SettlementKind.HAMLET, SettlementKind.VILLAGE, SettlementKind.MONASTERY) else 0.6 if cfg.kind in (SettlementKind.CITY, SettlementKind.CAPITAL, SettlementKind.PORT_CITY) else 1.0
-        count = int(max(1, (design_population / 250.0) * cfg.farmland_density * rural_bias))
+        rural_bias = (
+            2.2
+            if cfg.kind
+            in (
+                SettlementKind.FARMING_VILLAGE,
+                SettlementKind.HAMLET,
+                SettlementKind.VILLAGE,
+                SettlementKind.MONASTERY,
+            )
+            else (
+                0.6
+                if cfg.kind
+                in (
+                    SettlementKind.CITY,
+                    SettlementKind.CAPITAL,
+                    SettlementKind.PORT_CITY,
+                )
+                else 1.0
+            )
+        )
+        count = int(
+            max(1, (design_population / 250.0) * cfg.farmland_density * rural_bias)
+        )
         count = min(count, 70)
-        options = [Facility.FIELD, Facility.ORCHARD, Facility.PASTURE, Facility.FARMSTEAD, Facility.BARN]
+        options = [
+            Facility.FIELD,
+            Facility.ORCHARD,
+            Facility.PASTURE,
+            Facility.FARMSTEAD,
+            Facility.BARN,
+        ]
         weights = [0.45, 0.16, 0.15, 0.14, 0.10]
         if cfg.kind == SettlementKind.FISHING_VILLAGE:
             weights = [0.20, 0.08, 0.08, 0.14, 0.10]
-        for _ in range(count):
+
+        placed_explicit = 0
+        explicit_rural = tuple(
+            dict.fromkeys(f for f in cfg.facilities if f in RURAL_FACILITIES)
+        )
+        for facility in explicit_rural:
+            spec = REGISTRY[facility]
+            rect, reason = self._find_site_for_facility(
+                cfg, terrain, overlay, anchor, districts, spec, rural=True
+            )
+            if rect is None:
+                self._failed_placements[facility] = reason
+                continue
+            self._place_rural_facility(
+                cfg, terrain, overlay, districts, buildings, facility, rect
+            )
+            placed_explicit += 1
+
+        for _ in range(max(0, count - placed_explicit)):
             facility = weighted_choice(self.rng, options, weights)
             spec = REGISTRY[facility]
-            rect = self._find_site_for_facility(cfg, terrain, overlay, anchor, districts, spec, rural=True)
+            rect, _ = self._find_site_for_facility(
+                cfg, terrain, overlay, anchor, districts, spec, rural=True
+            )
             if rect is None:
                 continue
-            code = self._overlay_code_for(facility)
-            if facility in (Facility.FIELD, Facility.ORCHARD, Facility.PASTURE):
-                stamp_rect(terrain, rect, code)
-            else:
-                stamp_rect(overlay, rect, code)
-            buildings.append(self._make_building(cfg, facility, rect, self._nearest_district_id(districts, rect.center), open_space=facility in OPEN_FACILITIES))
+            self._place_rural_facility(
+                cfg, terrain, overlay, districts, buildings, facility, rect
+            )
+
+    def _place_rural_facility(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        districts: list[District],
+        buildings: list[Building],
+        facility: Facility,
+        rect: Rect,
+    ) -> None:
+        code = self._overlay_code_for(facility)
+        if facility in RURAL_OPEN_FACILITIES:
+            stamp_rect(terrain, rect, code)
+        else:
+            stamp_rect(overlay, rect, code)
+        buildings.append(
+            self._make_building(
+                cfg,
+                facility,
+                rect,
+                self._nearest_district_id(districts, rect.center),
+                open_space=facility in OPEN_FACILITIES,
+            )
+        )
 
     def _place_housing(
         self,
@@ -675,20 +1411,47 @@ class SettlementGenerator:
         actual_population: int,
     ) -> None:
         if cfg.kind == SettlementKind.FORT:
-            mix, weights = [Facility.BARRACKS, Facility.HOUSE, Facility.STABLE], [0.55, 0.35, 0.10]
+            mix, weights = [Facility.BARRACKS, Facility.HOUSE, Facility.STABLE], [
+                0.55,
+                0.35,
+                0.10,
+            ]
         elif cfg.kind == SettlementKind.NOMAD_CAMP:
             mix, weights = [Facility.HOVEL, Facility.HOUSE], [0.70, 0.30]
         elif design_population > 8000:
-            mix, weights = [Facility.TENEMENT, Facility.HOUSE, Facility.MANOR, Facility.HOVEL], [0.45, 0.35, 0.06, 0.14]
+            mix, weights = [
+                Facility.TENEMENT,
+                Facility.HOUSE,
+                Facility.MANOR,
+                Facility.HOVEL,
+            ], [0.45, 0.35, 0.06, 0.14]
         elif cfg.wealth in (Wealth.RICH, Wealth.IMPERIAL):
-            mix, weights = [Facility.HOUSE, Facility.MANOR, Facility.TENEMENT, Facility.HOVEL], [0.58, 0.16, 0.18, 0.08]
+            mix, weights = [
+                Facility.HOUSE,
+                Facility.MANOR,
+                Facility.TENEMENT,
+                Facility.HOVEL,
+            ], [0.58, 0.16, 0.18, 0.08]
         elif cfg.wealth in (Wealth.DESTITUTE, Wealth.POOR):
-            mix, weights = [Facility.HOVEL, Facility.HOUSE, Facility.TENEMENT], [0.52, 0.38, 0.10]
+            mix, weights = [Facility.HOVEL, Facility.HOUSE, Facility.TENEMENT], [
+                0.52,
+                0.38,
+                0.10,
+            ]
         else:
-            mix, weights = [Facility.HOUSE, Facility.HOVEL, Facility.TENEMENT, Facility.MANOR], [0.65, 0.18, 0.12, 0.05]
+            mix, weights = [
+                Facility.HOUSE,
+                Facility.HOVEL,
+                Facility.TENEMENT,
+                Facility.MANOR,
+            ], [0.65, 0.18, 0.12, 0.05]
 
         target_capacity = max(design_population, actual_population)
-        if cfg.state in (SettlementState.RUINED, SettlementState.ANCIENT, SettlementState.GHOST_TOWN):
+        if cfg.state in (
+            SettlementState.RUINED,
+            SettlementState.ANCIENT,
+            SettlementState.GHOST_TOWN,
+        ):
             target_capacity = design_population
         current_capacity = sum(b.occupants for b in buildings)
         max_buildings = int(min(450, max(8, design_population / 3)))
@@ -697,34 +1460,86 @@ class SettlementGenerator:
             attempts += 1
             facility = weighted_choice(self.rng, mix, weights)
             spec = REGISTRY.get(facility, REGISTRY[Facility.HOUSE])
-            rect = self._find_site_for_facility(cfg, terrain, overlay, anchor, districts, spec)
+            rect, _ = self._find_site_for_facility(
+                cfg, terrain, overlay, anchor, districts, spec
+            )
             if rect is None:
                 continue
             stamp_rect(overlay, rect, TerrainCode.BUILDING)
-            b = self._make_building(cfg, facility, rect, self._nearest_district_id(districts, rect.center))
+            b = self._make_building(
+                cfg, facility, rect, self._nearest_district_id(districts, rect.center)
+            )
             if cfg.state == SettlementState.GHOST_TOWN:
                 b.occupants = 0
             current_capacity += b.occupants
             buildings.append(b)
 
     def _facility_priority(self, facility: Facility) -> int:
-        if facility in (Facility.CASTLE, Facility.KEEP, Facility.CATHEDRAL, Facility.MONASTERY, Facility.ARCANE_ACADEMY):
+        if facility in (
+            Facility.CASTLE,
+            Facility.KEEP,
+            Facility.CATHEDRAL,
+            Facility.MONASTERY,
+            Facility.ARCANE_ACADEMY,
+        ):
             return 0
-        if facility in (Facility.CITY_HALL, Facility.COURTHOUSE, Facility.MARKET, Facility.MARKET_SQUARE, Facility.CHURCH, Facility.TEMPLE):
+        if facility in (
+            Facility.CITY_HALL,
+            Facility.COURTHOUSE,
+            Facility.MARKET,
+            Facility.MARKET_SQUARE,
+            Facility.CHURCH,
+            Facility.TEMPLE,
+        ):
             return 1
-        if facility in (Facility.CEMETERY, Facility.DOCKS, Facility.SHIPYARD, Facility.LIGHTHOUSE):
+        if facility in (
+            Facility.CEMETERY,
+            Facility.DOCKS,
+            Facility.SHIPYARD,
+            Facility.LIGHTHOUSE,
+        ):
             return 2
         return 3
 
-    def _target_count(self, cfg: SettlementConfig, facility: Facility, spec: FacilitySpec, design_population: int, *, is_explicit: bool) -> int:
+    def _target_count(
+        self,
+        cfg: SettlementConfig,
+        facility: Facility,
+        spec: FacilitySpec,
+        design_population: int,
+        *,
+        is_explicit: bool,
+    ) -> int:
         if spec.unique:
             return 1
-        base = 1 if is_explicit or spec.base_weight >= 0.12 or design_population >= 3000 else 0
+        base = (
+            1
+            if is_explicit or spec.base_weight >= 0.12 or design_population >= 3000
+            else 0
+        )
         if facility in (Facility.WELL, Facility.SHRINE):
             return max(base, int(design_population / 600) + 1)
         if facility in (Facility.INN, Facility.TAVERN):
-            return max(base, int(design_population / 1400) + (1 if cfg.kind in (SettlementKind.MARKET_TOWN, SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY) else 0))
-        if facility in (Facility.BLACKSMITH, Facility.BAKERY, Facility.WAREHOUSE, Facility.GRANARY):
+            return max(
+                base,
+                int(design_population / 1400)
+                + (
+                    1
+                    if cfg.kind
+                    in (
+                        SettlementKind.MARKET_TOWN,
+                        SettlementKind.PORT_TOWN,
+                        SettlementKind.PORT_CITY,
+                    )
+                    else 0
+                ),
+            )
+        if facility in (
+            Facility.BLACKSMITH,
+            Facility.BAKERY,
+            Facility.WAREHOUSE,
+            Facility.GRANARY,
+        ):
             return max(base, int(design_population / 1800) + 1)
         if facility in (Facility.WATCHTOWER, Facility.TOWER):
             return max(base, 2 if cfg.defense != DefenseStyle.NONE else 1)
@@ -748,48 +1563,157 @@ class SettlementGenerator:
         spec: FacilitySpec,
         *,
         rural: bool = False,
-    ) -> Optional[Rect]:
+    ) -> tuple[Rect | None, str]:
         h, w = terrain.shape
+        reasons = {"no_water": 0, "no_hill": 0, "no_clear_site": 0}
         for _ in range(250):
             bw = int(self.rng.integers(spec.min_size[0], spec.max_size[0] + 1))
             bh = int(self.rng.integers(spec.min_size[1], spec.max_size[1] + 1))
-            target = self._target_point_for_spec(cfg, terrain, anchor, districts, spec, rural=rural)
-            x = clamp(int(target[0] + self.rng.normal(0, max(3, bw * 2))) - bw // 2, 1, w - bw - 2)
-            y = clamp(int(target[1] + self.rng.normal(0, max(3, bh * 2))) - bh // 2, 1, h - bh - 2)
+            target = self._target_point_for_spec(
+                cfg, terrain, anchor, districts, spec, rural=rural
+            )
+            x = clamp(
+                int(target[0] + self.rng.normal(0, max(3, bw * 2))) - bw // 2,
+                1,
+                w - bw - 2,
+            )
+            y = clamp(
+                int(target[1] + self.rng.normal(0, max(3, bh * 2))) - bh // 2,
+                1,
+                h - bh - 2,
+            )
             rect = Rect(x, y, bw, bh)
             if spec.requires_water and not self._rect_touches_water(rect, terrain):
+                reasons["no_water"] += 1
                 continue
-            if spec.requires_hill and not bool(np.any(terrain[rect.y:rect.y2, rect.x:rect.x2] == int(TerrainCode.HILL))):
+            if spec.requires_hill and not bool(
+                np.any(
+                    terrain[rect.y : rect.y2, rect.x : rect.x2] == int(TerrainCode.HILL)
+                )
+            ):
+                reasons["no_hill"] += 1
                 continue
             allow_on: set[int] = set()
-            if spec.facility in (Facility.DOCKS, Facility.WHARF, Facility.FISHERY, Facility.SHIPYARD, Facility.FERRY, Facility.BRIDGE):
-                allow_on = {int(TerrainCode.WATER), int(TerrainCode.SHORE), int(TerrainCode.MARSH)}
-            if spec.facility in (Facility.FIELD, Facility.ORCHARD, Facility.PASTURE):
-                allow_on = {int(TerrainCode.GRASS), int(TerrainCode.FOREST), int(TerrainCode.FARMLAND), int(TerrainCode.SHORE), int(TerrainCode.HILL)}
+            if spec.facility in (
+                Facility.DOCKS,
+                Facility.WHARF,
+                Facility.FISHERY,
+                Facility.SHIPYARD,
+                Facility.FERRY,
+                Facility.BRIDGE,
+            ):
+                allow_on = {
+                    int(TerrainCode.WATER),
+                    int(TerrainCode.SHORE),
+                    int(TerrainCode.MARSH),
+                }
+            if spec.facility in RURAL_OPEN_FACILITIES:
+                allow_on = self._rural_open_allow_on()
             if rect_is_clear(rect, terrain, overlay, allow_on=allow_on):
-                return rect
-        return None
+                return rect, ""
+            reasons["no_clear_site"] += 1
+        if rural and spec.facility in RURAL_OPEN_FACILITIES:
+            fallback = self._find_rural_open_site(terrain, overlay, anchor, spec)
+            if fallback is not None:
+                return fallback, ""
+        dominant_reason = max(reasons, key=lambda k: reasons[k])
+        return None, dominant_reason
 
-    def _target_point_for_spec(self, cfg: SettlementConfig, terrain: np.ndarray, anchor: tuple[int, int], districts: list[District], spec: FacilitySpec, *, rural: bool) -> tuple[int, int]:
+    def _rural_open_allow_on(self) -> set[int]:
+        return {
+            int(TerrainCode.GRASS),
+            int(TerrainCode.FOREST),
+            int(TerrainCode.FARMLAND),
+            int(TerrainCode.SHORE),
+            int(TerrainCode.HILL),
+        }
+
+    def _find_rural_open_site(
+        self,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        anchor: tuple[int, int],
+        spec: FacilitySpec,
+    ) -> Rect | None:
+        h, w = terrain.shape
+        bw, bh = spec.min_size
+        target_radius = min(terrain.shape) * 0.32
+        candidates: list[tuple[float, Rect]] = []
+        for y in range(1, h - bh - 1):
+            for x in range(1, w - bw - 1):
+                rect = Rect(x, y, bw, bh)
+                if not rect_is_clear(
+                    rect,
+                    terrain,
+                    overlay,
+                    allow_on=self._rural_open_allow_on(),
+                ):
+                    continue
+                cx, cy = rect.center
+                dist = distance((cx, cy), anchor)
+                if dist < min(terrain.shape) * 0.16:
+                    continue
+                edge_bonus = min(cx, cy, w - cx - 1, h - cy - 1) * 0.05
+                score = abs(dist - target_radius) + edge_bonus
+                candidates.append((score, rect))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (item[0], item[1].y, item[1].x))
+        return candidates[0][1]
+
+    def _target_point_for_spec(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        anchor: tuple[int, int],
+        districts: list[District],
+        spec: FacilitySpec,
+        *,
+        rural: bool,
+    ) -> tuple[int, int]:
         if spec.requires_water:
             shore_cells = find_shore_cells(terrain)
             if shore_cells.size:
                 return nearest_cell(shore_cells, anchor)
         if spec.requires_hill:
-            hill_cells = np.argwhere((terrain == int(TerrainCode.HILL)) | (terrain == int(TerrainCode.MOUNTAIN)))
+            hill_cells = np.argwhere(
+                (terrain == int(TerrainCode.HILL))
+                | (terrain == int(TerrainCode.MOUNTAIN))
+            )
             if hill_cells.size:
                 return nearest_cell(hill_cells, anchor)
-        if rural or "farm" in spec.district_affinity or "edge" in spec.district_affinity:
-            return random_point_in_annulus(self.rng, anchor, min(terrain.shape) * 0.18, min(terrain.shape) * 0.44, terrain.shape[1], terrain.shape[0])
-        candidates = [d for d in districts if any(a in d.kind or d.kind in a for a in spec.district_affinity)]
+        if (
+            rural
+            or "farm" in spec.district_affinity
+            or "edge" in spec.district_affinity
+        ):
+            return random_point_in_annulus(
+                self.rng,
+                anchor,
+                min(terrain.shape) * 0.18,
+                min(terrain.shape) * 0.44,
+                terrain.shape[1],
+                terrain.shape[0],
+            )
+        candidates = [
+            d
+            for d in districts
+            if any(a in d.kind or d.kind in a for a in spec.district_affinity)
+        ]
         if not candidates:
             candidates = districts
         return candidates[int(self.rng.integers(0, len(candidates)))].center
 
     def _rect_touches_water(self, rect: Rect, terrain: np.ndarray) -> bool:
         expanded = rect.expanded(2, terrain.shape[1], terrain.shape[0])
-        sub = terrain[expanded.y:expanded.y2, expanded.x:expanded.x2]
-        return bool(np.any((sub == int(TerrainCode.WATER)) | (sub == int(TerrainCode.DEEP_WATER)) | (sub == int(TerrainCode.SHORE))))
+        sub = terrain[expanded.y : expanded.y2, expanded.x : expanded.x2]
+        return bool(
+            np.any(
+                (sub == int(TerrainCode.WATER))
+                | (sub == int(TerrainCode.DEEP_WATER))
+                | (sub == int(TerrainCode.SHORE))
+            )
+        )
 
     def _overlay_code_for(self, facility: Facility) -> TerrainCode:
         if facility == Facility.FIELD:
@@ -800,9 +1724,20 @@ class SettlementGenerator:
             return TerrainCode.PASTURE
         if facility == Facility.CEMETERY:
             return TerrainCode.CEMETERY
-        if facility in (Facility.DOCKS, Facility.WHARF, Facility.FISHERY, Facility.SHIPYARD, Facility.FERRY):
+        if facility in (
+            Facility.DOCKS,
+            Facility.WHARF,
+            Facility.FISHERY,
+            Facility.SHIPYARD,
+            Facility.FERRY,
+        ):
             return TerrainCode.DOCK
-        if facility in (Facility.RUNESTONE_CIRCLE, Facility.WARDING_OBELISK, Facility.PORTAL, Facility.LEYLINE_WELL):
+        if facility in (
+            Facility.RUNESTONE_CIRCLE,
+            Facility.WARDING_OBELISK,
+            Facility.PORTAL,
+            Facility.LEYLINE_WELL,
+        ):
             return TerrainCode.MAGIC
         if facility == Facility.MARKET_SQUARE:
             return TerrainCode.PLAZA
@@ -812,17 +1747,42 @@ class SettlementGenerator:
             return TerrainCode.RUIN
         return TerrainCode.BUILDING
 
-    def _make_building(self, cfg: SettlementConfig, facility: Facility, rect: Rect, district_id: Optional[int], *, open_space: bool = False) -> Building:
+    def _make_building(
+        self,
+        cfg: SettlementConfig,
+        facility: Facility,
+        rect: Rect,
+        district_id: int | None,
+        *,
+        open_space: bool = False,
+    ) -> Building:
+        material_mode = cfg.material
+        assert isinstance(material_mode, BuildingMaterial)
+        wealth = cfg.wealth
+        assert isinstance(wealth, Wealth)
         spec = REGISTRY.get(facility)
-        material = material_for_palette(cfg.material, cfg.wealth, facility, spec)
-        if cfg.state == SettlementState.ANCIENT and facility not in (Facility.HOUSE, Facility.HOVEL, Facility.TENEMENT, Facility.FARMSTEAD):
-            if material != BuildingMaterial.MOSTLY_WOOD:
-                material = BuildingMaterial.RUINED_STONE
+        material = material_for_palette(material_mode, wealth, facility, spec)
+        b_state = cfg.state
+        assert isinstance(b_state, SettlementState)
+        if (
+            b_state == SettlementState.ANCIENT
+            and facility
+            not in (
+                Facility.HOUSE,
+                Facility.HOVEL,
+                Facility.TENEMENT,
+                Facility.FARMSTEAD,
+            )
+            and material != BuildingMaterial.MOSTLY_WOOD
+        ):
+            material = BuildingMaterial.RUINED_STONE
         occupants = 0
         workers = 0
         if spec:
             if spec.occupants[1] > 0:
-                occupants = int(self.rng.integers(spec.occupants[0], spec.occupants[1] + 1))
+                occupants = int(
+                    self.rng.integers(spec.occupants[0], spec.occupants[1] + 1)
+                )
             if spec.workers[1] > 0:
                 workers = int(self.rng.integers(spec.workers[0], spec.workers[1] + 1))
         quality_base = {
@@ -832,8 +1792,14 @@ class SettlementGenerator:
             Wealth.PROSPEROUS: 0.64,
             Wealth.RICH: 0.78,
             Wealth.IMPERIAL: 0.90,
-        }.get(cfg.wealth, 0.50)
-        if facility in (Facility.MANOR, Facility.CASTLE, Facility.CATHEDRAL, Facility.CITY_HALL, Facility.GUILDHALL):
+        }.get(wealth, 0.50)
+        if facility in (
+            Facility.MANOR,
+            Facility.CASTLE,
+            Facility.CATHEDRAL,
+            Facility.CITY_HALL,
+            Facility.GUILDHALL,
+        ):
             quality_base += 0.12
         if cfg.state in (SettlementState.DECLINING, SettlementState.WAR_TORN):
             quality_base -= 0.15
@@ -843,13 +1809,22 @@ class SettlementGenerator:
         tags = tuple(spec.tags if spec else tuple())
         if open_space:
             tags += ("open_space",)
-        magic = cfg.magic if cfg.magic != MagicMode.NO_MAGIC and facility in MAGIC_FACILITIES else None
+
+        b_state = cfg.state
+        assert isinstance(b_state, SettlementState)
+        magic_mode = cfg.magic
+        assert isinstance(magic_mode, MagicMode)
+        magic = (
+            magic_mode
+            if magic_mode != MagicMode.NO_MAGIC and facility in MAGIC_FACILITIES
+            else None
+        )
         building = Building(
             id=self._building_id,
             facility=facility,
             rect=rect,
             material=material,
-            state=cfg.state,
+            state=b_state,
             district_id=district_id,
             occupants=occupants,
             workers=workers,
@@ -861,12 +1836,16 @@ class SettlementGenerator:
         self._building_id += 1
         return building
 
-    def _nearest_district_id(self, districts: list[District], point: tuple[int, int]) -> Optional[int]:
+    def _nearest_district_id(
+        self, districts: list[District], point: tuple[int, int]
+    ) -> int | None:
         if not districts:
             return None
         return min(districts, key=lambda d: distance(d.center, point)).id
 
-    def _apply_decline_and_ruin(self, cfg: SettlementConfig, overlay: np.ndarray, buildings: list[Building]) -> None:
+    def _apply_decline_and_ruin(
+        self, cfg: SettlementConfig, overlay: np.ndarray, buildings: list[Building]
+    ) -> None:
         ruin_rate = cfg.ruin_rate
         if ruin_rate is None:
             ruin_rate = {
@@ -877,9 +1856,20 @@ class SettlementGenerator:
                 SettlementState.DECLINING: 0.10,
                 SettlementState.PLAGUE_STRUCK: 0.12,
             }.get(cfg.state, 0.03)
-        ghost_rate = cfg.ghost_rate if cfg.ghost_rate is not None else (1.0 if cfg.state == SettlementState.GHOST_TOWN else 0.0)
+        ghost_rate = (
+            cfg.ghost_rate
+            if cfg.ghost_rate is not None
+            else (1.0 if cfg.state == SettlementState.GHOST_TOWN else 0.0)
+        )
         for b in buildings:
-            if b.facility in (Facility.FIELD, Facility.ORCHARD, Facility.PASTURE, Facility.DOCKS, Facility.WHARF, Facility.MARKET_SQUARE):
+            if b.facility in (
+                Facility.FIELD,
+                Facility.ORCHARD,
+                Facility.PASTURE,
+                Facility.DOCKS,
+                Facility.WHARF,
+                Facility.MARKET_SQUARE,
+            ):
                 continue
             if self.rng.random() < ruin_rate:
                 b.state = SettlementState.RUINED
@@ -899,10 +1889,25 @@ class SettlementGenerator:
                 x = int(self.rng.integers(2, w - 2))
                 y = int(self.rng.integers(2, h - 2))
                 if overlay[y, x] == int(TerrainCode.VOID):
-                    stamp_disk(overlay, x, y, int(self.rng.integers(1, 3)), int(TerrainCode.EMPTY_LOT))
+                    stamp_disk(
+                        overlay,
+                        x,
+                        y,
+                        int(self.rng.integers(1, 3)),
+                        int(TerrainCode.EMPTY_LOT),
+                    )
 
-    def _place_magic(self, cfg: SettlementConfig, terrain: np.ndarray, overlay: np.ndarray, anchor: tuple[int, int], buildings: list[Building]) -> list[MagicSite]:
-        if cfg.magic == MagicMode.NO_MAGIC:
+    def _place_magic(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        anchor: tuple[int, int],
+        buildings: list[Building],
+    ) -> list[MagicSite]:
+        magic_mode = cfg.magic
+        assert isinstance(magic_mode, MagicMode)
+        if magic_mode == MagicMode.NO_MAGIC:
             return []
         count = {
             MagicMode.LOW_MAGIC: 1,
@@ -912,21 +1917,80 @@ class SettlementGenerator:
             MagicMode.NECROMANTIC: 3,
             MagicMode.WILD_MAGIC: 4,
             MagicMode.TECHNO_ARCANE: 3,
-        }.get(cfg.magic, 1)
+        }.get(magic_mode, 1)
         sites: list[MagicSite] = []
         for _ in range(count):
-            if cfg.magic in (MagicMode.RUNIC_MAGIC, MagicMode.WILD_MAGIC):
-                point = random_point_in_annulus(self.rng, anchor, min(terrain.shape) * 0.12, min(terrain.shape) * 0.43, terrain.shape[1], terrain.shape[0])
-            elif cfg.magic == MagicMode.NECROMANTIC:
-                cemetery = next((b for b in buildings if b.facility in (Facility.CEMETERY, Facility.NECROPOLIS, Facility.OSSUARY)), None)
-                point = cemetery.rect.center if cemetery else random_point_in_annulus(self.rng, anchor, 6, min(terrain.shape) * 0.35, terrain.shape[1], terrain.shape[0])
+            if magic_mode in (MagicMode.RUNIC_MAGIC, MagicMode.WILD_MAGIC):
+                point = random_point_in_annulus(
+                    self.rng,
+                    anchor,
+                    min(terrain.shape) * 0.12,
+                    min(terrain.shape) * 0.43,
+                    terrain.shape[1],
+                    terrain.shape[0],
+                )
+            elif magic_mode == MagicMode.NECROMANTIC:
+                cemetery = next(
+                    (
+                        b
+                        for b in buildings
+                        if b.facility
+                        in (Facility.CEMETERY, Facility.NECROPOLIS, Facility.OSSUARY)
+                    ),
+                    None,
+                )
+                point = (
+                    cemetery.rect.center
+                    if cemetery
+                    else random_point_in_annulus(
+                        self.rng,
+                        anchor,
+                        6,
+                        min(terrain.shape) * 0.35,
+                        terrain.shape[1],
+                        terrain.shape[0],
+                    )
+                )
             else:
-                magic_building = next((b for b in buildings if b.magic is not None), None)
-                point = magic_building.rect.center if magic_building else random_point_in_annulus(self.rng, anchor, 4, min(terrain.shape) * 0.24, terrain.shape[1], terrain.shape[0])
-            radius = int(self.rng.integers(2, 6 if cfg.magic != MagicMode.HIGH_MAGIC else 9))
-            intensity = float(np.clip(self.rng.normal(0.55 if cfg.magic != MagicMode.HIGH_MAGIC else 0.75, 0.18), 0.05, 1.0))
-            stamp_disk(overlay, point[0], point[1], max(1, radius // 2), int(TerrainCode.MAGIC))
-            sites.append(MagicSite(self._magic_site_kind(cfg.magic), point, radius, intensity, tags=(cfg.magic.value,)))
+                magic_building = next(
+                    (b for b in buildings if b.magic is not None), None
+                )
+                point = (
+                    magic_building.rect.center
+                    if magic_building
+                    else random_point_in_annulus(
+                        self.rng,
+                        anchor,
+                        4,
+                        min(terrain.shape) * 0.24,
+                        terrain.shape[1],
+                        terrain.shape[0],
+                    )
+                )
+            radius = int(
+                self.rng.integers(2, 6 if magic_mode != MagicMode.HIGH_MAGIC else 9)
+            )
+            intensity = float(
+                np.clip(
+                    self.rng.normal(
+                        0.55 if magic_mode != MagicMode.HIGH_MAGIC else 0.75, 0.18
+                    ),
+                    0.05,
+                    1.0,
+                )
+            )
+            stamp_disk(
+                overlay, point[0], point[1], max(1, radius // 2), int(TerrainCode.MAGIC)
+            )
+            sites.append(
+                MagicSite(
+                    self._magic_site_kind(magic_mode),
+                    point,
+                    radius,
+                    intensity,
+                    tags=(magic_mode.value,),
+                )
+            )
         return sites
 
     def _magic_site_kind(self, magic: MagicMode) -> str:
@@ -940,7 +2004,15 @@ class SettlementGenerator:
             MagicMode.TECHNO_ARCANE: "aetheric_regulator",
         }.get(magic, "strange_power")
 
-    def _repair_connectivity(self, cfg: SettlementConfig, terrain: np.ndarray, overlay: np.ndarray, anchor: tuple[int, int], buildings: list[Building], roads: list[RoadSegment]) -> None:
+    def _repair_connectivity(
+        self,
+        cfg: SettlementConfig,
+        terrain: np.ndarray,
+        overlay: np.ndarray,
+        anchor: tuple[int, int],
+        buildings: list[Building],
+        roads: list[RoadSegment],
+    ) -> None:
         important = {
             Facility.CASTLE,
             Facility.KEEP,
@@ -959,17 +2031,51 @@ class SettlementGenerator:
         for b in buildings:
             if b.facility not in important:
                 continue
-            path = astar_path(terrain, b.rect.center, anchor, allow_bridges=cfg.allow_bridges, max_expansions=30000)
+            path = astar_path(
+                terrain,
+                b.rect.center,
+                anchor,
+                allow_bridges=cfg.allow_bridges,
+                max_expansions=30000,
+            )
             if len(path) > 1:
                 self._draw_road_path(cfg, terrain, overlay, path)
                 roads.append(self._road("spur", path, tags=(b.facility.value,)))
 
-    def _metadata(self, cfg: SettlementConfig, design_population: int, final_population: int, anchor: tuple[int, int], wall_points: list[tuple[int, int]]) -> dict[str, object]:
+    def _metadata(
+        self,
+        cfg: SettlementConfig,
+        design_population: int,
+        final_population: int,
+        anchor: tuple[int, int],
+        wall_points: list[tuple[int, int]],
+        failed_facilities: list[str],
+        generation_report: GenerationReport,
+    ) -> dict[str, object]:
+        kind = cfg.kind
+        assert isinstance(kind, SettlementKind)
+        state = cfg.state
+        assert isinstance(state, SettlementState)
+        magic = cfg.magic
+        assert isinstance(magic, MagicMode)
+        material = cfg.material
+        assert isinstance(material, BuildingMaterial)
+        population_mode = cfg.population_mode
+        assert isinstance(population_mode, PopulationMode)
+        defense = cfg.defense
+        assert isinstance(defense, DefenseStyle)
+        wealth = cfg.wealth
+        assert isinstance(wealth, Wealth)
+        layout = cfg.layout
+        assert isinstance(layout, LayoutStyle)
+
         economy = self._economy_tags(cfg)
         hazards = self._hazards(cfg)
         factions = self._factions(cfg)
         hooks = self._hooks(cfg, economy, hazards)
         return {
+            "failed_facilities": failed_facilities,
+            "generation_report": generation_report.to_dict(),
             "design_population": design_population,
             "actual_population": final_population,
             "anchor": anchor,
@@ -978,28 +2084,46 @@ class SettlementGenerator:
             "factions": factions,
             "hooks": hooks,
             "wall_tiles": len(wall_points),
-            "terrain_features": [t.value for t in cfg.terrain],
+            "terrain_features": [
+                t.value if isinstance(t, TerrainFeature) else t for t in cfg.terrain
+            ],
             "switches": {
-                "kind": cfg.kind.value,
-                "state": cfg.state.value,
-                "magic": cfg.magic.value,
-                "material": cfg.material.value,
-                "population_mode": cfg.population_mode.value,
-                "defense": cfg.defense.value,
-                "wealth": cfg.wealth.value,
-                "layout": cfg.layout.value,
+                "kind": kind.value,
+                "state": state.value,
+                "magic": magic.value,
+                "material": material.value,
+                "population_mode": population_mode.value,
+                "defense": defense.value,
+                "wealth": wealth.value,
+                "layout": layout.value,
             },
         }
 
     def _economy_tags(self, cfg: SettlementConfig) -> list[str]:
         tags: list[str] = []
-        if cfg.kind in (SettlementKind.FARMING_VILLAGE, SettlementKind.HAMLET, SettlementKind.VILLAGE):
+        if cfg.kind in (
+            SettlementKind.FARMING_VILLAGE,
+            SettlementKind.HAMLET,
+            SettlementKind.VILLAGE,
+        ):
             tags.extend(["grain", "livestock", "orchards"])
-        if cfg.kind in (SettlementKind.FISHING_VILLAGE, SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY):
+        if cfg.kind in (
+            SettlementKind.FISHING_VILLAGE,
+            SettlementKind.PORT_TOWN,
+            SettlementKind.PORT_CITY,
+        ):
             tags.extend(["fish", "salt", "shipping"])
-        if cfg.kind == SettlementKind.MINING_CAMP or TerrainFeature.HILL in cfg.terrain or TerrainFeature.MOUNTAIN_PASS in cfg.terrain:
+        if (
+            cfg.kind == SettlementKind.MINING_CAMP
+            or TerrainFeature.HILL in cfg.terrain
+            or TerrainFeature.MOUNTAIN_PASS in cfg.terrain
+        ):
             tags.extend(["ore", "stone"])
-        if cfg.kind in (SettlementKind.MARKET_TOWN, SettlementKind.CITY, SettlementKind.CAPITAL):
+        if cfg.kind in (
+            SettlementKind.MARKET_TOWN,
+            SettlementKind.CITY,
+            SettlementKind.CAPITAL,
+        ):
             tags.extend(["market tolls", "craft guilds"])
         if cfg.magic in (MagicMode.HIGH_MAGIC, MagicMode.TECHNO_ARCANE):
             tags.append("arcane services")
@@ -1025,35 +2149,65 @@ class SettlementGenerator:
 
     def _factions(self, cfg: SettlementConfig) -> list[str]:
         factions: list[str] = []
-        if cfg.kind in (SettlementKind.CITY, SettlementKind.CAPITAL, SettlementKind.PORT_CITY):
+        if cfg.kind in (
+            SettlementKind.CITY,
+            SettlementKind.CAPITAL,
+            SettlementKind.PORT_CITY,
+        ):
             factions.extend(["merchant guild", "watch captains", "temple chapter"])
-        if cfg.kind in (SettlementKind.FARMING_VILLAGE, SettlementKind.VILLAGE, SettlementKind.HAMLET):
+        if cfg.kind in (
+            SettlementKind.FARMING_VILLAGE,
+            SettlementKind.VILLAGE,
+            SettlementKind.HAMLET,
+        ):
             factions.extend(["village elders", "tenant farmers"])
-        if cfg.kind in (SettlementKind.FORT, SettlementKind.WALLED_TOWN, SettlementKind.CAPITAL):
+        if cfg.kind in (
+            SettlementKind.FORT,
+            SettlementKind.WALLED_TOWN,
+            SettlementKind.CAPITAL,
+        ):
             factions.append("garrison")
-        if cfg.magic in (MagicMode.HIGH_MAGIC, MagicMode.RUNIC_MAGIC, MagicMode.TECHNO_ARCANE):
+        if cfg.magic in (
+            MagicMode.HIGH_MAGIC,
+            MagicMode.RUNIC_MAGIC,
+            MagicMode.TECHNO_ARCANE,
+        ):
             factions.append("licensed arcanists")
         if cfg.state in (SettlementState.RUINED, SettlementState.GHOST_TOWN):
             factions.append("scavengers")
         return factions or ["local households"]
 
-    def _hooks(self, cfg: SettlementConfig, economy: list[str], hazards: list[str]) -> list[str]:
+    def _hooks(
+        self, cfg: SettlementConfig, economy: list[str], hazards: list[str]
+    ) -> list[str]:
         hooks: list[str] = []
         if "shipping" in economy:
             hooks.append("A delayed vessel has left warehouses full and tempers short.")
         if "ore" in economy:
-            hooks.append("A newly opened seam is producing metal with an impossible sheen.")
+            hooks.append(
+                "A newly opened seam is producing metal with an impossible sheen."
+            )
         if cfg.magic == MagicMode.RUNIC_MAGIC:
-            hooks.append("The gate stones hum in bad weather and sometimes point to forgotten roads.")
+            hooks.append(
+                "The gate stones hum in bad weather and sometimes point to forgotten roads."
+            )
         if cfg.state == SettlementState.GHOST_TOWN:
-            hooks.append("Every hearth is cold, but smoke appears above one roof at moonrise.")
+            hooks.append(
+                "Every hearth is cold, but smoke appears above one roof at moonrise."
+            )
         if cfg.state == SettlementState.RUINED:
-            hooks.append("The old civic records mention a sealed vault beneath the market square.")
+            hooks.append(
+                "The old civic records mention a sealed vault beneath the market square."
+            )
         if TerrainFeature.SWAMP in cfg.terrain:
-            hooks.append("The dyke-keepers claim something has been digging from the wet side inward.")
+            hooks.append(
+                "The dyke-keepers claim something has been digging from the wet side inward."
+            )
         if not hooks and hazards:
             hooks.append(f"Locals need help with {hazards[0]} before trade can resume.")
-        return hooks or ["A guild dispute has made a routine delivery politically delicate."]
+        return hooks or [
+            "A guild dispute has made a routine delivery politically delicate."
+        ]
 
     def _apply_population_switches(self, population: int, mode: PopulationMode) -> int:
         if mode == PopulationMode.UNPOPULATED:
@@ -1069,13 +2223,67 @@ class SettlementGenerator:
         return max(0, int(population))
 
     def _make_name(self, cfg: SettlementConfig) -> str:
-        prefixes = ["Alder", "Brine", "Caer", "Dun", "Eld", "Fallow", "Grey", "High", "Iron", "Kings", "Lark", "Mire", "North", "Oak", "Raven", "South", "Thorn", "Vale", "West", "Wych"]
-        suffixes = ["ford", "wick", "ton", "haven", "mouth", "bridge", "wall", "mere", "brook", "hold", "market", "watch", "field", "gate", "barrow", "stead", "port", "reach", "fall", "minster"]
-        if cfg.kind in (SettlementKind.PORT_TOWN, SettlementKind.PORT_CITY, SettlementKind.FISHING_VILLAGE):
+        prefixes = [
+            "Alder",
+            "Brine",
+            "Caer",
+            "Dun",
+            "Eld",
+            "Fallow",
+            "Grey",
+            "High",
+            "Iron",
+            "Kings",
+            "Lark",
+            "Mire",
+            "North",
+            "Oak",
+            "Raven",
+            "South",
+            "Thorn",
+            "Vale",
+            "West",
+            "Wych",
+        ]
+        suffixes = [
+            "ford",
+            "wick",
+            "ton",
+            "haven",
+            "mouth",
+            "bridge",
+            "wall",
+            "mere",
+            "brook",
+            "hold",
+            "market",
+            "watch",
+            "field",
+            "gate",
+            "barrow",
+            "stead",
+            "port",
+            "reach",
+            "fall",
+            "minster",
+        ]
+        if cfg.kind in (
+            SettlementKind.PORT_TOWN,
+            SettlementKind.PORT_CITY,
+            SettlementKind.FISHING_VILLAGE,
+        ):
             suffixes += ["harbor", "quay", "bay", "tide"]
             prefixes += ["Salt", "Gull", "Tide"]
-        if cfg.kind in (SettlementKind.FORT, SettlementKind.WALLED_TOWN, SettlementKind.CAPITAL):
+        if cfg.kind in (
+            SettlementKind.FORT,
+            SettlementKind.WALLED_TOWN,
+            SettlementKind.CAPITAL,
+        ):
             suffixes += ["keep", "fort", "castle"]
-        if cfg.state in (SettlementState.RUINED, SettlementState.ANCIENT, SettlementState.GHOST_TOWN):
+        if cfg.state in (
+            SettlementState.RUINED,
+            SettlementState.ANCIENT,
+            SettlementState.GHOST_TOWN,
+        ):
             prefixes += ["Old", "Broken", "Hollow"]
         return str(self.rng.choice(prefixes)) + str(self.rng.choice(suffixes))

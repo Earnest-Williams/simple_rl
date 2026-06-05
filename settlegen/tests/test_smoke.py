@@ -9,7 +9,7 @@ from settlegen import (
 )
 
 
-def test_generate_farming_village():
+def test_generate_farming_village() -> None:
     cfg = SettlementConfig(
         kind=SettlementKind.FARMING_VILLAGE,
         width=96,
@@ -23,17 +23,24 @@ def test_generate_farming_village():
     assert len(s.buildings) > 10
     counts = s.facility_counts()
     assert counts.get("field", 0) >= 1
-    assert counts.get("house", 0) + counts.get("hovel", 0) + counts.get("tenement", 0) > 0
+    assert (
+        counts.get("house", 0) + counts.get("hovel", 0) + counts.get("tenement", 0) > 0
+    )
 
 
-def test_generate_port_city_magic_no_crash():
+def test_generate_port_city_magic_no_crash() -> None:
     cfg = SettlementConfig(
         kind=SettlementKind.PORT_CITY,
         width=128,
         height=90,
         magic=MagicMode.RUNIC_MAGIC,
         terrain=(TerrainFeature.BAY, TerrainFeature.RIVER),
-        facilities=(Facility.DOCKS, Facility.LIGHTHOUSE, Facility.STONE_WALL, Facility.RUNESTONE_CIRCLE),
+        facilities=(
+            Facility.DOCKS,
+            Facility.LIGHTHOUSE,
+            Facility.STONE_WALL,
+            Facility.RUNESTONE_CIRCLE,
+        ),
     )
     s = SettlementGenerator(seed=2).generate(cfg)
     assert s.population > 0
@@ -41,7 +48,7 @@ def test_generate_port_city_magic_no_crash():
     assert len(s.magic_sites) >= 1
 
 
-def test_ghost_town_population_zero():
+def test_ghost_town_population_zero() -> None:
     cfg = SettlementConfig(
         kind=SettlementKind.TOWN,
         width=96,
@@ -54,8 +61,13 @@ def test_ghost_town_population_zero():
     assert all(b.occupants == 0 for b in s.buildings)
 
 
-def test_deterministic_summary():
-    cfg = SettlementConfig(kind=SettlementKind.VILLAGE, width=80, height=64, terrain=(TerrainFeature.RIVER,))
+def test_deterministic_summary() -> None:
+    cfg = SettlementConfig(
+        kind=SettlementKind.VILLAGE,
+        width=80,
+        height=64,
+        terrain=(TerrainFeature.RIVER,),
+    )
     a = SettlementGenerator(seed=99).generate(cfg)
     b = SettlementGenerator(seed=99).generate(cfg)
     assert a.facility_counts() == b.facility_counts()

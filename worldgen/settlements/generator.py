@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from settlegen import Settlement, SettlementConfig, SettlementGenerator
+from settlegen import (
+    LayoutStyle,
+    Settlement,
+    SettlementConfig,
+    SettlementGenerator,
+    SpatialConstraints,
+)
 from utils.game_rng import GameRNG
 from worldgen.settlements.config import RegionConstraints
 from worldgen.settlements.export import SettlementBundle, to_simple_rl_bundle
@@ -29,6 +35,16 @@ def _apply_region_constraints(
     if region is None:
         return config
     tags = tuple(dict.fromkeys((*config.tags, *(_region_tags(region)))))
+    spatial = SpatialConstraints(
+        coastline=region.coastline,
+        river_mouth=region.river_mouth,
+        road_endpoints=region.road_endpoints,
+        cave_entrances=region.cave_entrances,
+    )
+    layout = config.layout
+    # Bias layout when the caller hasn't explicitly chosen one.
+    if layout == LayoutStyle.ORGANIC:
+        layout = _biased_layout(region, tags)
     return SettlementConfig(
         kind=config.kind,
         width=config.width,
@@ -40,7 +56,7 @@ def _apply_region_constraints(
         condition=config.condition,
         magic=config.magic,
         material=config.material,
-        layout=config.layout,
+        layout=layout,
         road_style=config.road_style,
         defense=config.defense,
         wealth=config.wealth,
@@ -69,19 +85,42 @@ def _apply_region_constraints(
         palisade=config.palisade,
         moat=config.moat,
         dyke=config.dyke,
+        spatial=spatial,
     )
+
+
+def _biased_layout(
+    region: RegionConstraints, tags: tuple[str, ...]
+) -> LayoutStyle:
+    """Suggest a layout style based on faction and trade route tags.
+
+    Returns ``LayoutStyle.ORGANIC`` when no strong signal is present.
+    """
+    faction = region.faction or ""
+    if "military" in faction:
+        return LayoutStyle.FORTRESS
+    if "religious" in faction:
+        return LayoutStyle.MONASTIC
+    if any(t in ("trade_route:high", "trade_route:medium") for t in tags):
+        return LayoutStyle.LINEAR_ROAD
+    if region.coastline:
+        return LayoutStyle.COASTAL
+    return LayoutStyle.ORGANIC
 
 
 def _region_tags(region: RegionConstraints) -> tuple[str, ...]:
     tags: list[str] = []
-    if region.coastline:
-        tags.append(f"coastline:{region.coastline}")
     if region.biome:
         tags.append(f"biome:{region.biome}")
     if region.faction:
         tags.append(f"faction:{region.faction}")
     if region.trade_route_importance > 0:
-        tags.append("trade_route")
+        if region.trade_route_importance >= 0.8:
+            tags.append("trade_route:high")
+        elif region.trade_route_importance >= 0.4:
+            tags.append("trade_route:medium")
+        else:
+            tags.append("trade_route:low")
     if region.distance_from_starting_port > 0:
         tags.append(f"distance_from_starting_port:{region.distance_from_starting_port}")
     return tuple(tags)

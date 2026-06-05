@@ -23,12 +23,14 @@ from worldgen.overland import (
     find_feature,
     find_nearest_feature,
     find_overland_path,
+    generate_debug_routes,
     generate_overland_region,
     generate_transition_requests,
     load_worldgen_bundle,
     merge_settlement_into_overland,
     movement_cost_for_actor,
     overland_to_game_map,
+    overland_routes_to_df,
     render_overland_ascii,
     write_overland_bundle,
 )
@@ -51,6 +53,7 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert paths["features_df"].exists()
     assert paths["affordances_df"].exists()
     assert paths["transitions_df"].exists()
+    assert paths["routes_df"].exists()
     assert metadata["seed"] == 20260604
     assert metadata["profile"] == "KARST_TO_VOLCANIC_MOUNTAIN"
     assert metadata["schema_version"] == "overland-1"
@@ -58,6 +61,7 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert "movement_cost" in loaded["tiles_df"].columns
     assert "traversal_class" in loaded["tiles_df"].columns
     assert loaded["transitions_df"].height > 0
+    assert loaded["routes_df"].height > 0
 
     tiles = bundle.tiles_df
     hydrology = bundle.hydrology_df
@@ -90,6 +94,13 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert bundle.affordances_df.height > 0
     assert "K" in render_overland_ascii(tiles, view="biome")
     assert "v" in render_overland_ascii(tiles, view="hydro")
+    actor_view = render_overland_ascii(
+        tiles,
+        view="actor",
+        profile=ActorTraversalProfile.HUMAN_ON_FOOT,
+    )
+    assert "#" in actor_view
+    assert "." in actor_view
 
     game_map = overland_to_game_map(dry.tiles_df)
     assert game_map.width == 96
@@ -104,6 +115,34 @@ def test_generate_karst_to_volcanic_overland_region_is_stable(tmp_path) -> None:
     assert _checksum(bundle.tiles_df) == _checksum(same.tiles_df)
     assert _checksum(bundle.hydrology_df) == _checksum(same.hydrology_df)
     assert _checksum(bundle.features_df) == _checksum(same.features_df)
+
+
+def test_debug_overland_routes_emit_artifact_rows() -> None:
+    bundle = generate_overland_region(
+        seed=303,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    routes = generate_debug_routes(bundle)
+    routes_df = overland_routes_to_df(routes)
+
+    assert routes_df.height > 0
+    assert {
+        "route_id",
+        "profile",
+        "source_x",
+        "source_y",
+        "target_x",
+        "target_y",
+        "step_index",
+        "x",
+        "y",
+        "cost_so_far",
+        "tags",
+    } == set(routes_df.columns)
+    assert routes_df.get_column("step_index").min() == 0
+    assert routes_df.get_column("cost_so_far").min() == 0.0
 
 
 def test_headless_overland_generation_writes_inspectable_output(tmp_path) -> None:
@@ -174,11 +213,14 @@ def test_headless_overland_generation_can_merge_starting_port(tmp_path) -> None:
     loaded = load_worldgen_bundle(tmp_path)
     assert _count(loaded["tiles_df"], "material", Material.DOCK) > 0
     assert _count(loaded["tiles_df"], "material", Material.BUILDING_FLOOR) > 0
-    assert _count(
-        loaded["transitions_df"],
-        "transition_type",
-        TransitionType.SETTLEMENT_ENTRANCE,
-    ) > 0
+    assert (
+        _count(
+            loaded["transitions_df"],
+            "transition_type",
+            TransitionType.SETTLEMENT_ENTRANCE,
+        )
+        > 0
+    )
 
 
 def test_actor_traversal_profiles_respond_to_hydrology_state() -> None:
@@ -203,16 +245,16 @@ def test_actor_traversal_profiles_respond_to_hydrology_state() -> None:
 
     assert can_actor_enter(dry_lake, ActorTraversalProfile.HUMAN_ON_FOOT)
     assert not can_actor_enter(dry_lake, ActorTraversalProfile.BOAT)
-    assert movement_cost_for_actor(
-        dry_lake, ActorTraversalProfile.HUMAN_ON_FOOT
-    ) > 1.0
+    assert movement_cost_for_actor(dry_lake, ActorTraversalProfile.HUMAN_ON_FOOT) > 1.0
 
     assert movement_cost_for_actor(
         wet_fish_trail, ActorTraversalProfile.SMALL_AMPHIBIOUS
     ) < movement_cost_for_actor(wet_fish_trail, ActorTraversalProfile.HUMAN_ON_FOOT)
     assert can_actor_enter(dry_fish_trail, ActorTraversalProfile.HUMAN_ON_FOOT)
 
-    human_costs = build_actor_cost_grid(dry.tiles_df, ActorTraversalProfile.HUMAN_ON_FOOT)
+    human_costs = build_actor_cost_grid(
+        dry.tiles_df, ActorTraversalProfile.HUMAN_ON_FOOT
+    )
     boat_costs = build_actor_cost_grid(wet.tiles_df, ActorTraversalProfile.BOAT)
     assert human_costs.shape == (72, 96)
     assert boat_costs.shape == (72, 96)

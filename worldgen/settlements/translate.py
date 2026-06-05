@@ -209,56 +209,6 @@ _BUILT_TERRAIN: set[TerrainCode] = {
 }
 
 
-def terrain_to_overland_columns(
-    combined_grid: NDArray[np.integer],
-    *,
-    biome: Biome = Biome.COASTAL_RAIN_FOREST,
-    elevation_band: ElevationBand = ElevationBand.LOWLAND,
-) -> dict[str, NDArray[np.generic]]:
-    material = np.zeros(combined_grid.shape, dtype=np.int16)
-    biome_grid = np.full(combined_grid.shape, int(biome), dtype=np.int16)
-    elevation = np.full(combined_grid.shape, int(elevation_band), dtype=np.int16)
-    hydro_role = np.zeros(combined_grid.shape, dtype=np.int16)
-    wetness = np.full(combined_grid.shape, int(Wetness.DAMP), dtype=np.int16)
-    substrate = np.full(combined_grid.shape, int(Substrate.SOIL), dtype=np.int16)
-    flags = np.zeros(combined_grid.shape, dtype=np.uint32)
-    walkable = np.zeros(combined_grid.shape, dtype=bool)
-    blocks_sight = np.zeros(combined_grid.shape, dtype=bool)
-    movement_cost = np.zeros(combined_grid.shape, dtype=np.float32)
-    traversal_class = np.zeros(combined_grid.shape, dtype=np.int16)
-
-    for y in range(combined_grid.shape[0]):
-        for x in range(combined_grid.shape[1]):
-            terrain = TerrainCode(int(combined_grid[y, x]))
-            mat = _OVERLAND_MATERIAL_BY_TERRAIN[terrain]
-            wet = _OVERLAND_WETNESS_BY_TERRAIN.get(terrain, Wetness.DAMP)
-            sub = _OVERLAND_SUBSTRATE_BY_TERRAIN.get(terrain, Substrate.SOIL)
-            flag_mask = _surface_flags_for_terrain(terrain)
-            material[y, x] = int(mat)
-            wetness[y, x] = int(wet)
-            substrate[y, x] = int(sub)
-            hydro_role[y, x] = int(_hydro_role_for_terrain(terrain))
-            flags[y, x] = flag_mask
-            walkable[y, x] = derive_walkable(mat, wet, flag_mask)
-            blocks_sight[y, x] = derive_blocks_sight(mat, flag_mask)
-            movement_cost[y, x] = derive_movement_cost(mat, wet, flag_mask)
-            traversal_class[y, x] = int(derive_traversal_class(mat, wet, flag_mask))
-
-    return {
-        "material": material,
-        "biome": biome_grid,
-        "elevation_band": elevation,
-        "hydro_role": hydro_role,
-        "wetness": wetness,
-        "substrate": substrate,
-        "walkable": walkable,
-        "blocks_sight": blocks_sight,
-        "movement_cost": movement_cost,
-        "traversal_class": traversal_class,
-        "surface_flags": flags,
-    }
-
-
 def _surface_flags_for_terrain(terrain: TerrainCode) -> int:
     flags: list[SurfaceFlag] = []
     if terrain in _BUILT_TERRAIN:
@@ -287,3 +237,69 @@ def _hydro_role_for_terrain(terrain: TerrainCode) -> HydroRole:
     if terrain == TerrainCode.SHORE:
         return HydroRole.SEEP
     return HydroRole.NONE
+
+
+_MAX_TERRAIN_CODE = int(max(t.value for t in TerrainCode))
+
+# Precompute lookup arrays for vectorization
+_LUT_MATERIAL = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=np.int16)
+_LUT_WETNESS = np.full(_MAX_TERRAIN_CODE + 1, int(Wetness.DAMP), dtype=np.int16)
+_LUT_SUBSTRATE = np.full(_MAX_TERRAIN_CODE + 1, int(Substrate.SOIL), dtype=np.int16)
+_LUT_HYDRO_ROLE = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=np.int16)
+_LUT_FLAGS = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=np.uint32)
+_LUT_WALKABLE = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=bool)
+_LUT_BLOCKS_SIGHT = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=bool)
+_LUT_MOVEMENT_COST = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=np.float32)
+_LUT_TRAVERSAL_CLASS = np.zeros(_MAX_TERRAIN_CODE + 1, dtype=np.int16)
+
+for _code in TerrainCode:
+    _val = _code.value
+    _mat = _OVERLAND_MATERIAL_BY_TERRAIN[_code]
+    _wet = _OVERLAND_WETNESS_BY_TERRAIN.get(_code, Wetness.DAMP)
+    _sub = _OVERLAND_SUBSTRATE_BY_TERRAIN.get(_code, Substrate.SOIL)
+    _flag_mask = _surface_flags_for_terrain(_code)
+
+    _LUT_MATERIAL[_val] = int(_mat)
+    _LUT_WETNESS[_val] = int(_wet)
+    _LUT_SUBSTRATE[_val] = int(_sub)
+    _LUT_HYDRO_ROLE[_val] = int(_hydro_role_for_terrain(_code))
+    _LUT_FLAGS[_val] = _flag_mask
+    _LUT_WALKABLE[_val] = derive_walkable(_mat, _wet, _flag_mask)
+    _LUT_BLOCKS_SIGHT[_val] = derive_blocks_sight(_mat, _flag_mask)
+    _LUT_MOVEMENT_COST[_val] = derive_movement_cost(_mat, _wet, _flag_mask)
+    _LUT_TRAVERSAL_CLASS[_val] = int(derive_traversal_class(_mat, _wet, _flag_mask))
+
+
+def terrain_to_overland_columns(
+    combined_grid: NDArray[np.integer],
+    *,
+    biome: Biome = Biome.COASTAL_RAIN_FOREST,
+    elevation_band: ElevationBand = ElevationBand.LOWLAND,
+) -> dict[str, NDArray[np.generic]]:
+    grid_idx = combined_grid.astype(np.intp)
+
+    material = _LUT_MATERIAL[grid_idx]
+    biome_grid = np.full(combined_grid.shape, int(biome), dtype=np.int16)
+    elevation = np.full(combined_grid.shape, int(elevation_band), dtype=np.int16)
+    hydro_role = _LUT_HYDRO_ROLE[grid_idx]
+    wetness = _LUT_WETNESS[grid_idx]
+    substrate = _LUT_SUBSTRATE[grid_idx]
+    flags = _LUT_FLAGS[grid_idx]
+    walkable = _LUT_WALKABLE[grid_idx]
+    blocks_sight = _LUT_BLOCKS_SIGHT[grid_idx]
+    movement_cost = _LUT_MOVEMENT_COST[grid_idx]
+    traversal_class = _LUT_TRAVERSAL_CLASS[grid_idx]
+
+    return {
+        "material": material,
+        "biome": biome_grid,
+        "elevation_band": elevation,
+        "hydro_role": hydro_role,
+        "wetness": wetness,
+        "substrate": substrate,
+        "walkable": walkable,
+        "blocks_sight": blocks_sight,
+        "movement_cost": movement_cost,
+        "traversal_class": traversal_class,
+        "surface_flags": flags,
+    }

@@ -19,17 +19,21 @@ def main() -> None:
     parser.add_argument("path", type=Path)
     parser.add_argument(
         "--view",
-        choices=("material", "biome", "hydro", "wetness", "traversal"),
+        choices=("material", "biome", "hydro", "wetness", "traversal", "actor"),
         default="material",
     )
+    parser.add_argument("--profile", default="HUMAN_ON_FOOT")
     args = parser.parse_args()
 
-    from worldgen.overland import render_overland_ascii
+    from worldgen.overland import ActorTraversalProfile, render_overland_ascii
 
     tiles_path = args.path
     if args.path.is_dir():
         tiles_path = args.path / "overland_tiles.arrow"
-    print(render_overland_ascii(pl.read_ipc(tiles_path), view=args.view))
+    profile = ActorTraversalProfile[args.profile.upper()]
+    print(
+        render_overland_ascii(pl.read_ipc(tiles_path), view=args.view, profile=profile)
+    )
 
 
 if __name__ == "__main__":

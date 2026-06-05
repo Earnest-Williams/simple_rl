@@ -46,7 +46,12 @@ UNICODE_ASCII = {
 }
 
 
-def render_ascii(settlement: Settlement, *, unicode: bool = False, crop: tuple[int, int, int, int] | None = None) -> str:
+def render_ascii(
+    settlement: Settlement,
+    *,
+    unicode: bool = False,
+    crop: tuple[int, int, int, int] | None = None,
+) -> str:
     """Render a settlement as text for logs/tests/dev tools.
 
     This is deliberately outside the generator. Games should consume the data

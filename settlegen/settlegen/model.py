@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from enum import IntEnum
-from typing import Any, Iterable, Optional
 
 import numpy as np
 
-from .config import BuildingMaterial, Facility, MagicMode, SettlementConfig, SettlementState
+from .config import (
+    BuildingMaterial,
+    Facility,
+    MagicMode,
+    SettlementConfig,
+    SettlementState,
+)
 
 
 class TerrainCode(IntEnum):
@@ -67,7 +73,7 @@ class Rect:
     def area(self) -> int:
         return self.w * self.h
 
-    def expanded(self, margin: int, width: int, height: int) -> "Rect":
+    def expanded(self, margin: int, width: int, height: int) -> Rect:
         x = max(0, self.x - margin)
         y = max(0, self.y - margin)
         x2 = min(width, self.x2 + margin)
@@ -103,23 +109,53 @@ class Building:
     rect: Rect
     material: BuildingMaterial
     state: SettlementState
-    district_id: Optional[int] = None
+    district_id: int | None = None
     occupants: int = 0
     workers: int = 0
     quality: float = 0.5
-    magic: Optional[MagicMode] = None
-    name: Optional[str] = None
+    magic: MagicMode | None = None
+    name: str | None = None
     tags: tuple[str, ...] = tuple()
-    meta: dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, object] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class MagicSite:
     kind: str
     location: tuple[int, int]
     radius: int
     intensity: float
     tags: tuple[str, ...] = tuple()
+
+
+@dataclass(frozen=True)
+class FailedFacility:
+    """A facility that was requested but could not be placed."""
+
+    facility: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class GenerationReport:
+    """Typed report of facility placement outcomes.
+
+    This is the stable contract for downstream consumers that need to know
+    what was requested, what was placed, and what failed (with reason codes).
+    """
+
+    requested_facilities: tuple[str, ...]
+    placed_facilities: tuple[str, ...]
+    failed_facilities: tuple[FailedFacility, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "requested_facilities": list(self.requested_facilities),
+            "placed_facilities": list(self.placed_facilities),
+            "failed_facilities": {
+                f.facility: f.reason for f in self.failed_facilities
+            },
+        }
 
 
 @dataclass
@@ -136,7 +172,8 @@ class Settlement:
     docks: list[tuple[int, int]]
     magic_sites: list[MagicSite]
     population: int
-    metadata: dict[str, Any] = field(default_factory=dict)
+    generation_report: GenerationReport
+    metadata: dict[str, object] = field(default_factory=dict)
 
     @property
     def width(self) -> int:
@@ -149,7 +186,10 @@ class Settlement:
     def tile_summary(self) -> dict[str, int]:
         combined = self.combined_grid()
         values, counts = np.unique(combined, return_counts=True)
-        return {TERRAIN_NAMES.get(int(v), str(int(v))): int(c) for v, c in zip(values, counts)}
+        return {
+            TERRAIN_NAMES.get(int(v), str(int(v))): int(c)
+            for v, c in zip(values, counts, strict=False)
+        }
 
     def facility_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -159,9 +199,11 @@ class Settlement:
 
     def combined_grid(self) -> np.ndarray:
         """Return a single render/use grid with overlay taking precedence."""
-        return np.where(self.overlay != TerrainCode.VOID, self.overlay, self.terrain).astype(np.int16)
+        return np.where(
+            self.overlay != TerrainCode.VOID, self.overlay, self.terrain
+        ).astype(np.int16)
 
-    def iter_building_records(self) -> Iterable[dict[str, Any]]:
+    def iter_building_records(self) -> Iterable[dict[str, str | int | float | None]]:
         for b in self.buildings:
             yield {
                 "id": b.id,
@@ -184,8 +226,8 @@ class Settlement:
                 "tags": ";".join(b.tags),
             }
 
-    def to_dict(self, include_grids: bool = False) -> dict[str, Any]:
-        data: dict[str, Any] = {
+    def to_dict(self, include_grids: bool = False) -> dict[str, object]:
+        data: dict[str, object] = {
             "name": self.name,
             "seed": self.seed,
             "population": self.population,
@@ -208,17 +250,19 @@ class Settlement:
         return data
 
 
-def _serialize(value: Any) -> Any:
+def _serialize(value: object) -> object:
     if hasattr(value, "value") and not isinstance(value, IntEnum):
         return value.value
     if isinstance(value, Rect):
         return {"x": value.x, "y": value.y, "w": value.w, "h": value.h}
     if hasattr(value, "__dataclass_fields__"):
-        out = asdict(value)
+        from typing import Any, cast
+
+        out = asdict(cast(Any, value))
         return _serialize(out)
     if isinstance(value, dict):
         return {k: _serialize(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_serialize(v) for v in value]
     if isinstance(value, np.ndarray):
         return value.tolist()
