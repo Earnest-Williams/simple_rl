@@ -213,6 +213,7 @@ class GameState:
         )
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
+        self.perception_noise_source_id: int | None = None
 
         self.ai_memory_duration_turns: int = 5
         self.ai_memory: dict[int, AIMemoryFact] = {}
@@ -685,9 +686,16 @@ class GameState:
         # receives every queued event, but the pathfinding flow field represents one
         # authoritative investigate source for this update.
         if noise_events:
-            loudest = max(noise_events, key=lambda event: event_xy_intensity(event)[2])
+            loudest_index, loudest = max(
+                enumerate(noise_events),
+                key=lambda item: (event_xy_intensity(item[1])[2], item[0]),
+            )
+            del loudest_index
             loudest_x, loudest_y, _intensity = event_xy_intensity(loudest)
             flow_type = noise_event_flow_type(loudest)
+            self.perception_noise_source_id = (
+                loudest.source_id if isinstance(loudest, NoiseEvent) else None
+            )
             update_noise(
                 self.perception_cave_cost,
                 self.perception_flow_centers,
@@ -698,6 +706,7 @@ class GameState:
                 {},
             )
         else:
+            self.perception_noise_source_id = None
             infinity = np.iinfo(np.int32).max // 2
             self.perception_cave_cost.fill(infinity)
 

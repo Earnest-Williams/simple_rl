@@ -168,7 +168,9 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
             visible_targets = find_visible_enemies(row, game_state, los_map)
 
             # 2. Audio facts
-            heard_source = global_heard_source if ent_id in alerted_set else None
+            heard_source = None
+            if ent_id in alerted_set and ent_id != game_state.perception_noise_source_id:
+                heard_source = global_heard_source
             heard_flow = "real_noise" if heard_source else None
 
             # 3. Scent facts

@@ -96,10 +96,10 @@ def _action_move_attack(
         pdx, pdy = pathfinder.get_flow_vector(y, x)
 
         nx, ny = x + pdx, y + pdy
-        if not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height):
-            # Fallback simple step if pathfinding gives an out-of-bounds or zero vector
-            pdx = 0 if tx == x else (-1 if tx < x else 1)
-            pdy = 0 if ty == y else (-1 if ty < y else 1)
+        if (pdx, pdy) == (0, 0) and (x, y) != (tx, ty):
+            pdx, pdy = _fallback_cardinal_step(x, y, tx, ty, game_state)
+        elif not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height):
+            pdx, pdy = _fallback_cardinal_step(x, y, tx, ty, game_state)
         move = (pdx, pdy)
 
     # 2. Else: Idle/Wander/Patrol
@@ -123,6 +123,36 @@ def _action_move_attack(
         moved=moved,
     )
     return True
+
+
+def _fallback_cardinal_step(
+    x: int,
+    y: int,
+    tx: int,
+    ty: int,
+    game_state: GameState,
+) -> tuple[int, int]:
+    """Choose a simple cardinal step toward ``(tx, ty)`` when flow data stalls."""
+    step_x = 0 if tx == x else (-1 if tx < x else 1)
+    step_y = 0 if ty == y else (-1 if ty < y else 1)
+
+    primary: list[tuple[int, int]]
+    if abs(tx - x) >= abs(ty - y):
+        primary = [(step_x, 0), (0, step_y)]
+    else:
+        primary = [(0, step_y), (step_x, 0)]
+
+    for dx, dy in primary:
+        nx = x + dx
+        ny = y + dy
+        if dx == dy == 0:
+            continue
+        if game_state.game_map.in_bounds(nx, ny) and game_state.game_map.is_walkable(
+            nx, ny
+        ):
+            return dx, dy
+
+    return 0, 0
 
 
 def _action_seek_cover(
