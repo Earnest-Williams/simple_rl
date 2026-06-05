@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .models import *  # noqa: F401,F403
+from . import models as _models
+
+for _name in _models.__all__:
+    if _name != "Work":
+        globals()[_name] = getattr(_models, _name)
+
+ModelWork = _models.Work
 
 if TYPE_CHECKING:
     from .executor import ExecutionResult, Work, execute_work
@@ -13,8 +19,10 @@ if TYPE_CHECKING:
     from .wards import Counterseal, Ward, is_blocked
 
 __all__: list[str] = [
+    *[name for name in _models.__all__ if name != "Work"],
     "MagicLibrary",
     "LibraryWork",
+    "ModelWork",
     "Work",
     "ExecutionResult",
     "learn_work",

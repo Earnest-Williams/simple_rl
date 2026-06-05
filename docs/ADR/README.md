@@ -14,6 +14,7 @@ being mistaken for canonical implementation paths.
 | [0004-perception-fov-boundaries.md](0004-perception-fov-boundaries.md) | Production FOV, LOS, perception, and lighting boundaries. |
 | [0005-cave-connectivity-repair.md](0005-cave-connectivity-repair.md) | Cave connectivity repair ownership after cellular automata. |
 | [0006-debug-viewer-pipeline-boundaries.md](0006-debug-viewer-pipeline-boundaries.md) | Dungeon debug viewer and orchestrator pipeline boundaries. |
+| [0007-magic-work-runtime-boundaries.md](0007-magic-work-runtime-boundaries.md) | Magic parser, executor, and effect-handler runtime boundaries. |
 
 ## Status values
 
