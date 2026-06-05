@@ -11,7 +11,6 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING
 
-from game.entities.components import Position
 from game.perception_events import NoiseEvent
 
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
@@ -46,20 +45,15 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
     entity_reg = gs.entity_registry
     game_map = gs.game_map
 
-    current_pos = entity_reg.get_position(entity_id)
-    if current_pos is None:
-        return False
+    moved, dest_x, dest_y = entity_reg.try_move_entity(
+        entity_id,
+        dx,
+        dy,
+        width=game_map.width,
+        height=game_map.height,
+        is_walkable=game_map.is_walkable,
+    )
 
-    x, y = current_pos
-    dest_x, dest_y = x + dx, y + dy
-
-    if not game_map.in_bounds(dest_x, dest_y):
-        return False
-
-    if not game_map.is_walkable(dest_x, dest_y):
-        return False
-
-    moved = entity_reg.set_position(entity_id, Position(dest_x, dest_y))
     if moved:
         # Moving entities generate gameplay noise at their destination. This is
         # intentionally a perception event, not an audio playback call.

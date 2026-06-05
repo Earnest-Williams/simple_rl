@@ -169,6 +169,9 @@ class GameState:
             glyph=player_glyph,
         )
 
+        self.entity_registry.ensure_occupancy_shape(self._map_width, self._map_height)
+        self.entity_registry.rebuild_occupancy()
+
         self.memory_traits: MemoryTraits = MemoryTraits()
         self.base_fov_radius = player_fov_radius
         self.fov_radius = player_fov_radius
@@ -602,6 +605,7 @@ class GameState:
             self._map_height = self.game_map.height
             self.zone_manager.map_width = self._map_width
             self.zone_manager.map_height = self._map_height
+            self.entity_registry.ensure_occupancy_shape(self._map_width, self._map_height)
 
         expected_cost_shape = (MAX_FLOWS, self.game_map.height, self.game_map.width)
         if self.perception_cave_cost.shape != expected_cost_shape:

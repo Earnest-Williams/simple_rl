@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, Callable
 
 import polars as pl
 import structlog
@@ -105,7 +105,10 @@ class EntityRegistry:
 
     @entities_df.setter
     def entities_df(self, value: pl.DataFrame) -> None:
+        old_width = self._store.occupancy_width
+        old_height = self._store.occupancy_height
         self._store = EntityStore.from_polars(value)
+        self._store.ensure_occupancy_shape(old_width, old_height)
         self._entities_df_cache = value
         self._store.dirty_polars_snapshot = False
 
@@ -394,27 +397,32 @@ class EntityRegistry:
             return pl.DataFrame(schema=ENTITY_SCHEMA)
 
     def get_blocking_entity_at(self: Self, x: int, y: int) -> int | None:
-        try:
-            result = (
-                self.entities_df.lazy()
-                .filter(
-                    (pl.col("x") == x)
-                    & (pl.col("y") == y)
-                    & pl.col("blocks_movement")
-                    & pl.col("is_active")
-                )
-                .select("entity_id")
-                .head(1)
-                .collect()
-            )
-            if result.height > 0:
-                return result.item()
-            return None
-        except Exception as e:
-            log.error(
-                "Error getting blocking entity", error=str(e), exc_info=True, pos=(x, y)
-            )
-            return None
+        return self._store.get_blocking_entity_at(x, y)
+
+    def ensure_occupancy_shape(self, width: int, height: int) -> None:
+        self._store.ensure_occupancy_shape(width, height)
+
+    def rebuild_occupancy(self) -> None:
+        self._store.rebuild_occupancy()
+
+    def try_move_entity(
+        self,
+        entity_id: int,
+        dx: int,
+        dy: int,
+        *,
+        width: int,
+        height: int,
+        is_walkable: Callable[[int, int], bool],
+    ) -> tuple[bool, int, int]:
+        return self._store.try_move_entity(
+            entity_id,
+            dx,
+            dy,
+            width=width,
+            height=height,
+            is_walkable=is_walkable,
+        )
 
     def delete_entity(self: Self, entity_id: int) -> bool:
         log_context = {"entity_id": entity_id}

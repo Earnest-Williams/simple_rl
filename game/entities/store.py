@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 import numpy as np
 import polars as pl
 import structlog
@@ -83,6 +83,11 @@ class EntityStore:
 
         # Fallback dictionary list for all other components not explicitly stored
         self.extra_components: list[dict[str, object]] = [{} for _ in range(capacity)]
+
+        # Occupancy grid
+        self.blocking_entity_at = np.full((0, 0), -1, dtype=np.int32)
+        self.occupancy_width = 0
+        self.occupancy_height = 0
 
     def _ensure_capacity(self, needed: int) -> None:
         if needed <= self.capacity:
@@ -171,6 +176,12 @@ class EntityStore:
 
         self.extra_components[idx] = extra
         self.entity_id_to_index[entity_id] = idx
+
+        # Update occupancy if grid initialized
+        if self.blocking_entity_at.size and blocks_movement:
+            if 0 <= x < self.occupancy_width and 0 <= y < self.occupancy_height:
+                self.blocking_entity_at[y, x] = entity_id
+
         self.dirty_polars_snapshot = True
         return entity_id
 
@@ -221,12 +232,25 @@ class EntityStore:
         if idx is None or not self.is_active[idx]:
             return False
 
+        old_blocks = bool(self.blocks_movement[idx])
         if component in NUMERIC_FIELDS:
             getattr(self, component)[idx] = value
         elif component in OBJECT_FIELDS:
             getattr(self, component)[idx] = value
         else:
             self.extra_components[idx][component] = value
+
+        if component == "blocks_movement":
+            new_blocks = bool(value)
+            if old_blocks != new_blocks:
+                x = int(self.x[idx])
+                y = int(self.y[idx])
+                if 0 <= x < self.occupancy_width and 0 <= y < self.occupancy_height:
+                    if new_blocks:
+                        self.blocking_entity_at[y, x] = entity_id
+                    else:
+                        if int(self.blocking_entity_at[y, x]) == entity_id:
+                            self.blocking_entity_at[y, x] = -1
 
         self.dirty_polars_snapshot = True
         return True
@@ -257,8 +281,21 @@ class EntityStore:
         idx = self.index_of(entity_id)
         if idx is None or not self.is_active[idx]:
             return False
-        self.x[idx] = position.x
-        self.y[idx] = position.y
+
+        old_x = int(self.x[idx])
+        old_y = int(self.y[idx])
+        new_x = position.x
+        new_y = position.y
+
+        if bool(self.blocks_movement[idx]):
+            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
+                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
+                    self.blocking_entity_at[old_y, old_x] = -1
+            if 0 <= new_x < self.occupancy_width and 0 <= new_y < self.occupancy_height:
+                self.blocking_entity_at[new_y, new_x] = entity_id
+
+        self.x[idx] = new_x
+        self.y[idx] = new_y
         self.dirty_polars_snapshot = True
         return True
 
@@ -266,9 +303,89 @@ class EntityStore:
         idx = self.index_of(entity_id)
         if idx is None or not self.is_active[idx]:
             return False
+
+        if bool(self.blocks_movement[idx]):
+            old_x = int(self.x[idx])
+            old_y = int(self.y[idx])
+            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
+                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
+                    self.blocking_entity_at[old_y, old_x] = -1
+
         self.is_active[idx] = False
         self.dirty_polars_snapshot = True
         return True
+
+    def ensure_occupancy_shape(self, width: int, height: int) -> None:
+        if self.blocking_entity_at.shape == (height, width):
+            return
+        self.blocking_entity_at = np.full((height, width), -1, dtype=np.int32)
+        self.occupancy_width = width
+        self.occupancy_height = height
+        self.rebuild_occupancy()
+
+    def rebuild_occupancy(self) -> None:
+        self.blocking_entity_at.fill(-1)
+        for idx in range(self.count):
+            if not self.is_active[idx]:
+                continue
+            if not self.blocks_movement[idx]:
+                continue
+            x = int(self.x[idx])
+            y = int(self.y[idx])
+            if 0 <= x < self.occupancy_width and 0 <= y < self.occupancy_height:
+                self.blocking_entity_at[y, x] = int(self.entity_id[idx])
+
+    def get_blocking_entity_at(self, x: int, y: int) -> int | None:
+        if (
+            x < 0
+            or y < 0
+            or x >= self.occupancy_width
+            or y >= self.occupancy_height
+        ):
+            return None
+        entity_id = int(self.blocking_entity_at[y, x])
+        return None if entity_id < 0 else entity_id
+
+    def try_move_entity(
+        self,
+        entity_id: int,
+        dx: int,
+        dy: int,
+        *,
+        width: int,
+        height: int,
+        is_walkable: Callable[[int, int], bool],
+    ) -> tuple[bool, int, int]:
+        idx = self.index_of(entity_id)
+        if idx is None or not self.is_active[idx]:
+            return False, 0, 0
+
+        old_x = int(self.x[idx])
+        old_y = int(self.y[idx])
+        dest_x = old_x + dx
+        dest_y = old_y + dy
+
+        if not (0 <= dest_x < width and 0 <= dest_y < height):
+            return False, dest_x, dest_y
+
+        if not is_walkable(dest_x, dest_y):
+            return False, dest_x, dest_y
+
+        if bool(self.blocks_movement[idx]):
+            blocking = self.get_blocking_entity_at(dest_x, dest_y)
+            if blocking is not None and blocking != entity_id:
+                return False, dest_x, dest_y
+
+            if self.blocking_entity_at.shape == (height, width):
+                if 0 <= old_x < width and 0 <= old_y < height:
+                    if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
+                        self.blocking_entity_at[old_y, old_x] = -1
+                self.blocking_entity_at[dest_y, dest_x] = entity_id
+
+        self.x[idx] = dest_x
+        self.y[idx] = dest_y
+        self.dirty_polars_snapshot = True
+        return True, dest_x, dest_y
 
     def active_indices(self) -> np.ndarray:
         return np.where(self.is_active[:self.count])[0]

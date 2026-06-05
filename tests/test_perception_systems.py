@@ -194,6 +194,7 @@ def test_game_perception_uses_production_scent_noise_and_monster_alerts() -> Non
         name="Dead alert test monster",
         hp=0,
         max_hp=1,
+        blocks_movement=False,
     )
     game_state.entity_registry.entities_df = (
         game_state.entity_registry.entities_df.with_columns(
