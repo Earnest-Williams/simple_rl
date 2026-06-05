@@ -36,7 +36,7 @@ change.
 | `fonts/glyphs_report.txt` | `python scripts/generate_glyphs.py` | Checked-in generated review report for glyph metadata changes. |
 | `fonts/tree.txt` | Historical local inventory | Archival diagnostic snapshot only; use `rg --files fonts` for current inventory. |
 
-See `docs/ASSET_PIPELINE.md` for the detailed asset policy.
+See `docs/Asset Pipeline.md` for the detailed asset policy.
 
 ## Change guidelines
 

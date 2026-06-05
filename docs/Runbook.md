@@ -54,7 +54,7 @@ tuning and simulation harness.
 
 | Task | Command | Notes |
 | --- | --- | --- |
-| Run production light-leak diagnostic | `python complete_light_diagnostic.py` | Uses production `GameMap`, `LightContributionCache`, and `game.world.light_fov`. |
+| Run production light-leak diagnostics | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py` | Uses production `GameMap`, `LightContributionCache`, and `game.world.light_fov`. |
 | Run targeted production lighting/FOV/memory tests | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/game/world/test_memory_traits.py tests/test_world_memory.py` | Covers migration parity checks. |
 | Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support. |
 
@@ -73,7 +73,7 @@ Production rendering, light-aware FOV, and memory behavior live under
 | Task | Command | Notes |
 | --- | --- | --- |
 | Regenerate glyph metadata | `python scripts/generate_glyphs.py` | Updates `fonts/glyphs.yaml` and `fonts/glyphs_report.txt`. |
-| Check asset policy | Read `docs/ASSET_PIPELINE.md` | Source of truth for generated font assets. |
+| Check asset policy | Read `docs/Asset Pipeline.md` | Source of truth for generated font assets. |
 
 ## Standard repository checks
 
@@ -90,4 +90,4 @@ python scripts/check_deterministic_random.py
 pytest -q
 ```
 
-For current check ownership and troubleshooting notes, see `docs/TESTING.md`.
+For current check ownership and troubleshooting notes, see `docs/Testing.md`.

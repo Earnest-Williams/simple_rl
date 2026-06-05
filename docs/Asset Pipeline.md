@@ -1,8 +1,7 @@
 # Asset pipeline
 
 This document is the source of truth for repository asset ownership, generated
-font artifacts, and update expectations. It addresses the generated-asset policy
-follow-up from `docs/REPOSITORY_AUDIT.md`.
+font artifacts, and update expectations.
 
 ## Font asset ownership
 

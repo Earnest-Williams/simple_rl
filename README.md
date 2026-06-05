@@ -96,12 +96,12 @@ Different components have dedicated development harnesses:
 * **Dungeon Generation:** `cd Dungeon && ./run.sh`
 * **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
 * **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
-* **Lighting/FOV/Memory Diagnostic:** `python complete_light_diagnostic.py`
+* **Lighting/FOV Regression Tests:** `pytest -q tests/test_lighting_leaks.py tests/game/world/test_light_fov.py`
 * **Lighting/FOV Visual Tool:** `python -m tools.lighting_fov_tool.main`
 
 Refer to individual component READMEs for specific requirements and usage details.
 Generated font assets and glyph metadata are documented in
-[`docs/ASSET_PIPELINE.md`](./docs/ASSET_PIPELINE.md).
+[`docs/Asset Pipeline.md`](./docs/Asset%20Pipeline.md).
 
 ## Performance & Known Issues
 
@@ -112,11 +112,12 @@ The project prioritizes performance through high-performance libraries (Polars, 
 * Leverage Polars lazy evaluation for large datasets
 * Consider spatial indexing for entity proximity queries
 * Profile code with `cProfile` before optimizing
-* See `PERFORMANCE_ANALYSIS.md` for detailed analysis and recommendations
+* See [`docs/Performance Analysis.md`](./docs/Performance%20Analysis.md) for detailed analysis and recommendations
 
 ### Known Limitations
 * Some rendering operations may benefit from caching and dirty-rect tracking
 * Entity component queries in combat system could be batched for better performance
 * Flow field pathfinding may benefit from caching when targets are stationary
 
-For detailed performance analysis and optimization recommendations, see `PERFORMANCE_ANALYSIS.md`.
+For detailed performance analysis and optimization recommendations, see
+[`docs/Performance Analysis.md`](./docs/Performance%20Analysis.md).

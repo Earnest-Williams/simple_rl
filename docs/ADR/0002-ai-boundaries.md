@@ -26,7 +26,7 @@ Promotion from R&D to production requires:
 1. A small integration patch in `game/ai/` or the calling game system;
 2. Deterministic `GameRNG` ownership for any randomness;
 3. Runnable tests or a documented harness command; and
-4. Status updates in `docs/CURRENT_STATUS.md` when maturity changes.
+4. Status updates in `docs/Current Status.md` when maturity changes.
 
 ## Consequences
 

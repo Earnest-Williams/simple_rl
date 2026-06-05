@@ -12,11 +12,11 @@ while newer code migrates to the integrated model.
 
 ## How to read the older documents
 
-- `docs/SKILL_SYSTEM_INTEGRATION.md` describes the integration work and the
+- `docs/Skill System Integration.md` describes the integration work and the
   dual-mode compatibility plan.
-- `docs/SKILL_ADVANCED_FEATURES.md` describes advanced feature behavior that was
+- `docs/Skill Advanced Features.md` describes advanced feature behavior that was
   written for the integrated skill system.
-- `docs/SKILL_SYSTEM_EVALUATION.md` is a historical pre-integration evaluation.
+- `docs/Skill System Evaluation.md` is a historical pre-integration evaluation.
   Its design review remains useful, but its statements that the skill system is
   not integrated are no longer the current status.
 

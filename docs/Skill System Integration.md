@@ -1,6 +1,6 @@
 # Skill System Integration - Complete
 
-> **Status note (2026-05-31):** See [Skill System Status](SKILL_SYSTEM_STATUS.md) for the current source of truth.
+> **Status note (2026-05-31):** See [Skill System Status](Skill%20System%20Status.md) for the current source of truth.
 
 
 **Date:** 2026-01-23
@@ -407,7 +407,7 @@ The skill system is integrated in **dual-mode** for backward compatibility:
 
 1. `game/ui/__init__.py`
 2. `game/ui/skill_screen.py`
-3. `SKILL_SYSTEM_INTEGRATION.md` (this file)
+3. `Skill System Integration.md` (this file)
 
 ---
 

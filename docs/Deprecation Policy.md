@@ -18,8 +18,8 @@ without owner context.
 
 When keeping non-production material, record the reason in one of these places:
 
-1. `docs/CURRENT_STATUS.md` for subsystem-level maturity and ownership;
-2. `docs/ASSET_PIPELINE.md` for generated or retained asset outputs;
+1. `docs/Current Status.md` for subsystem-level maturity and ownership;
+2. `docs/Asset Pipeline.md` for generated or retained asset outputs;
 3. an ADR under `docs/ADR/` for architecture boundaries;
 4. a short README in the directory when the scope is local and long-lived.
 
@@ -42,7 +42,7 @@ Current retained notes are summarized in `notes/README.md`:
 | File | Classification | Retention reason | Deletion condition |
 | --- | --- | --- | --- |
 | `notes/basicrl_project.txt` | Historical note | Captures an older BasicRL roadmap and terminology snapshot. | Delete after useful roadmap items are represented in current issues or docs. |
-| `notes/to implement.txt` | Historical note | Preserves an early cave-species AI sketch that may inform future R&D triage. | Delete after relevant AI ideas are promoted to `docs/ADR/`, `docs/CURRENT_STATUS.md`, or issues. |
+| `notes/to implement.txt` | Historical note | Preserves an early cave-species AI sketch that may inform future R&D triage. | Delete after relevant AI ideas are promoted to `docs/ADR/`, `docs/Current Status.md`, or issues. |
 
 The former `notes/code_basicrl.txt` index was removed after being replaced by
 `notes/README.md`.
@@ -66,5 +66,5 @@ file from the working tree.
 2. Confirm whether it is covered by a status document, ADR, asset policy, or
    directory README.
 3. If no owner exists, delete it in a focused cleanup commit.
-4. Update `docs/REPOSITORY_AUDIT.md` or the relevant status document so the
+4. Update the relevant status document so the
    same file is not rediscovered as an unresolved cleanup item.

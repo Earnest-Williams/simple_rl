@@ -422,7 +422,7 @@ rgb += color_rgb * attenuation       # additive RGB policy, clamped on composite
 5. 🔄 Document GameRNG usage patterns and best practices
 
 ### Priority 3: Address Performance Issues
-See `PERFORMANCE_ANALYSIS.md` for detailed recommendations:
+See `Performance Analysis.md` for detailed recommendations:
 1. Fix critical bugs (render_frame, apply_overlays method names)
 2. Add bulk component fetching to eliminate N+1 queries
 3. Consolidate entity iterations in game state
@@ -764,7 +764,7 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - GOAP test harness (auto/) - Core already integrated, used for AI training
 
 **Critical Improvements Needed:**
-- Address performance issues documented in PERFORMANCE_ANALYSIS.md
+- Address performance issues documented in `Performance Analysis.md`
 - Fix method name mismatches (render_frame, apply_overlays)
 - Implement caching and bulk operations to eliminate N+1 patterns
 - Add spatial indexing for entity queries

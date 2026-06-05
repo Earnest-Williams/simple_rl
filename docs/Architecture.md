@@ -48,7 +48,7 @@ orchestrator.py
 ## Shared infrastructure
 
 - **`common/tuning.py`** — Cross-cutting numeric constants (see
-  [`docs/ENGINEERING.md`](./ENGINEERING.md))
+  [`docs/Engineering.md`](./Engineering.md))
 - **`common/constants.py`** — Material and feature-type enums
 - **`common/types.py`** — Grid type aliases
 - **`utils/game_rng.py`** — Deterministic RNG (used everywhere)
@@ -58,15 +58,15 @@ orchestrator.py
 
 | Document | Location |
 |----------|----------|
-| Engineering rules | [`docs/ENGINEERING.md`](./ENGINEERING.md) |
-| LLM critical rules | [`docs/LLM_CRITICAL_RULES.md`](./LLM_CRITICAL_RULES.md) |
-| Architecture (this file) | [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) |
-| Changelog | [`docs/CHANGELOG.md`](./CHANGELOG.md) |
-| Systems inventory | [`docs/SYSTEMS_INVENTORY.md`](./SYSTEMS_INVENTORY.md) |
-| Performance analysis | [`docs/PERFORMANCE_ANALYSIS.md`](./PERFORMANCE_ANALYSIS.md) |
-| Compliance report | [`docs/COMPLIANCE_REPORT.md`](./COMPLIANCE_REPORT.md) |
-| Rendering | [`docs/rendering.md`](./rendering.md) |
-| Sound system | [`docs/sound_system.md`](./sound_system.md) |
-| Modding guide | [`docs/modding.md`](./modding.md) |
-| World gen design | [`docs/World_generator_design_proposal.md`](./World_generator_design_proposal.md) |
-| Skill system docs | [`docs/SKILL_SYSTEM_EVALUATION.md`](./SKILL_SYSTEM_EVALUATION.md) |
+| Engineering rules | [`docs/Engineering.md`](./Engineering.md) |
+| LLM critical rules | [`docs/LLM Critical Rules.md`](./LLM%20Critical%20Rules.md) |
+| Architecture (this file) | [`docs/Architecture.md`](./Architecture.md) |
+| Changelog | [`docs/Changelog.md`](./Changelog.md) |
+| Systems inventory | [`docs/Systems Inventory.md`](./Systems%20Inventory.md) |
+| Performance analysis | [`docs/Performance Analysis.md`](./Performance%20Analysis.md) |
+| Compliance report | [`docs/Compliance Report.md`](./Compliance%20Report.md) |
+| Rendering | [`docs/Rendering.md`](./Rendering.md) |
+| Sound system | [`docs/Sound System.md`](./Sound%20System.md) |
+| Modding guide | [`docs/Modding.md`](./Modding.md) |
+| World gen design | [`docs/World Generator Design Proposal.md`](./World%20Generator%20Design%20Proposal.md) |
+| Skill system docs | [`docs/Skill System Evaluation.md`](./Skill%20System%20Evaluation.md) |

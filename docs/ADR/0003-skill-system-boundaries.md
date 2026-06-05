@@ -8,7 +8,7 @@ Accepted.
 
 Skill-system documentation previously contained conflicting integration claims,
 and the repository contains both top-level `skills/` modules and game-facing
-`game/skills/` modules. `docs/SKILL_SYSTEM_STATUS.md` now centralizes current
+`game/skills/` modules. `docs/Skill System Status.md` now centralizes current
 status, but the implementation boundary still needs an explicit decision.
 
 ## Decision
@@ -18,7 +18,7 @@ runtime gameplay systems. The top-level `skills/` package owns reusable skill
 models, rule data, progression helpers, manuals, prerequisites, synergies, and
 research support code that may be consumed or adapted by the game-facing layer.
 
-`docs/SKILL_SYSTEM_STATUS.md` is the source of truth for maturity and
+`docs/Skill System Status.md` is the source of truth for maturity and
 integration claims. Older skill documents may provide design history or feature
 notes, but they must link back to the status page rather than making independent
 production-readiness claims.
@@ -30,6 +30,6 @@ production-readiness claims.
 - New reusable data/rule helpers may live under top-level `skills/` when they do
   not depend on live game state.
 - When a skill feature is promoted, update tests and
-  `docs/SKILL_SYSTEM_STATUS.md` in the same change.
+  `docs/Skill System Status.md` in the same change.
 - Duplicate or experimental skill documents should be reconciled through status
   links instead of being silently edited into contradictory narratives.
