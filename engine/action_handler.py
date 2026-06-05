@@ -636,6 +636,37 @@ def process_player_action(
                     player_id, item_to_detach_id, gs
                 )
 
+        case "survey":
+            x = action.get("x")
+            y = action.get("y")
+            if x is None or y is None:
+                player_pos = gs.player_position
+                if player_pos:
+                    x, y = player_pos
+            if x is not None and y is not None:
+                from game.systems.survey import survey_coordinate
+                survey_coordinate(gs, int(x), int(y), player_id)
+                player_acted = True
+            else:
+                log.warning("Survey action failed: Player position unknown and no target coordinates provided.")
+                gs.add_message("Survey where?", (255, 100, 100))
+                player_acted = False
+
+        case "repair":
+            x = action.get("x")
+            y = action.get("y")
+            if x is None or y is None:
+                player_pos = gs.player_position
+                if player_pos:
+                    x, y = player_pos
+            if x is not None and y is not None:
+                from game.systems.repair import clear_blockage_at
+                player_acted = clear_blockage_at(gs, int(x), int(y))
+            else:
+                log.warning("Repair action failed: Player position unknown and no target coordinates provided.")
+                gs.add_message("Repair what?", (255, 100, 100))
+                player_acted = False
+
         case _:
             log.warning(
                 "Unknown action type received",

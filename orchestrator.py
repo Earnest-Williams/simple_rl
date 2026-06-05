@@ -138,10 +138,37 @@ def run_pipeline(
     resolved_seed = seed if seed is not None else FALLBACK_SEED
     rng = GameRNG(seed=resolved_seed, metrics=False)
 
+    # Load transition payload from overland_metadata.json if it exists
+    transition_payload = None
+    metadata_path = Path("overland_metadata.json")
+    if not metadata_path.exists():
+        for p in Path(".").glob("**/overland_metadata.json"):
+            metadata_path = p
+            break
+            
+    if metadata_path.exists():
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+                transitions = metadata.get("transitions", [])
+                if transitions:
+                    # Find the first cave entrance or ponor descent transition
+                    for trans in transitions:
+                        t_type = trans.get("transition_type")
+                        if t_type in {1, 2, "CAVE_ENTRANCE", "PONOR_DESCENT"}:
+                            transition_payload = trans
+                            log.info("Loaded transition payload from overland metadata: %s", trans)
+                            break
+                    if not transition_payload and transitions:
+                        transition_payload = transitions[0]
+        except Exception as exc:
+            log.warning("Failed to load overland metadata for themed dungeon generation: %s", exc)
+
     generator = core.CaveGenerator(
         max_nodes=max_nodes,
         max_depth=max_depth,
         rng=rng,
+        transition_payload=transition_payload,
     )
     generator.grow()
     raw_backbone = {"nodes": [n.to_dict() for n in generator.nodes]}
@@ -155,6 +182,7 @@ def run_pipeline(
         augmented_node_map,
         rng=rng,
         ca_iterations=ca_iterations,
+        transition_payload=transition_payload,
     )
     if shaped_map is None or shaped_map.is_empty():
         raise RuntimeError("Shaper did not return a valid map DataFrame.")

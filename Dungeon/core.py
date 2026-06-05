@@ -192,13 +192,14 @@ class BranchConvergenceAnalyzer:  # Unchanged logic
 class CaveGenerator:
     """Generates the cave backbone graph."""
 
-    # Modified __init__ to accept GameRNG instance
+    # Modified __init__ to accept GameRNG instance and optional transition payload
     def __init__(
         self,
         max_nodes: int,
         max_depth: int,
         rng: GameRNG,
         initial_probability: float = DEFAULT_INITIAL_PROBABILITY,
+        transition_payload: dict[str, Any] | None = None,
     ):
         if max_nodes <= 0 or max_depth <= 0:
             raise ValueError("max_nodes and max_depth must be positive.")
@@ -206,6 +207,7 @@ class CaveGenerator:
         self.max_depth = max_depth
         self.initial_probability = float(initial_probability)
         self.rng = rng  # Store the passed RNG instance
+        self.transition_payload = transition_payload
 
         # --- Configurable Parameters (Constants moved here for instance control) ---
         self.branch_momentum_bias_rate = DEFAULT_BRANCH_MOMENTUM_BIAS_RATE
@@ -616,6 +618,25 @@ class CaveGenerator:
         """Main generation loop that grows the cave network."""
         if self._generation_complete:
             return
+
+        # Prepare evidence features from transition payload
+        from worldgen.overland.schema import EvidenceTag
+        evidence_features = []
+        if self.transition_payload:
+            for tag in self.transition_payload.get("evidence_tags", []):
+                try:
+                    tag_val = int(tag)
+                except (ValueError, TypeError):
+                    continue
+                if tag_val in {int(EvidenceTag.PRECURSOR_OCCUPATION), int(EvidenceTag.ANCIENT_OCCUPATION)}:
+                    evidence_features.append("precursor_ruin")
+                elif tag_val == int(EvidenceTag.PRIOR_EXPEDITION):
+                    evidence_features.append("prior_expedition_camp")
+                elif tag_val == int(EvidenceTag.WAYSTATION_REMAINS):
+                    evidence_features.append("ruined_waystation")
+                elif tag_val in {int(EvidenceTag.BURIAL_MOUNDS), int(EvidenceTag.BARROW_FIELD), int(EvidenceTag.MAUSOLEUM_COMPLEX)}:
+                    evidence_features.append("barrow")
+
         # Initial KDTree build if needed
         if not self.kdtree and len(self.nodes) > BRANCH_SEGMENT_CONVERGENCE_MIN:
             self._rebuild_kdtree()
@@ -645,6 +666,15 @@ class CaveGenerator:
 
             terminate_reason = None
             feature_assigned_this_step = False
+
+            # Check for injecting transition-aware evidence features
+            if not parent.feature and evidence_features:
+                parent.feature = evidence_features.pop(0)
+                feature_assigned_this_step = True
+                step_vars["evidence_feature_assigned"] = parent.feature
+                self.steps.append(
+                    CaveStep(f"Assign Evidence Feature {parent.id}: {parent.feature}", step_vars)
+                )
 
             # --- Termination / Feature Checks ---
             if parent.depth >= self.max_depth:

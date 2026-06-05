@@ -1411,6 +1411,7 @@ def generate_shaped_cave(  # Added rng parameter
     augmented_node_map: dict[int, Any],
     rng: GameRNG,
     ca_iterations: int = CA_ITERATIONS,
+    transition_payload: dict[str, Any] | None = None,
 ) -> pl.DataFrame | None:
     """Orchestrates the cave shaping process using augmented node data."""
     # Removed global debug dump variables
@@ -1442,6 +1443,45 @@ def generate_shaped_cave(  # Added rng parameter
         corridor_radius_cells=1,
         repair_type_id=1,
     )
+
+    # Theme adjustments based on transition payload
+    if transition_payload:
+        # 1. Substrate (Basalt/Volcanic theme)
+        substrate_val = transition_payload.get("substrate")
+        is_basalt = False
+        if substrate_val is not None:
+            try:
+                is_basalt = (int(substrate_val) == 6)  # Substrate.BASALT is 6
+            except (ValueError, TypeError):
+                pass
+        
+        cave_type = str(transition_payload.get("cave_type", "")).lower()
+        target_kind = str(transition_payload.get("target_kind", "")).lower()
+        if "lava" in cave_type or "basalt" in cave_type or "lava" in target_kind or "basalt" in target_kind:
+            is_basalt = True
+            
+        if is_basalt:
+            final_grid[final_grid == Material.CAVE_FLOOR] = Material.LAVA_TUBE_FLOOR
+            print("Themed shaper: Basalt substrate detected. Mapped floor to LAVA_TUBE_FLOOR.")
+
+        # 2. Flow Group (Wet/Water theme)
+        try:
+            flow_group = int(transition_payload.get("flow_group", 0))
+        except (ValueError, TypeError):
+            flow_group = 0
+            
+        if flow_group > 0:
+            floor_mask = (final_grid == Material.CAVE_FLOOR) | (final_grid == Material.LAVA_TUBE_FLOOR)
+            floor_ys, floor_xs = np.where(floor_mask)
+            if len(floor_ys) > 0:
+                floor_depths = depth_grid[floor_ys, floor_xs]
+                floor_depths = np.nan_to_num(floor_depths, nan=0.0)
+                num_flooded = max(1, int(len(floor_ys) * 0.15))
+                # Find the threshold for the deepest 15% of cells
+                threshold = np.partition(floor_depths, -num_flooded)[-num_flooded]
+                flooded_indices = floor_depths >= threshold
+                final_grid[floor_ys[flooded_indices], floor_xs[flooded_indices]] = Material.UNDERGROUND_WATER
+                print(f"Themed shaper: Active flow group ({flow_group}) detected. Flooded {num_flooded} deepest floor cells with UNDERGROUND_WATER.")
 
     # Removed NPY dump call for post-CA state
 

@@ -169,6 +169,7 @@ class GameState:
         self.base_fov_radius = player_fov_radius
         self.fov_radius = player_fov_radius
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
+        self.discovered_evidence: dict[str, list[int]] = {}
         # Messages generated while their subjects are outside FOV are stored here.
         self.message_queue: list[tuple[int, str, tuple[int, int, int]]] = []
         self.turn_count: int = 0
@@ -262,6 +263,8 @@ class GameState:
         self.game_map.compute_fov(px, py, self.fov_radius)
         self._force_player_visible(px, py)
         self.game_map.refresh_visible_memory(self.turn_count)
+        from game.systems.survey import check_automatic_survey
+        check_automatic_survey(self)
         if self.memory_fade_enabled:
             self.memory_traits = self._build_player_memory_traits()
             self.game_map.fade_memory(
