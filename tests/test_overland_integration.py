@@ -535,6 +535,82 @@ def test_starting_port_merges_as_overland_surface_layer() -> None:
     )
 
 
+def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads() -> None:
+    from worldgen.overland.schema import HydroRole
+    from common.constants import Material
+
+    overland = generate_overland_region(
+        seed=991,
+        width=128,
+        height=96,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    config, region, origin = starting_port_from_overland(
+        overland,
+        width=80,
+        height=56,
+        population_target=900,
+    )
+    settlement = generate_settlement(config, rng=GameRNG(seed=991), region=region)
+    ox, oy = origin
+    s_width = settlement.metadata["width"]
+    s_height = settlement.metadata["height"]
+
+    # Let's count base transitions inside settlement bounds
+    base_transitions = overland.tiles_df.filter(
+        pl.col("material").is_in([int(Material.CAVE_MOUTH), int(Material.PONOR)]) &
+        (pl.col("x") >= ox) & (pl.col("x") < ox + s_width) &
+        (pl.col("y") >= oy) & (pl.col("y") < oy + s_height)
+    )
+
+    # Let's count base hydrology tiles inside settlement bounds
+    base_hydrology = overland.tiles_df.filter(
+        (pl.col("hydro_role") != int(HydroRole.NONE)) &
+        (pl.col("x") >= ox) & (pl.col("x") < ox + s_width) &
+        (pl.col("y") >= oy) & (pl.col("y") < oy + s_height)
+    )
+
+    # Run the merge
+    merged = merge_settlement_into_overland(overland, settlement, origin=origin)
+
+    # 1. Assert transition preservation
+    for row in base_transitions.iter_rows(named=True):
+        x, y = int(row["x"]), int(row["y"])
+        merged_tile = merged.tiles_df.filter((pl.col("x") == x) & (pl.col("y") == y)).to_dicts()[0]
+        assert merged_tile["material"] == row["material"]
+
+    # 2. Assert hydrology preservation
+    # If a base hydrology tile is overwritten, check that it preserves hydro_role
+    for row in base_hydrology.iter_rows(named=True):
+        x, y = int(row["x"]), int(row["y"])
+        merged_tile = merged.tiles_df.filter((pl.col("x") == x) & (pl.col("y") == y)).to_dicts()[0]
+        # Should either preserve hydro_role and wetness, OR be a bridge (which also preserves hydro_role)
+        assert merged_tile["hydro_role"] == row["hydro_role"]
+        assert merged_tile["wetness"] == row["wetness"]
+        if merged_tile["material"] != row["material"]:
+            # If the material changed, it must be because it was paved over as a bridge, road, or dock
+            allowed_materials = [
+                int(Material.BRIDGE),
+                int(Material.ROAD),
+                int(Material.DOCK),
+                int(Material.BOARDWALK),
+                int(Material.TRAIL),
+                int(Material.TRACK),
+            ]
+            assert merged_tile["material"] in allowed_materials
+
+    # 3. Assert road connection
+    # Get the endpoints
+    road_endpoints = settlement.metadata.get("region", {}).get("road_endpoints", [])
+    absolute_endpoints = [(int(rx) + ox, int(ry) + oy) for rx, ry in road_endpoints]
+    assert len(absolute_endpoints) > 0
+
+    # For each absolute endpoint, check that it has been paved as a ROAD or BRIDGE in the merged map
+    for ex, ey in absolute_endpoints:
+        merged_tile = merged.tiles_df.filter((pl.col("x") == ex) & (pl.col("y") == ey)).to_dicts()[0]
+        assert merged_tile["material"] in [int(Material.ROAD), int(Material.BRIDGE)]
+
+
 def test_headless_overland_generation_can_merge_starting_port(tmp_path) -> None:
     summary = generate_region(
         seed=11,
