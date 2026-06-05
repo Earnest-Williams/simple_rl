@@ -24,6 +24,12 @@ that needs randomness must accept or own an explicit `GameRNG` instance. Direct
 allowed in clearly non-game-logic boundaries or inside the canonical RNG module
 when needed to implement the deterministic abstraction.
 
+The nested `settlegen/` package is an approved boundary: it exposes a
+same-seed/same-config deterministic API backed by NumPy RNG. Simple RL
+integration code must derive the `settlegen` seed from `GameRNG`, as
+`worldgen/settlements/generator.py` does, rather than allowing unseeded calls
+to leak into game logic.
+
 ## Consequences
 
 - New code imports `GameRNG` from `utils.game_rng`.

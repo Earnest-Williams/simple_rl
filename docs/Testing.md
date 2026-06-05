@@ -26,6 +26,11 @@ pip install -e ".[dev]"
 | Syntax smoke test | `python -m compileall -q .` | Catches parser/import-syntax blockers across Python files. |
 | LLM policy sync | `python scripts/sync_llm_policy.py --check` | Confirms generated agent-policy copies match the source policy. |
 
+The deterministic-randomness checker intentionally treats `settlegen/` as an
+approved subproject boundary. `settlegen` owns a seed-based deterministic NumPy
+API; Simple RL integration code must derive that seed from `GameRNG` before
+calling into it.
+
 ## CI coverage
 
 The repository currently has workflows for LLM policy synchronization,
@@ -65,4 +70,4 @@ provisioned editable `.[dev]` environment:
   limitation and verify non-GUI checks instead.
 - If deterministic-random checks fail, replace direct `random`, NumPy RNG,
   `os.urandom`, or `uuid.uuid4` use in game logic with `GameRNG` or move the
-  code behind an explicitly non-game-logic boundary.
+  code behind an explicitly approved non-game-logic boundary.

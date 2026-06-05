@@ -16,7 +16,18 @@ def _load_scan_source() -> Callable[[str, str], list[str]]:
     return cast("Callable[[str, str], list[str]]", scan_source)
 
 
+def _load_should_skip() -> Callable[[Path], bool]:
+    checker_path: Path = (
+        Path(__file__).parents[1] / "scripts" / "check_deterministic_random.py"
+    )
+    namespace: dict[str, Any] = runpy.run_path(str(checker_path))
+    should_skip: Any = namespace["_should_skip"]
+    assert callable(should_skip)
+    return cast("Callable[[Path], bool]", should_skip)
+
+
 _SCAN_SOURCE = _load_scan_source()
+_SHOULD_SKIP = _load_should_skip()
 
 
 def test_scan_source_ignores_comments_strings_and_docstrings() -> None:
@@ -79,3 +90,8 @@ values = numpy.zeros(3)
 
     assert violations.count("import numpy.random") == 1
     assert violations.count("numpy.random") == 0
+
+
+def test_should_skip_allows_seeded_settlegen_boundary_only() -> None:
+    assert _SHOULD_SKIP(Path("settlegen") / "settlegen" / "generator.py")
+    assert not _SHOULD_SKIP(Path("worldgen") / "settlements" / "generator.py")

@@ -7,7 +7,7 @@ from pathfinding.perception_systems import BASE_FLOW_CENTER
 
 
 def test_sound_volume_ignores_float_debug_noise_map() -> None:
-    manager = SoundManager(config_path=None)
+    manager = SoundManager(config_path=None, initialize_backend=False)
     manager.sfx_volume = 1.0
     manager.master_volume = 1.0
     manager.sound_fade_distance = 0
@@ -26,7 +26,7 @@ def test_sound_volume_ignores_float_debug_noise_map() -> None:
 
 
 def test_sound_volume_accepts_integer_flow_cost_map() -> None:
-    manager = SoundManager(config_path=None)
+    manager = SoundManager(config_path=None, initialize_backend=False)
     manager.sfx_volume = 1.0
     manager.master_volume = 1.0
     manager.sound_fade_distance = 0

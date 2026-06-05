@@ -30,6 +30,15 @@ EXCLUDED_DIRECTORIES: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Repository subprojects that own a deterministic seed-based API outside the
+# Simple RL GameRNG contract. The integration layer must derive their seeds
+# from GameRNG before calling into them.
+APPROVED_BOUNDARY_DIRECTORIES: Final[frozenset[Path]] = frozenset(
+    {
+        Path("settlegen"),
+    }
+)
+
 # Files exempted from the deterministic randomness check.
 ALLOWED_FILES: Final[frozenset[Path]] = frozenset(
     {
@@ -137,6 +146,10 @@ def _should_skip(path: Path) -> bool:
     if path.suffix != ".py":
         return True
     if path in ALLOWED_FILES:
+        return True
+    if any(
+        path.is_relative_to(directory) for directory in APPROVED_BOUNDARY_DIRECTORIES
+    ):
         return True
     return any(part in EXCLUDED_DIRECTORIES for part in path.parts)
 

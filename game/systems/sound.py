@@ -203,7 +203,11 @@ class SoundManager:
         return candidate
 
     def __init__(
-        self, config_path: Path | None = None, rng: GameRNG | None = None
+        self,
+        config_path: Path | None = None,
+        rng: GameRNG | None = None,
+        *,
+        initialize_backend: bool = True,
     ) -> None:
         self.enabled = False
         self.sound_effects: dict[str, SoundEffect] = {}
@@ -231,7 +235,7 @@ class SoundManager:
 
         try:
             self._load_config(config_path)
-            if AUDIO_BACKEND and self.enabled:
+            if initialize_backend and AUDIO_BACKEND and self.enabled:
                 self._initialize_audio_backend()
         except Exception as e:
             log.warning(f"Failed to initialize sound system: {e}")
