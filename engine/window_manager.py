@@ -1363,6 +1363,14 @@ class WindowManager(QMainWindow):
         if app_instance:
             app_instance.quit()
 
+    def ui_toggle_height_visualization(self) -> None:
+        """Toggle height visualization on/off."""
+        if self.main_loop:
+            self.main_loop.show_height_visualization = (
+                not self.main_loop.show_height_visualization
+            )
+            self.update_frame()
+
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         if not self.main_loop:
             return
