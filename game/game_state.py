@@ -556,25 +556,26 @@ class GameState:
         active_rows: list[dict[str, object]] = []
         ai_entities: list[dict[str, object]] = []
         self.spatial_index.clear()
-        for row in self.entity_registry.entities_df.iter_rows(named=True):
-            if not row.get("is_active", False):
-                continue
-            entity_id = int(row["entity_id"])
-            x = row.get("x")
-            y = row.get("y")
-            if isinstance(x, int) and isinstance(y, int):
-                species = row.get("species")
-                ai_type = row.get("ai_type")
-                if species == "enemy" or ai_type in {"goap", "combat"}:
-                    kind_value = "enemy"
-                elif species == "slime":
-                    kind_value = "slime"
-                else:
-                    kind_value = species or ai_type or "entity"
-                self.spatial_index.insert(entity_id, x, y, str(kind_value))
+
+        registry = self.entity_registry
+
+        for idx in registry.active_indices():
+            entity_id = registry.entity_id_at(int(idx))
+            x, y = registry.position_at(int(idx))
+
+            self.spatial_index.insert(
+                entity_id,
+                x,
+                y,
+                registry.kind_at(int(idx)),
+            )
+
             self._process_status_effects_for_entity(entity_id)
             self._process_resources_for_entity(entity_id)
+
+            row = registry.row_dict_at(int(idx))
             active_rows.append(row)
+
             if row.get("ai_type"):
                 ai_entities.append(row)
 

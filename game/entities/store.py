@@ -390,6 +390,55 @@ class EntityStore:
     def active_indices(self) -> np.ndarray:
         return np.where(self.is_active[:self.count])[0]
 
+    def ai_indices(self) -> np.ndarray:
+        active = self.is_active[:self.count]
+        has_ai = np.array(
+            [self.ai_type[idx] is not None for idx in range(self.count)],
+            dtype=np.bool_,
+        )
+        return np.where(active & has_ai)[0]
+
+    def entity_id_at(self, idx: int) -> int:
+        return int(self.entity_id[idx])
+
+    def position_at(self, idx: int) -> tuple[int, int]:
+        return int(self.x[idx]), int(self.y[idx])
+
+    def kind_at(self, idx: int) -> str:
+        species = self.species[idx]
+        ai_type = self.ai_type[idx]
+        if species == "enemy" or ai_type in {"goap", "combat"}:
+            return "enemy"
+        if species == "slime":
+            return "slime"
+        return str(species or ai_type or "entity")
+
+    def row_dict_at(self, idx: int) -> dict[str, object]:
+        row: dict[str, object] = {
+            "entity_id": int(self.entity_id[idx]),
+            "is_active": bool(self.is_active[idx]),
+            "x": int(self.x[idx]),
+            "y": int(self.y[idx]),
+            "glyph": int(self.glyph[idx]),
+            "color_fg_r": int(self.color_fg_r[idx]),
+            "color_fg_g": int(self.color_fg_g[idx]),
+            "color_fg_b": int(self.color_fg_b[idx]),
+            "blocks_movement": bool(self.blocks_movement[idx]),
+            "hp": int(self.hp[idx]),
+            "max_hp": int(self.max_hp[idx]),
+            "intelligence": int(self.intelligence[idx]),
+            "fullness": float(self.fullness[idx]),
+            "fuel": float(self.fuel[idx]),
+            "name": self.name[idx],
+            "ai_type": self.ai_type[idx],
+            "species": self.species[idx],
+            "faction": self.faction[idx],
+            "strategy_state": self.strategy_state[idx],
+            "status_effects": self.status_effects[idx],
+        }
+        row.update(self.extra_components[idx])
+        return row
+
     def compact_store(self) -> None:
         if self.count == 0:
             return

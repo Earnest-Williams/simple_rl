@@ -4,6 +4,7 @@ from __future__ import annotations
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Self, Callable
 
+import numpy as np
 import polars as pl
 import structlog
 
@@ -423,6 +424,24 @@ class EntityRegistry:
             height=height,
             is_walkable=is_walkable,
         )
+
+    def active_indices(self) -> np.ndarray:
+        return self._store.active_indices()
+
+    def ai_indices(self) -> np.ndarray:
+        return self._store.ai_indices()
+
+    def entity_id_at(self, idx: int) -> int:
+        return self._store.entity_id_at(idx)
+
+    def position_at(self, idx: int) -> tuple[int, int]:
+        return self._store.position_at(idx)
+
+    def kind_at(self, idx: int) -> str:
+        return self._store.kind_at(idx)
+
+    def row_dict_at(self, idx: int) -> dict[str, object]:
+        return self._store.row_dict_at(idx)
 
     def delete_entity(self: Self, entity_id: int) -> bool:
         log_context = {"entity_id": entity_id}
