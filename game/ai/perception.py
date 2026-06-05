@@ -10,7 +10,7 @@ import polars as pl
 import structlog
 from numpy.typing import NDArray
 
-from game.perception_events import PerceptionMemoryRecord
+from game.perception_events import AIMemoryFact
 from game.world.los import line_of_sight
 from pathfinding.perception_systems import FlowType
 
@@ -73,6 +73,15 @@ def _visible_target_from_row(row: dict[str, object]) -> VisibleTarget | None:
     if faction is not None:
         target["faction"] = faction
     return target
+
+
+def _active_memory_fact(game_state: GameState, entity_id: int) -> AIMemoryFact | None:
+    memory = game_state.ai_memory.get(entity_id)
+    if memory is None:
+        return None
+    if memory.expires_at_turn <= game_state.turn_count:
+        return None
+    return memory
 
 
 @dataclass(slots=True)
@@ -144,7 +153,6 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
         )
         cave_when = game_state.perception_cave_when
         game_map = game_state.game_map
-        default_memory_turns = 5
 
         for row in active_df.iter_rows(named=True):
             if not _has_perception_profile(row):
@@ -187,50 +195,32 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
             confidence = 0.0
             signal_type: PerceptionSignal = "idle"
             current_target_pos: tuple[int, int] | None = None
-            memorable = False
 
             if visible_targets:
                 signal_type = "visual"
                 confidence = 1.0
                 first = visible_targets[0]
                 current_target_pos = (first["x"], first["y"])
-                memorable = True
             elif heard_source:
                 signal_type = "audio"
                 confidence = 1.0
                 current_target_pos = heard_source
-                memorable = True
             elif scent_position:
                 signal_type = "scent"
                 confidence = 0.8
                 current_target_pos = scent_position
-                memorable = (
-                    False  # DO NOT memorize scent gradients as a "last known" position
-                )
 
-            # Update or retrieve from explicit memory
             last_known_position: tuple[int, int] | None = None
+            active_memory = _active_memory_fact(game_state, ent_id)
 
-            if memorable and current_target_pos is not None:
-                # Hard signal detected: refresh memory
-                game_state.ai_memory[ent_id] = PerceptionMemoryRecord(
-                    pos=current_target_pos,
-                    turns_left=default_memory_turns,
-                )
+            if signal_type in ("visual", "audio") and current_target_pos is not None:
                 last_known_position = current_target_pos
             else:
-                # No hard signal: check memory
-                if ent_id in game_state.ai_memory:
-                    mem = game_state.ai_memory[ent_id]
-                    if mem.turns_left > 0:
-                        if not current_target_pos:
-                            # Only fallback to memory if we don't even have a scent
-                            signal_type = "memory"
-                            confidence = 0.5
-                        last_known_position = mem.pos
-                        mem.turns_left -= 1
-                    else:
-                        del game_state.ai_memory[ent_id]
+                if active_memory is not None:
+                    last_known_position = active_memory.pos
+                    if signal_type == "idle":
+                        signal_type = "memory"
+                        confidence = 0.5
 
             facts[ent_id] = PerceptionFact(
                 signal_type=signal_type,
@@ -250,6 +240,34 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
         debug_noise_map=noise_map,
         debug_scent_map=scent_map,
     )
+
+
+def apply_perception_memory_updates(
+    game_state: GameState, snapshot: PerceptionSnapshot
+) -> None:
+    """Refresh GameState-owned AI memory exactly once per turn from a snapshot."""
+    expires_at_turn = game_state.turn_count + game_state.ai_memory_duration_turns
+
+    game_state.ai_memory = {
+        entity_id: memory
+        for entity_id, memory in game_state.ai_memory.items()
+        if memory.expires_at_turn > game_state.turn_count
+    }
+
+    for entity_id, fact in snapshot.entity_facts.items():
+        if fact.visible_targets:
+            first = fact.visible_targets[0]
+            game_state.ai_memory[entity_id] = AIMemoryFact(
+                pos=(first["x"], first["y"]),
+                expires_at_turn=expires_at_turn,
+                source="visual",
+            )
+        elif fact.heard_source is not None:
+            game_state.ai_memory[entity_id] = AIMemoryFact(
+                pos=fact.heard_source,
+                expires_at_turn=expires_at_turn,
+                source="audio",
+            )
 
 
 def find_visible_enemies(
@@ -273,7 +291,7 @@ def find_visible_enemies(
     if ex is None or ey is None:
         return enemies
 
-    filter_expr = pl.col("is_active") is True
+    filter_expr = pl.col("is_active")
     if faction is not None:
         filter_expr &= pl.col("faction") != faction
     enemy_df = game_state.entity_registry.entities_df.filter(filter_expr)
@@ -285,11 +303,11 @@ def find_visible_enemies(
 
     vision_range = _row_int(entity_row, "vision_range") or game_state.fov_radius
     spatial_index = getattr(game_state, "spatial_index", None)
-    nearby = None
+    nearby: object = None
     if spatial_index is not None and hasattr(spatial_index, "query_radius"):
         nearby = spatial_index.query_radius((ex, ey), vision_range)
 
-    candidates = nearby if nearby is not None else enemy_rows.values()
+    candidates = nearby if nearby else enemy_rows.values()
     for other in candidates:
         if isinstance(other, dict):
             other_row = other
@@ -322,6 +340,7 @@ __all__ = [
     "PerceptionFact",
     "PerceptionSnapshot",
     "VisibleTarget",
+    "apply_perception_memory_updates",
     "gather_perception",
     "gather_perception_snapshot",
     "find_visible_enemies",

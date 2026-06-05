@@ -15,10 +15,7 @@ import structlog
 
 from game.systems import movement_system
 
-from .perception import find_visible_enemies
-
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    import numpy as np
     from polars import series
 
     from game.game_state import GameState

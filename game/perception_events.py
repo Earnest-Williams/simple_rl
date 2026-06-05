@@ -10,6 +10,7 @@ or scent fields, and it does not play audio. Production propagation remains in
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pathfinding.perception_systems import FlowType
 
@@ -59,11 +60,12 @@ class ScentEvent:
 
 
 @dataclass(slots=True)
-class PerceptionMemoryRecord:
+class AIMemoryFact:
     """GameState-owned last-known-target memory for one AI-controlled entity."""
 
     pos: tuple[int, int]
-    turns_left: int
+    expires_at_turn: int
+    source: Literal["visual", "audio"]
 
 
 PendingNoiseEvent = NoiseEvent | tuple[int, int, float]

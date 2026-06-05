@@ -12,16 +12,19 @@ import structlog
 from numpy.typing import NDArray
 
 from common.constants import FeatureType
-from game.ai.perception import gather_perception_snapshot
+from game.ai.perception import (
+    apply_perception_memory_updates,
+    gather_perception_snapshot,
+)
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.items.registry import ItemRegistry
 from game.perception import apply_radius_perception
 from game.perception_events import (
+    AIMemoryFact,
     NoiseEvent,
     PendingNoiseEvent,
     PendingScentEvent,
-    PerceptionMemoryRecord,
     ScentEvent,
     event_xy_intensity,
     noise_event_flow_type,
@@ -211,7 +214,8 @@ class GameState:
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
 
-        self.ai_memory: dict[int, PerceptionMemoryRecord] = {}
+        self.ai_memory_duration_turns: int = 5
+        self.ai_memory: dict[int, AIMemoryFact] = {}
         self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)
         self.light_sources: list[LightSource] = self.game_map.light_sources
@@ -832,6 +836,7 @@ class GameState:
         if self.ai_enabled:
             log.debug("Gathering perception data for AI")
             perception = gather_perception_snapshot(self)
+            apply_perception_memory_updates(self, perception)
 
             log.debug("Processing AI-controlled entities")
             ai_rows = []
