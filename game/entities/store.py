@@ -439,6 +439,95 @@ class EntityStore:
         row.update(self.extra_components[idx])
         return row
 
+    def active_non_player_indices(self, player_id: int) -> np.ndarray:
+        active = self.is_active[:self.count]
+        entity_ids = self.entity_id[:self.count]
+        return np.where(active & (entity_ids != player_id))[0]
+
+    def has_perception_profile_at(self, idx: int) -> bool:
+        return bool(
+            self.ai_type[idx]
+            or self.species[idx]
+            or int(self.intelligence[idx]) > 0
+        )
+
+    def visible_target_at(self, idx: int) -> dict[str, object]:
+        target: dict[str, object] = {
+            "entity_id": int(self.entity_id[idx]),
+            "x": int(self.x[idx]),
+            "y": int(self.y[idx]),
+        }
+        faction = self.faction[idx]
+        if faction is not None:
+            target["faction"] = faction
+        return target
+
+    def faction_at(self, idx: int) -> str | None:
+        return self.faction[idx]
+
+    def xy_at(self, idx: int) -> tuple[int, int]:
+        return int(self.x[idx]), int(self.y[idx])
+
+    def index_of_entity(self, entity_id: int) -> int | None:
+        return self.entity_id_to_index.get(entity_id)
+
+    def is_active_at(self, idx: int) -> bool:
+        return bool(self.is_active[idx])
+
+    def get_component_at(self, idx: int, component: str) -> object | None:
+        if idx is None or not self.is_active[idx]:
+            return None
+        if component in NUMERIC_FIELDS:
+            val = getattr(self, component)[idx]
+            if hasattr(val, "item"):
+                return val.item()
+            return val
+        if component in OBJECT_FIELDS:
+            return getattr(self, component)[idx]
+        extra = self.extra_components[idx]
+        if component not in extra:
+            from game.entities.registry import ENTITY_SCHEMA
+            dtype = ENTITY_SCHEMA.get(component)
+            if dtype is not None:
+                if _is_list_dtype(dtype):
+                    return []
+                elif dtype in (pl.Float32, pl.Float64):
+                    return 0.0
+                elif dtype in (
+                    pl.Int16, pl.Int32, pl.Int64,
+                    pl.UInt16, pl.UInt32, pl.UInt64, pl.UInt8
+                ):
+                    return 0
+                elif dtype == pl.Boolean:
+                    return False
+            return None
+        return extra.get(component)
+
+    def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
+        records = []
+        for idx in range(self.count):
+            if not self.is_active[idx]:
+                continue
+            entity_id = int(self.entity_id[idx])
+            if entity_id == player_id:
+                continue
+
+            extra = self.extra_components[idx]
+            p_stat = extra.get("perception_stat")
+            if p_stat is None:
+                p_stat = 10
+
+            is_dead = not self.is_active[idx] or int(self.hp[idx]) <= 0
+
+            records.append({
+                "id": entity_id,
+                "fy": int(self.y[idx]),
+                "fx": int(self.x[idx]),
+                "is_dead": bool(is_dead),
+                "perception_stat": int(p_stat),
+            })
+        return records
+
     def compact_store(self) -> None:
         if self.count == 0:
             return

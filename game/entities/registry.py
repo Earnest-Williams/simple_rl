@@ -443,6 +443,33 @@ class EntityRegistry:
     def row_dict_at(self, idx: int) -> dict[str, object]:
         return self._store.row_dict_at(idx)
 
+    def active_non_player_indices(self, player_id: int) -> np.ndarray:
+        return self._store.active_non_player_indices(player_id)
+
+    def has_perception_profile_at(self, idx: int) -> bool:
+        return self._store.has_perception_profile_at(idx)
+
+    def visible_target_at(self, idx: int) -> dict[str, object]:
+        return self._store.visible_target_at(idx)
+
+    def faction_at(self, idx: int) -> str | None:
+        return self._store.faction_at(idx)
+
+    def xy_at(self, idx: int) -> tuple[int, int]:
+        return self._store.xy_at(idx)
+
+    def index_of_entity(self, entity_id: int) -> int | None:
+        return self._store.index_of_entity(entity_id)
+
+    def is_active_at(self, idx: int) -> bool:
+        return self._store.is_active_at(idx)
+
+    def get_component_at(self, idx: int, component: str) -> object | None:
+        return self._store.get_component_at(idx, component)
+
+    def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
+        return self._store.monster_perception_records(player_id)
+
     def delete_entity(self: Self, entity_id: int) -> bool:
         log_context = {"entity_id": entity_id}
         log.debug("Deleting entity (marking inactive)", **log_context)

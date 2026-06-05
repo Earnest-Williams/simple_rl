@@ -132,6 +132,66 @@ def gather_perception(
     return noise_map, scent_map, los_map
 
 
+def find_visible_enemies_for_index(
+    actor_idx: int,
+    game_state: GameState,
+    los_map: NDArray[np.bool_],
+) -> list[VisibleTarget]:
+    """Return a list of enemies visible to the entity at `actor_idx`."""
+    registry = game_state.entity_registry
+    actor_id = registry.entity_id_at(actor_idx)
+    ex, ey = registry.xy_at(actor_idx)
+    actor_faction = registry.faction_at(actor_idx)
+    vision_range = registry.get_component_at(actor_idx, "vision_range") or game_state.fov_radius
+    game_map = game_state.game_map
+    enemies: list[VisibleTarget] = []
+
+    spatial_index = getattr(game_state, "spatial_index", None)
+    nearby = None
+    if spatial_index is not None and hasattr(spatial_index, "query_radius"):
+        nearby = spatial_index.query_radius((ex, ey), vision_range)
+
+    if not nearby:
+        # Fallback to scanning all active entities if spatial index is missing or empty
+        nearby = []
+        for other_idx in registry.active_indices():
+            other_id = registry.entity_id_at(other_idx)
+            ox, oy = registry.position_at(other_idx)
+            nearby.append((other_id, ox, oy))
+
+    for candidate_id, ox, oy in nearby:
+        if candidate_id == actor_id:
+            continue
+
+        candidate_idx = registry.index_of_entity(candidate_id)
+        if candidate_idx is None:
+            continue
+
+        if not registry.is_active_at(candidate_idx):
+            continue
+
+        candidate_faction = registry.faction_at(candidate_idx)
+        if actor_faction is not None:
+            if candidate_faction is None or candidate_faction == actor_faction:
+                continue
+
+        if not game_map.in_bounds(ox, oy):
+            continue
+
+        if not los_map[oy, ox]:
+            continue
+
+        if line_of_sight(ex, ey, ox, oy, game_map.transparent):
+            enemies.append(registry.visible_target_at(candidate_idx))
+
+    log.debug(
+        "Visible enemies located for index",
+        entity_id=actor_id,
+        count=len(enemies),
+    )
+    return enemies
+
+
 def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     """Return structured AI-facing perception facts without breaking legacy callers."""
     from pathfinding.perception_systems import get_scent
@@ -146,94 +206,88 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
 
     alerted_set = set(game_state.perception_alerted_monster_ids)
 
-    df = getattr(game_state.entity_registry, "entities_df", None)
-    if df is not None and not df.is_empty():
-        active_df = df.filter(
-            pl.col("is_active") & (pl.col("entity_id") != game_state.player_id)
+    registry = game_state.entity_registry
+    cave_when = game_state.perception_cave_when
+    game_map = game_state.game_map
+
+    for idx in registry.active_non_player_indices(game_state.player_id):
+        idx = int(idx)
+        if not registry.has_perception_profile_at(idx):
+            continue
+
+        ent_id = registry.entity_id_at(idx)
+        ex, ey = registry.xy_at(idx)
+
+        # 1. Visible targets
+        visible_targets = find_visible_enemies_for_index(idx, game_state, los_map)
+
+        # 2. Audio facts
+        heard_source = None
+        if ent_id in alerted_set and ent_id != game_state.perception_noise_source_id:
+            heard_source = global_heard_source
+        heard_flow = "real_noise" if heard_source else None
+
+        # 3. Scent facts
+        current_scent = get_scent(cave_when, ey, ex)
+        best_scent_val = current_scent
+        best_scent_pos = None
+
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = ex + dx, ey + dy
+            if (
+                0 <= nx < game_map.width
+                and 0 <= ny < game_map.height
+                and game_map.transparent[ny, nx]
+            ):
+                n_scent = get_scent(cave_when, ny, nx)
+                if n_scent > best_scent_val:
+                    best_scent_val = n_scent
+                    best_scent_pos = (nx, ny)
+
+        scent_position = best_scent_pos
+        scent_strength = best_scent_val if best_scent_pos else current_scent
+
+        # Prioritize the current signals
+        confidence = 0.0
+        signal_type: PerceptionSignal = "idle"
+        current_target_pos: tuple[int, int] | None = None
+
+        if visible_targets:
+            signal_type = "visual"
+            confidence = 1.0
+            first = visible_targets[0]
+            current_target_pos = (first["x"], first["y"])
+        elif heard_source:
+            signal_type = "audio"
+            confidence = 1.0
+            current_target_pos = heard_source
+        elif scent_position:
+            signal_type = "scent"
+            confidence = 0.8
+            current_target_pos = scent_position
+
+        last_known_position: tuple[int, int] | None = None
+        active_memory = _active_memory_fact(game_state, ent_id)
+
+        if signal_type in ("visual", "audio") and current_target_pos is not None:
+            last_known_position = current_target_pos
+        else:
+            if active_memory is not None:
+                last_known_position = active_memory.pos
+                if signal_type == "idle":
+                    signal_type = "memory"
+                    confidence = 0.5
+
+        facts[ent_id] = PerceptionFact(
+            signal_type=signal_type,
+            confidence=confidence,
+            visible_targets=visible_targets,
+            heard_source=heard_source,
+            heard_flow=heard_flow,
+            scent_strength=scent_strength,
+            scent_position=scent_position,
+            last_known_position=last_known_position,
         )
-        cave_when = game_state.perception_cave_when
-        game_map = game_state.game_map
-
-        for row in active_df.iter_rows(named=True):
-            if not _has_perception_profile(row):
-                continue
-
-            ent_id = _row_int(row, "entity_id")
-            ex = _row_int(row, "x")
-            ey = _row_int(row, "y")
-            if ent_id is None or ex is None or ey is None:
-                continue
-
-            # 1. Visible targets
-            visible_targets = find_visible_enemies(row, game_state, los_map)
-
-            # 2. Audio facts
-            heard_source = None
-            if ent_id in alerted_set and ent_id != game_state.perception_noise_source_id:
-                heard_source = global_heard_source
-            heard_flow = "real_noise" if heard_source else None
-
-            # 3. Scent facts
-            current_scent = get_scent(cave_when, ey, ex)
-            best_scent_val = current_scent
-            best_scent_pos = None
-
-            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                nx, ny = ex + dx, ey + dy
-                if (
-                    0 <= nx < game_map.width
-                    and 0 <= ny < game_map.height
-                    and game_map.transparent[ny, nx]
-                ):
-                    n_scent = get_scent(cave_when, ny, nx)
-                    if n_scent > best_scent_val:
-                        best_scent_val = n_scent
-                        best_scent_pos = (nx, ny)
-
-            scent_position = best_scent_pos
-            scent_strength = best_scent_val if best_scent_pos else current_scent
-
-            # Prioritize the current signals
-            confidence = 0.0
-            signal_type: PerceptionSignal = "idle"
-            current_target_pos: tuple[int, int] | None = None
-
-            if visible_targets:
-                signal_type = "visual"
-                confidence = 1.0
-                first = visible_targets[0]
-                current_target_pos = (first["x"], first["y"])
-            elif heard_source:
-                signal_type = "audio"
-                confidence = 1.0
-                current_target_pos = heard_source
-            elif scent_position:
-                signal_type = "scent"
-                confidence = 0.8
-                current_target_pos = scent_position
-
-            last_known_position: tuple[int, int] | None = None
-            active_memory = _active_memory_fact(game_state, ent_id)
-
-            if signal_type in ("visual", "audio") and current_target_pos is not None:
-                last_known_position = current_target_pos
-            else:
-                if active_memory is not None:
-                    last_known_position = active_memory.pos
-                    if signal_type == "idle":
-                        signal_type = "memory"
-                        confidence = 0.5
-
-            facts[ent_id] = PerceptionFact(
-                signal_type=signal_type,
-                confidence=confidence,
-                visible_targets=visible_targets,
-                heard_source=heard_source,
-                heard_flow=heard_flow,
-                scent_strength=scent_strength,
-                scent_position=scent_position,
-                last_known_position=last_known_position,
-            )
 
     log.debug("Perception snapshot generated", facts_count=len(facts))
     return PerceptionSnapshot(
@@ -346,4 +400,5 @@ __all__ = [
     "gather_perception",
     "gather_perception_snapshot",
     "find_visible_enemies",
+    "find_visible_enemies_for_index",
 ]

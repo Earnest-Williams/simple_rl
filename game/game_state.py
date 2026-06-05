@@ -737,45 +737,26 @@ class GameState:
 
     def resolve_monster_perception(self) -> None:
         """Convert perception arrays into derived monster-alert facts."""
-        entities_df = getattr(self.entity_registry, "entities_df", None)
-        if not isinstance(entities_df, pl.DataFrame) or entities_df.is_empty():
-            self.perception_alerted_monster_ids = []
-            return
-
-        required_columns = {"entity_id", "x", "y", "is_active"}
-        if not required_columns.issubset(set(entities_df.columns)):
-            self.perception_alerted_monster_ids = []
-            return
-
         player_pos = self.player_position
         if player_pos is None:
             self.perception_alerted_monster_ids = []
             return
         player_x, player_y = player_pos.x, player_pos.y
 
-        monster_df = entities_df.filter(
-            (pl.col("entity_id") != self.player_id) & pl.col("is_active")
-        )
-        if monster_df.is_empty():
+        records = self.entity_registry.monster_perception_records(self.player_id)
+        if not records:
             self.perception_alerted_monster_ids = []
             return
 
-        perception_stat = (
-            pl.col("perception_stat")
-            if "perception_stat" in monster_df.columns
-            else pl.lit(10)
-        )
-        is_dead = (
-            (~pl.col("is_active")) | (pl.col("hp") <= 0)
-            if "hp" in monster_df.columns
-            else ~pl.col("is_active")
-        )
-        adapted_df = monster_df.select(
-            pl.col("entity_id").alias("id"),
-            pl.col("y").cast(pl.Int64).alias("fy"),
-            pl.col("x").cast(pl.Int64).alias("fx"),
-            is_dead.alias("is_dead"),
-            perception_stat.cast(pl.Int64).alias("perception_stat"),
+        adapted_df = pl.DataFrame(
+            records,
+            schema={
+                "id": pl.Int64,
+                "fy": pl.Int64,
+                "fx": pl.Int64,
+                "is_dead": pl.Boolean,
+                "perception_stat": pl.Int64,
+            },
         )
 
         self.perception_alerted_monster_ids = monster_perception(
