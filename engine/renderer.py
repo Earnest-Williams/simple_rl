@@ -6,13 +6,18 @@ pre-calculated data and optimized techniques.
 
 # Standard Library Imports
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias, TypedDict
 
 # Third-party Imports
 import numpy as np
 import polars as pl
 import structlog
+from numba import types as nb_types
+from numba.typed import Dict as NumbaDict
+from numpy.typing import NDArray
 from PIL import Image, ImageDraw
+
+from game.game_state import GameState
 
 from .render_base_layers import prepare_base_layers
 
@@ -26,21 +31,22 @@ from .render_entities import (
 )
 from .render_lighting import LightingRenderer
 
-# Numba for acceleration
-# Fallback removed
-from numba import types as nb_types
-from numba.typed import Dict as NumbaDict
-
 _NUMBA_AVAILABLE = True
-
-# Local Application Imports
-# Fallback removed
-from game.game_state import GameState
 
 if TYPE_CHECKING:
     pass
 
 log = structlog.get_logger()
+
+TileGlyphArray: TypeAlias = NDArray[np.uint8]
+TileArrayDict: TypeAlias = dict[int, TileGlyphArray]
+
+
+class CoordArrays(TypedDict):
+    """Pixel-to-tile coordinate lookup arrays for one rendered viewport."""
+
+    tile_coord_y: NDArray[np.int_]
+    tile_coord_x: NDArray[np.int_]
 
 
 @dataclass
@@ -49,9 +55,9 @@ class RenderConfig:
 
     show_height_vis: bool
     vis_max_diff: int
-    vis_color_high_np: np.ndarray
-    vis_color_mid_np: np.ndarray
-    vis_color_low_np: np.ndarray
+    vis_color_high_np: NDArray[np.uint8]
+    vis_color_mid_np: NDArray[np.uint8]
+    vis_color_low_np: NDArray[np.uint8]
     vis_blend_factor: np.float32
     lighting_ambient: np.float32
     lighting_min_fov: np.float32
@@ -59,7 +65,7 @@ class RenderConfig:
     fov_radius_sq: np.float32
     enable_memory_fade: bool = True
     enable_colored_lights: bool = True
-    memory_fade_color_np: np.ndarray = field(
+    memory_fade_color_np: NDArray[np.uint8] = field(
         default_factory=lambda: np.array([128, 128, 128], dtype=np.uint8)
     )
     memory_fade_variance: np.float32 = np.float32(0.0)
@@ -77,17 +83,17 @@ class ViewportParams:
     viewport_y: int
     viewport_width: int
     viewport_height: int
-    tile_arrays: NumbaDict | dict
-    tile_fg_colors: np.ndarray
-    tile_bg_colors: np.ndarray
-    tile_indices_render: np.ndarray
+    tile_arrays: NumbaDict | TileArrayDict
+    tile_fg_colors: NDArray[np.uint8]
+    tile_bg_colors: NDArray[np.uint8]
+    tile_indices_render: NDArray[np.int_]
     max_defined_tile_id: int
     tile_w: int
     tile_h: int
-    coord_arrays: dict[str, np.ndarray]
+    coord_arrays: CoordArrays
 
 
-def convert_to_numba_dict(py_dict: dict) -> NumbaDict:
+def convert_to_numba_dict(py_dict: TileArrayDict) -> NumbaDict:
     """Convert a Python dictionary of tile arrays to NumbaDict."""
     if not _NUMBA_AVAILABLE or nb_types is None:
         return py_dict
@@ -117,12 +123,12 @@ def create_error_image(width: int, height: int, message: str = "Error") -> Image
 
 
 def render_map_tiles_fallback(
-    output_image_array: np.ndarray,
-    glyph_indices: np.ndarray,
-    drawn_mask: np.ndarray,
-    final_fg: np.ndarray,
-    final_bg: np.ndarray,
-    tile_arrays: dict,
+    output_image_array: NDArray[np.uint8],
+    glyph_indices: NDArray[np.int_],
+    drawn_mask: NDArray[np.bool_],
+    final_fg: NDArray[np.uint8],
+    final_bg: NDArray[np.uint8],
+    tile_arrays: TileArrayDict,
     vp_h: int,
     vp_w: int,
     tile_w: int,

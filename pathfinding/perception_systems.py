@@ -496,7 +496,7 @@ def _sil_skill_check_with_rng(
     """Return ``(1d10 + skill) - (1d10 + difficulty + opposition) > 0``."""
     actor_total = rng.get_int(1, 10) + skill
     defender_total = rng.get_int(1, 10) + difficulty + opposition
-    return (actor_total - defender_total) > 0
+    return bool((actor_total - defender_total) > 0)
 
 
 def _require_monster_columns(monster_df: pl.DataFrame) -> None:
@@ -675,16 +675,16 @@ def choose_step_by_flow(
 
 def warmup_perception_kernels() -> None:
     """Warm Numba kernels used by perception gameplay paths."""
-    terrain_map = np.full((4, 4), FEATURE_WALL, dtype=np.int32)
+    terrain_map: NDArray[np.int32] = np.full((4, 4), FEATURE_WALL, dtype=np.int32)
     terrain_map[1:3, 1:3] = int(FeatureType.FLOOR)
-    cave_cost = np.empty((MAX_FLOWS, 4, 4), dtype=np.int32)
-    flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
+    cave_cost: NDArray[np.int32] = np.empty((MAX_FLOWS, 4, 4), dtype=np.int32)
+    flow_centers: NDArray[np.int32] = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
     update_noise(cave_cost, flow_centers, terrain_map, 1, 1, FlowType.REAL_NOISE, {})
     get_noise_dist(cave_cost, flow_centers, FlowType.REAL_NOISE, 1, 1)
 
     transparency_map = terrain_transparency_map(terrain_map)
     los_line_of_sight(1, 1, 2, 2, transparency_map)
-    cave_when = np.zeros((4, 4), dtype=np.int32)
+    cave_when: NDArray[np.int32] = np.zeros((4, 4), dtype=np.int32)
     _lay_scent_stamp(
         cave_when,
         terrain_map,
@@ -698,7 +698,9 @@ def warmup_perception_kernels() -> None:
 
 if __name__ == "__main__":
     print("Initializing perception systems demo...")
-    terrain_map = np.full((MAP_HGT, MAP_WID), FeatureType.FLOOR, dtype=np.int32)
+    terrain_map: NDArray[np.int32] = np.full(
+        (MAP_HGT, MAP_WID), FeatureType.FLOOR, dtype=np.int32
+    )
     terrain_map[MAP_HGT // 2, MAP_WID // 4 : 3 * MAP_WID // 4] = FeatureType.WALL
     terrain_map[MAP_HGT // 2 + 5, MAP_WID // 2] = FeatureType.CLOSED_DOOR
     terrain_map[0, :] = FeatureType.WALL
@@ -707,9 +709,11 @@ if __name__ == "__main__":
     terrain_map[:, MAP_WID - 1] = FeatureType.WALL
 
     infinity_val = np.iinfo(np.int32).max // 2
-    cave_cost = np.full((MAX_FLOWS, MAP_HGT, MAP_WID), infinity_val, dtype=np.int32)
-    flow_centers = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
-    cave_when = np.zeros((MAP_HGT, MAP_WID), dtype=np.int32)
+    cave_cost: NDArray[np.int32] = np.full(
+        (MAX_FLOWS, MAP_HGT, MAP_WID), infinity_val, dtype=np.int32
+    )
+    flow_centers: NDArray[np.int32] = np.zeros((MAX_FLOWS, 2), dtype=np.int32)
+    cave_when: NDArray[np.int32] = np.zeros((MAP_HGT, MAP_WID), dtype=np.int32)
     global_scent_when = SCENT_RESET_AGE
     door_penalties = {"pass": 3, "real": 5}
 

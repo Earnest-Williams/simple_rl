@@ -2,11 +2,12 @@
 
 import math
 from collections.abc import Iterable
-from typing import Any, Final, TypeAlias
+from typing import Final, Protocol, TypeAlias
 
 import numpy as np
 import structlog
 from numba import float32, njit, uint8
+from numpy.typing import NDArray
 
 from common.tuning import MEMORY_LEVEL_COUNT
 from game.world.fov import (
@@ -21,11 +22,32 @@ from utils.game_rng import GameRNG
 
 # Light sources are duck-typed objects from production and tests; they expose
 # x/y/radius/color/intensity attributes but do not share a common base class.
-LightSourceLike: TypeAlias = Any
+ColorRGB: TypeAlias = tuple[int, int, int]
+FloatChannelBuffer: TypeAlias = NDArray[np.float32]
+UInt8ChannelBuffer: TypeAlias = NDArray[np.uint8]
+UInt8RGBBuffer: TypeAlias = NDArray[np.uint8]
+FloatRGBBuffer: TypeAlias = NDArray[np.float32]
+BoolGrid: TypeAlias = NDArray[np.bool_]
+Int32Grid: TypeAlias = NDArray[np.int32]
+Int16Grid: TypeAlias = NDArray[np.int16]
+UInt32Grid: TypeAlias = NDArray[np.uint32]
+UInt16Grid: TypeAlias = NDArray[np.uint16]
+SideRGBAFloatBuffer: TypeAlias = NDArray[np.float32]
+
+
+class LightSourceLike(Protocol):
+    """Renderer-facing light contract used by cache and lighting helpers."""
+
+    x: int
+    y: int
+    radius: int
+    color: ColorRGB
+    intensity: float
+
 
 _NUMBA_AVAILABLE = True
 
-DUMMY_CELL_MASK: Final[np.ndarray] = np.zeros(
+DUMMY_CELL_MASK: Final[UInt32Grid] = np.zeros(
     (1, 1), dtype=np.uint32
 )  # fallback cell mask for Numba JIT compatibility
 
@@ -51,21 +73,21 @@ class RGBBlendPolicy:
 
     def accumulate(
         self,
-        target: np.ndarray,
-        contribution: np.ndarray,
+        target: FloatChannelBuffer,
+        contribution: FloatChannelBuffer,
     ) -> None:
         """Add *contribution* into *target* in-place."""
         target += contribution
 
     def subtract(
         self,
-        target: np.ndarray,
-        contribution: np.ndarray,
+        target: FloatChannelBuffer,
+        contribution: FloatChannelBuffer,
     ) -> None:
         """Subtract *contribution* from *target* in-place."""
         target -= contribution
 
-    def composite(self, accumulated: np.ndarray) -> np.ndarray:
+    def composite(self, accumulated: FloatChannelBuffer) -> FloatChannelBuffer:
         """Return the final float32 buffer clamped to ``[0, 255]``.
 
         Under Option B, if accumulated buffer is (h, w, 8, 4), collapses it
@@ -74,7 +96,7 @@ class RGBBlendPolicy:
         return collapse_premult_rgba_to_rgb(accumulated)
 
 
-def collapse_premult_rgba_to_rgb(buf: np.ndarray) -> np.ndarray:
+def collapse_premult_rgba_to_rgb(buf: FloatChannelBuffer) -> FloatChannelBuffer:
     """Collapse a (h, w, 8, 4) side-aware premultiplied RGBA buffer to (h, w, 3) RGB."""
     if buf.ndim == 4:
         total_rgba = np.sum(buf, axis=2)  # shape (h, w, 4)
@@ -465,13 +487,13 @@ class LightContributionCache:
         self._w: int = scene_w
         self._policy: RGBBlendPolicy = blend_policy or DEFAULT_BLEND_POLICY
         self._last_scene_seq: int | None = None
-        self._combined: np.ndarray = np.zeros(
+        self._combined: SideRGBAFloatBuffer = np.zeros(
             (scene_h, scene_w, 8, 4), dtype=np.float32
         )
-        self._contributions: dict[int, np.ndarray] = {}
+        self._contributions: dict[int, SideRGBAFloatBuffer] = {}
         self._param_keys: dict[int, tuple[object, ...]] = {}
 
-    def side_rgba_view(self) -> np.ndarray:
+    def side_rgba_view(self) -> SideRGBAFloatBuffer:
         """Return a view of the combined side-aware premultiplied RGBA buffer."""
         return self._combined
 
@@ -505,11 +527,11 @@ class LightContributionCache:
     def _compute_light(
         self,
         light: LightSourceLike,
-        opaque_grid: np.ndarray,
-        height_map: np.ndarray | None,
-        ceiling_map: np.ndarray | None,
-        cell_mask: np.ndarray | None = None,
-    ) -> np.ndarray:
+        opaque_grid: BoolGrid,
+        height_map: Int16Grid | None,
+        ceiling_map: Int16Grid | None,
+        cell_mask: UInt32Grid | None = None,
+    ) -> SideRGBAFloatBuffer:
         """Compute a full-scene contribution buffer for one light."""
         intensity = float(getattr(light, "intensity", 1.0))
         direction = getattr(light, "direction", None)
@@ -540,10 +562,10 @@ class LightContributionCache:
     def _invalidate_all(
         self,
         lights: list[LightSourceLike],
-        opaque_grid: np.ndarray,
-        height_map: np.ndarray | None,
-        ceiling_map: np.ndarray | None,
-        cell_mask: np.ndarray | None = None,
+        opaque_grid: BoolGrid,
+        height_map: Int16Grid | None,
+        ceiling_map: Int16Grid | None,
+        cell_mask: UInt32Grid | None = None,
     ) -> None:
         """Rebuild every light's contribution from scratch."""
         self._combined[:] = 0.0
@@ -589,17 +611,17 @@ class LightContributionCache:
     def update(
         self,
         lights: Iterable[LightSourceLike],
-        opaque_grid: np.ndarray,
+        opaque_grid: BoolGrid,
         scene_seq: int | None = None,
         *,
         viewport_x: int = 0,
         viewport_y: int = 0,
         vp_h: int | None = None,
         vp_w: int | None = None,
-        height_map: np.ndarray | None = None,
-        ceiling_map: np.ndarray | None = None,
-        cell_mask: np.ndarray | None = None,
-    ) -> np.ndarray:
+        height_map: Int16Grid | None = None,
+        ceiling_map: Int16Grid | None = None,
+        cell_mask: UInt32Grid | None = None,
+    ) -> FloatRGBBuffer:
         """Incrementally update and return a blended RGB contribution buffer.
 
         The returned array is clamped through ``RGBBlendPolicy.composite``.  If
@@ -682,8 +704,8 @@ class LightingRenderer:
 
     def apply_colored_lighting(
         self,
-        lit_fg: np.ndarray,
-        lit_bg: np.ndarray,
+        lit_fg: UInt8RGBBuffer,
+        lit_bg: UInt8RGBBuffer,
         light_sources: Iterable[LightSourceLike],
         game_map: GameMap,
         *,
@@ -692,7 +714,7 @@ class LightingRenderer:
         vp_h: int,
         vp_w: int,
         scene_seq: int | None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer, FloatRGBBuffer]:
         """Apply cached colored lights to lit buffers within a viewport."""
         if not light_sources:
             empty = np.zeros((vp_h, vp_w, 3), dtype=np.float32)
@@ -733,7 +755,7 @@ class LightingRenderer:
         lit_bg[:] = final_bg
         return lit_fg, lit_bg, light_rgb_vp
 
-    def get_side_lighting_buffer(self) -> np.ndarray | None:
+    def get_side_lighting_buffer(self) -> SideRGBAFloatBuffer | None:
         """Return the combined side-aware premultiplied RGBA buffer from the cache if available."""
         if self._cache is not None:
             return self._cache.side_rgba_view()
@@ -742,14 +764,14 @@ class LightingRenderer:
     def apply_render_lighting(
         self,
         *,
-        base_fg: np.ndarray,
-        base_bg: np.ndarray,
-        glyph_indices: np.ndarray,
-        drawn_mask: np.ndarray,
-        visible_mask: np.ndarray,
-        map_height_vp: np.ndarray,
-        map_memory_vp: np.ndarray,
-        map_tiles_vp: np.ndarray,
+        base_fg: UInt8RGBBuffer,
+        base_bg: UInt8RGBBuffer,
+        glyph_indices: Int32Grid,
+        drawn_mask: BoolGrid,
+        visible_mask: BoolGrid,
+        map_height_vp: Int16Grid,
+        map_memory_vp: NDArray[np.float32],
+        map_tiles_vp: UInt16Grid,
         light_sources: Iterable[LightSourceLike],
         game_map: GameMap,
         viewport_x: int,
@@ -761,9 +783,9 @@ class LightingRenderer:
         player_height: int,
         show_height_vis: bool,
         vis_max_diff: int,
-        vis_color_high_np: np.ndarray,
-        vis_color_mid_np: np.ndarray,
-        vis_color_low_np: np.ndarray,
+        vis_color_high_np: UInt8RGBBuffer,
+        vis_color_mid_np: UInt8RGBBuffer,
+        vis_color_low_np: UInt8RGBBuffer,
         vis_blend_factor: np.float32,
         lighting_ambient: np.float32,
         lighting_min_fov: np.float32,
@@ -771,11 +793,11 @@ class LightingRenderer:
         fov_radius_sq: np.float32,
         enable_colored_lights: bool,
         enable_memory_fade: bool,
-        memory_fade_color_np: np.ndarray,
+        memory_fade_color_np: UInt8RGBBuffer,
         rng: GameRNG,
         memory_fade_variance: float,
         memory_noise_level: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer, FloatChannelBuffer]:
         """Apply viewport lighting and presentation effects in render order."""
         lit_fg, lit_bg, intensity_map = calculate_lighting(
             base_fg,
@@ -847,8 +869,8 @@ class LightingRenderer:
 
 
 def apply_colored_lighting(
-    lit_fg: np.ndarray,
-    lit_bg: np.ndarray,
+    lit_fg: UInt8RGBBuffer,
+    lit_bg: UInt8RGBBuffer,
     light_sources: Iterable[LightSourceLike],
     game_map: GameMap,
     *,
@@ -858,7 +880,7 @@ def apply_colored_lighting(
     vp_w: int,
     scene_seq: int | None,
     lighting_renderer: LightingRenderer,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer, FloatRGBBuffer]:
     """Renderer-facing cached colored-light entrypoint."""
     return lighting_renderer.apply_colored_lighting(
         lit_fg,
@@ -937,9 +959,9 @@ def _interpolate_color_numba_vector(
 
 @njit(cache=True, nogil=True)
 def calculate_lighting(
-    base_fg: np.ndarray,
-    base_bg: np.ndarray,
-    visible_mask: np.ndarray,
+    base_fg: UInt8RGBBuffer,
+    base_bg: UInt8RGBBuffer,
+    visible_mask: BoolGrid,
     vp_h: int,
     vp_w: int,
     viewport_x: int,
@@ -950,7 +972,7 @@ def calculate_lighting(
     config_min_fov: float32,
     config_falloff: float32,
     fov_radius_sq: float32,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer, FloatChannelBuffer]:
     """Calculates lighting intensity and applies it."""
     intensity_map = np.full((vp_h, vp_w), config_ambient, dtype=np.float32)
 
@@ -985,18 +1007,18 @@ def calculate_lighting(
 
 @njit(cache=True, nogil=True)
 def apply_height_visualization(
-    lit_fg: np.ndarray,
-    lit_bg: np.ndarray,
-    drawn_mask: np.ndarray,
-    map_height_vp: np.ndarray,
+    lit_fg: UInt8RGBBuffer,
+    lit_bg: UInt8RGBBuffer,
+    drawn_mask: BoolGrid,
+    map_height_vp: Int16Grid,
     player_height: int,
     config_show_vis: bool,
     config_max_diff: int,
-    config_color_high: np.ndarray,
-    config_color_mid: np.ndarray,
-    config_color_low: np.ndarray,
+    config_color_high: UInt8RGBBuffer,
+    config_color_mid: UInt8RGBBuffer,
+    config_color_low: UInt8RGBBuffer,
     config_blend_factor: float32,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer]:
     """Applies height visualization tinting."""
     if not config_show_vis:
         return lit_fg, lit_bg
@@ -1072,14 +1094,14 @@ def apply_height_visualization(
 
 def apply_render_lighting(
     *,
-    base_fg: np.ndarray,
-    base_bg: np.ndarray,
-    glyph_indices: np.ndarray,
-    drawn_mask: np.ndarray,
-    visible_mask: np.ndarray,
-    map_height_vp: np.ndarray,
-    map_memory_vp: np.ndarray,
-    map_tiles_vp: np.ndarray,
+    base_fg: UInt8RGBBuffer,
+    base_bg: UInt8RGBBuffer,
+    glyph_indices: Int32Grid,
+    drawn_mask: BoolGrid,
+    visible_mask: BoolGrid,
+    map_height_vp: Int16Grid,
+    map_memory_vp: FloatChannelBuffer,
+    map_tiles_vp: UInt16Grid,
     light_sources: Iterable[LightSourceLike],
     game_map: GameMap,
     viewport_x: int,
@@ -1091,9 +1113,9 @@ def apply_render_lighting(
     player_height: int,
     show_height_vis: bool,
     vis_max_diff: int,
-    vis_color_high_np: np.ndarray,
-    vis_color_mid_np: np.ndarray,
-    vis_color_low_np: np.ndarray,
+    vis_color_high_np: UInt8RGBBuffer,
+    vis_color_mid_np: UInt8RGBBuffer,
+    vis_color_low_np: UInt8RGBBuffer,
     vis_blend_factor: np.float32,
     lighting_ambient: np.float32,
     lighting_min_fov: np.float32,
@@ -1101,12 +1123,12 @@ def apply_render_lighting(
     fov_radius_sq: np.float32,
     enable_colored_lights: bool,
     enable_memory_fade: bool,
-    memory_fade_color_np: np.ndarray,
+    memory_fade_color_np: UInt8RGBBuffer,
     rng: GameRNG,
     memory_fade_variance: float,
     memory_noise_level: float,
     lighting_renderer: LightingRenderer,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[UInt8RGBBuffer, UInt8RGBBuffer, FloatChannelBuffer]:
     """Compatibility wrapper for the renderer-facing lighting pipeline."""
     return lighting_renderer.apply_render_lighting(
         base_fg=base_fg,
@@ -1146,14 +1168,14 @@ def apply_render_lighting(
 
 
 def apply_memory_fade(
-    final_fg: np.ndarray,
-    final_bg: np.ndarray,
-    glyph_indices: np.ndarray,
-    map_memory_vp: np.ndarray,
-    map_tiles_vp: np.ndarray,
-    drawn_mask: np.ndarray,
-    visible_mask: np.ndarray,
-    fade_color_np: np.ndarray,
+    final_fg: UInt8RGBBuffer,
+    final_bg: UInt8RGBBuffer,
+    glyph_indices: Int32Grid,
+    map_memory_vp: FloatChannelBuffer,
+    map_tiles_vp: UInt16Grid,
+    drawn_mask: BoolGrid,
+    visible_mask: BoolGrid,
+    fade_color_np: UInt8RGBBuffer,
     rng: GameRNG,
     fade_color_variance: float = 0.0,
     noise_level: float = 0.0,

@@ -21,6 +21,7 @@ from game.perception_events import (
     NoiseEvent,
     PendingNoiseEvent,
     PendingScentEvent,
+    PerceptionMemoryRecord,
     ScentEvent,
     event_xy_intensity,
     noise_event_flow_type,
@@ -170,12 +171,16 @@ class GameState:
         self.fov_radius = player_fov_radius
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
         self.discovered_evidence: dict[str, list[int]] = {}
-        
+
         # Initialize seasonal hydrology state
         from worldgen.overland.schema import HydroState
+
         self.hydro_state: HydroState = HydroState.DRY_SEASON
         metadata = getattr(self.game_map, "overland_metadata", None)
-        if metadata is not None and getattr(metadata, "starting_contract", None) is not None:
+        if (
+            metadata is not None
+            and getattr(metadata, "starting_contract", None) is not None
+        ):
             raw_state = metadata.starting_contract.get("seasonal_state")
             if raw_state:
                 try:
@@ -206,7 +211,7 @@ class GameState:
         self.perception_global_scent_when: int = SCENT_RESET_AGE
         self.perception_alerted_monster_ids: list[int] = []
 
-        self.ai_memory: dict[int, dict[str, Any]] = {}
+        self.ai_memory: dict[int, PerceptionMemoryRecord] = {}
         self.spatial_index: SpatialHashTable = SpatialHashTable()
         # Track light sources (player has a default white light)
         self.light_sources: list[LightSource] = self.game_map.light_sources
@@ -278,6 +283,7 @@ class GameState:
         self._force_player_visible(px, py)
         self.game_map.refresh_visible_memory(self.turn_count)
         from game.systems.survey import check_automatic_survey
+
         check_automatic_survey(self)
         if self.memory_fade_enabled:
             self.memory_traits = self._build_player_memory_traits()
@@ -301,7 +307,9 @@ class GameState:
             self.player_id, "status_effects"
         )
         # Any is used here because status effect dicts can contain values of various types (e.g., str, float)
-        statuses: list[dict[str, Any]] = raw_statuses if isinstance(raw_statuses, list) else []
+        statuses: list[dict[str, Any]] = (
+            raw_statuses if isinstance(raw_statuses, list) else []
+        )
 
         has_confusion = False
         has_illness = False

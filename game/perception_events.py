@@ -58,6 +58,14 @@ class ScentEvent:
     cause: str | None = None
 
 
+@dataclass(slots=True)
+class PerceptionMemoryRecord:
+    """GameState-owned last-known-target memory for one AI-controlled entity."""
+
+    pos: tuple[int, int]
+    turns_left: int
+
+
 PendingNoiseEvent = NoiseEvent | tuple[int, int, float]
 PendingScentEvent = ScentEvent | tuple[int, int, float]
 
