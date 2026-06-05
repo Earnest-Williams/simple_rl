@@ -127,25 +127,33 @@ overland_routes_to_df(routes)
 `write_overland_bundle(...)` writes `overland_routes.arrow`, and
 `load_worldgen_bundle(...)` loads it as `routes_df` when present.
 
-## Step 2: Improve Hydrology Continuity
+## Completed: Improve Hydrology Continuity
 
-The current hydrology model places representative features but does not yet
-guarantee continuous drainage networks.
+The current regional hydrology model now emits a connected first-pass karst
+drainage system instead of only representative features. It also emits an
+ordinary perennial pond/lake system with normal surface inflow and outflow, so
+not every waterbody is treated as karst-special.
 
-Next improvements:
+Implemented behavior:
 
 - ensure surface channels connect spring gardens, sinking basins, ponors, and
   estavelles
 - separate visible surface channels from underground channels
 - assign stable `flow_group` IDs to connected hydrology systems
-- make `connected_to_underground` meaningful for path/transition generation
+- make `connected_to_underground` meaningful for ponor, estavelle,
+  karst-window, and underground-channel records
+- keep ordinary perennial ponds/lakes stable and surface-only
 
 Tests:
 
 - each ponor belongs to a flow group
 - at least one spring and ponor share a system
-- sinking lake basin drains toward a ponor in `DRAINING`
-- dry-season cave mouths appear where expected
+- spring, sinking lake, ponor, and estavelle records share flow group `1`
+- the emitted hydrology rows form a contiguous graph for that flow group
+- underground-connected rows include ponors, estavelles, and underground
+  channels
+- ordinary perennial surface water uses `PERMANENT_POOL`, has surface-channel
+  inflow and outflow, and is not underground-connected
 
 ## Step 3: Make Settlement Placement More Regional
 
@@ -254,19 +262,68 @@ Next settlement work should focus on:
 
 Avoid making a settlement-only gameplay path that bypasses the overland schema.
 
+## Completed: Add Starting-Region Contract
+
+The current regional profile now emits a first-pass start-of-game contract in
+`overland_metadata.json` and matching `overland_features.arrow` rows.
+
+Implemented behavior:
+
+- ruined harbor / dead port feature and surface tiles
+- local survey zone metadata centered on the harbor
+- fresh-water and resource-site feature rows
+- ancient road feature and road tiles leading inland
+- clearable blockage feature and route metadata
+- first waystation candidate
+- first inland site candidate
+- ordinary cave reference with a cave-mouth transition tile
+- route segment state, endpoint references, blockage reference, and
+  actor-profile cost hints
+
+Tests:
+
+- required starting-region feature types are emitted
+- road, dock, ruin, blockage, and cave-mouth surfaces exist
+- contract metadata includes survey, resources, route, blockage, waystation,
+  inland site, and cave references
+- ordinary cave reference produces a `CAVE_ENTRANCE` transition
+
+## Completed: Add Cave Transition Payloads
+
+Transition artifacts now include first-pass handoff payloads for cave-like
+surface transitions.
+
+Implemented behavior:
+
+- cave type for ordinary caves, ponor descents, karst windows, spring sources,
+  lava-tube skylights, and collapsed lava tubes
+- hydrology `flow_group`, seasonal state, and underground-connectivity context
+- substrate and elevation-band context
+- nearby affordance summary
+- compact handoff tags combining target kind, cave type, terrain context, and
+  feature tags
+
+Tests:
+
+- `overland_transitions.arrow` includes the additive handoff columns
+- ordinary starting-region cave is classified as `ordinary_cave`
+- ponor descents carry karst flow-group and underground-connectivity context
+- lava-tube skylights carry lava-tube target and basalt context
+
 ## Recommended Next PR
 
-The previous recommendation is implemented. The next best slice is Step 2:
-hydrology continuity.
+The previous recommendation is implemented. The next best slice is the Phase 4
+site-history and evidence-tag work from [Overland Roadmap](./Overland%20Roadmap.md).
 
 Implement:
 
-1. continuous surface drainage between springs, sinking basins, ponors, and
-   estavelles
-2. distinct visible surface channels and underground channels
-3. stable `flow_group` IDs for connected hydrology systems
-4. path/transition tests proving ponors, springs, and dry-season cave mouths are
-   connected meaningfully
+1. compact historical and archaeological metadata for ruins and route remnants
+2. prior expedition trace tags
+3. repair, collapse, abandonment, and reuse evidence tags
+4. evidence tags on starting-region harbor, road, blockage, waystation, inland
+   site, and cave references
+5. tests proving evidence metadata is emitted without runtime knowledge logic
 
-This turns representative karst features into a connected drainage network that
-routes, transitions, and encounters can reason about.
+Keep this next slice scoped to generator outputs and metadata. Do not broaden it
+into runtime expedition gameplay, full survey/knowledge systems, or dungeon
+generation internals yet.

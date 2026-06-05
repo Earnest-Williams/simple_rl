@@ -103,6 +103,14 @@ class FeatureType(IntEnum):
     COLLAPSED_LAVA_TUBE = auto()
     FISH_TRAIL = auto()
     TRAIL_EXIT = auto()
+    RUINED_HARBOR = auto()
+    FRESH_WATER_SITE = auto()
+    RESOURCE_SITE = auto()
+    ANCIENT_ROAD = auto()
+    CLEARABLE_BLOCKAGE = auto()
+    WAYSTATION_CANDIDATE = auto()
+    INLAND_SITE = auto()
+    ORDINARY_CAVE = auto()
 
 
 class TransitionType(IntEnum):
@@ -148,3 +156,11 @@ class SurfaceTransitionRequest:
     material: int
     seed: int
     tags: tuple[str, ...] = ()
+    cave_type: str = ""
+    seasonal_state: str = ""
+    flow_group: int = 0
+    connected_to_underground: bool = False
+    substrate: int = 0
+    elevation_band: int = 0
+    nearby_affordances: tuple[str, ...] = ()
+    handoff_tags: tuple[str, ...] = ()

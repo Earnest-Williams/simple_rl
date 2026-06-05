@@ -135,6 +135,18 @@ Hydrology artifact columns:
 - `seasonal_state`
 - `connected_to_underground`
 
+The current `KARST_TO_VOLCANIC_MOUNTAIN` profile emits a first-pass connected
+karst system. Spring, sinking-lake, ponor, estavelle, surface-channel,
+underground-channel, and karst-window rows share a stable `flow_group`, and the
+hydrology rows form a contiguous graph in the generated artifact. Visible
+surface channels use `HydroRole.SURFACE_CHANNEL`; hidden subsurface links use
+`HydroRole.UNDERGROUND_CHANNEL` with `connected_to_underground`.
+
+The profile also emits ordinary perennial surface water. These pond/lake rows
+use `HydroRole.PERMANENT_POOL`, have stable surface-channel inflow and outflow,
+do not use underground-channel roles, and are not marked
+`connected_to_underground`.
+
 Hydrology states are:
 
 - `WET_SEASON`
@@ -166,6 +178,14 @@ This keeps seasonal terrain changes visible to gameplay.
 - `material`
 - `seed`
 - `tags`
+- `cave_type`
+- `seasonal_state`
+- `flow_group`
+- `connected_to_underground`
+- `substrate`
+- `elevation_band`
+- `nearby_affordances`
+- `handoff_tags`
 
 Transition request types include:
 
@@ -182,6 +202,13 @@ Transition request types include:
 The transition artifact is derived at write time from overland tiles and
 features. Merged settlements add settlement feature rows, so generated
 transition requests include settlement entrances as well as terrain transitions.
+
+For cave-like transitions, the additive handoff columns distinguish ordinary
+caves, ponor descents, karst windows, spring sources, lava-tube skylights, and
+collapsed lava tubes. They also preserve hydrology, seasonal state, flow group,
+substrate, elevation band, nearby affordances, and compact handoff tags for
+downstream dungeon generation. The overland generator does not generate the
+dungeon internals.
 
 ## Route Artifacts
 
@@ -232,8 +259,36 @@ The overland bundle writes:
 - `overland_routes.arrow`
 - `overland_metadata.json`
 
+`overland_metadata.json` includes a `starting_region_contract` entry for the
+first expedition region. That contract references feature rows and tile
+surfaces for the ruined harbor, local survey zone, resource sites, inland road,
+clearable blockage, waystation candidate, inland site, and ordinary cave.
+
 The loader `load_worldgen_bundle(out_dir)` reads any present overland and
 settlement artifacts. This keeps the loader bundle-agnostic.
+
+## Starting Region Contract
+
+The current regional profile emits a first-pass start-of-game contract owned by
+the generator. It is not runtime expedition gameplay.
+
+Current starting-region outputs include:
+
+- `RUINED_HARBOR` feature row and ruined harbor/dock surface tiles
+- local survey zone metadata centered on the harbor
+- `FRESH_WATER_SITE` and `RESOURCE_SITE` feature rows
+- `ANCIENT_ROAD` feature row and road surface tiles leading inland
+- `CLEARABLE_BLOCKAGE` feature row and blockage metadata for that road
+- `WAYSTATION_CANDIDATE` feature row
+- `INLAND_SITE` feature row
+- `ORDINARY_CAVE` feature row and cave-mouth transition tile
+- route segment metadata with endpoint references, blockage reference, state,
+  and actor-profile cost hints
+
+The contract is intentionally small. It gives downstream systems enough
+coordinates, tags, and state to build the first playable expedition region
+without making overland generation own base management, clearing jobs, local
+survey knowledge, or dungeon internals.
 
 ## Starting Port Merge
 
@@ -304,9 +359,13 @@ They cover:
 - derived movement and traversal columns
 - actor-specific traversal cost grids
 - seasonal actor-specific pathfinding
+- connected hydrology `flow_group` semantics
+- ordinary perennial surface-water systems
 - transition artifact output
 - route artifact output
 - affordance output
+- starting-region contract feature rows and metadata
+- cave transition handoff payloads
 - headless generation
 - merged starting-port generation
 - actor-specific ASCII inspection

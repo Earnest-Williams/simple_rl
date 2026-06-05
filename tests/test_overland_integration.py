@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import hashlib
 import json
 
@@ -143,6 +144,202 @@ def test_debug_overland_routes_emit_artifact_rows() -> None:
     } == set(routes_df.columns)
     assert routes_df.get_column("step_index").min() == 0
     assert routes_df.get_column("cost_so_far").min() == 0.0
+
+
+def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
+    bundle = generate_overland_region(
+        seed=707,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    paths = write_overland_bundle(bundle, tmp_path)
+    transitions_df = pl.read_ipc(paths["transitions_df"])
+
+    assert {
+        "cave_type",
+        "seasonal_state",
+        "flow_group",
+        "connected_to_underground",
+        "substrate",
+        "elevation_band",
+        "nearby_affordances",
+        "handoff_tags",
+    } <= set(transitions_df.columns)
+
+    ordinary_cave = bundle.metadata["starting_region_contract"]["cave_refs"][0]
+    ordinary_point = tuple(ordinary_cave["point"])
+    ordinary = _transition_at(transitions_df, ordinary_point)
+    assert ordinary["transition_type"] == int(TransitionType.CAVE_ENTRANCE)
+    assert ordinary["cave_type"] == "ordinary_cave"
+    assert ordinary["flow_group"] == 0
+    assert not ordinary["connected_to_underground"]
+    assert "ordinary" in ordinary["handoff_tags"]
+
+    ponor = transitions_df.filter(
+        pl.col("transition_type") == int(TransitionType.PONOR_DESCENT)
+    ).head(1).to_dicts()[0]
+    assert ponor["cave_type"] == "ponor_descent"
+    assert ponor["flow_group"] == 1
+    assert ponor["connected_to_underground"]
+    assert ponor["seasonal_state"] != ""
+    assert "karst_subsurface" in ponor["handoff_tags"]
+
+    lava = transitions_df.filter(
+        pl.col("transition_type") == int(TransitionType.LAVA_TUBE_SKYLIGHT)
+    ).head(1).to_dicts()[0]
+    assert lava["cave_type"] == "lava_tube_skylight"
+    assert lava["target_kind"] == "lava_tube"
+    assert "basalt" in lava["handoff_tags"]
+
+
+def test_karst_hydrology_flow_group_is_connected() -> None:
+    bundle = generate_overland_region(
+        seed=404,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    hydrology = bundle.hydrology_df
+
+    assert _count(hydrology, "hydro_role", HydroRole.SURFACE_CHANNEL) > 0
+    assert _count(hydrology, "hydro_role", HydroRole.UNDERGROUND_CHANNEL) > 0
+
+    expected_roles = {
+        HydroRole.SPRING,
+        HydroRole.PONOR,
+        HydroRole.ESTAVELLE,
+        HydroRole.SINKING_LAKE,
+    }
+    role_groups = {
+        role: _flow_groups_for_role(hydrology, role) for role in expected_roles
+    }
+    assert all(groups == {1} for groups in role_groups.values())
+
+    assert _hydrology_roles_connected(
+        hydrology,
+        source_role=HydroRole.SPRING,
+        target_role=HydroRole.PONOR,
+        flow_group=1,
+    )
+    assert _hydrology_roles_connected(
+        hydrology,
+        source_role=HydroRole.SINKING_LAKE,
+        target_role=HydroRole.PONOR,
+        flow_group=1,
+    )
+    assert _hydrology_roles_connected(
+        hydrology,
+        source_role=HydroRole.SPRING,
+        target_role=HydroRole.ESTAVELLE,
+        flow_group=1,
+    )
+    assert _flow_group_is_connected(hydrology, flow_group=1)
+
+    underground = hydrology.filter(pl.col("connected_to_underground"))
+    assert _count(underground, "hydro_role", HydroRole.PONOR) > 0
+    assert _count(underground, "hydro_role", HydroRole.ESTAVELLE) > 0
+    assert _count(underground, "hydro_role", HydroRole.UNDERGROUND_CHANNEL) > 0
+
+
+def test_perennial_surface_water_is_not_karst_hydrology() -> None:
+    bundle = generate_overland_region(
+        seed=505,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    hydrology = bundle.hydrology_df
+    perennial = hydrology.filter(pl.col("flow_group") == 2)
+
+    assert perennial.height > 0
+    assert _count(perennial, "hydro_role", HydroRole.PERMANENT_POOL) > 0
+    assert _count(perennial, "hydro_role", HydroRole.SURFACE_CHANNEL) > 0
+    assert _count(perennial, "hydro_role", HydroRole.UNDERGROUND_CHANNEL) == 0
+    assert not bool(perennial.get_column("connected_to_underground").any())
+    assert set(perennial.get_column("seasonal_state").to_list()) == {"stable"}
+    assert _flow_group_is_connected(hydrology, flow_group=2)
+    assert _hydrology_roles_connected(
+        hydrology,
+        source_role=HydroRole.PERMANENT_POOL,
+        target_role=HydroRole.SURFACE_CHANNEL,
+        flow_group=2,
+    )
+
+    pool = perennial.filter(pl.col("hydro_role") == int(HydroRole.PERMANENT_POOL))
+    channels = perennial.filter(pl.col("hydro_role") == int(HydroRole.SURFACE_CHANNEL))
+    pool_min_x = int(pool.get_column("x").min())
+    pool_max_x = int(pool.get_column("x").max())
+    assert int(channels.get_column("x").min()) < pool_min_x
+    assert int(channels.get_column("x").max()) > pool_max_x
+
+
+def test_starting_region_contract_emits_required_surface_features() -> None:
+    bundle = generate_overland_region(
+        seed=606,
+        width=96,
+        height=72,
+        profile="KARST_TO_VOLCANIC_MOUNTAIN",
+    )
+    contract = bundle.metadata["starting_region_contract"]
+
+    assert contract["kind"] == "first_expedition_region"
+    assert contract["harbor"]["state"] == "ruined_dead_port"
+    assert contract["local_survey_zone"]["radius_tiles"] > 0
+    assert len(contract["resource_sites"]) >= 4
+    assert len(contract["route_segments"]) == 1
+    assert len(contract["blockages"]) == 1
+    assert len(contract["waystation_candidates"]) == 1
+    assert len(contract["inland_sites"]) == 1
+    assert len(contract["cave_refs"]) == 1
+
+    route = contract["route_segments"][0]
+    assert route["route_id"] == "ancient_road_harbor_to_inland_site"
+    assert route["state"] == "blocked"
+    assert route["blockage"] == contract["blockages"][0]["blockage_id"]
+    assert set(route["profile_costs"]) == {
+        "HUMAN_ON_FOOT",
+        "PACK_ANIMAL",
+        "SMALL_AMPHIBIOUS",
+        "SWIMMER",
+        "BOAT",
+    }
+    assert route["profile_costs"]["BOAT"] is None
+
+    required_features = {
+        FeatureType.RUINED_HARBOR,
+        FeatureType.FRESH_WATER_SITE,
+        FeatureType.RESOURCE_SITE,
+        FeatureType.ANCIENT_ROAD,
+        FeatureType.CLEARABLE_BLOCKAGE,
+        FeatureType.WAYSTATION_CANDIDATE,
+        FeatureType.INLAND_SITE,
+        FeatureType.ORDINARY_CAVE,
+    }
+    emitted_features = {
+        FeatureType(int(row["feature_type"]))
+        for row in bundle.features_df.filter(
+            pl.col("tags").str.starts_with("starting_region;")
+        ).iter_rows(named=True)
+    }
+    assert required_features <= emitted_features
+
+    assert _count(bundle.tiles_df, "material", Material.ROAD) > 0
+    assert _count(bundle.tiles_df, "material", Material.DOCK) > 0
+    assert _count(bundle.tiles_df, "material", Material.RUIN_FLOOR) > 0
+    assert _count(bundle.tiles_df, "material", Material.SINKHOLE_EDGE) > 0
+
+    cave_point = tuple(contract["cave_refs"][0]["point"])
+    cave_tile = _tile_at(bundle.tiles_df, cave_point)
+    assert cave_tile["material"] == int(Material.CAVE_MOUTH)
+    assert cave_tile["hydro_role"] == int(HydroRole.NONE)
+
+    transitions = generate_transition_requests(bundle)
+    assert any(
+        request.transition_type == TransitionType.CAVE_ENTRANCE
+        and (request.source_x, request.source_y) == cave_point
+        for request in transitions
+    )
 
 
 def test_headless_overland_generation_writes_inspectable_output(tmp_path) -> None:
@@ -364,6 +561,107 @@ def _first_row(df: pl.DataFrame, column: str, enum_value: object) -> dict[str, o
     rows = df.filter(pl.col(column) == int(enum_value)).head(1).to_dicts()
     assert rows
     return rows[0]
+
+
+def _tile_at(df: pl.DataFrame, point: tuple[int, int]) -> dict[str, object]:
+    x, y = point
+    rows = df.filter((pl.col("x") == x) & (pl.col("y") == y)).to_dicts()
+    assert len(rows) == 1
+    return rows[0]
+
+
+def _transition_at(df: pl.DataFrame, point: tuple[int, int]) -> dict[str, object]:
+    x, y = point
+    rows = df.filter((pl.col("source_x") == x) & (pl.col("source_y") == y)).to_dicts()
+    assert rows
+    return rows[0]
+
+
+def _flow_groups_for_role(df: pl.DataFrame, hydro_role: HydroRole) -> set[int]:
+    return {
+        int(row["flow_group"])
+        for row in df.filter(pl.col("hydro_role") == int(hydro_role)).iter_rows(named=True)
+    }
+
+
+def _hydrology_roles_connected(
+    df: pl.DataFrame,
+    *,
+    source_role: HydroRole,
+    target_role: HydroRole,
+    flow_group: int,
+) -> bool:
+    cells = _hydrology_cells(df, flow_group=flow_group)
+    starts = _hydrology_cells(df, flow_group=flow_group, hydro_role=source_role)
+    goals = _hydrology_cells(df, flow_group=flow_group, hydro_role=target_role)
+    return _cells_connected(cells, starts, goals)
+
+
+def _flow_group_is_connected(df: pl.DataFrame, *, flow_group: int) -> bool:
+    cells = _hydrology_cells(df, flow_group=flow_group)
+    if not cells:
+        return False
+    first = next(iter(cells))
+    return _reachable_cells(cells, {first}) == cells
+
+
+def _hydrology_cells(
+    df: pl.DataFrame,
+    *,
+    flow_group: int,
+    hydro_role: HydroRole | None = None,
+) -> set[tuple[int, int]]:
+    query = df.filter(pl.col("flow_group") == flow_group)
+    if hydro_role is not None:
+        query = query.filter(pl.col("hydro_role") == int(hydro_role))
+    return {
+        (int(row["x"]), int(row["y"]))
+        for row in query.iter_rows(named=True)
+    }
+
+
+def _cells_connected(
+    cells: set[tuple[int, int]],
+    starts: set[tuple[int, int]],
+    goals: set[tuple[int, int]],
+) -> bool:
+    if not cells or not starts or not goals:
+        return False
+    queue = deque(starts)
+    visited = set(starts)
+    while queue:
+        cell = queue.popleft()
+        if cell in goals:
+            return True
+        x, y = cell
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                neighbor = (x + dx, y + dy)
+                if neighbor in cells and neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+    return False
+
+
+def _reachable_cells(
+    cells: set[tuple[int, int]],
+    starts: set[tuple[int, int]],
+) -> set[tuple[int, int]]:
+    queue = deque(starts)
+    visited = set(starts)
+    while queue:
+        x, y = queue.popleft()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                neighbor = (x + dx, y + dy)
+                if neighbor in cells and neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+    return visited
 
 
 def _checksum(df: pl.DataFrame) -> str:

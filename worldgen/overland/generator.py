@@ -28,6 +28,21 @@ from worldgen.overland.schema import (
 )
 
 OverlandProfile = Literal["KARST_TO_VOLCANIC_MOUNTAIN"]
+KARST_FLOW_GROUP = 1
+PERENNIAL_SURFACE_FLOW_GROUP = 2
+STARTING_REGION_FEATURES = {
+    "ruined_harbor": (0.18, 0.09),
+    "fresh_water_site": (0.55, 0.34),
+    "reed_resource_site": (0.40, 0.43),
+    "timber_resource_site": (0.35, 0.21),
+    "stone_resource_site": (0.64, 0.33),
+    "road_coast": (0.18, 0.12),
+    "road_inland": (0.62, 0.46),
+    "clearable_blockage": (0.43, 0.31),
+    "waystation_candidate": (0.50, 0.37),
+    "inland_site": (0.62, 0.46),
+    "ordinary_cave": (0.36, 0.24),
+}
 
 
 def generate_overland_region(
@@ -84,6 +99,20 @@ def generate_overland_region(
         width=width,
         height=height,
     )
+    _apply_perennial_surface_water(
+        biome=biome,
+        material=material,
+        elevation=elevation,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+    )
     _apply_volcanic_features(
         biome=biome,
         material=material,
@@ -95,6 +124,22 @@ def generate_overland_region(
         underground=underground,
         width=width,
         height=height,
+    )
+    starting_region = _starting_region_contract(width=width, height=height)
+    _apply_starting_region_features(
+        biome=biome,
+        material=material,
+        elevation=elevation,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        contract=starting_region,
     )
 
     walkable, blocks_sight, movement_cost, traversal_class = _derive_gameplay_layers(
@@ -119,13 +164,14 @@ def generate_overland_region(
         seasonal=seasonal,
         underground=underground,
     )
-    features_df = _features_df(width=width, height=height)
+    features_df = _features_df(width=width, height=height, starting_region=starting_region)
     metadata = {
         "seed": seed,
         "width": width,
         "height": height,
         "profile": profile,
         "schema_version": SCHEMA_VERSION,
+        "starting_region_contract": starting_region,
     }
     bundle = OverlandBundle(
         tiles_df=tiles_df,
@@ -223,7 +269,7 @@ def _apply_karst_features(
     wetness[basin] = int(Wetness.SHALLOW_FLOODED)
     substrate[basin] = int(Substrate.CLAY)
     hydro[basin] = int(HydroRole.SINKING_LAKE)
-    flow_group[basin] = 1
+    flow_group[basin] = KARST_FLOW_GROUP
     seasonal[basin] = "seasonal"
     flags[basin] = surface_flag_mask(SurfaceFlag.SEASONAL)
 
@@ -237,7 +283,7 @@ def _apply_karst_features(
     wetness[spring] = int(Wetness.SATURATED)
     substrate[spring] = int(Substrate.LIMESTONE)
     hydro[spring] = int(HydroRole.SEEP)
-    flow_group[spring] = 2
+    flow_group[spring] = KARST_FLOW_GROUP
     spring_core = _ellipse_mask(width, height, 0.55, 0.34, 0.035, 0.025)
     material[spring_core] = int(Material.SPRING_WATER)
     hydro[spring_core] = int(HydroRole.SPRING)
@@ -249,18 +295,20 @@ def _apply_karst_features(
     wetness[marsh] = int(Wetness.SATURATED)
     substrate[marsh] = int(Substrate.MUD)
     hydro[marsh] = int(HydroRole.SEEP)
-    flow_group[marsh] = 3
+    flow_group[marsh] = KARST_FLOW_GROUP
     flags[marsh] = surface_flag_mask(SurfaceFlag.SEASONAL, SurfaceFlag.VEGETATION_DENSE)
 
     estavelle = _ellipse_mask(width, height, 0.40, 0.43, 0.035, 0.025)
     material[estavelle] = int(Material.ESTAVELLE_WATER)
     hydro[estavelle] = int(HydroRole.ESTAVELLE)
+    flow_group[estavelle] = KARST_FLOW_GROUP
     wetness[estavelle] = int(Wetness.SHALLOW_FLOODED)
     underground[estavelle] = True
 
     ponor = _ellipse_mask(width, height, 0.20, 0.37, 0.035, 0.025)
     material[ponor] = int(Material.PONOR)
     hydro[ponor] = int(HydroRole.PONOR)
+    flow_group[ponor] = KARST_FLOW_GROUP
     wetness[ponor] = int(Wetness.SHALLOW_FLOODED)
     substrate[ponor] = int(Substrate.LIMESTONE)
     underground[ponor] = True
@@ -268,9 +316,50 @@ def _apply_karst_features(
         SurfaceFlag.HAZARD, SurfaceFlag.TRANSITION, SurfaceFlag.SEASONAL
     )
 
+    _apply_surface_hydrology_channel(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        width=width,
+        height=height,
+        start=(0.55, 0.34),
+        end=(0.40, 0.43),
+    )
+    _apply_surface_hydrology_channel(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        width=width,
+        height=height,
+        start=(0.32, 0.36),
+        end=(0.40, 0.43),
+    )
+    _apply_surface_hydrology_channel(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        width=width,
+        height=height,
+        start=(0.27, 0.36),
+        end=(0.20, 0.37),
+    )
+
     fish_trail = _line_mask(width, height, (0.28, 0.38), (0.47, 0.45), radius=1)
     material[fish_trail] = int(Material.FISH_TRAIL)
     hydro[fish_trail] = int(HydroRole.TEMPORARY_POOL)
+    flow_group[fish_trail] = KARST_FLOW_GROUP
     wetness[fish_trail] = int(Wetness.WET)
     substrate[fish_trail] = int(Substrate.MUD)
     flags[fish_trail] = surface_flag_mask(SurfaceFlag.SEASONAL, SurfaceFlag.SLOWS_MOVEMENT)
@@ -282,7 +371,7 @@ def _apply_karst_features(
     substrate[gorge] = int(Substrate.LIMESTONE)
     wetness[gorge] = int(Wetness.DAMP)
     hydro[gorge] = int(HydroRole.SURFACE_CHANNEL)
-    flow_group[gorge] = 4
+    flow_group[gorge] = KARST_FLOW_GROUP
 
     gorge_wall = _line_mask(width, height, (0.69, 0.32), (0.65, 0.57), radius=1)
     biome[gorge_wall] = int(Biome.LIMESTONE_GORGE)
@@ -292,8 +381,174 @@ def _apply_karst_features(
     cave = _ellipse_mask(width, height, 0.62, 0.55, 0.025, 0.018)
     material[cave] = int(Material.CAVE_MOUTH)
     hydro[cave] = int(HydroRole.KARST_WINDOW)
+    flow_group[cave] = KARST_FLOW_GROUP
     underground[cave] = True
     flags[cave] = surface_flag_mask(SurfaceFlag.TRANSITION)
+
+    _apply_underground_hydrology_channel(
+        substrate=substrate,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        start=(0.20, 0.37),
+        end=(0.40, 0.43),
+    )
+    _apply_underground_hydrology_channel(
+        substrate=substrate,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        start=(0.40, 0.43),
+        end=(0.62, 0.55),
+    )
+
+
+def _apply_surface_hydrology_channel(
+    *,
+    material: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    width: int,
+    height: int,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> None:
+    channel = _line_mask(width, height, start, end, radius=1)
+    unassigned = channel & (hydro == int(HydroRole.NONE))
+    material[unassigned] = int(Material.FLOWING_WATER)
+    wetness[unassigned] = int(Wetness.SHALLOW_FLOODED)
+    substrate[unassigned] = int(Substrate.LIMESTONE)
+    hydro[unassigned] = int(HydroRole.SURFACE_CHANNEL)
+    flow_group[unassigned] = KARST_FLOW_GROUP
+    seasonal[unassigned] = "seasonal"
+    flags[unassigned] = surface_flag_mask(SurfaceFlag.SEASONAL)
+
+    flow_group[channel] = KARST_FLOW_GROUP
+
+
+def _apply_underground_hydrology_channel(
+    *,
+    substrate: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> None:
+    channel = _line_mask(width, height, start, end, radius=1)
+    unassigned = channel & (hydro == int(HydroRole.NONE))
+    substrate[unassigned] = int(Substrate.LIMESTONE)
+    hydro[unassigned] = int(HydroRole.UNDERGROUND_CHANNEL)
+    flow_group[unassigned] = KARST_FLOW_GROUP
+    seasonal[unassigned] = "subsurface"
+    underground[unassigned] = True
+
+    flow_group[channel] = KARST_FLOW_GROUP
+    underground[channel] = True
+
+
+def _apply_perennial_surface_water(
+    *,
+    biome: np.ndarray,
+    material: np.ndarray,
+    elevation: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+) -> None:
+    pond = _ellipse_mask(width, height, 0.82, 0.50, 0.07, 0.045)
+    biome[pond] = int(Biome.FOOTHILL_HARDWOOD_FOREST)
+    elevation[pond] = int(ElevationBand.FOOTHILL)
+    material[pond] = int(Material.SHALLOW_WATER)
+    wetness[pond] = int(Wetness.SHALLOW_FLOODED)
+    substrate[pond] = int(Substrate.CLAY)
+    hydro[pond] = int(HydroRole.PERMANENT_POOL)
+    flow_group[pond] = PERENNIAL_SURFACE_FLOW_GROUP
+    seasonal[pond] = "stable"
+    underground[pond] = False
+    flags[pond] = 0
+
+    pond_core = _ellipse_mask(width, height, 0.82, 0.50, 0.035, 0.02)
+    material[pond_core] = int(Material.DEEP_WATER)
+    wetness[pond_core] = int(Wetness.DEEP_FLOODED)
+
+    _apply_perennial_surface_channel(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        start=(0.74, 0.45),
+        end=(0.82, 0.50),
+    )
+    _apply_perennial_surface_channel(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        start=(0.82, 0.50),
+        end=(0.93, 0.55),
+    )
+
+
+def _apply_perennial_surface_channel(
+    *,
+    material: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> None:
+    channel = _line_mask(width, height, start, end, radius=1)
+    unassigned = channel & (hydro == int(HydroRole.NONE))
+    material[unassigned] = int(Material.FLOWING_WATER)
+    wetness[unassigned] = int(Wetness.SHALLOW_FLOODED)
+    substrate[unassigned] = int(Substrate.CLAY)
+    hydro[unassigned] = int(HydroRole.SURFACE_CHANNEL)
+    flow_group[unassigned] = PERENNIAL_SURFACE_FLOW_GROUP
+    seasonal[unassigned] = "stable"
+    underground[unassigned] = False
+    flags[unassigned] = 0
+
+    flow_group[channel] = PERENNIAL_SURFACE_FLOW_GROUP
+    underground[channel] = False
 
 
 def _apply_volcanic_features(
@@ -333,6 +588,269 @@ def _apply_volcanic_features(
     material[barrens] = int(Material.BASALT_PAVEMENT)
     substrate[barrens] = int(Substrate.BASALT)
     wetness[barrens] = int(Wetness.DRY)
+
+
+def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
+    points = {
+        name: _point(width, height, *coords)
+        for name, coords in STARTING_REGION_FEATURES.items()
+    }
+    return {
+        "kind": "first_expedition_region",
+        "harbor": {
+            "point": list(points["ruined_harbor"]),
+            "state": "ruined_dead_port",
+        },
+        "local_survey_zone": {
+            "center": list(points["ruined_harbor"]),
+            "radius_tiles": max(6, min(width, height) // 8),
+        },
+        "route_segments": [
+            {
+                "route_id": "ancient_road_harbor_to_inland_site",
+                "from": "ruined_harbor",
+                "from_point": list(points["road_coast"]),
+                "to": "inland_site",
+                "to_point": list(points["road_inland"]),
+                "state": "blocked",
+                "blockage": "road_landslip_01",
+                "profile_costs": {
+                    "HUMAN_ON_FOOT": 1.0,
+                    "PACK_ANIMAL": 1.0,
+                    "SMALL_AMPHIBIOUS": 1.0,
+                    "SWIMMER": 1.25,
+                    "BOAT": None,
+                },
+            }
+        ],
+        "blockages": [
+            {
+                "blockage_id": "road_landslip_01",
+                "point": list(points["clearable_blockage"]),
+                "state": "clearable",
+                "blocks_route": "ancient_road_harbor_to_inland_site",
+            }
+        ],
+        "resource_sites": [
+            {
+                "site_id": "spring_water_01",
+                "kind": "fresh_water",
+                "point": list(points["fresh_water_site"]),
+            },
+            {
+                "site_id": "reed_mudflat_01",
+                "kind": "reeds_and_mud",
+                "point": list(points["reed_resource_site"]),
+            },
+            {
+                "site_id": "wet_forest_timber_01",
+                "kind": "timber",
+                "point": list(points["timber_resource_site"]),
+            },
+            {
+                "site_id": "limestone_roadstone_01",
+                "kind": "stone",
+                "point": list(points["stone_resource_site"]),
+            },
+        ],
+        "waystation_candidates": [
+            {
+                "site_id": "first_waystation_candidate",
+                "point": list(points["waystation_candidate"]),
+                "route": "ancient_road_harbor_to_inland_site",
+            }
+        ],
+        "inland_sites": [
+            {
+                "site_id": "first_inland_site",
+                "point": list(points["inland_site"]),
+                "kind": "ruin_or_settlement_candidate",
+            }
+        ],
+        "cave_refs": [
+            {
+                "site_id": "ordinary_limestone_cave_01",
+                "point": list(points["ordinary_cave"]),
+                "kind": "ordinary_cave",
+                "transition": "cave_entrance",
+            }
+        ],
+    }
+
+
+def _apply_starting_region_features(
+    *,
+    biome: np.ndarray,
+    material: np.ndarray,
+    elevation: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+    contract: dict[str, object],
+) -> None:
+    _apply_ruined_harbor(
+        biome=biome,
+        material=material,
+        elevation=elevation,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+    )
+    _apply_ancient_road(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        width=width,
+        height=height,
+    )
+    _apply_starting_region_sites(
+        material=material,
+        substrate=substrate,
+        wetness=wetness,
+        flags=flags,
+        hydro=hydro,
+        flow_group=flow_group,
+        seasonal=seasonal,
+        underground=underground,
+        width=width,
+        height=height,
+        contract=contract,
+    )
+
+
+def _apply_ruined_harbor(
+    *,
+    biome: np.ndarray,
+    material: np.ndarray,
+    elevation: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+) -> None:
+    harbor = _rect_mask(width, height, center=STARTING_REGION_FEATURES["ruined_harbor"], rx=3, ry=2)
+    biome[harbor] = int(Biome.COASTAL_RAIN_FOREST)
+    elevation[harbor] = int(ElevationBand.LOWLAND)
+    material[harbor] = int(Material.RUIN_FLOOR)
+    substrate[harbor] = int(Substrate.BUILT_STONE)
+    wetness[harbor] = int(Wetness.DAMP)
+    hydro[harbor] = int(HydroRole.NONE)
+    flow_group[harbor] = 0
+    seasonal[harbor] = "stable"
+    underground[harbor] = False
+    flags[harbor] = surface_flag_mask(SurfaceFlag.BUILT)
+
+    dock = _rect_mask(width, height, center=(0.18, 0.06), rx=2, ry=1)
+    material[dock] = int(Material.DOCK)
+    substrate[dock] = int(Substrate.WOOD)
+    wetness[dock] = int(Wetness.DAMP)
+    hydro[dock] = int(HydroRole.NONE)
+    flow_group[dock] = 0
+    underground[dock] = False
+    flags[dock] = surface_flag_mask(SurfaceFlag.BUILT)
+
+
+def _apply_ancient_road(
+    *,
+    material: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    width: int,
+    height: int,
+) -> None:
+    road = np.zeros((height, width), dtype=bool)
+    road |= _line_mask(width, height, (0.18, 0.12), (0.35, 0.22), radius=1)
+    road |= _line_mask(width, height, (0.35, 0.22), (0.50, 0.37), radius=1)
+    road |= _line_mask(width, height, (0.50, 0.37), (0.62, 0.46), radius=1)
+    material[road] = int(Material.ROAD)
+    substrate[road] = int(Substrate.BUILT_STONE)
+    wetness[road] = int(Wetness.DAMP)
+    flags[road] = surface_flag_mask(SurfaceFlag.BUILT)
+
+
+def _apply_starting_region_sites(
+    *,
+    material: np.ndarray,
+    substrate: np.ndarray,
+    wetness: np.ndarray,
+    flags: np.ndarray,
+    hydro: np.ndarray,
+    flow_group: np.ndarray,
+    seasonal: np.ndarray,
+    underground: np.ndarray,
+    width: int,
+    height: int,
+    contract: dict[str, object],
+) -> None:
+    blockage_x, blockage_y = _contract_point(contract, "blockages", 0, "point")
+    material[blockage_y, blockage_x] = int(Material.SINKHOLE_EDGE)
+    substrate[blockage_y, blockage_x] = int(Substrate.LIMESTONE)
+    wetness[blockage_y, blockage_x] = int(Wetness.DAMP)
+    flags[blockage_y, blockage_x] = surface_flag_mask(SurfaceFlag.HAZARD)
+
+    waystation_x, waystation_y = _contract_point(
+        contract,
+        "waystation_candidates",
+        0,
+        "point",
+    )
+    material[waystation_y, waystation_x] = int(Material.RUIN_FLOOR)
+    substrate[waystation_y, waystation_x] = int(Substrate.BUILT_STONE)
+    wetness[waystation_y, waystation_x] = int(Wetness.DAMP)
+    flags[waystation_y, waystation_x] = surface_flag_mask(SurfaceFlag.BUILT)
+
+    inland_x, inland_y = _contract_point(contract, "inland_sites", 0, "point")
+    material[inland_y, inland_x] = int(Material.RUIN_FLOOR)
+    substrate[inland_y, inland_x] = int(Substrate.BUILT_STONE)
+    wetness[inland_y, inland_x] = int(Wetness.DAMP)
+    flags[inland_y, inland_x] = surface_flag_mask(SurfaceFlag.BUILT)
+
+    cave_x, cave_y = _contract_point(contract, "cave_refs", 0, "point")
+    material[cave_y, cave_x] = int(Material.CAVE_MOUTH)
+    substrate[cave_y, cave_x] = int(Substrate.LIMESTONE)
+    wetness[cave_y, cave_x] = int(Wetness.DAMP)
+    hydro[cave_y, cave_x] = int(HydroRole.NONE)
+    flow_group[cave_y, cave_x] = 0
+    seasonal[cave_y, cave_x] = "stable"
+    underground[cave_y, cave_x] = True
+    flags[cave_y, cave_x] = surface_flag_mask(SurfaceFlag.TRANSITION)
+
+
+def _contract_point(
+    contract: dict[str, object],
+    collection: str,
+    index: int,
+    key: str,
+) -> tuple[int, int]:
+    items = contract[collection]
+    if not isinstance(items, list):
+        raise TypeError(f"Expected {collection} to be a list")
+    item = items[index]
+    if not isinstance(item, dict):
+        raise TypeError(f"Expected {collection}[{index}] to be a dict")
+    point = item[key]
+    if not isinstance(point, list | tuple) or len(point) != 2:
+        raise TypeError(f"Expected {collection}[{index}][{key}] to be a point")
+    return int(point[0]), int(point[1])
 
 
 def _ellipse_mask(
@@ -375,6 +893,36 @@ def _line_mask(
         x_max = min(width, x + radius + 1)
         mask[y_min:y_max, x_min:x_max] = True
     return mask
+
+
+def _rect_mask(
+    width: int,
+    height: int,
+    *,
+    center: tuple[float, float],
+    rx: int,
+    ry: int,
+) -> np.ndarray:
+    x, y = _point(width, height, center[0], center[1])
+    mask = np.zeros((height, width), dtype=bool)
+    y_min = max(0, y - ry)
+    y_max = min(height, y + ry + 1)
+    x_min = max(0, x - rx)
+    x_max = min(width, x + rx + 1)
+    mask[y_min:y_max, x_min:x_max] = True
+    return mask
+
+
+def _point(
+    width: int,
+    height: int,
+    x_frac: float,
+    y_frac: float,
+) -> tuple[int, int]:
+    return (
+        int(round(x_frac * (width - 1))),
+        int(round(y_frac * (height - 1))),
+    )
 
 
 def _derive_gameplay_layers(
@@ -454,12 +1002,14 @@ def _hydrology_df(
     )
 
 
-def _features_df(*, width: int, height: int) -> pl.DataFrame:
+def _features_df(
+    *,
+    width: int,
+    height: int,
+    starting_region: dict[str, object],
+) -> pl.DataFrame:
     def point(x_frac: float, y_frac: float) -> tuple[int, int]:
-        return (
-            int(round(x_frac * (width - 1))),
-            int(round(y_frac * (height - 1))),
-        )
+        return _point(width, height, x_frac, y_frac)
 
     feature_specs = [
         (*point(0.20, 0.37), FeatureType.PONOR, 1, "karst;seasonal;descent"),
@@ -470,6 +1020,66 @@ def _features_df(*, width: int, height: int) -> pl.DataFrame:
         (*point(0.55, 0.82), FeatureType.LAVA_TUBE_SKYLIGHT, 6, "lava_tube;vertical"),
         (*point(0.72, 0.86), FeatureType.COLLAPSED_LAVA_TUBE, 7, "lava_tube;collapse"),
         (*point(0.47, 0.45), FeatureType.FISH_TRAIL, 8, "fish;seasonal"),
+        (
+            *_metadata_point(starting_region["harbor"], "point"),
+            FeatureType.RUINED_HARBOR,
+            100,
+            "starting_region;harbor;ruined;dead_port",
+        ),
+        (
+            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "fresh_water"), "point"),
+            FeatureType.FRESH_WATER_SITE,
+            101,
+            "starting_region;resource;fresh_water",
+        ),
+        (
+            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "reeds_and_mud"), "point"),
+            FeatureType.RESOURCE_SITE,
+            102,
+            "starting_region;resource;reeds_and_mud",
+        ),
+        (
+            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "timber"), "point"),
+            FeatureType.RESOURCE_SITE,
+            103,
+            "starting_region;resource;timber",
+        ),
+        (
+            *_metadata_point(_first_metadata_item(starting_region, "resource_sites", "stone"), "point"),
+            FeatureType.RESOURCE_SITE,
+            104,
+            "starting_region;resource;stone",
+        ),
+        (
+            *_metadata_point(starting_region["route_segments"][0], "from_point"),
+            FeatureType.ANCIENT_ROAD,
+            105,
+            "starting_region;route;ancient_road;endpoint",
+        ),
+        (
+            *_metadata_point(_first_metadata_list_item(starting_region, "blockages"), "point"),
+            FeatureType.CLEARABLE_BLOCKAGE,
+            106,
+            "starting_region;route;blockage;clearable",
+        ),
+        (
+            *_metadata_point(_first_metadata_list_item(starting_region, "waystation_candidates"), "point"),
+            FeatureType.WAYSTATION_CANDIDATE,
+            107,
+            "starting_region;waystation_candidate",
+        ),
+        (
+            *_metadata_point(_first_metadata_list_item(starting_region, "inland_sites"), "point"),
+            FeatureType.INLAND_SITE,
+            108,
+            "starting_region;inland_site;ruin_or_settlement_candidate",
+        ),
+        (
+            *_metadata_point(_first_metadata_list_item(starting_region, "cave_refs"), "point"),
+            FeatureType.ORDINARY_CAVE,
+            109,
+            "starting_region;cave;ordinary",
+        ),
     ]
     return pl.DataFrame(
         {
@@ -480,3 +1090,43 @@ def _features_df(*, width: int, height: int) -> pl.DataFrame:
             "tags": [str(spec[4]) for spec in feature_specs],
         }
     )
+
+
+def _first_metadata_item(
+    metadata: dict[str, object],
+    collection: str,
+    kind: str,
+) -> dict[str, object]:
+    items = metadata[collection]
+    if not isinstance(items, list):
+        raise TypeError(f"Expected {collection} to be a list")
+    for item in items:
+        if isinstance(item, dict) and item.get("kind") == kind:
+            return item
+    raise ValueError(f"No {collection} item with kind {kind}")
+
+
+def _first_metadata_list_item(
+    metadata: dict[str, object],
+    collection: str,
+) -> dict[str, object]:
+    items = metadata[collection]
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+        raise TypeError(f"Expected {collection} to contain dict items")
+    return items[0]
+
+
+def _metadata_point(
+    metadata: object,
+    key: str,
+    *,
+    fallback: tuple[int, int] | None = None,
+) -> tuple[int, int]:
+    if not isinstance(metadata, dict):
+        raise TypeError("Expected metadata item to be a dict")
+    point = metadata.get(key)
+    if point is None and fallback is not None:
+        return fallback
+    if not isinstance(point, list | tuple) or len(point) != 2:
+        raise TypeError(f"Expected metadata point at {key}")
+    return int(point[0]), int(point[1])

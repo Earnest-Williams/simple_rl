@@ -21,10 +21,10 @@ simulation systems are downstream consumers, not part of this generator scope.
 | Area | Current status | Roadmap status |
 | --- | --- | --- |
 | Overland artifacts | `overland_tiles.arrow`, `overland_hydrology.arrow`, `overland_features.arrow`, `overland_affordances.arrow`, `overland_transitions.arrow`, `overland_routes.arrow`, and `overland_metadata.json` are the current implemented contract. | Extend these artifacts narrowly or add sidecars only when a phase requires it. |
-| `flow_group` | `overland_hydrology.arrow` has a `flow_group` column. | Stable connected-system semantics are planned for Phase 1. |
-| Connected hydrology | Representative springs, ponors, estavelles, sinking basins, seasonal states, and underground flags exist. | Continuous drainage networks and meaningful underground connectivity are planned for Phase 1. |
-| Route segment state | Selected debug routes are emitted in `overland_routes.arrow`. | Road segment state, blockages, repair state, and route endpoints for the starting region are planned. |
-| Cave payloads | Transition records currently include source, type, target kind, `hydro_role`, `biome`, `material`, seed, and tags. | Rich cave handoff payloads for dungeon generation are planned. |
+| `flow_group` | The current regional profile emits a stable connected karst `flow_group` covering springs, sinking lakes, ponors, estavelles, channels, and karst windows. | Future profiles should preserve connected-system semantics as hydrology grows beyond the first regional profile. |
+| Connected hydrology | The current regional profile emits karst water systems with visible surface channels, hidden underground channels, and underground-connected ponor/estavelle/karst-window endpoints; it also emits ordinary perennial pond/lake water with stable surface inflow and outflow. | Later work can add richer drainage ranking, discharge, and seasonal network variation. |
+| Route segment state | Selected debug routes are emitted in `overland_routes.arrow`; `overland_metadata.json` now includes first-pass starting-region route segment state, endpoints, blockage reference, and actor-profile cost hints. | Repair state and richer route-segment lifecycle metadata are still planned. |
+| Cave payloads | Transition records now include cave type, hydrology context, seasonal state, flow group, underground connectivity, substrate, elevation band, nearby affordances, and handoff tags for cave-like transitions. | Future work can add richer evidence hooks and dungeon-specific tuning fields as needed. |
 | Evidence hooks | Terrain features and transitions can carry tags. | Historical, archaeological, ruin, repair, and prior-expedition evidence hooks are planned. |
 | Runtime sidecar | `GameMap` conversion exists, but overland semantics are not yet preserved as a dedicated runtime metadata sidecar. | Runtime-facing overland metadata is planned for a later phase. |
 
@@ -73,6 +73,7 @@ connected seasonal systems rather than isolated representative features:
 - sinking lakes, draining basins, mud states, and cracked dry-season floors
 - visible surface channels and separate underground links
 - stable `flow_group` IDs for connected hydrology systems
+- ordinary perennial ponds and lakes with normal surface inflow and outflow
 - meaningful `connected_to_underground` values for transition and route logic
 
 Hydrology should affect traversal, resource affordances, cave entrances, route
@@ -184,40 +185,48 @@ is one producer merged into it.
 
 ### Phase 1: Hydrology Continuity
 
-Add continuous surface drainage and stable `flow_group` semantics. This is the
-current tactical next slice in [Overland Next Steps](./Overland%20Next%20Steps.md).
-Keep this PR scoped to hydrology continuity. Do not include ruins, roads,
-runtime metadata, site history, or richer cave payloads in this slice.
+Implemented as a first pass for the current regional profile. The generator now
+emits continuous surface drainage and stable `flow_group` semantics for the
+karst system, plus a separate ordinary perennial surface-water system. The
+scoped PR did not include ruins, roads, runtime metadata, site history, or
+richer cave payloads.
 
-Expected direction:
+Implemented direction:
 
 - connect spring gardens, sinking basins, ponors, and estavelles
 - separate visible surface channels from underground links
+- represent ordinary ponds/lakes as stable surface-water systems instead of
+  treating every waterbody as karst-special
 - make `connected_to_underground` meaningful
 - add tests proving ponors, springs, and dry-season cave mouths belong to useful
   systems
 
 ### Phase 2: Starting-Region Contract
 
-Generate the first expedition region contract:
+Implemented as a first pass for the current regional profile. The generator now
+emits feature rows, surface tiles, and metadata for:
 
 - ruined harbor or dead port
 - local resource sites and fresh water
 - ancient road leading inland
 - first clearable blockage
+- first waystation candidate
 - first inland site, ruin, or settlement
 - route endpoints and traversal costs
 
-This phase should extend artifact metadata narrowly rather than inventing a
-separate world schema.
+This phase extended artifact metadata narrowly rather than inventing a separate
+world schema. Runtime expedition gameplay, site-history systems, and richer
+dungeon handoff payloads remain out of scope.
 
 ### Phase 3: Cave Transition Payloads
 
-Expand transition records so ordinary caves, karst hydrology transitions, and
-lava-tube transitions can hand useful context to the dungeon generator.
+Implemented as a first pass. Transition records now distinguish ordinary caves,
+karst hydrology transitions, and lava-tube transitions with additive handoff
+columns.
 
-Payloads should include cave type, hydrology role, seasonal state, biome,
-substrate, nearby features, and evidence hooks.
+Payloads include cave type, hydrology role, seasonal state, flow group,
+underground connectivity, biome, substrate, elevation band, nearby affordances,
+and compact handoff tags. Full evidence-hook systems remain planned.
 
 ### Phase 4: Site-History Evidence Tags
 
