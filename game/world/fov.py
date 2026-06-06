@@ -344,7 +344,7 @@ def blocks_light_at(
 ) -> bool:
     """Check if a tile blocks light, considering bounds, opacity, and height."""
     nx, ny = _transform_coords(octant_x, octant_y, octant, origin_xy)
-    width, height = grid_shape
+    height, width = grid_shape
 
     if not (0 <= nx < width and 0 <= ny < height):
         return True
@@ -386,7 +386,7 @@ def set_visible_at(
 ) -> None:
     """Mark a tile as visible and explored."""
     nx, ny = _transform_coords(octant_x, octant_y, octant, origin_xy)
-    width, height = grid_shape
+    height, width = grid_shape
     if 0 <= nx < width and 0 <= ny < height:
         visible_grid[ny, nx] = True
         explored_grid[ny, nx] = True
