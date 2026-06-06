@@ -566,10 +566,9 @@ class EntityStore:
         is_dead = self.hp[valid_indices] <= 0
 
         # Extract perception_stat with default of 10
-        # Use list comprehension for clarity since extra_components is a list of dicts
+        # Single dict lookup per entity for efficiency
         perception_stat = np.array([
-            10 if self.extra_components[idx].get("perception_stat") is None 
-            else int(self.extra_components[idx].get("perception_stat"))
+            int(self.extra_components[idx].get("perception_stat", 10))
             for idx in valid_indices
         ], dtype=np.int64)
 
