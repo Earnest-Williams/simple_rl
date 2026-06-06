@@ -810,7 +810,7 @@ class LightingFovToolWindow(QMainWindow):
         if not light_sources:
             return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
-        opaque_grid = np.isin(scene.tiles, (ElementType.WALL, ElementType.PILLAR))
+        opaque_grid = (scene.tiles == ElementType.WALL) | (scene.tiles == ElementType.PILLAR)
         colored_light = self._production_light_cache.update(
             light_sources,
             opaque_grid,
