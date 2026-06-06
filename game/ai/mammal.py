@@ -27,15 +27,16 @@ def _random_direction(rng: GameRNG) -> tuple[int, int]:
 
 
 def take_turn(
-    entity_row: Any,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
     **kwargs: Any,
 ) -> None:
     """Execute one turn for a pack-hunting mammal."""
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
+    x, y = game_state.entity_registry.xy_of(entity_id)
+    if x is None or y is None:
+        return
 
     player_pos = game_state.player_position
     if player_pos is not None:

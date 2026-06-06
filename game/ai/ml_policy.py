@@ -24,7 +24,7 @@ _DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 
 def take_turn(
-    entity_row,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
@@ -35,8 +35,6 @@ def take_turn(
     The current placeholder simply performs a random step to demonstrate the
     adapter interface.
     """
-    entity_id = entity_row["entity_id"]
-
     if not hasattr(rng, "get_int"):
         raise TypeError("rng must provide get_int from GameRNG")
     dx, dy = _DIRECTIONS[rng.get_int(0, len(_DIRECTIONS) - 1)]

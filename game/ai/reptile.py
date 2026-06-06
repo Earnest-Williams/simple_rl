@@ -18,15 +18,16 @@ log = structlog.get_logger()
 
 
 def take_turn(
-    entity_row,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
     **kwargs,
 ) -> None:
     """Execute one turn for an ambushing reptile."""
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
+    x, y = game_state.entity_registry.xy_of(entity_id)
+    if x is None or y is None:
+        return
     player_pos = game_state.player_position
 
     if player_pos is None:
