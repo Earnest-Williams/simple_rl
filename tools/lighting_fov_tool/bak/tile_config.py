@@ -29,11 +29,6 @@ class LightConfig:
     beam_width: float = 1.0
     beam_length: int = 8
     softness: float = 0.0
-    ambient_spill_enabled: bool = True
-    ambient_spill_extra_radius: int = 2
-    ambient_spill_strength: float = 0.15
-    ambient_spill_decay: float = 0.55
-    ambient_spill_max_rgb: float = 30.0
 
 
 @dataclass
@@ -59,11 +54,6 @@ class LightConfigSnapshot:
     beam_width: float = 1.0
     beam_length: int = 8
     softness: float = 0.0
-    ambient_spill_enabled: bool = True
-    ambient_spill_extra_radius: int = 2
-    ambient_spill_strength: float = 0.15
-    ambient_spill_decay: float = 0.55
-    ambient_spill_max_rgb: float = 30.0
 
 
 # Default tile assignments for each element type
@@ -98,8 +88,6 @@ class TileConfigState:
 
     elements: dict[ElementType, ElementConfig] = field(default_factory=dict)
     lights: dict[str, LightConfig] = field(default_factory=dict)
-    ambient_spill_enabled: bool = True
-    ambient_spill_debug_show_only: bool = False
 
     # Original values for comparison
     _original_elements: dict[ElementType, ConfigSnapshot] = field(default_factory=dict)
@@ -146,17 +134,6 @@ class TileConfigState:
                     beam_width=getattr(ls, "beam_width", 1.0),
                     beam_length=getattr(ls, "beam_length", 8),
                     softness=getattr(ls, "softness", 0.0),
-                    ambient_spill_enabled=getattr(
-                        ls, "ambient_spill_enabled", True
-                    ),
-                    ambient_spill_extra_radius=getattr(
-                        ls, "ambient_spill_extra_radius", 2
-                    ),
-                    ambient_spill_strength=getattr(
-                        ls, "ambient_spill_strength", 0.15
-                    ),
-                    ambient_spill_decay=getattr(ls, "ambient_spill_decay", 0.55),
-                    ambient_spill_max_rgb=getattr(ls, "ambient_spill_max_rgb", 30.0),
                 )
                 self.lights[ls.name] = light_cfg
                 self._original_lights[ls.name] = LightConfigSnapshot(
@@ -169,11 +146,6 @@ class TileConfigState:
                     beam_width=light_cfg.beam_width,
                     beam_length=light_cfg.beam_length,
                     softness=light_cfg.softness,
-                    ambient_spill_enabled=light_cfg.ambient_spill_enabled,
-                    ambient_spill_extra_radius=light_cfg.ambient_spill_extra_radius,
-                    ambient_spill_strength=light_cfg.ambient_spill_strength,
-                    ambient_spill_decay=light_cfg.ambient_spill_decay,
-                    ambient_spill_max_rgb=light_cfg.ambient_spill_max_rgb,
                 )
 
     def set_element_tile(self, element_type: ElementType, tile_name: str) -> None:
@@ -254,42 +226,6 @@ class TileConfigState:
             return
         self.lights[light_name].softness = max(0.0, min(1.0, softness))
 
-    def set_light_ambient_spill_enabled(
-        self, light_name: str, enabled: bool
-    ) -> None:
-        """Enable or disable ambient spill for a light source."""
-        if light_name not in self.lights:
-            return
-        self.lights[light_name].ambient_spill_enabled = enabled
-
-    def set_light_ambient_spill_extra_radius(
-        self, light_name: str, value: int
-    ) -> None:
-        """Set how far ambient spill can extend beyond direct light."""
-        if light_name not in self.lights:
-            return
-        self.lights[light_name].ambient_spill_extra_radius = max(0, min(8, value))
-
-    def set_light_ambient_spill_strength(
-        self, light_name: str, value: float
-    ) -> None:
-        """Set the starting ambient spill strength."""
-        if light_name not in self.lights:
-            return
-        self.lights[light_name].ambient_spill_strength = max(0.0, min(1.0, value))
-
-    def set_light_ambient_spill_decay(self, light_name: str, value: float) -> None:
-        """Set the per-step ambient spill decay."""
-        if light_name not in self.lights:
-            return
-        self.lights[light_name].ambient_spill_decay = max(0.0, min(1.0, value))
-
-    def set_light_ambient_spill_max_rgb(self, light_name: str, value: float) -> None:
-        """Set the maximum RGB contribution from ambient spill."""
-        if light_name not in self.lights:
-            return
-        self.lights[light_name].ambient_spill_max_rgb = max(0.0, min(255.0, value))
-
     def mark_current_as_original(self) -> None:
         """Reset the original snapshots to match current config values."""
         self._original_elements = {
@@ -312,11 +248,6 @@ class TileConfigState:
                 beam_width=config.beam_width,
                 beam_length=config.beam_length,
                 softness=config.softness,
-                ambient_spill_enabled=config.ambient_spill_enabled,
-                ambient_spill_extra_radius=config.ambient_spill_extra_radius,
-                ambient_spill_strength=config.ambient_spill_strength,
-                ambient_spill_decay=config.ambient_spill_decay,
-                ambient_spill_max_rgb=config.ambient_spill_max_rgb,
             )
             for light_name, config in self.lights.items()
         }
@@ -348,11 +279,6 @@ class TileConfigState:
             beam_width=original.beam_width,
             beam_length=original.beam_length,
             softness=original.softness,
-            ambient_spill_enabled=original.ambient_spill_enabled,
-            ambient_spill_extra_radius=original.ambient_spill_extra_radius,
-            ambient_spill_strength=original.ambient_spill_strength,
-            ambient_spill_decay=original.ambient_spill_decay,
-            ambient_spill_max_rgb=original.ambient_spill_max_rgb,
         )
 
     def reset_all_to_original(self) -> None:
@@ -393,19 +319,6 @@ class TileConfigState:
             or abs(current.beam_width - original.beam_width) > 0.001
             or current.beam_length != original.beam_length
             or abs(current.softness - original.softness) > 0.001
-            or current.ambient_spill_enabled != original.ambient_spill_enabled
-            or (
-                current.ambient_spill_extra_radius
-                != original.ambient_spill_extra_radius
-            )
-            or abs(
-                current.ambient_spill_strength - original.ambient_spill_strength
-            )
-            > 0.001
-            or abs(current.ambient_spill_decay - original.ambient_spill_decay)
-            > 0.001
-            or abs(current.ambient_spill_max_rgb - original.ambient_spill_max_rgb)
-            > 0.001
         )
 
     def get_element_original(self, element_type: ElementType) -> ConfigSnapshot | None:

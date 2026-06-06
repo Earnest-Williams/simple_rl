@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Literal
+import math
 
 import numpy as np
 import structlog
@@ -33,10 +33,6 @@ from PySide6.QtWidgets import (
 )
 
 from engine.render_lighting import LightContributionCache, collapse_premult_rgba_to_rgb
-from tools.lighting_fov_tool.ambient_spill import (
-    AmbientSpillLight,
-    compute_ambient_spill_rgb,
-)
 from tools.lighting_fov_tool.exporter import (
     export_configuration,
     get_default_export_path,
@@ -372,70 +368,6 @@ class LightConfigPanel(QGroupBox):
         self._soft_widget.setLayout(soft_layout)
         layout.addRow("Softness:", self._soft_widget)
 
-        # Ambient spill controls
-        self._ambient_spill_checkbox = QPushButton()
-        self._ambient_spill_checkbox.setCheckable(True)
-        self._ambient_spill_checkbox.setChecked(config.ambient_spill_enabled)
-        self._set_ambient_spill_button_text()
-        self._ambient_spill_checkbox.clicked.connect(
-            self._on_ambient_spill_enabled_changed
-        )
-        layout.addRow("Ambient Spill:", self._ambient_spill_checkbox)
-
-        self._ambient_spill_extra_radius_spin = QSpinBox()
-        self._ambient_spill_extra_radius_spin.setRange(0, 8)
-        self._ambient_spill_extra_radius_spin.setValue(
-            config.ambient_spill_extra_radius
-        )
-        self._ambient_spill_extra_radius_spin.valueChanged.connect(
-            self._on_ambient_spill_extra_radius_changed
-        )
-        layout.addRow("Spill Extra Radius:", self._ambient_spill_extra_radius_spin)
-
-        self._ambient_spill_strength_slider = QSlider(Qt.Orientation.Horizontal)
-        self._ambient_spill_strength_slider.setRange(0, 100)
-        self._ambient_spill_strength_slider.setValue(
-            int(config.ambient_spill_strength * 100)
-        )
-        self._ambient_spill_strength_slider.valueChanged.connect(
-            self._on_ambient_spill_strength_changed
-        )
-        self._ambient_spill_strength_label = QLabel(
-            f"{config.ambient_spill_strength:.2f}"
-        )
-        strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self._ambient_spill_strength_slider)
-        strength_layout.addWidget(self._ambient_spill_strength_label)
-        self._ambient_spill_strength_widget = QWidget()
-        self._ambient_spill_strength_widget.setLayout(strength_layout)
-        layout.addRow("Spill Strength:", self._ambient_spill_strength_widget)
-
-        self._ambient_spill_decay_slider = QSlider(Qt.Orientation.Horizontal)
-        self._ambient_spill_decay_slider.setRange(0, 100)
-        self._ambient_spill_decay_slider.setValue(
-            int(config.ambient_spill_decay * 100)
-        )
-        self._ambient_spill_decay_slider.valueChanged.connect(
-            self._on_ambient_spill_decay_changed
-        )
-        self._ambient_spill_decay_label = QLabel(f"{config.ambient_spill_decay:.2f}")
-        decay_layout = QHBoxLayout()
-        decay_layout.addWidget(self._ambient_spill_decay_slider)
-        decay_layout.addWidget(self._ambient_spill_decay_label)
-        self._ambient_spill_decay_widget = QWidget()
-        self._ambient_spill_decay_widget.setLayout(decay_layout)
-        layout.addRow("Spill Decay:", self._ambient_spill_decay_widget)
-
-        self._ambient_spill_max_rgb_spin = QSpinBox()
-        self._ambient_spill_max_rgb_spin.setRange(0, 255)
-        self._ambient_spill_max_rgb_spin.setValue(
-            int(config.ambient_spill_max_rgb)
-        )
-        self._ambient_spill_max_rgb_spin.valueChanged.connect(
-            self._on_ambient_spill_max_rgb_changed
-        )
-        layout.addRow("Spill Max RGB:", self._ambient_spill_max_rgb_spin)
-
         # Reset button
         reset_btn = QPushButton("Reset")
         reset_btn.clicked.connect(self._on_reset)
@@ -474,12 +406,6 @@ class LightConfigPanel(QGroupBox):
         # Radius (hidden for beam)
         self._radius_spin.setVisible(is_circle or is_cone)
         self.layout().labelForField(self._radius_spin).setVisible(is_circle or is_cone)
-
-    def _set_ambient_spill_button_text(self) -> None:
-        """Set the ambient spill toggle label from its checked state."""
-        self._ambient_spill_checkbox.setText(
-            "ON" if self._ambient_spill_checkbox.isChecked() else "OFF"
-        )
 
     def _on_color_changed(self, color: tuple[int, int, int]) -> None:
         """Handle color change."""
@@ -535,45 +461,6 @@ class LightConfigPanel(QGroupBox):
         self._config_state.set_light_softness(self._light_name, softness)
         self.config_changed.emit()
 
-    def _on_ambient_spill_enabled_changed(self) -> None:
-        """Handle per-light ambient spill enable changes."""
-        self._set_ambient_spill_button_text()
-        self._config_state.set_light_ambient_spill_enabled(
-            self._light_name,
-            self._ambient_spill_checkbox.isChecked(),
-        )
-        self.config_changed.emit()
-
-    def _on_ambient_spill_extra_radius_changed(self, value: int) -> None:
-        """Handle per-light ambient spill radius changes."""
-        self._config_state.set_light_ambient_spill_extra_radius(
-            self._light_name, value
-        )
-        self.config_changed.emit()
-
-    def _on_ambient_spill_strength_changed(self, value: int) -> None:
-        """Handle per-light ambient spill strength changes."""
-        strength = value / 100.0
-        self._ambient_spill_strength_label.setText(f"{strength:.2f}")
-        self._config_state.set_light_ambient_spill_strength(
-            self._light_name, strength
-        )
-        self.config_changed.emit()
-
-    def _on_ambient_spill_decay_changed(self, value: int) -> None:
-        """Handle per-light ambient spill decay changes."""
-        decay = value / 100.0
-        self._ambient_spill_decay_label.setText(f"{decay:.2f}")
-        self._config_state.set_light_ambient_spill_decay(self._light_name, decay)
-        self.config_changed.emit()
-
-    def _on_ambient_spill_max_rgb_changed(self, value: int) -> None:
-        """Handle per-light ambient spill RGB cap changes."""
-        self._config_state.set_light_ambient_spill_max_rgb(
-            self._light_name, float(value)
-        )
-        self.config_changed.emit()
-
     def _on_reset(self) -> None:
         """Reset this light to original values."""
         self._config_state.reset_light_to_original(self._light_name)
@@ -586,11 +473,11 @@ class LightConfigPanel(QGroupBox):
         if config is None:
             return
         self._color_button.set_color(config.color)
-
+        
         self._radius_spin.blockSignals(True)
         self._radius_spin.setValue(config.radius)
         self._radius_spin.blockSignals(False)
-
+        
         self._intensity_slider.blockSignals(True)
         self._intensity_slider.setValue(int(config.intensity * 100))
         self._intensity_slider.blockSignals(False)
@@ -623,39 +510,6 @@ class LightConfigPanel(QGroupBox):
         self._softness_slider.setValue(int(config.softness * 100))
         self._softness_slider.blockSignals(False)
         self._softness_label.setText(f"{config.softness:.2f}")
-
-        self._ambient_spill_checkbox.blockSignals(True)
-        self._ambient_spill_checkbox.setChecked(config.ambient_spill_enabled)
-        self._set_ambient_spill_button_text()
-        self._ambient_spill_checkbox.blockSignals(False)
-
-        self._ambient_spill_extra_radius_spin.blockSignals(True)
-        self._ambient_spill_extra_radius_spin.setValue(
-            config.ambient_spill_extra_radius
-        )
-        self._ambient_spill_extra_radius_spin.blockSignals(False)
-
-        self._ambient_spill_strength_slider.blockSignals(True)
-        self._ambient_spill_strength_slider.setValue(
-            int(config.ambient_spill_strength * 100)
-        )
-        self._ambient_spill_strength_slider.blockSignals(False)
-        self._ambient_spill_strength_label.setText(
-            f"{config.ambient_spill_strength:.2f}"
-        )
-
-        self._ambient_spill_decay_slider.blockSignals(True)
-        self._ambient_spill_decay_slider.setValue(
-            int(config.ambient_spill_decay * 100)
-        )
-        self._ambient_spill_decay_slider.blockSignals(False)
-        self._ambient_spill_decay_label.setText(f"{config.ambient_spill_decay:.2f}")
-
-        self._ambient_spill_max_rgb_spin.blockSignals(True)
-        self._ambient_spill_max_rgb_spin.setValue(
-            int(config.ambient_spill_max_rgb)
-        )
-        self._ambient_spill_max_rgb_spin.blockSignals(False)
 
         self._update_visibility()
 
@@ -703,10 +557,6 @@ class LightingFovToolWindow(QMainWindow):
         self._show_full_light_field = False
         self._show_hidden_light_sources = False
         self._use_los_for_debug_radial = True
-        self._ambient_spill_enabled = self._config_state.ambient_spill_enabled
-        self._ambient_spill_debug_show_only = (
-            self._config_state.ambient_spill_debug_show_only
-        )
 
         # Lights are only emitted when at least part of their light field is
         # visible to a sighted observer. The observer does not need LOS to the
@@ -946,22 +796,6 @@ class LightingFovToolWindow(QMainWindow):
         self._use_los_radial_checkbox.clicked.connect(self._on_debug_toggle_changed)
         debug_layout.addWidget(self._use_los_radial_checkbox)
 
-        self._ambient_spill_checkbox = QPushButton()
-        self._ambient_spill_checkbox.setCheckable(True)
-        self._ambient_spill_checkbox.setChecked(self._ambient_spill_enabled)
-        self._ambient_spill_checkbox.clicked.connect(self._on_debug_toggle_changed)
-        debug_layout.addWidget(self._ambient_spill_checkbox)
-
-        self._ambient_spill_only_checkbox = QPushButton()
-        self._ambient_spill_only_checkbox.setCheckable(True)
-        self._ambient_spill_only_checkbox.setChecked(
-            self._ambient_spill_debug_show_only
-        )
-        self._ambient_spill_only_checkbox.clicked.connect(
-            self._on_debug_toggle_changed
-        )
-        debug_layout.addWidget(self._ambient_spill_only_checkbox)
-
         self._set_debug_toggle_texts()
 
         debug_group.setLayout(debug_layout)
@@ -1080,13 +914,6 @@ class LightingFovToolWindow(QMainWindow):
         self._use_los_radial_checkbox.setText(
             f"Use LOS for debug radial: {'ON' if self._use_los_for_debug_radial else 'OFF'}"
         )
-        self._ambient_spill_checkbox.setText(
-            f"Ambient spill: {'ON' if self._ambient_spill_enabled else 'OFF'}"
-        )
-        self._ambient_spill_only_checkbox.setText(
-            "Show ambient spill only: "
-            f"{'ON' if self._ambient_spill_debug_show_only else 'OFF'}"
-        )
 
     def _on_debug_toggle_changed(self) -> None:
         """Handle debug visualization toggle changes."""
@@ -1099,16 +926,6 @@ class LightingFovToolWindow(QMainWindow):
             )
         elif sender is self._use_los_radial_checkbox:
             self._use_los_for_debug_radial = self._use_los_radial_checkbox.isChecked()
-        elif sender is self._ambient_spill_checkbox:
-            self._ambient_spill_enabled = self._ambient_spill_checkbox.isChecked()
-            self._config_state.ambient_spill_enabled = self._ambient_spill_enabled
-        elif sender is self._ambient_spill_only_checkbox:
-            self._ambient_spill_debug_show_only = (
-                self._ambient_spill_only_checkbox.isChecked()
-            )
-            self._config_state.ambient_spill_debug_show_only = (
-                self._ambient_spill_debug_show_only
-            )
 
         self._set_debug_toggle_texts()
         self._render_scene()
@@ -1169,7 +986,7 @@ class LightingFovToolWindow(QMainWindow):
             light_results,
             player_visible,
         )
-
+        
         opaque_grid, _ = self._get_cached_geometry_grids()
 
         # Render each tile
@@ -1304,6 +1121,7 @@ class LightingFovToolWindow(QMainWindow):
 
     def _has_los(self, opaque_grid: np.ndarray, x0: int, y0: int, x1: int, y1: int) -> bool:
         """Simple line of sight check using Bresenham."""
+        scene = self._scene
         dx = abs(x1 - x0)
         dy = abs(y1 - y0)
         sx = 1 if x0 < x1 else -1
@@ -1315,8 +1133,9 @@ class LightingFovToolWindow(QMainWindow):
             if x == x1 and y == y1:
                 return True
             # Check if current tile blocks light (walls and pillars)
-            if (x, y) != (x0, y0) and opaque_grid[y, x]:
-                return False
+            if (x, y) != (x0, y0):
+                if opaque_grid[y, x]:
+                    return False
 
             e2 = 2 * err
             if e2 > -dy:
@@ -1364,25 +1183,6 @@ class LightingFovToolWindow(QMainWindow):
         else:
             colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
-        if self._lighting_backend in (
-            FAST_DIFFUSE_BACKEND,
-            UNIFIED_PREVIEW_BACKEND,
-        ):
-            opaque_grid, _ = self._get_cached_geometry_grids()
-            spill_rgb = self._compute_ambient_spill_light(
-                active_lights=active_lights,
-                opaque_grid=opaque_grid,
-                player_visible=player_visible,
-            )
-            if self._ambient_spill_debug_show_only:
-                colored_light = spill_rgb
-                if diffuse_rgb is not None:
-                    diffuse_rgb = spill_rgb.copy()
-            else:
-                colored_light += spill_rgb
-                if diffuse_rgb is not None:
-                    diffuse_rgb += spill_rgb
-
         np.clip(colored_light, 0.0, 255.0, out=colored_light)
 
         lit_mask = np.any(colored_light > 1.0, axis=2)
@@ -1396,45 +1196,6 @@ class LightingFovToolWindow(QMainWindow):
         )
 
         return base_intensity, colored_light, diffuse_rgb
-
-    def _compute_ambient_spill_light(
-        self,
-        active_lights: list[LightRuntimeResult],
-        opaque_grid: np.ndarray,
-        player_visible: np.ndarray,
-    ) -> np.ndarray:
-        """Compute weak room-aware floor spill from direct-lit floor cells."""
-        scene = self._scene
-        if not self._ambient_spill_enabled:
-            return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
-
-        spill_lights: list[AmbientSpillLight] = []
-        for light_res in active_lights:
-            light_cfg = self._config_state.lights.get(light_res.source.name)
-            if light_cfg is None or not light_cfg.ambient_spill_enabled:
-                continue
-
-            spill_lights.append(
-                AmbientSpillLight(
-                    color=light_cfg.color,
-                    reach_mask=light_res.reach_mask,
-                    shape_mask=light_res.shape_mask,
-                    visibility_out=light_res.visibility_out,
-                    enabled=light_cfg.ambient_spill_enabled,
-                    extra_radius=light_cfg.ambient_spill_extra_radius,
-                    strength=light_cfg.ambient_spill_strength,
-                    decay=light_cfg.ambient_spill_decay,
-                    max_rgb=light_cfg.ambient_spill_max_rgb,
-                )
-            )
-
-        return compute_ambient_spill_rgb(
-            spill_lights,
-            opaque_grid,
-            player_visible,
-            show_full_light_field=self._show_full_light_field,
-            enabled=self._ambient_spill_enabled,
-        )
 
     def _compute_production_cache_lighting(self, active_lights: list[LightRuntimeResult]) -> np.ndarray:
         """Compute colored light with the renderer-facing contribution cache."""
@@ -1564,8 +1325,8 @@ class LightingFovToolWindow(QMainWindow):
         cell_mask = np.full((scene.height, scene.width), 0xFFFFFFFF, dtype=np.uint32)
         channels = 0xFFFFFFFF
 
-        from engine.render_lighting import _precompute_geometry_blockers
         from game.world.light_fov import compute_fov_all_octants
+        from engine.render_lighting import _precompute_geometry_blockers
 
         if scene.height_map is not None and scene.ceiling_map is not None:
             origin_height = int(scene.height_map[origin_y, origin_x])
@@ -1647,7 +1408,10 @@ class LightingFovToolWindow(QMainWindow):
             cache_key = (light_source.name, light_source.x, light_source.y, light_source.radius, light_source.intensity)
             if cache_key in self._light_reach_cache:
                 rev, res = self._light_reach_cache[cache_key]
-                light_res = res if rev == self._blocker_revision else None
+                if rev == self._blocker_revision:
+                    light_res = res
+                else:
+                    light_res = None
             else:
                 light_res = None
 
@@ -1678,7 +1442,7 @@ class LightingFovToolWindow(QMainWindow):
             light_res.shape_mask = shape_mask
             light_res.active = bool(np.any(effective_reach & observer_visible))
             light_res.reached_observer_visible_cells = int(np.count_nonzero(effective_reach & observer_visible))
-
+            
             h, w = observer_visible.shape
             if 0 <= light_source.y < h and 0 <= light_source.x < w:
                 light_res.emitter_seen_by_observer = bool(observer_visible[light_source.y, light_source.x])

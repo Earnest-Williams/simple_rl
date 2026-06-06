@@ -69,11 +69,6 @@ def _format_light_section(
     lines.append(f"beam_width = {config.beam_width:.2f}")
     lines.append(f"beam_length = {config.beam_length}")
     lines.append(f"softness = {config.softness:.2f}")
-    lines.append(f"ambient_spill_enabled = {config.ambient_spill_enabled}")
-    lines.append(f"ambient_spill_extra_radius = {config.ambient_spill_extra_radius}")
-    lines.append(f"ambient_spill_strength = {config.ambient_spill_strength:.2f}")
-    lines.append(f"ambient_spill_decay = {config.ambient_spill_decay:.2f}")
-    lines.append(f"ambient_spill_max_rgb = {config.ambient_spill_max_rgb:.1f}")
 
     if is_changed and original is not None:
         # Add original values as comments
@@ -96,29 +91,6 @@ def _format_light_section(
             original_parts.append(f"beam_length = {original.beam_length}")
         if abs(config.softness - original.softness) > 0.001:
             original_parts.append(f"softness = {original.softness:.2f}")
-        if config.ambient_spill_enabled != original.ambient_spill_enabled:
-            original_parts.append(
-                f"ambient_spill_enabled = {original.ambient_spill_enabled}"
-            )
-        if config.ambient_spill_extra_radius != original.ambient_spill_extra_radius:
-            original_parts.append(
-                f"ambient_spill_extra_radius = {original.ambient_spill_extra_radius}"
-            )
-        if (
-            abs(config.ambient_spill_strength - original.ambient_spill_strength)
-            > 0.001
-        ):
-            original_parts.append(
-                f"ambient_spill_strength = {original.ambient_spill_strength:.2f}"
-            )
-        if abs(config.ambient_spill_decay - original.ambient_spill_decay) > 0.001:
-            original_parts.append(
-                f"ambient_spill_decay = {original.ambient_spill_decay:.2f}"
-            )
-        if abs(config.ambient_spill_max_rgb - original.ambient_spill_max_rgb) > 0.001:
-            original_parts.append(
-                f"ambient_spill_max_rgb = {original.ambient_spill_max_rgb:.1f}"
-            )
         if original_parts:
             lines.append(f"# original: {', '.join(original_parts)}")
     else:
@@ -126,19 +98,6 @@ def _format_light_section(
 
     lines.append("")
     return lines
-
-
-def _format_tool_render_section(config_state: TileConfigState) -> list[str]:
-    """Format tool-only render controls."""
-    return [
-        "[tool.render]",
-        f"ambient_spill_enabled = {config_state.ambient_spill_enabled}",
-        (
-            "ambient_spill_debug_show_only = "
-            f"{config_state.ambient_spill_debug_show_only}"
-        ),
-        "",
-    ]
 
 
 def export_configuration(config_state: TileConfigState, output_path: Path) -> None:
@@ -171,12 +130,6 @@ def export_configuration(config_state: TileConfigState, output_path: Path) -> No
         f"{light_changes}/{total_lights} lights changed"
     )
     lines.append("")
-
-    lines.append("# ===========")
-    lines.append("# TOOL RENDER")
-    lines.append("# ===========")
-    lines.append("")
-    lines.extend(_format_tool_render_section(config_state))
 
     # Elements section header
     lines.append("# =============")
@@ -230,13 +183,6 @@ def load_configuration(config_state: TileConfigState, path: Path) -> None:
     if not path.exists():
         return
 
-    def parse_bool(value: object) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return bool(value)
-
     current_section = None
     with path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -264,12 +210,7 @@ def load_configuration(config_state: TileConfigState, path: Path) -> None:
                 if not current_section:
                     continue
 
-                if current_section == "tool.render":
-                    if key == "ambient_spill_enabled":
-                        config_state.ambient_spill_enabled = parse_bool(val)
-                    elif key == "ambient_spill_debug_show_only":
-                        config_state.ambient_spill_debug_show_only = parse_bool(val)
-                elif current_section.startswith("light."):
+                if current_section.startswith("light."):
                     light_name = current_section[len("light.") :]
                     if light_name not in config_state.lights:
                         # Create LightConfig if not present
@@ -297,16 +238,6 @@ def load_configuration(config_state: TileConfigState, path: Path) -> None:
                         light_cfg.beam_length = int(val)
                     elif key == "softness":
                         light_cfg.softness = float(val)
-                    elif key == "ambient_spill_enabled":
-                        light_cfg.ambient_spill_enabled = parse_bool(val)
-                    elif key == "ambient_spill_extra_radius":
-                        light_cfg.ambient_spill_extra_radius = int(val)
-                    elif key == "ambient_spill_strength":
-                        light_cfg.ambient_spill_strength = float(val)
-                    elif key == "ambient_spill_decay":
-                        light_cfg.ambient_spill_decay = float(val)
-                    elif key == "ambient_spill_max_rgb":
-                        light_cfg.ambient_spill_max_rgb = float(val)
                 else:
                     # Match ElementType
                     for et in ElementType:
