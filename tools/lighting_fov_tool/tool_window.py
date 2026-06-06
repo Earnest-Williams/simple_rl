@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal
 
 import numpy as np
 import structlog
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from game.world.fov import compute_light_color_array
+from engine.render_lighting import LightContributionCache
 from tools.lighting_fov_tool.exporter import (
     export_configuration,
     get_default_export_path,
@@ -44,6 +45,8 @@ from tools.lighting_fov_tool.tile_config import TileConfigState
 if TYPE_CHECKING:
     pass
 
+LightingBackend = Literal["Debug radial light", "Production LightContributionCache"]
+
 log = structlog.get_logger(__name__)
 
 # Constants
@@ -52,13 +55,10 @@ MIN_TILE_SIZE: Final[int] = 8
 MAX_TILE_SIZE: Final[int] = 32
 
 # Lighting constants
-LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = (
-    0.0  # Light factor for tiles outside player's field of view
-)
 AMBIENT_INTENSITY: Final[float] = 0.30
-LIGHT_EXPOSURE: Final[float] = 3.0
 RENDER_DEBOUNCE_MS: Final[int] = 33
-SHOW_FULL_LIGHT_FIELD: Final[bool] = True
+DEBUG_RADIAL_BACKEND: Final[LightingBackend] = "Debug radial light"
+PRODUCTION_CACHE_BACKEND: Final[LightingBackend] = "Production LightContributionCache"
 
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
@@ -79,6 +79,18 @@ AVAILABLE_TILES: Final[dict[str, int]] = {
     "effect_fire_1": 18,
     "effect_fire_2": 19,
 }
+
+
+@dataclass(frozen=True)
+class ToolLightSource:
+    """Configured light source passed to renderer-facing lighting backends."""
+
+    name: str
+    x: int
+    y: int
+    radius: int
+    color: tuple[int, int, int]
+    intensity: float
 
 
 class ColorButton(QPushButton):
@@ -322,6 +334,10 @@ class LightingFovToolWindow(QMainWindow):
         self._config_state = TileConfigState()
         self._config_state.initialize_defaults(self._scene.light_sources)
         self._tile_size = DEFAULT_TILE_SIZE
+        self._lighting_backend: LightingBackend = DEBUG_RADIAL_BACKEND
+        self._production_light_cache = LightContributionCache(
+            self._scene.height, self._scene.width
+        )
 
         # Set up render debounce timer
         self._render_timer = QTimer(self)
@@ -488,6 +504,17 @@ class LightingFovToolWindow(QMainWindow):
         actions_group = QGroupBox("Actions")
         actions_layout = QVBoxLayout()
 
+        backend_layout = QFormLayout()
+        self._lighting_backend_combo = QComboBox()
+        self._lighting_backend_combo.addItem(DEBUG_RADIAL_BACKEND)
+        self._lighting_backend_combo.addItem(PRODUCTION_CACHE_BACKEND)
+        self._lighting_backend_combo.setCurrentText(self._lighting_backend)
+        self._lighting_backend_combo.currentTextChanged.connect(
+            self._on_lighting_backend_changed
+        )
+        backend_layout.addRow("Lighting Backend:", self._lighting_backend_combo)
+        actions_layout.addLayout(backend_layout)
+
         reset_all_btn = QPushButton("Reset All to Original")
         reset_all_btn.clicked.connect(self._on_reset_all)
         actions_layout.addWidget(reset_all_btn)
@@ -566,6 +593,15 @@ class LightingFovToolWindow(QMainWindow):
         """Handle configuration change from any panel."""
         self._render_timer.start()
 
+    def _on_lighting_backend_changed(self, backend_name: str) -> None:
+        """Switch between debug and production lighting backends."""
+        if backend_name not in (DEBUG_RADIAL_BACKEND, PRODUCTION_CACHE_BACKEND):
+            log.warning("Ignoring unknown lighting backend", backend=backend_name)
+            return
+
+        self._lighting_backend = backend_name
+        self._render_scene()
+
     def _on_reset_all(self) -> None:
         """Reset all configurations to original values."""
         self._config_state.reset_all_to_original()
@@ -630,10 +666,7 @@ class LightingFovToolWindow(QMainWindow):
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
                 # Apply lighting: show full light field for tuning (not clipped by player FOV)
-                if visible[y, x]:
-                    intensity = base_intensity[y, x]
-                else:
-                    intensity = 0.05
+                intensity = base_intensity[y, x] if visible[y, x] else 0.05
                 light_rgb = colored_light[y, x]
 
                 # Apply lighting: (base_color * intensity) + colored_light
@@ -725,84 +758,130 @@ class LightingFovToolWindow(QMainWindow):
                 y += sy
 
     def _compute_lighting(self, visible: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute base intensity and RGB colored lighting for each tile.
-
-        Light sources illuminate all tiles they can reach, independent of player FOV.
-        The visible parameter is not used in lighting computation but kept for API compatibility.
-
-        Returns:
-            Tuple of (base_intensity, colored_light_rgb):
-            - base_intensity: 2D float32 array of ambient lighting (height, width)
-            - colored_light_rgb: 3D float32 array of colored light (height, width, 3)
-        """
+        """Compute base intensity and RGB colored lighting for each tile."""
         scene = self._scene
-        config = self._config_state
 
-        # Base ambient lighting intensity
         base_intensity = np.full(
             (scene.height, scene.width), AMBIENT_INTENSITY, dtype=np.float32
         )
 
-        # RGB colored light contributions (additive)
-        colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
+        if self._lighting_backend == DEBUG_RADIAL_BACKEND:
+            colored_light = self._compute_debug_radial_lighting()
+        else:
+            colored_light = self._compute_production_cache_lighting()
 
-        # Create opaque grid for FOV computation (walls and pillars block light)
-        opaque_grid = np.zeros((scene.height, scene.width), dtype=bool)
-        for y in range(scene.height):
-            for x in range(scene.width):
-                tile = scene.tiles[y, x]
-                if tile in (ElementType.WALL, ElementType.PILLAR):
-                    opaque_grid[y, x] = True
-
-        # Add contribution from each light source using compute_light_color_array
-        for ls in scene.light_sources:
-            light_cfg = config.lights.get(ls.name)
-            if light_cfg is None:
-                continue
-
-            # Use compute_light_color_array from fov module for colored lighting
-            # Create temporary buffer for this light, then multiply by intensity
-            temp_light = np.zeros_like(colored_light)
-            compute_light_color_array(
-                origin_xy=(ls.x, ls.y),
-                range_limit=light_cfg.radius,
-                opaque_grid=opaque_grid,
-                height_map=scene.height_map,
-                ceiling_map=scene.ceiling_map,
-                origin_height=0,
-                target_rgb_array=temp_light,
-                base_color_rgb=light_cfg.color,
-            )
-            temp_light *= float(light_cfg.intensity)
-            colored_light += temp_light
-
-        # Diagnostic/tool exposure, not production balance.
-        colored_light *= LIGHT_EXPOSURE
         np.clip(colored_light, 0.0, 255.0, out=colored_light)
 
-        # Add diagnostic logging
         lit_mask = np.any(colored_light > 1.0, axis=2)
-        max_light = float(colored_light.max())
-        mean_light = float(colored_light.mean())
-        lit_tiles = int(lit_mask.sum())
         log.info(
             "light stats",
-            max=max_light,
-            mean=mean_light,
-            lit_tiles=lit_tiles,
-            total_tiles=scene.height * scene.width,
-        )
-        print(
-            "colored_light stats:",
-            "max=",
-            max_light,
-            "mean=",
-            mean_light,
-            "lit_tiles=",
-            lit_tiles,
+            backend=self._lighting_backend,
+            max=float(colored_light.max()),
+            mean=float(colored_light.mean()),
+            lit_tiles=int(lit_mask.sum()),
+            total_tiles=int(scene.width * scene.height),
         )
 
         return base_intensity, colored_light
+
+    def _compute_debug_radial_lighting(self) -> np.ndarray:
+        """Compute tool-only radial light contributions without FOV occlusion."""
+        scene = self._scene
+        colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
+
+        for light_source in self._get_configured_light_sources():
+            self._accumulate_radial_light_debug(
+                colored_light,
+                origin_x=light_source.x,
+                origin_y=light_source.y,
+                radius=light_source.radius,
+                color=light_source.color,
+                intensity=light_source.intensity,
+            )
+
+        # Tool-only exposure.
+        colored_light *= 2.0
+        return colored_light
+
+    def _compute_production_cache_lighting(self) -> np.ndarray:
+        """Compute colored light with the renderer-facing contribution cache."""
+        scene = self._scene
+        light_sources = self._get_configured_light_sources()
+        if not light_sources:
+            return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
+
+        opaque_grid = (scene.tiles == ElementType.WALL) | (scene.tiles == ElementType.PILLAR)
+        colored_light = self._production_light_cache.update(
+            light_sources,
+            opaque_grid,
+            scene_seq=0,
+            height_map=scene.height_map,
+            ceiling_map=scene.ceiling_map,
+        )
+        return colored_light.astype(np.float32, copy=True)
+
+    def _get_configured_light_sources(self) -> list[ToolLightSource]:
+        """Return scene light definitions overlaid with current UI configuration."""
+        light_sources: list[ToolLightSource] = []
+        for light_source in self._scene.light_sources:
+            light_cfg = self._config_state.lights.get(light_source.name)
+            if light_cfg is None:
+                continue
+
+            light_sources.append(
+                ToolLightSource(
+                    name=light_source.name,
+                    x=light_source.x,
+                    y=light_source.y,
+                    radius=light_cfg.radius,
+                    color=light_cfg.color,
+                    intensity=light_cfg.intensity,
+                )
+            )
+        return light_sources
+
+    def _accumulate_radial_light_debug(
+        self,
+        target: np.ndarray,
+        *,
+        origin_x: int,
+        origin_y: int,
+        radius: int,
+        color: tuple[int, int, int],
+        intensity: float,
+    ) -> None:
+        """Debug light accumulator for the tool.
+
+        This intentionally bypasses the legacy FOV light path so the tool can verify
+        sliders, colors, radius, exposure, and compositing independently.
+        """
+        if radius <= 0 or intensity <= 0.0:
+            return
+
+        scene = self._scene
+        radius_sq = float(radius * radius)
+
+        min_x = max(0, origin_x - radius)
+        max_x = max(min_x, min(scene.width, origin_x + radius + 1))
+        min_y = max(0, origin_y - radius)
+        max_y = max(min_y, min(scene.height, origin_y + radius + 1))
+
+        y_coords, x_coords = np.ogrid[min_y:max_y, min_x:max_x]
+        dx = x_coords - origin_x
+        dy = y_coords - origin_y
+        dist_sq = dx * dx + dy * dy
+
+        valid = dist_sq <= radius_sq
+
+        # More readable than squared falloff for a tuning tool.
+        dist = np.sqrt(dist_sq.astype(np.float32))
+        falloff = np.where(valid, 1.0 - (dist / float(radius)), 0.0)
+        falloff = np.clip(falloff, 0.0, 1.0)
+
+        color_rgb = np.array(color, dtype=np.float32)
+        contribution = falloff[..., None] * color_rgb * float(intensity)
+
+        target[min_y:max_y, min_x:max_x, :] += contribution
 
     def _composite_tile(
         self,
