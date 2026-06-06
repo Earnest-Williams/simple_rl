@@ -846,3 +846,85 @@ def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> N
             raise
     except Exception:
         pass
+
+
+def test_find_visible_enemies_with_none_faction_preserves_old_filtering() -> None:
+    """Test that find_visible_enemies preserves old behavior for factionless actors.
+    
+    In the old code, when the observer has no faction (faction is None),
+    faction filtering was not applied at all. This means factionless entities
+    should be included in results when the observer is also factionless.
+    """
+    from game.ai.perception import find_visible_enemies
+    import numpy as np
+    
+    state = _make_state()
+    
+    # Create a factionless observer entity
+    observer_id = state.entity_registry.create_entity(
+        x=3, y=3, glyph=100, color_fg=(255, 0, 0), name="Observer"
+    )
+    
+    # Create a factionless target entity (should be visible to factionless observer)
+    target_id = state.entity_registry.create_entity(
+        x=4, y=4, glyph=101, color_fg=(0, 0, 255), name="Target"
+    )
+    
+    # Create an entity with a faction (should also be visible to factionless observer)
+    faction_entity_id = state.entity_registry.create_entity(
+        x=5, y=5, glyph=102, color_fg=(0, 255, 0), name="FactionEntity", faction="enemy"
+    )
+    
+    # Create a simple los_map where all positions are visible
+    los_map = np.ones((10, 10), dtype=bool)
+    
+    # Create entity_row for the factionless observer
+    entity_row = {
+        "entity_id": observer_id,
+        "x": 3,
+        "y": 3,
+        "faction": None,  # No faction
+        "vision_range": 10
+    }
+    
+    # Call find_visible_enemies
+    result = find_visible_enemies(entity_row, state, los_map)
+    
+    # Extract entity_ids from results
+    result_ids = {enemy["entity_id"] for enemy in result}
+    
+    # Both the factionless target and the factioned entity should be visible
+    # because the observer has no faction, so no faction filtering should occur
+    assert target_id in result_ids, f"Factionless target should be visible to factionless observer"
+    assert faction_entity_id in result_ids, f"Factioned entity should be visible to factionless observer"
+    
+    # Now test with an observer that HAS a faction
+    observer_with_faction_id = state.entity_registry.create_entity(
+        x=6, y=6, glyph=103, color_fg=(255, 255, 0), name="FactionObserver", faction="player"
+    )
+    
+    # Create another entity with the same faction
+    same_faction_id = state.entity_registry.create_entity(
+        x=7, y=7, glyph=104, color_fg=(255, 0, 255), name="SameFaction", faction="player"
+    )
+    
+    # Create an entity with a different faction
+    different_faction_id = state.entity_registry.create_entity(
+        x=8, y=8, glyph=105, color_fg=(0, 255, 255), name="DifferentFaction", faction="enemy"
+    )
+    
+    entity_row_with_faction = {
+        "entity_id": observer_with_faction_id,
+        "x": 6,
+        "y": 6,
+        "faction": "player",
+        "vision_range": 10
+    }
+    
+    result2 = find_visible_enemies(entity_row_with_faction, state, los_map)
+    result_ids2 = {enemy["entity_id"] for enemy in result2}
+    
+    # Same faction entity should NOT be visible
+    assert same_faction_id not in result_ids2, f"Same faction entity should not be visible"
+    # Different faction entity SHOULD be visible
+    assert different_faction_id in result_ids2, f"Different faction entity should be visible"

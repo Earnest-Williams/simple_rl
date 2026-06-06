@@ -352,45 +352,55 @@ def find_visible_enemies(
     registry = game_state.entity_registry
     vision_range = _row_int(entity_row, "vision_range") or game_state.fov_radius
     spatial_index = getattr(game_state, "spatial_index", None)
+    
+    # Build a dict of all valid enemy targets using store accessors
+    enemy_rows: dict[int, VisibleTarget] = {}
+    for idx in registry.active_indices():
+        if not registry.is_active_at(int(idx)):
+            continue
+        other_id = registry.entity_id_at(int(idx))
+        other_faction = registry.faction_at(int(idx))
+        # Skip self
+        if other_id == entity_id:
+            continue
+        # Skip same faction only if actor has a faction
+        if faction is not None and other_faction == faction:
+            continue
+        target = registry.visible_target_at(int(idx))
+        if target is not None:
+            enemy_rows[other_id] = target
+    
+    # Get nearby entities from spatial index if available
     nearby: object = None
     if spatial_index is not None and hasattr(spatial_index, "query_radius"):
         nearby = spatial_index.query_radius((ex, ey), vision_range)
-
-    # Build enemy_rows dict from store accessors if spatial index is not available
-    enemy_rows: dict[int, VisibleTarget] = {}
-    if nearby is None:
-        for idx in registry.active_indices():
-            if not registry.is_active_at(int(idx)):
-                continue
-            other_id = registry.entity_id_at(int(idx))
-            other_faction = registry.faction_at(int(idx))
-            # Skip self and same faction
-            if other_id == entity_id or other_faction == faction:
-                continue
-            target = registry.visible_target_at(int(idx))
-            if target is not None:
-                enemy_rows[other_id] = target
-
-    candidates = nearby if nearby else enemy_rows.values()
-    for other in candidates:
-        if isinstance(other, dict):
-            other_row = other
-            ox = other_row["x"]
-            oy = other_row["y"]
-            other_id = other_row["entity_id"]
-        else:
-            other_id, ox, oy = other
-            other_row = enemy_rows.get(int(other_id))
+    
+    # Process candidates
+    if nearby:
+        # Use spatial index results - these are (entity_id, x, y) tuples
+        for candidate in nearby:
+            other_id, ox, oy = candidate
+            # Skip if not in our pre-filtered enemy_rows
+            other_row = enemy_rows.get(other_id)
             if other_row is None:
                 continue
-        if other_id == entity_id:
-            continue
-        if not game_map.in_bounds(int(ox), int(oy)):
-            continue
-        if not los_map[int(oy), int(ox)]:
-            continue
-        if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
-            enemies.append(other_row)
+            if not game_map.in_bounds(int(ox), int(oy)):
+                continue
+            if not los_map[int(oy), int(ox)]:
+                continue
+            if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
+                enemies.append(other_row)
+    else:
+        # Fallback to all enemy_rows
+        for other_id, other_row in enemy_rows.items():
+            ox = other_row["x"]
+            oy = other_row["y"]
+            if not game_map.in_bounds(int(ox), int(oy)):
+                continue
+            if not los_map[int(oy), int(ox)]:
+                continue
+            if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
+                enemies.append(other_row)
 
     log.debug(
         "Visible enemies located",
