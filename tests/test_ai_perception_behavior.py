@@ -46,12 +46,10 @@ def _make_game_state() -> GameState:
 
 
 def _set_position(
-    game_state: GameState, entity_id: int, row: MockEntityRow, x: int, y: int
+    game_state: GameState, entity_id: int, row: Any, x: int, y: int
 ) -> None:
     game_state.entity_registry.set_entity_component(entity_id, "x", x)
     game_state.entity_registry.set_entity_component(entity_id, "y", y)
-    row["x"] = x
-    row["y"] = y
 
 
 def _make_priority_snapshot(entity_id: int) -> PerceptionSnapshot:
@@ -232,34 +230,33 @@ def test_goap_chooses_visual_then_audio_then_scent_then_memory() -> None:
         ai_type="goap",
         species="enemy",
     )
-    row = MockEntityRow({"entity_id": entity_id, "x": 4, "y": 4})
     rng = cast(GameRNG, MockRNG())
     snapshot = _make_priority_snapshot(entity_id)
     fact = snapshot.entity_facts[entity_id]
 
-    _action_move_attack(row, game_state, rng, snapshot)
+    _action_move_attack(entity_id, game_state, rng, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (5, 4)
 
     fact.visible_targets = []
-    _set_position(game_state, entity_id, row, 4, 4)
-    _action_move_attack(row, game_state, rng, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    _action_move_attack(entity_id, game_state, rng, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (4, 5)
 
     fact.heard_source = None
     fact.heard_flow = None
-    _set_position(game_state, entity_id, row, 4, 4)
-    _action_move_attack(row, game_state, rng, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    _action_move_attack(entity_id, game_state, rng, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (3, 4)
 
     fact.scent_position = None
-    _set_position(game_state, entity_id, row, 4, 4)
-    _action_move_attack(row, game_state, rng, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    _action_move_attack(entity_id, game_state, rng, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (4, 3)
@@ -276,30 +273,29 @@ def test_strategy_charge_and_flee_follow_signal_priority() -> None:
         ai_type="strategy",
         species="enemy",
     )
-    row = MockEntityRow({"entity_id": entity_id, "x": 4, "y": 4})
     snapshot = _make_priority_snapshot(entity_id)
     fact = snapshot.entity_facts[entity_id]
 
-    charge_behavior(row, game_state, snapshot)
+    charge_behavior(entity_id, game_state, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (5, 4)
 
-    _set_position(game_state, entity_id, row, 4, 4)
-    flee_behavior(row, game_state, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    flee_behavior(entity_id, game_state, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (3, 4)
 
     fact.visible_targets = []
-    _set_position(game_state, entity_id, row, 4, 4)
-    charge_behavior(row, game_state, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    charge_behavior(entity_id, game_state, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (4, 5)
 
-    _set_position(game_state, entity_id, row, 4, 4)
-    flee_behavior(row, game_state, snapshot)
+    _set_position(game_state, entity_id, entity_id, 4, 4)
+    flee_behavior(entity_id, game_state, snapshot)
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert (pos.x, pos.y) == (4, 3)

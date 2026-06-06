@@ -10,11 +10,9 @@ import numpy as np
 import structlog
 
 from game.ai.contracts import (
-    EntityRow,
     GOAPPerception,
     is_structured_perception,
     priority_signal,
-    require_row_int,
 )
 from game.systems import movement_system
 from game.systems.pathfinding.flowfield import FlowFieldPathfinder
@@ -67,14 +65,12 @@ def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
 
 
 def _action_move_attack(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Basic behaviour: move toward priority signal or wander."""
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     pos = game_state.entity_registry.xy_of(entity_id)
     if pos is None:
         return False
@@ -159,15 +155,13 @@ def _fallback_cardinal_step(
 
 
 def _action_seek_cover(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Intermediate behaviour: attempt to move to a tile out of sight."""
     del rng
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     pos = game_state.entity_registry.xy_of(entity_id)
     if pos is None:
         return False
@@ -193,15 +187,13 @@ def _action_seek_cover(
 
 
 def _action_coordinate(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
 ) -> bool:
     """Advanced behaviour: coordinate with allies (placeholder)."""
     del rng, perception
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     # For now we simply record that coordination was attempted.
     game_state.last_coordination = entity_id
     return True
@@ -215,7 +207,7 @@ ACTION_TIERS: list[list[GOAPAction]] = [
 
 
 def take_turn(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: GOAPPerception,
@@ -230,8 +222,6 @@ def take_turn(
         Determines the level of intelligence available to the agent. Higher
         values unlock more sophisticated actions.
     """
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     tier = ACTION_TIERS[min(max(plan_depth, 1), len(ACTION_TIERS)) - 1]
     for action in tier:
         if action(entity_id, game_state, rng, perception):
