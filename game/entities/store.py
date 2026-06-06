@@ -561,16 +561,17 @@ class EntityStore:
         fy = self.y[valid_indices].astype(np.int64)
         fx = self.x[valid_indices].astype(np.int64)
 
-        # Compute is_dead: not active OR hp <= 0
-        is_dead = np.zeros(len(valid_indices), dtype=np.bool_)
-        for i, idx in enumerate(valid_indices):
-            is_dead[i] = not self.is_active[idx] or int(self.hp[idx]) <= 0
+        # Compute is_dead: since valid_indices is already filtered by active_mask,
+        # we only need to check hp <= 0
+        is_dead = self.hp[valid_indices] <= 0
 
         # Extract perception_stat with default of 10
-        perception_stat = np.zeros(len(valid_indices), dtype=np.int64)
-        for i, idx in enumerate(valid_indices):
-            p_stat = self.extra_components[idx].get("perception_stat")
-            perception_stat[i] = 10 if p_stat is None else int(p_stat)
+        # Use list comprehension for clarity since extra_components is a list of dicts
+        perception_stat = np.array([
+            10 if self.extra_components[idx].get("perception_stat") is None 
+            else int(self.extra_components[idx].get("perception_stat"))
+            for idx in valid_indices
+        ], dtype=np.int64)
 
         return ids, fy, fx, is_dead, perception_stat
 

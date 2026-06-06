@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Literal, Protocol, TypeAlias, TypeGuard, runtime_checkable
 
 import numpy as np

@@ -560,7 +560,6 @@ def _process_monster_perception_arrays_chunk(
     ids: NDArray[np.int64],
     fy: NDArray[np.int64],
     fx: NDArray[np.int64],
-    is_dead: NDArray[np.bool_],
     perception_stat: NDArray[np.int64],
     *,
     cave_cost: NDArray[np.int32],
@@ -583,9 +582,6 @@ def _process_monster_perception_arrays_chunk(
     width = cave_cost.shape[2]
 
     for idx in range(num_monsters):
-        if is_dead[idx]:
-            continue
-
         monster_id = int(ids[idx])
         m_y = int(fy[idx])
         m_x = int(fx[idx])
@@ -618,6 +614,7 @@ def monster_perception_arrays(
     player_x: int,
     player_stealth_skill: int,
     rng: GameRNG,
+    num_jobs: int | None = None,
     deterministic: bool = True,
     noise_flow_type: FlowType = FlowType.REAL_NOISE,
 ) -> list[int]:
@@ -644,7 +641,9 @@ def monster_perception_arrays(
     active_indices = active_indices[sorted_indices]
 
     num_active = len(active_indices)
-    resolved_jobs = 1 if deterministic else DEFAULT_NUM_JOBS
+    resolved_jobs = num_jobs if num_jobs is not None else DEFAULT_NUM_JOBS
+    if deterministic:
+        resolved_jobs = 1
     resolved_jobs = max(1, resolved_jobs)
 
     n_chunks = min(num_active, resolved_jobs * 4)
@@ -671,7 +670,6 @@ def monster_perception_arrays(
             chunk_ids = ids[active_indices[start:end]]
             chunk_fy = fy[active_indices[start:end]]
             chunk_fx = fx[active_indices[start:end]]
-            chunk_is_dead = is_dead[active_indices[start:end]]
             chunk_perception = perception_stat[active_indices[start:end]]
             chunk_seeds = all_seeds[start:end]
 
@@ -679,7 +677,6 @@ def monster_perception_arrays(
                 chunk_ids,
                 chunk_fy,
                 chunk_fx,
-                chunk_is_dead,
                 chunk_perception,
                 cave_cost=cave_cost,
                 flow_centers=flow_centers,
@@ -695,7 +692,6 @@ def monster_perception_arrays(
                 ids[active_indices[start:end]],
                 fy[active_indices[start:end]],
                 fx[active_indices[start:end]],
-                is_dead[active_indices[start:end]],
                 perception_stat[active_indices[start:end]],
                 cave_cost=cave_cost,
                 flow_centers=flow_centers,
@@ -764,6 +760,7 @@ def monster_perception(
         player_x=player_x,
         player_stealth_skill=player_stealth_skill,
         rng=master_rng,
+        num_jobs=num_jobs,
         deterministic=deterministic,
         noise_flow_type=noise_flow_type,
     )

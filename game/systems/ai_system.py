@@ -2,7 +2,7 @@
 
 This module exposes :func:`dispatch_ai` which selects an appropriate AI
 adapter for an entity based on its metadata.  Adapters must implement the
-``take_turn(entity_row, game_state, rng, perception)`` interface so the game
+``take_turn(entity_id, game_state, rng, perception)`` interface so the game
 can mix multiple decision making systems.
 """
 
