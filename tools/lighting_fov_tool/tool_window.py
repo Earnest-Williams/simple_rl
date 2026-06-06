@@ -718,9 +718,11 @@ class LightingFovToolWindow(QMainWindow):
                 # Apply lighting: show full light field for tuning (not clipped by player FOV)
                 if self._show_full_light_field:
                     intensity = base_intensity[y, x]
+                    light_rgb = colored_light[y, x]
                 else:
-                    intensity = base_intensity[y, x] if visible[y, x] else 0.05
-                light_rgb = colored_light[y, x]
+                    is_visible = visible[y, x]
+                    intensity = base_intensity[y, x] if is_visible else 0.05
+                    light_rgb = colored_light[y, x] if is_visible else colored_light[y, x] * 0.05
 
                 # Apply lighting: (base_color * intensity) + colored_light
                 fg_lit = (
