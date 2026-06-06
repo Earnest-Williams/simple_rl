@@ -116,7 +116,7 @@ The project prioritizes performance through high-performance libraries (Polars, 
 
 ### Known Limitations
 * Some rendering operations may benefit from caching and dirty-rect tracking
-* Verify remaining non-combat item/equipment DataFrame paths and profile the next dominant turn-processing bottleneck after the entity-store migration
+* Non-combat item/equipment DataFrame paths remain unverified and may represent the next dominant turn-processing bottleneck after the entity-store migration
 * Flow field pathfinding may benefit from caching when targets are stationary
 
 For detailed performance analysis and optimization recommendations, see
