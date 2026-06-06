@@ -428,7 +428,7 @@ def _has_clear_legacy_los(
             block2 = False
             if not (prev_x == x1 and prev_y + sy == y1):
                 block2 = _legacy_cell_blocks_los(transparency, opacity_threshold, prev_x, prev_y + sy)
-            if block1 and block2:
+            if block1 or block2:
                 return False
 
         if x == x1 and y == y1:
@@ -488,7 +488,7 @@ def _has_clear_extended_los(
             block2 = False
             if not (prev_x == x1 and prev_y + sy == y1):
                 block2 = _extended_cell_blocks_los(opaque, transparency, cell_mask, use_mask, light_channels, prev_x, prev_y + sy, opacity_threshold)
-            if block1 and block2:
+            if block1 or block2:
                 return False
 
         if x == x1 and y == y1:

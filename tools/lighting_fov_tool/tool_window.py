@@ -904,7 +904,9 @@ class LightingFovToolWindow(QMainWindow):
     def _set_debug_toggle_texts(self) -> None:
         """Set the text for all debug toggle buttons based on current state."""
         self._show_full_light_checkbox.setText(
-            f"Show full light field: {'ON' if self._show_full_light_field else 'OFF'}"
+            "Show active light fields: ON"
+            if self._show_full_light_field
+            else "Player-clipped lighting: ON"
         )
         self._show_hidden_lights_checkbox.setText(
             f"Show hidden emitters: {'ON' if self._show_hidden_light_sources else 'OFF'}"
@@ -980,7 +982,10 @@ class LightingFovToolWindow(QMainWindow):
         light_results = self._compute_frame_light_results(observer_visible)
 
         # Compute lighting from emitters that are active
-        base_intensity, colored_light, diffuse_rgb = self._compute_lighting(light_results)
+        base_intensity, colored_light, diffuse_rgb = self._compute_lighting(
+            light_results,
+            player_visible,
+        )
         
         opaque_grid, _ = self._get_cached_geometry_grids()
 
@@ -1071,7 +1076,12 @@ class LightingFovToolWindow(QMainWindow):
             if light_cfg is None:
                 continue
 
-            is_visible = res.emitter_seen_by_observer
+            h, w = player_visible.shape
+            is_visible = (
+                0 <= ls.y < h
+                and 0 <= ls.x < w
+                and player_visible[ls.y, ls.x]
+            )
             is_active = res.active
             should_hide_marker = (
                 not self._show_full_light_field
@@ -1135,7 +1145,11 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(self, light_results: list[LightRuntimeResult]) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    def _compute_lighting(
+        self,
+        light_results: list[LightRuntimeResult],
+        player_visible: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
         """Compute base intensity and RGB lighting for active visible emitters."""
         scene = self._scene
 
@@ -1156,6 +1170,7 @@ class LightingFovToolWindow(QMainWindow):
                     light_res=light_res,
                     opaque_grid=opaque_grid,
                     transparency_grid=transparency_grid,
+                    player_visible=player_visible,
                 )
             # Match 2.0 tool exposure of previous debug radial backend
             colored_light *= 2.0
@@ -1434,19 +1449,6 @@ class LightingFovToolWindow(QMainWindow):
             else:
                 light_res.emitter_seen_by_observer = False
 
-            if light_source.name == "bleed_test_light":
-                for y in range(15, 27):
-                    log.info(
-                        "bleed corridor fov",
-                        y=y,
-                        wall_x3=bool(light_res.reach_mask[y, 3]),
-                        right_x4=bool(light_res.reach_mask[y, 4]),
-                        right_x5=bool(light_res.reach_mask[y, 5]),
-                        side_wall_x3=int(light_res.side_bits_out[y, 3]),
-                        vis_wall_x3=float(light_res.visibility_out[y, 3]),
-                        vis_right_x4=float(light_res.visibility_out[y, 4]),
-                        vis_right_x5=float(light_res.visibility_out[y, 5]),
-                    )
 
             if light_res.active:
                 active_light_names.add(light_source.name)
@@ -1463,20 +1465,36 @@ class LightingFovToolWindow(QMainWindow):
         light_res: LightRuntimeResult,
         opaque_grid: np.ndarray,
         transparency_grid: np.ndarray,
+        player_visible: np.ndarray,
     ) -> None:
-        """Compute visible tiles once using production FOV function, then apply NumPy falloff."""
+        """Accumulate fast diffuse light, clipped to player-visible cells unless debugging full field."""
         if light_res.source.radius <= 0 or light_res.source.intensity <= 0.0:
             return
 
         valid = light_res.reach_mask
         visibility_out = light_res.visibility_out
 
-        falloff = light_res.shape_mask if light_res.shape_mask is not None else np.zeros_like(valid, dtype=np.float32)
+        falloff = (
+            light_res.shape_mask
+            if light_res.shape_mask is not None
+            else np.zeros_like(valid, dtype=np.float32)
+        )
 
         if self._use_los_for_debug_radial:
             falloff = falloff * visibility_out
 
-        target += falloff[..., None] * np.array(light_res.source.color, dtype=np.float32) * light_res.source.intensity
+        # Fast Diffuse is floor/diffuse only. It is not wall-face aware.
+        falloff = falloff * (~opaque_grid)
+
+        # Gameplay/player-clipped mode.
+        if not self._show_full_light_field:
+            falloff = falloff * player_visible
+
+        target += (
+            falloff[..., None]
+            * np.array(light_res.source.color, dtype=np.float32)
+            * light_res.source.intensity
+        )
 
     def _get_light_shape_mask(self, light_res: LightRuntimeResult, light_cfg) -> np.ndarray:
         """Compute the post-shape effective mask for a light."""

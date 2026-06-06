@@ -44,9 +44,16 @@ def test_bleed_corridor_fov():
         0.999999, # opacity_threshold
     )
     
-    print(f"opaque_grid[19, 3] = {opaque_grid[19, 3]}")
+    assert visible_out[19, 3] != 0  # separator wall face may be reached
+    assert visible_out[19, 4] == 0
+    assert visible_out[19, 5] == 0
+
+    assert visible_out[19, 2] != 0  # light origin and left hallway reached
+    assert visible_out[19, 1] != 0
+
     for y in range(15, 27):
-        print(f"bleed corridor fov y={y} wall_x3={bool(visible_out[y, 3])} right_x4={bool(visible_out[y, 4])} right_x5={bool(visible_out[y, 5])} side_wall_x3={int(side_bits_out[y, 3])}")
+        assert visible_out[y, 4] == 0
+        assert visible_out[y, 5] == 0
 
 if __name__ == "__main__":
     test_bleed_corridor_fov()
