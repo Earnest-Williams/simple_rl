@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Final, NotRequired, TypedDict
 
 import numpy as np
 import polars as pl
@@ -9,7 +9,18 @@ import polars as pl
 from common.constants import Material
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
-MAX_LOOKUP_MATERIAL_ID: int = 100_000
+MAX_LOOKUP_MATERIAL_ID: Final[int] = 100_000
+
+
+class ShapedMapArrays(TypedDict):
+    """TypedDict for the return type of load_shaped_map_as_arrays."""
+
+    tile_id_grid: np.ndarray
+    origin: tuple[int, int]
+    shape: tuple[int, int]
+    height_grid: NotRequired[np.ndarray]
+    floor_depth_grid: NotRequired[np.ndarray]
+    chamber_id_grid: NotRequired[np.ndarray]
 
 
 def load_shaped_map_as_arrays(
@@ -19,7 +30,7 @@ def load_shaped_map_as_arrays(
     default_height: float = 0.0,
     default_floor_depth: float = 0.0,
     default_chamber_id: int = -1,
-) -> dict[str, Any]:
+) -> ShapedMapArrays:
     """Load a shaped map IPC file into numpy grids."""
     df = pl.read_ipc(arrow_path)
 
@@ -50,7 +61,7 @@ def load_shaped_map_as_arrays(
     )
     tile_id_grid[gy, gx] = df.get_column("material_id").to_numpy().astype(np.uint16)
 
-    out: dict[str, Any] = {
+    out: ShapedMapArrays = {
         "tile_id_grid": tile_id_grid,
         "origin": (min_x, min_y),
         "shape": (height, width),

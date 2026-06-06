@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Final
 
 import numpy as np
 import orjson
@@ -25,6 +25,7 @@ from auto.simulation import (
     World,
     enemy_act,
 )
+from common.tuning import DEFAULT_GRID_SIZE as DEFAULT_GRID_SIZE
 from Dungeon import core, processor, shaper
 from engine.render_lighting import apply_memory_fade
 from skills.utils import numba_warmup
@@ -32,7 +33,7 @@ from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
 
 _repo_root_candidate = Path(__file__)
-REPO_ROOT = (
+REPO_ROOT: Final[Path] = (
     _repo_root_candidate.resolve().parent
     if _repo_root_candidate.exists()
     else _repo_root_candidate.parent
@@ -41,13 +42,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 os.environ.setdefault("PYTHONPATH", str(REPO_ROOT))
 
-DEFAULT_SEED: int | None = None
-FALLBACK_SEED: int = 1
-DEFAULT_MAX_NODES = 400
-DEFAULT_MAX_DEPTH = 50
-DEFAULT_CA_ITERATIONS = 8
-DEFAULT_OUTPUT_FILE = "generated_dungeon.arrow"
-from common.tuning import DEFAULT_GRID_SIZE as DEFAULT_GRID_SIZE  # noqa: E402
+DEFAULT_SEED: Final[int | None] = None
+FALLBACK_SEED: Final[int] = 1
+DEFAULT_MAX_NODES: Final[int] = 400
+DEFAULT_MAX_DEPTH: Final[int] = 50
+DEFAULT_CA_ITERATIONS: Final[int] = 8
+DEFAULT_OUTPUT_FILE: Final[str] = "generated_dungeon.arrow"
 
 log = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ def run_pipeline(
         for p in Path(".").glob("**/overland_metadata.json"):
             metadata_path = p
             break
-            
+
     if metadata_path.exists():
         try:
             with open(metadata_path, "r", encoding="utf-8") as f:
@@ -157,12 +157,18 @@ def run_pipeline(
                         t_type = trans.get("transition_type")
                         if t_type in {1, 2, "CAVE_ENTRANCE", "PONOR_DESCENT"}:
                             transition_payload = trans
-                            log.info("Loaded transition payload from overland metadata: %s", trans)
+                            log.info(
+                                "Loaded transition payload from overland metadata: %s",
+                                trans,
+                            )
                             break
                     if not transition_payload and transitions:
                         transition_payload = transitions[0]
         except Exception as exc:
-            log.warning("Failed to load overland metadata for themed dungeon generation: %s", exc)
+            log.warning(
+                "Failed to load overland metadata for themed dungeon generation: %s",
+                exc,
+            )
 
     generator = core.CaveGenerator(
         max_nodes=max_nodes,
@@ -200,7 +206,7 @@ def run_pipeline(
         x_arr = df.get_column("x").to_numpy().astype(np.float64)
         y_arr = df.get_column("y").to_numpy().astype(np.float64)
 
-        node_map_rows: list[dict[str, Any]] = []
+        node_map_rows: list[NodeMapRow] = []
         node_id_col = np.full(len(df), -1, dtype=np.int32)
 
         if isinstance(augmented_nodes, list) and len(df) > 0:
@@ -233,14 +239,14 @@ def run_pipeline(
                     tile_x = tile_x_arr[i]
                     tile_y = tile_y_arr[i]
                     node_map_rows.append(
-                        {
-                            "node_id": nid,
-                            "node_x": nx,
-                            "node_y": ny,
-                            "tile_x": tile_x,
-                            "tile_y": tile_y,
-                            "df_index": int(idx),
-                        }
+                        NodeMapRow(
+                            node_id=nid,
+                            node_x=nx,
+                            node_y=ny,
+                            tile_x=tile_x,
+                            tile_y=tile_y,
+                            df_index=int(idx),
+                        )
                     )
                     if node_id_col[idx] == -1:
                         node_id_col[idx] = nid
@@ -256,12 +262,16 @@ def run_pipeline(
                 opt: int = orjson.OPT_INDENT_2 | getattr(
                     orjson, "OPT_SERIALIZE_NUMPY", 0
                 )
-                payload: bytes = orjson.dumps(node_map_rows, option=opt)
+                # Convert NodeMapRow instances to dicts for JSON serialization
+                node_map_dicts = [row.model_dump() for row in node_map_rows]
+                payload: bytes = orjson.dumps(node_map_dicts, option=opt)
                 nmf.write(payload)
         except OSError as exc:
             log.exception("Failed to write node map JSON: %s", exc)
     else:
-        log.warning("Shaped map missing x/y columns; skipping node->tile mapping.")
+        log.warning(
+            "Shaped map missing x/y columns; skipping node->tile mapping."
+        )
 
     map_arrays = load_shaped_map_as_arrays(output_file)
     node_to_tile: dict[int, tuple[int, int]] = {}

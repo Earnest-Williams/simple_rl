@@ -8,7 +8,7 @@ from typing import Final, cast
 
 import numpy as np
 import polars as pl
-import pygame  # type: ignore
+import pygame  # type: ignore[import-untyped]
 
 from common.constants import Material
 from orchestrator import DEFAULT_CA_ITERATIONS, DEFAULT_MAX_DEPTH, DEFAULT_MAX_NODES
@@ -101,8 +101,8 @@ def _spawn_from_arrow(
 
     row: dict[str, object] = node_df.select(["x", "y"]).row(0, named=True)
 
-    world_x: int = int(round(float(str(row["x"]))))
-    world_y: int = int(round(float(str(row["y"]))))
+    world_x: int = int(round(float(row["x"])))
+    world_y: int = int(round(float(row["y"])))
 
     origin_x: int
     origin_y: int
@@ -190,8 +190,12 @@ def cast_ray(
             dy: float = ray_row - camera.row
             dist: float = math.hypot(dx, dy)
             return Hit(
-                row=ir, col=ic, tile_id=tile_id, distance=dist,
-                adj_row=prev_ir, adj_col=prev_ic
+                row=ir,
+                col=ic,
+                tile_id=tile_id,
+                distance=dist,
+                adj_row=prev_ir,
+                adj_col=prev_ic,
             )
 
         if ir != prev_ir or ic != prev_ic:
@@ -211,14 +215,8 @@ def get_wall_color(tile_id: int) -> tuple[int, int, int]:
     return (200, 0, 200)
 
 
-def draw_3d(
-    screen: pygame.Surface,
-    camera: Camera,
-    tile_grid: np.ndarray,
-    floor_depth_grid: np.ndarray,
-    height_grid: np.ndarray,
-) -> None:
-    # Basic ceiling and floor background
+def _draw_background(screen: pygame.Surface) -> None:
+    """Draw the ceiling and floor background."""
     pygame.draw.rect(
         screen,
         (20, 20, 25),  # Ceiling color
@@ -230,20 +228,96 @@ def draw_3d(
         (0, SCREEN_HEIGHT // 2, SCREEN_WIDTH, SCREEN_HEIGHT // 2),
     )
 
-    fov: float = math.radians(60)
-    half_fov: float = fov / 2.0
-    start_angle: float = camera.yaw_rad - half_fov
-    angle_step: float = fov / SCREEN_WIDTH
 
+def _get_camera_z(
+    camera: Camera,
+    tile_grid: np.ndarray,
+    floor_depth_grid: np.ndarray,
+) -> float:
+    """Get the camera's Z position based on the current tile floor."""
     cam_r: int = int(camera.row)
     cam_c: int = int(camera.col)
-    
-    # We need the true camera Z based on its current tile floor
+
     camera_z: float = 0.0
     if 0 <= cam_r < tile_grid.shape[0] and 0 <= cam_c < tile_grid.shape[1]:
         current_floor_z = float(floor_depth_grid[cam_r, cam_c])
         camera_z = current_floor_z - camera.eye_height
 
+    return camera_z
+
+
+def _render_wall_column(
+    screen: pygame.Surface,
+    col: int,
+    hit: Hit,
+    camera: Camera,
+    ray_angle: float,
+    camera_z: float,
+    floor_depth_grid: np.ndarray,
+    height_grid: np.ndarray,
+    horizon_y: int,
+) -> None:
+    """Render a single wall column based on ray hit."""
+    # Correct fisheye
+    corrected_distance: float = hit.distance * math.cos(ray_angle - camera.yaw_rad)
+    if corrected_distance < 0.001:
+        corrected_distance = 0.001
+
+    # Project floor and ceiling endpoints
+    hit_floor_z: float = float(floor_depth_grid[hit.row, hit.col])
+    hit_height: float = float(height_grid[hit.row, hit.col])
+
+    if hit_height <= 0.0:
+        hit_floor_z = float(floor_depth_grid[hit.adj_row, hit.adj_col])
+        hit_height = float(height_grid[hit.adj_row, hit.adj_col])
+        if hit_height <= 0.0:
+            hit_height = 4.0
+
+    hit_ceiling_z: float = hit_floor_z - hit_height
+
+    # Pygame Y axis goes down. Depth convention: larger depth is down.
+    relative_floor: float = hit_floor_z - camera_z
+    relative_ceiling: float = hit_ceiling_z - camera_z
+
+    wall_top: int = horizon_y + int(
+        (relative_ceiling * PROJECTION_SCALE) / corrected_distance
+    )
+    wall_bottom: int = horizon_y + int(
+        (relative_floor * PROJECTION_SCALE) / corrected_distance
+    )
+
+    color: tuple[int, int, int] = get_wall_color(hit.tile_id)
+
+    # Simple distance shading
+    shade: float = max(0.1, 1.0 - (hit.distance / 30.0))
+    r: int = int(color[0] * shade)
+    g: int = int(color[1] * shade)
+    b: int = int(color[2] * shade)
+
+    pygame.draw.line(
+        screen,
+        (r, g, b),
+        (col, wall_top),
+        (col, wall_bottom),
+    )
+
+
+def draw_3d(
+    screen: pygame.Surface,
+    camera: Camera,
+    tile_grid: np.ndarray,
+    floor_depth_grid: np.ndarray,
+    height_grid: np.ndarray,
+) -> None:
+    """Render the 3D view with ray casting."""
+    _draw_background(screen)
+
+    fov: float = math.radians(60)
+    half_fov: float = fov / 2.0
+    start_angle: float = camera.yaw_rad - half_fov
+    angle_step: float = fov / SCREEN_WIDTH
+
+    camera_z: float = _get_camera_z(camera, tile_grid, floor_depth_grid)
     horizon_y: int = SCREEN_HEIGHT // 2
 
     for col in range(SCREEN_WIDTH):
@@ -253,43 +327,16 @@ def draw_3d(
         if hit is None:
             continue
 
-        # Correct fisheye
-        corrected_distance: float = hit.distance * math.cos(ray_angle - camera.yaw_rad)
-        if corrected_distance < 0.001:
-            corrected_distance = 0.001
-
-        # Project floor and ceiling endpoints
-        hit_floor_z: float = float(floor_depth_grid[hit.row, hit.col])
-        hit_height: float = float(height_grid[hit.row, hit.col])
-
-        if hit_height <= 0.0:
-            hit_floor_z = float(floor_depth_grid[hit.adj_row, hit.adj_col])
-            hit_height = float(height_grid[hit.adj_row, hit.adj_col])
-            if hit_height <= 0.0:
-                hit_height = 4.0
-
-        hit_ceiling_z: float = hit_floor_z - hit_height
-        
-        # Pygame Y axis goes down. Depth convention: larger depth is down.
-        relative_floor: float = hit_floor_z - camera_z
-        relative_ceiling: float = hit_ceiling_z - camera_z
-
-        wall_top: int = horizon_y + int((relative_ceiling * PROJECTION_SCALE) / corrected_distance)
-        wall_bottom: int = horizon_y + int((relative_floor * PROJECTION_SCALE) / corrected_distance)
-
-        color: tuple[int, int, int] = get_wall_color(hit.tile_id)
-        
-        # Simple distance shading
-        shade: float = max(0.1, 1.0 - (hit.distance / 30.0))
-        r: int = int(color[0] * shade)
-        g: int = int(color[1] * shade)
-        b: int = int(color[2] * shade)
-
-        pygame.draw.line(
+        _render_wall_column(
             screen,
-            (r, g, b),
-            (col, wall_top),
-            (col, wall_bottom),
+            col,
+            hit,
+            camera,
+            ray_angle,
+            camera_z,
+            floor_depth_grid,
+            height_grid,
+            horizon_y,
         )
 
 
