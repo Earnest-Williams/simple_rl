@@ -14,12 +14,8 @@ from typing import TYPE_CHECKING
 import structlog
 
 from game.ai.contracts import (
-    EntityRow,
     StructuredPerceptionLike,
     priority_signal,
-    require_row_int,
-    row_int,
-    row_str,
 )
 from game.systems import movement_system
 
@@ -59,12 +55,10 @@ def _get_priority_signal(
 
 
 def charge_behavior(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
@@ -79,9 +73,7 @@ def charge_behavior(
     _move(entity_id, dx, dy, game_state)
 
 
-def home_behavior(entity_id: int | EntityRow, game_state: GameState) -> None:
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
+def home_behavior(entity_id: int, game_state: GameState) -> None:
     registry = game_state.entity_registry
     pos = registry.xy_of(entity_id)
     if pos is None:
@@ -94,12 +86,10 @@ def home_behavior(entity_id: int | EntityRow, game_state: GameState) -> None:
 
 
 def flee_behavior(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     signal = _get_priority_signal(entity_id, perception)
     if not signal:
         return
@@ -117,12 +107,10 @@ def flee_behavior(
 
 
 def smart_kobold_behavior(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     perception: StructuredPerceptionLike | None,
 ) -> None:
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     registry = game_state.entity_registry
     hp = registry.hp_of(entity_id)
     if hp is None:
@@ -137,7 +125,7 @@ def smart_kobold_behavior(
 
 
 def dispatch_strategy(
-    entity_id: int | EntityRow,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: StructuredPerceptionLike | None,
@@ -145,8 +133,6 @@ def dispatch_strategy(
 ) -> None:
     """Dispatch behaviour based on the entity's ``strategy_state``."""
     del rng, kwargs
-    if not isinstance(entity_id, int):
-        entity_id = int(entity_id["entity_id"])
     registry = game_state.entity_registry
     state = registry.strategy_state_of(entity_id)
     if state is None:

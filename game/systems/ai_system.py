@@ -2,13 +2,13 @@
 
 This module exposes :func:`dispatch_ai` which selects an appropriate AI
 adapter for an entity based on its metadata.  Adapters must implement the
-``take_turn(entity_row, game_state, rng, perception)`` interface so the game
+``take_turn(entity_id, game_state, rng, perception)`` interface so the game
 can mix multiple decision making systems.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from multiprocessing.dummy import Pool as ThreadPool
 from typing import TYPE_CHECKING, Any
 
@@ -27,7 +27,7 @@ log = structlog.get_logger()
 
 
 def dispatch_ai(
-    entities: int | Mapping[str, Any] | Iterable[int | Mapping[str, Any]],
+    entities: int | Iterable[int],
     *,
     game_state: GameState,
     rng: GameRNG,
@@ -39,15 +39,8 @@ def dispatch_ai(
 
     if isinstance(entities, int):
         entity_ids = [entities]
-    elif isinstance(entities, Mapping):
-        entity_ids = [int(entities["entity_id"])]
     elif isinstance(entities, Iterable):
-        entity_ids = []
-        for e in entities:
-            if isinstance(e, Mapping):
-                entity_ids.append(int(e["entity_id"]))
-            else:
-                entity_ids.append(int(e))
+        entity_ids = [int(e) for e in entities]
     else:
         entity_ids = [int(entities)]
 

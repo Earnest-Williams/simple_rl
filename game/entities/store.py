@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 import numpy as np
+from numpy.typing import NDArray
 import polars as pl
 import structlog
 
@@ -468,6 +469,9 @@ class EntityStore:
     def xy_at(self, idx: int) -> tuple[int, int]:
         return int(self.x[idx]), int(self.y[idx])
 
+    def name_at(self, idx: int) -> str | None:
+        return self.name[idx]
+
     def index_of_entity(self, entity_id: int) -> int | None:
         return self.entity_id_to_index.get(entity_id)
 
@@ -527,6 +531,48 @@ class EntityStore:
                 "perception_stat": int(p_stat),
             })
         return records
+
+    def monster_perception_arrays(
+        self, player_id: int
+    ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64], NDArray[np.bool_], NDArray[np.int64]]:
+        """Return NumPy arrays for monster perception without materializing entities_df.
+
+        Returns (ids, fy, fx, is_dead, perception_stat) arrays for all active
+        non-player entities. This is the array-based alternative to
+        monster_perception_records() for use in hot paths.
+        """
+        # Collect indices of active non-player entities
+        active_mask = self.is_active[:self.count]
+        entity_ids = self.entity_id[:self.count]
+        non_player_mask = entity_ids != player_id
+        valid_indices = np.where(active_mask & non_player_mask)[0]
+
+        if len(valid_indices) == 0:
+            return (
+                np.array([], dtype=np.int64),
+                np.array([], dtype=np.int64),
+                np.array([], dtype=np.int64),
+                np.array([], dtype=np.bool_),
+                np.array([], dtype=np.int64),
+            )
+
+        # Extract arrays
+        ids = self.entity_id[valid_indices].astype(np.int64)
+        fy = self.y[valid_indices].astype(np.int64)
+        fx = self.x[valid_indices].astype(np.int64)
+
+        # Compute is_dead: since valid_indices is already filtered by active_mask,
+        # we only need to check hp <= 0
+        is_dead = self.hp[valid_indices] <= 0
+
+        # Extract perception_stat with default of 10
+        # Single dict lookup per entity for efficiency
+        perception_stat = np.array([
+            int(self.extra_components[idx].get("perception_stat", 10))
+            for idx in valid_indices
+        ], dtype=np.int64)
+
+        return ids, fy, fx, is_dead, perception_stat
 
     def compact_store(self) -> None:
         if self.count == 0:

@@ -556,6 +556,168 @@ def _process_monster_perception_chunk(
     return chunk_index, alerted_monster_ids
 
 
+def _process_monster_perception_arrays_chunk(
+    ids: NDArray[np.int64],
+    fy: NDArray[np.int64],
+    fx: NDArray[np.int64],
+    perception_stat: NDArray[np.int64],
+    *,
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
+    player_stealth_skill: int,
+    noise_flow_type: FlowType,
+    rng_seeds: list[int],
+    chunk_index: int,
+) -> tuple[int, list[int]]:
+    """Process one deterministic chunk of monster perception checks using arrays."""
+    num_monsters = len(ids)
+    if len(rng_seeds) != num_monsters:
+        raise ValueError(
+            f"Length mismatch: rng_seeds has {len(rng_seeds)} elements but "
+            f"arrays have {num_monsters} elements"
+        )
+
+    alerted_monster_ids: list[int] = []
+    height = cave_cost.shape[1]
+    width = cave_cost.shape[2]
+
+    for idx in range(num_monsters):
+        monster_id = int(ids[idx])
+        m_y = int(fy[idx])
+        m_x = int(fx[idx])
+        perception = int(perception_stat[idx])
+
+        if not in_bounds(m_y, m_x, height, width):
+            continue
+
+        noise_dist = get_noise_dist(cave_cost, flow_centers, noise_flow_type, m_y, m_x)
+        if noise_dist >= NOISE_MAX_DIST:
+            continue
+
+        per_seed = rng_seeds[idx]
+        if skill_check(perception, noise_dist, player_stealth_skill, per_seed):
+            alerted_monster_ids.append(monster_id)
+
+    return chunk_index, alerted_monster_ids
+
+
+def monster_perception_arrays(
+    ids: NDArray[np.int64],
+    fy: NDArray[np.int64],
+    fx: NDArray[np.int64],
+    is_dead: NDArray[np.bool_],
+    perception_stat: NDArray[np.int64],
+    *,
+    cave_cost: NDArray[np.int32],
+    flow_centers: NDArray[np.int32],
+    player_y: int,
+    player_x: int,
+    player_stealth_skill: int,
+    rng: GameRNG,
+    num_jobs: int | None = None,
+    deterministic: bool = True,
+    noise_flow_type: FlowType = FlowType.REAL_NOISE,
+) -> list[int]:
+    """Return deterministically ordered monster IDs alerted by a noise flow.
+
+    This is the array-based version of monster_perception that consumes
+    NumPy arrays directly from EntityStore instead of Polars DataFrames.
+    """
+    del player_y, player_x
+    start_time = time.monotonic()
+
+    num_monsters = len(ids)
+    if num_monsters == 0:
+        return []
+
+    # Filter out dead monsters and sort by ID for deterministic ordering
+    active_mask = ~is_dead
+    active_indices = np.where(active_mask)[0]
+    if len(active_indices) == 0:
+        return []
+
+    # Sort by ID for deterministic ordering
+    sorted_indices = np.argsort(ids[active_indices])
+    active_indices = active_indices[sorted_indices]
+
+    num_active = len(active_indices)
+    resolved_jobs = num_jobs if num_jobs is not None else DEFAULT_NUM_JOBS
+    if deterministic:
+        resolved_jobs = 1
+    resolved_jobs = max(1, resolved_jobs)
+
+    n_chunks = min(num_active, resolved_jobs * 4)
+    chunk_size = (num_active + n_chunks - 1) // n_chunks
+
+    # Generate seeds for each active monster
+    all_seeds: list[int] = []
+    for idx in active_indices:
+        monster_id = int(ids[idx])
+        all_seeds.append(rng.derive_seed(monster_id))
+
+    # Split into chunks
+    chunk_ranges = []
+    for chunk_index in range(n_chunks):
+        start = chunk_index * chunk_size
+        end = min(start + chunk_size, num_active)
+        if start >= end:
+            break
+        chunk_ranges.append((start, end))
+
+    if resolved_jobs <= 1:
+        results = []
+        for chunk_index, (start, end) in enumerate(chunk_ranges):
+            chunk_ids = ids[active_indices[start:end]]
+            chunk_fy = fy[active_indices[start:end]]
+            chunk_fx = fx[active_indices[start:end]]
+            chunk_perception = perception_stat[active_indices[start:end]]
+            chunk_seeds = all_seeds[start:end]
+
+            result = _process_monster_perception_arrays_chunk(
+                chunk_ids,
+                chunk_fy,
+                chunk_fx,
+                chunk_perception,
+                cave_cost=cave_cost,
+                flow_centers=flow_centers,
+                player_stealth_skill=player_stealth_skill,
+                noise_flow_type=noise_flow_type,
+                rng_seeds=chunk_seeds,
+                chunk_index=chunk_index,
+            )
+            results.append(result)
+    else:
+        results = Parallel(n_jobs=resolved_jobs, backend="loky")(
+            delayed(_process_monster_perception_arrays_chunk)(
+                ids[active_indices[start:end]],
+                fy[active_indices[start:end]],
+                fx[active_indices[start:end]],
+                perception_stat[active_indices[start:end]],
+                cave_cost=cave_cost,
+                flow_centers=flow_centers,
+                player_stealth_skill=player_stealth_skill,
+                noise_flow_type=noise_flow_type,
+                rng_seeds=all_seeds[start:end],
+                chunk_index=chunk_index,
+            )
+            for chunk_index, (start, end) in enumerate(chunk_ranges)
+        )
+
+    ordered_chunks = [chunk for _, chunk in sorted(results, key=lambda pair: pair[0])]
+    all_alerted_ids = [item for sublist in ordered_chunks for item in sublist]
+
+    duration_s = time.monotonic() - start_time
+    logger.info(
+        "Monster perception arrays for %d monsters took %.4fs using %d jobs.",
+        num_active,
+        duration_s,
+        resolved_jobs,
+    )
+    if all_alerted_ids:
+        logger.info("Monsters alerted: %s", all_alerted_ids)
+    return all_alerted_ids
+
+
 def monster_perception(
     monster_df: pl.DataFrame,
     *,
@@ -569,80 +731,39 @@ def monster_perception(
     deterministic: bool = True,
     noise_flow_type: FlowType = FlowType.REAL_NOISE,
 ) -> list[int]:
-    """Return deterministically ordered monster IDs alerted by a noise flow."""
-    del player_y, player_x
-    start_time = time.monotonic()
+    """Return deterministically ordered monster IDs alerted by a noise flow.
+
+    This is a compatibility wrapper that extracts arrays from the DataFrame
+    and delegates to monster_perception_arrays(). Use monster_perception_arrays()
+    directly for new code.
+    """
     _require_monster_columns(monster_df)
 
-    active_monsters_df = monster_df.filter(~pl.col("is_dead")).sort("id")
-    num_monsters = active_monsters_df.height
-    if num_monsters == 0:
-        return []
+    # Extract arrays from DataFrame
+    ids = monster_df["id"].to_numpy().astype(np.int64)
+    fy = monster_df["fy"].to_numpy().astype(np.int64)
+    fx = monster_df["fx"].to_numpy().astype(np.int64)
+    is_dead = monster_df["is_dead"].to_numpy().astype(np.bool_)
+    perception_stat = monster_df["perception_stat"].to_numpy().astype(np.int64)
 
-    resolved_jobs = num_jobs if num_jobs is not None else DEFAULT_NUM_JOBS
-    if deterministic:
-        resolved_jobs = 1
-    resolved_jobs = max(1, resolved_jobs)
-
-    n_chunks = min(num_monsters, resolved_jobs * 4)
-    chunk_size = (num_monsters + n_chunks - 1) // n_chunks
-    df_chunks = [
-        active_monsters_df.slice(chunk_index * chunk_size, chunk_size)
-        for chunk_index in range(n_chunks)
-    ]
-
+    # Use the array-based implementation
     master_rng = rng if rng is not None else GameRNG()
-    seeds_for_chunks: list[list[int]] = []
-    for chunk in df_chunks:
-        ids_in_chunk = chunk["id"].to_numpy().astype(np.int64)
-        seeds_for_chunks.append(
-            [master_rng.derive_seed(int(monster_id)) for monster_id in ids_in_chunk]
-        )
-
-    if resolved_jobs <= 1:
-        results = [
-            _process_monster_perception_chunk(
-                chunk,
-                cave_cost=cave_cost,
-                flow_centers=flow_centers,
-                player_stealth_skill=player_stealth_skill,
-                noise_flow_type=noise_flow_type,
-                rng_seeds=seeds,
-                chunk_index=index,
-            )
-            for index, (chunk, seeds) in enumerate(
-                zip(df_chunks, seeds_for_chunks, strict=True)
-            )
-        ]
-    else:
-        results = Parallel(n_jobs=resolved_jobs, backend="loky")(
-            delayed(_process_monster_perception_chunk)(
-                chunk,
-                cave_cost=cave_cost,
-                flow_centers=flow_centers,
-                player_stealth_skill=player_stealth_skill,
-                noise_flow_type=noise_flow_type,
-                rng_seeds=seeds,
-                chunk_index=index,
-            )
-            for index, (chunk, seeds) in enumerate(
-                zip(df_chunks, seeds_for_chunks, strict=True)
-            )
-        )
-
-    ordered_chunks = [chunk for _, chunk in sorted(results, key=lambda pair: pair[0])]
-    all_alerted_ids = [item for sublist in ordered_chunks for item in sublist]
-
-    duration_s = time.monotonic() - start_time
-    logger.info(
-        "Monster perception for %d monsters took %.4fs using %d jobs.",
-        num_monsters,
-        duration_s,
-        resolved_jobs,
+    return monster_perception_arrays(
+        ids,
+        fy,
+        fx,
+        is_dead,
+        perception_stat,
+        cave_cost=cave_cost,
+        flow_centers=flow_centers,
+        player_y=player_y,
+        player_x=player_x,
+        player_stealth_skill=player_stealth_skill,
+        rng=master_rng,
+        num_jobs=num_jobs,
+        deterministic=deterministic,
+        noise_flow_type=noise_flow_type,
     )
-    if all_alerted_ids:
-        logger.info("Monsters alerted: %s", all_alerted_ids)
-    return all_alerted_ids
 
 
 def choose_step_by_flow(

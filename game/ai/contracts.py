@@ -8,7 +8,6 @@ from typing import Literal, Protocol, TypeAlias, TypeGuard, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
-EntityRow: TypeAlias = Mapping[str, object]
 LegacyPerceptionMaps: TypeAlias = tuple[
     NDArray[np.float64], NDArray[np.float64], NDArray[np.bool_]
 ]
@@ -40,24 +39,10 @@ class StructuredPerceptionLike(Protocol):
 GOAPPerception: TypeAlias = StructuredPerceptionLike | LegacyPerceptionMaps | None
 
 
-def row_int(row: EntityRow, key: str) -> int | None:
+def row_int(row: dict[str, object], key: str) -> int | None:
     """Return an integer field if present and already integer-like."""
     value = row.get(key)
     return value if isinstance(value, int) else None
-
-
-def require_row_int(row: EntityRow, key: str) -> int:
-    """Return a required integer field or raise a precise TypeError."""
-    value = row_int(row, key)
-    if value is None:
-        raise TypeError(f"entity row missing integer field {key!r}")
-    return value
-
-
-def row_str(row: EntityRow, key: str) -> str | None:
-    """Return a string field if present."""
-    value = row.get(key)
-    return value if isinstance(value, str) else None
 
 
 def is_structured_perception(perception: object) -> TypeGuard[StructuredPerceptionLike]:

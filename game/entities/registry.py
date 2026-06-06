@@ -5,6 +5,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Any, Self, Callable
 
 import numpy as np
+from numpy.typing import NDArray
 import polars as pl
 import structlog
 
@@ -506,6 +507,9 @@ class EntityRegistry:
     def xy_at(self, idx: int) -> tuple[int, int]:
         return self._store.xy_at(idx)
 
+    def name_at(self, idx: int) -> str | None:
+        return self._store.name_at(idx)
+
     def index_of_entity(self, entity_id: int) -> int | None:
         return self._store.index_of_entity(entity_id)
 
@@ -517,6 +521,17 @@ class EntityRegistry:
 
     def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
         return self._store.monster_perception_records(player_id)
+
+    def monster_perception_arrays(
+        self, player_id: int
+    ) -> tuple["NDArray[np.int64]", "NDArray[np.int64]", "NDArray[np.int64]", "NDArray[np.bool_]", "NDArray[np.int64]"]:
+        """Return NumPy arrays for monster perception without materializing entities_df.
+
+        Returns (ids, fy, fx, is_dead, perception_stat) arrays for all active
+        non-player entities. This is the array-based alternative to
+        monster_perception_records() for use in hot paths.
+        """
+        return self._store.monster_perception_arrays(player_id)
 
     def delete_entity(self: Self, entity_id: int) -> bool:
         log_context = {"entity_id": entity_id}

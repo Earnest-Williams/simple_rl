@@ -43,6 +43,7 @@ from pathfinding.perception_systems import (
     MAX_FLOWS,
     SCENT_RESET_AGE,
     monster_perception,
+    monster_perception_arrays,
     update_noise,
     update_smell,
 )
@@ -742,24 +743,21 @@ class GameState:
             return
         player_x, player_y = player_pos.x, player_pos.y
 
-        records = self.entity_registry.monster_perception_records(self.player_id)
-        if not records:
+        # Use array-based API to avoid Polars DataFrame materialization
+        ids, fy, fx, is_dead, perception_stat = (
+            self.entity_registry.monster_perception_arrays(self.player_id)
+        )
+
+        if len(ids) == 0:
             self.perception_alerted_monster_ids = []
             return
 
-        adapted_df = pl.DataFrame(
-            records,
-            schema={
-                "id": pl.Int64,
-                "fy": pl.Int64,
-                "fx": pl.Int64,
-                "is_dead": pl.Boolean,
-                "perception_stat": pl.Int64,
-            },
-        )
-
-        self.perception_alerted_monster_ids = monster_perception(
-            adapted_df,
+        self.perception_alerted_monster_ids = monster_perception_arrays(
+            ids,
+            fy,
+            fx,
+            is_dead,
+            perception_stat,
             cave_cost=self.perception_cave_cost,
             flow_centers=self.perception_flow_centers,
             player_y=int(player_y),
@@ -891,15 +889,16 @@ class GameState:
         player_pos = self.player_position
         if player_pos:
             px, py = player_pos
-            # Look for nearby hostile entities within FOV
-            for row in self.entity_registry.entities_df.iter_rows(named=True):
-                if (
-                    not row.get("is_active", False)
-                    or row["entity_id"] == self.player_id
-                ):
+            # Use store accessors instead of entities_df.iter_rows
+            registry = self.entity_registry
+            for idx in registry.active_indices():
+                if not registry.is_active_at(int(idx)):
+                    continue
+                entity_id = registry.entity_id_at(int(idx))
+                if entity_id == self.player_id:
                     continue
 
-                ex, ey = row.get("x", 0), row.get("y", 0)
+                ex, ey = registry.xy_at(int(idx))
                 # Check if entity is within reasonable combat distance and visible
                 distance_sq = (px - ex) ** 2 + (py - ey) ** 2
                 if (
@@ -918,24 +917,28 @@ class GameState:
         enemy_types = []
         if player_pos:
             px, py = player_pos
-            for row in self.entity_registry.entities_df.iter_rows(named=True):
-                if (
-                    not row.get("is_active", False)
-                    or row["entity_id"] == self.player_id
-                ):
+            registry = self.entity_registry
+            for idx in registry.active_indices():
+                if not registry.is_active_at(int(idx)):
+                    continue
+                entity_id = registry.entity_id_at(int(idx))
+                if entity_id == self.player_id:
                     continue
 
-                ex, ey = row.get("x", 0), row.get("y", 0)
+                ex, ey = registry.xy_at(int(idx))
                 distance_sq = (px - ex) ** 2 + (py - ey) ** 2
                 if distance_sq <= self.fov_radius**2:
-                    entity_name = row.get("name", "").lower()
+                    entity_name = registry.name_at(int(idx))
+                    if entity_name is None:
+                        continue
+                    entity_name_lower = entity_name.lower()
                     if (
-                        "boss" in entity_name
-                        or "dragon" in entity_name
-                        or "demon" in entity_name
+                        "boss" in entity_name_lower
+                        or "dragon" in entity_name_lower
+                        or "demon" in entity_name_lower
                     ):
                         enemy_types.append("boss")
-                    elif "elite" in entity_name or "champion" in entity_name:
+                    elif "elite" in entity_name_lower or "champion" in entity_name_lower:
                         enemy_types.append("elite")
 
         # Build context for sound system
