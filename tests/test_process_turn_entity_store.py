@@ -686,3 +686,57 @@ def test_get_equipped_items_bulk_returns_correct_data() -> None:
     slots = [item[0] for item in equipped_items]  # First element is equipped_slot
     assert "main_hand" in slots
     assert "off_hand" in slots
+
+
+def test_get_skills_bulk_returns_correct_data() -> None:
+    """Test that bulk skills fetching returns correct data."""
+    from skills.models import Skill, SkillProgress
+    
+    state = _make_state()
+    
+    # Create entities
+    entity1_id = state.entity_registry.create_entity(
+        x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity1"
+    )
+    entity2_id = state.entity_registry.create_entity(
+        x=2, y=2, glyph=101, color_fg=(0, 255, 0), name="Entity2"
+    )
+    
+    # Set skills for entity1
+    state.entity_registry.set_entity_component(
+        entity1_id,
+        "skills",
+        {
+            Skill.FIGHTING: SkillProgress(Skill.FIGHTING, 5, 100, 0),
+            Skill.ARMOUR: SkillProgress(Skill.ARMOUR, 3, 50, 0),
+        },
+    )
+    
+    # Set skills for entity2
+    state.entity_registry.set_entity_component(
+        entity2_id,
+        "skills",
+        {
+            Skill.FIGHTING: SkillProgress(Skill.FIGHTING, 8, 200, 0),
+            Skill.DODGING: SkillProgress(Skill.DODGING, 4, 75, 0),
+        },
+    )
+    
+    # Fetch bulk skills
+    skills_bulk = state.entity_registry.get_skills_bulk([entity1_id, entity2_id])
+    
+    # Verify data for entity1
+    assert entity1_id in skills_bulk
+    entity1_skills = skills_bulk[entity1_id]
+    assert Skill.FIGHTING in entity1_skills
+    assert entity1_skills[Skill.FIGHTING].level == 5
+    assert Skill.ARMOUR in entity1_skills
+    assert entity1_skills[Skill.ARMOUR].level == 3
+    
+    # Verify data for entity2
+    assert entity2_id in skills_bulk
+    entity2_skills = skills_bulk[entity2_id]
+    assert Skill.FIGHTING in entity2_skills
+    assert entity2_skills[Skill.FIGHTING].level == 8
+    assert Skill.DODGING in entity2_skills
+    assert entity2_skills[Skill.DODGING].level == 4

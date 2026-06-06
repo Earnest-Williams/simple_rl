@@ -204,8 +204,12 @@ def handle_melee_attack(
     else:
         off_hand_dice = None
 
-    # --- Get Attacker Skills and Apply Bonuses ---
-    attacker_skills = entity_reg.get_skills(attacker_id)
+    # --- Get Skills in Bulk for Efficiency ---
+    # Bulk fetch skills for both attacker and defender
+    skills_bulk = entity_reg.get_skills_bulk([attacker_id, defender_id])
+    attacker_skills = skills_bulk.get(attacker_id, {})
+    defender_skills = skills_bulk.get(defender_id, {})
+    
     weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
 
     fighting_level = (
@@ -216,7 +220,6 @@ def handle_melee_attack(
     ).level
 
     # Get defender skills for armor/dodging
-    defender_skills = entity_reg.get_skills(defender_id)
     defender_armour_level = (
         defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)
     ).level

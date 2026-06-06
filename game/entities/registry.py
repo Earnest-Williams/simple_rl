@@ -396,6 +396,10 @@ class EntityRegistry:
         """Bulk fetch combat-related components for multiple entities."""
         return self._store.get_combat_components_bulk(entity_ids)
 
+    def get_skills_bulk(self, entity_ids: list[int]) -> dict[int, dict[str, object]]:
+        """Bulk fetch skills for multiple entities."""
+        return self._store.get_skills_bulk(entity_ids)
+
     def set_position(self: Self, entity_id: int, position: Position) -> bool:
         """Update an entity's position component."""
         return self._store.set_position(entity_id, position)

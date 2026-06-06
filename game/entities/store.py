@@ -334,6 +334,27 @@ class EntityStore:
             resistances, vulnerabilities, xp_rewards
         )
 
+    def get_skills_bulk(
+        self, entity_ids: list[int]
+    ) -> dict[int, dict[str, object]]:
+        """Bulk fetch skills for multiple entities.
+        
+        Returns a dict mapping entity_id to skills dict for efficient
+        lookup during combat and other multi-entity operations.
+        """
+        result: dict[int, dict[str, object]] = {}
+        
+        for entity_id in entity_ids:
+            idx = self.index_of(entity_id)
+            if idx is None or not self.is_active[idx]:
+                continue
+            
+            eid = int(self.entity_id[idx])
+            skills_data = self.extra_components[idx].get("skills", {})
+            result[eid] = skills_data
+        
+        return result
+
     def get_position(self, entity_id: int) -> Position | None:
         idx = self.index_of(entity_id)
         if idx is None or not self.is_active[idx]:
