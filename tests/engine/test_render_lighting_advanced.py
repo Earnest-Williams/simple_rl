@@ -231,13 +231,13 @@ def test_per_side_rgba() -> None:
         height=light.height,
     )
 
-    # East of source at (7, 9): side bits should be in bin index 1 (SIDE_E)
+    # East of source at (7, 9): side bits should be in bin index 3 (SIDE_W)
     # y=7, x=9
     val_east_bin_1 = contribution[7, 9, 1]  # SIDE_E bin
     val_east_bin_3 = contribution[7, 9, 3]  # SIDE_W bin
 
-    assert np.any(val_east_bin_1 > 0.0)
-    assert np.all(val_east_bin_3 == 0.0)
+    assert np.any(val_east_bin_3 > 0.0)
+    assert np.all(val_east_bin_1 == 0.0)
 
 
 def test_premultiplied_normalization() -> None:

@@ -973,13 +973,16 @@ class LightingFovToolWindow(QMainWindow):
         output[:, :, 3] = 255  # Full alpha
 
         # Compute observer visibility once
-        visible = self._compute_observer_visible_mask()
+        player_visible = self._compute_player_visible_mask()
+        observer_visible = self._compute_observer_visible_mask()
 
         # Compute runtime results for all lights, identifying which are active
-        light_results = self._compute_frame_light_results(visible)
+        light_results = self._compute_frame_light_results(observer_visible)
 
         # Compute lighting from emitters that are active
-        base_intensity, colored_light = self._compute_lighting(light_results)
+        base_intensity, colored_light, diffuse_rgb = self._compute_lighting(light_results)
+        
+        opaque_grid, _ = self._get_cached_geometry_grids()
 
         # Render each tile
         for y in range(scene.height):
@@ -989,9 +992,11 @@ class LightingFovToolWindow(QMainWindow):
                     light_rgb = colored_light[y, x]
                     intensity = base_intensity[y, x]
                 else:
-                    is_visible = visible[y, x]
+                    is_visible = player_visible[y, x]
                     if is_visible:
                         light_rgb = colored_light[y, x]
+                        if self._lighting_backend == UNIFIED_PREVIEW_BACKEND and diffuse_rgb is not None and opaque_grid[y, x]:
+                            light_rgb = diffuse_rgb[y, x] * self._diffuse_weight
                         intensity = base_intensity[y, x]
                     else:
                         light_rgb = np.zeros(3, dtype=np.float32)
@@ -1045,11 +1050,11 @@ class LightingFovToolWindow(QMainWindow):
             if not monster.has_eyes:
                 continue
 
-            h, w = visible.shape
+            h, w = player_visible.shape
             is_visible = (
                 0 <= monster.y < h
                 and 0 <= monster.x < w
-                and visible[monster.y, monster.x]
+                and player_visible[monster.y, monster.x]
             )
             if self._show_full_light_field or is_visible:
                 mx = monster.x * self._tile_size
@@ -1130,7 +1135,7 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(self, light_results: list[LightRuntimeResult]) -> tuple[np.ndarray, np.ndarray]:
+    def _compute_lighting(self, light_results: list[LightRuntimeResult]) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
         """Compute base intensity and RGB lighting for active visible emitters."""
         scene = self._scene
 
@@ -1139,6 +1144,8 @@ class LightingFovToolWindow(QMainWindow):
         )
 
         active_lights = [r for r in light_results if r.active]
+
+        diffuse_rgb = None
 
         if self._lighting_backend == FAST_DIFFUSE_BACKEND:
             colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
@@ -1173,7 +1180,7 @@ class LightingFovToolWindow(QMainWindow):
             total_tiles=int(scene.width * scene.height),
         )
 
-        return base_intensity, colored_light
+        return base_intensity, colored_light, diffuse_rgb
 
     def _compute_production_cache_lighting(self, active_lights: list[LightRuntimeResult]) -> np.ndarray:
         """Compute colored light with the renderer-facing contribution cache."""
@@ -1228,6 +1235,21 @@ class LightingFovToolWindow(QMainWindow):
             )
 
         return observers
+
+    def _compute_player_visible_mask(self) -> np.ndarray:
+        """Return cells visible to the player only."""
+        opaque_grid, transparency_grid = self._get_cached_geometry_grids()
+        player_x, player_y = self._scene.player_pos
+
+        _, visible_out, _, _, _ = self._compute_point_fov_mask(
+            player_x,
+            player_y,
+            PLAYER_SIGHT_RADIUS,
+            opaque_grid,
+            transparency_grid,
+        )
+
+        return visible_out != 0
 
     def _compute_observer_visible_mask(self) -> np.ndarray:
         """Return all cells visible to the player or a sighted monster."""
@@ -1411,6 +1433,20 @@ class LightingFovToolWindow(QMainWindow):
                 light_res.emitter_seen_by_observer = bool(observer_visible[light_source.y, light_source.x])
             else:
                 light_res.emitter_seen_by_observer = False
+
+            if light_source.name == "bleed_test_light":
+                for y in range(15, 27):
+                    log.info(
+                        "bleed corridor fov",
+                        y=y,
+                        wall_x3=bool(light_res.reach_mask[y, 3]),
+                        right_x4=bool(light_res.reach_mask[y, 4]),
+                        right_x5=bool(light_res.reach_mask[y, 5]),
+                        side_wall_x3=int(light_res.side_bits_out[y, 3]),
+                        vis_wall_x3=float(light_res.visibility_out[y, 3]),
+                        vis_right_x4=float(light_res.visibility_out[y, 4]),
+                        vis_right_x5=float(light_res.visibility_out[y, 5]),
+                    )
 
             if light_res.active:
                 active_light_names.add(light_source.name)

@@ -55,16 +55,16 @@ def test_side_bits() -> None:
     assert side_bits[2, 2] == all_sides
 
     # Cardinal positions relative to center
-    assert (side_bits[1, 2] & SIDE_N) != 0
-    assert (side_bits[2, 3] & SIDE_E) != 0
-    assert (side_bits[3, 2] & SIDE_S) != 0
-    assert (side_bits[2, 1] & SIDE_W) != 0
+    assert (side_bits[1, 2] & SIDE_S) != 0
+    assert (side_bits[2, 3] & SIDE_W) != 0
+    assert (side_bits[3, 2] & SIDE_N) != 0
+    assert (side_bits[2, 1] & SIDE_E) != 0
 
     # Diagonal positions relative to center
-    assert (side_bits[1, 3] & SIDE_NE) != 0
-    assert (side_bits[3, 3] & SIDE_SE) != 0
-    assert (side_bits[3, 1] & SIDE_SW) != 0
-    assert (side_bits[1, 1] & SIDE_NW) != 0
+    assert (side_bits[1, 3] & SIDE_SW) != 0
+    assert (side_bits[3, 3] & SIDE_NW) != 0
+    assert (side_bits[3, 1] & SIDE_NE) != 0
+    assert (side_bits[1, 1] & SIDE_SE) != 0
 
 
 def test_directional_cones() -> None:
@@ -302,8 +302,9 @@ def test_adjacent_blocker_clears_diagonal_cardinal_face_bit() -> None:
     """A blocker adjacent to a diagonal target clears that target's cardinal face."""
     h = w = 7
     transparency = np.ones((h, w), dtype=np.float32)
-    transparency[1, 4] = 0.0
+    transparency[2, 3] = 0.0
     opaque = (transparency <= 0.0).astype(np.uint8)
+
     visible = np.zeros((h, w), dtype=np.uint8)
     dist = -np.ones((h, w), dtype=np.int32)
     side_bits = np.zeros((h, w), dtype=np.uint8)
@@ -318,8 +319,7 @@ def test_adjacent_blocker_clears_diagonal_cardinal_face_bit() -> None:
         2,
         4,
     )
-
     assert visible[1, 3] == 1
-    assert (side_bits[1, 3] & SIDE_NE) != 0
-    assert (side_bits[1, 3] & SIDE_N) != 0
-    assert (side_bits[1, 3] & SIDE_E) == 0
+    assert (side_bits[1, 3] & SIDE_SW) != 0
+    assert (side_bits[1, 3] & SIDE_W) != 0
+    assert (side_bits[1, 3] & SIDE_S) == 0

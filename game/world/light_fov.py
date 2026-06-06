@@ -77,23 +77,23 @@ def _compute_side_mask_from_vector(dx: int, dy: int) -> uint8:
 
     if absdx > absdy:
         if dx > 0:
-            mask |= SIDE_E
-        elif dx < 0:
             mask |= SIDE_W
+        elif dx < 0:
+            mask |= SIDE_E
     elif absdy > absdx:
         if dy > 0:
-            mask |= SIDE_S
-        elif dy < 0:
             mask |= SIDE_N
+        elif dy < 0:
+            mask |= SIDE_S
     else:
         if dx > 0 and dy > 0:
-            mask |= SIDE_SE | SIDE_E | SIDE_S
-        elif dx > 0 and dy < 0:
-            mask |= SIDE_NE | SIDE_E | SIDE_N
-        elif dx < 0 and dy > 0:
-            mask |= SIDE_SW | SIDE_W | SIDE_S
-        elif dx < 0 and dy < 0:
             mask |= SIDE_NW | SIDE_W | SIDE_N
+        elif dx > 0 and dy < 0:
+            mask |= SIDE_SW | SIDE_W | SIDE_S
+        elif dx < 0 and dy > 0:
+            mask |= SIDE_NE | SIDE_E | SIDE_N
+        elif dx < 0 and dy < 0:
+            mask |= SIDE_SE | SIDE_E | SIDE_S
 
     return mask
 
@@ -404,13 +404,32 @@ def _has_clear_legacy_los(
     y = y0
 
     while x != x1 or y != y1:
+        prev_x = x
+        prev_y = y
+        
         twice_err = 2 * err
+        step_x = False
+        step_y = False
+        
         if twice_err > -dy:
             err -= dy
             x += sx
+            step_x = True
         if twice_err < dx:
             err += dx
             y += sy
+            step_y = True
+
+        if step_x and step_y:
+            # Diagonal step: explicitly check both cardinal intermediate cells
+            block1 = False
+            if not (prev_x + sx == x1 and prev_y == y1):
+                block1 = _legacy_cell_blocks_los(transparency, opacity_threshold, prev_x + sx, prev_y)
+            block2 = False
+            if not (prev_x == x1 and prev_y + sy == y1):
+                block2 = _legacy_cell_blocks_los(transparency, opacity_threshold, prev_x, prev_y + sy)
+            if block1 and block2:
+                return False
 
         if x == x1 and y == y1:
             return True
@@ -445,13 +464,32 @@ def _has_clear_extended_los(
     y = y0
 
     while x != x1 or y != y1:
+        prev_x = x
+        prev_y = y
+        
         twice_err = 2 * err
+        step_x = False
+        step_y = False
+        
         if twice_err > -dy:
             err -= dy
             x += sx
+            step_x = True
         if twice_err < dx:
             err += dx
             y += sy
+            step_y = True
+
+        if step_x and step_y:
+            # Diagonal step: explicitly check both cardinal intermediate cells
+            block1 = False
+            if not (prev_x + sx == x1 and prev_y == y1):
+                block1 = _extended_cell_blocks_los(opaque, transparency, cell_mask, use_mask, light_channels, prev_x + sx, prev_y, opacity_threshold)
+            block2 = False
+            if not (prev_x == x1 and prev_y + sy == y1):
+                block2 = _extended_cell_blocks_los(opaque, transparency, cell_mask, use_mask, light_channels, prev_x, prev_y + sy, opacity_threshold)
+            if block1 and block2:
+                return False
 
         if x == x1 and y == y1:
             return True
