@@ -775,7 +775,8 @@ class LightingFovToolWindow(QMainWindow):
                 target_rgb_array=temp_light,
                 base_color_rgb=light_cfg.color,
             )
-            colored_light += temp_light * float(light_cfg.intensity)
+            temp_light *= float(light_cfg.intensity)
+            colored_light += temp_light
 
         # Diagnostic/tool exposure, not production balance.
         colored_light *= LIGHT_EXPOSURE
