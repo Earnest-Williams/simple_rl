@@ -108,6 +108,10 @@ class LightRuntimeResult:
     dist_out: np.ndarray
     side_bits_out: np.ndarray
     visibility_out: np.ndarray
+    active: bool = False
+    reached_observer_visible_cells: int = 0
+    emitter_seen_by_observer: bool = False
+    shape_mask: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -968,15 +972,14 @@ class LightingFovToolWindow(QMainWindow):
         output = np.zeros((img_height, img_width, 4), dtype=np.uint8)
         output[:, :, 3] = 255  # Full alpha
 
-        # Compute FOV from player position. This controls what the player sees.
-        opaque_grid, _ = self._get_cached_geometry_grids()
-        visible = self._compute_simple_fov(
-            opaque_grid, scene.player_pos[0], scene.player_pos[1], radius=PLAYER_SIGHT_RADIUS
-        )
+        # Compute observer visibility once
+        visible = self._compute_observer_visible_mask()
 
-        # Compute lighting from emitters that are visible to at least one
-        # sighted observer: the player or a monster with eyes.
-        base_intensity, colored_light = self._compute_lighting()
+        # Compute runtime results for all lights, identifying which are active
+        light_results = self._compute_frame_light_results(visible)
+
+        # Compute lighting from emitters that are active
+        base_intensity, colored_light = self._compute_lighting(light_results)
 
         # Render each tile
         for y in range(scene.height):
@@ -1055,13 +1058,16 @@ class LightingFovToolWindow(QMainWindow):
 
         # Mark light sources
         for ls in scene.light_sources:
+            res = next((r for r in light_results if r.source.name == ls.name), None)
+            if res is None:
+                continue
+
             light_cfg = config.lights.get(ls.name)
             if light_cfg is None:
                 continue
 
-            h, w = visible.shape
-            is_visible = (0 <= ls.y < h and 0 <= ls.x < w) and visible[ls.y, ls.x]
-            is_active = ls.name in self._active_light_names
+            is_visible = res.emitter_seen_by_observer
+            is_active = res.active
             should_hide_marker = (
                 not self._show_full_light_field
                 and not self._show_hidden_light_sources
@@ -1124,7 +1130,7 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(self) -> tuple[np.ndarray, np.ndarray]:
+    def _compute_lighting(self, light_results: list[LightRuntimeResult]) -> tuple[np.ndarray, np.ndarray]:
         """Compute base intensity and RGB lighting for active visible emitters."""
         scene = self._scene
 
@@ -1132,10 +1138,12 @@ class LightingFovToolWindow(QMainWindow):
             (scene.height, scene.width), AMBIENT_INTENSITY, dtype=np.float32
         )
 
+        active_lights = [r for r in light_results if r.active]
+
         if self._lighting_backend == FAST_DIFFUSE_BACKEND:
             colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
             opaque_grid, transparency_grid = self._get_cached_geometry_grids()
-            for light_res in self._get_active_configured_light_sources():
+            for light_res in active_lights:
                 self._accumulate_fast_diffuse_light(
                     colored_light,
                     light_res=light_res,
@@ -1145,9 +1153,9 @@ class LightingFovToolWindow(QMainWindow):
             # Match 2.0 tool exposure of previous debug radial backend
             colored_light *= 2.0
         elif self._lighting_backend == PRODUCTION_SIDE_AWARE_BACKEND:
-            colored_light = self._compute_production_cache_lighting()
+            colored_light = self._compute_production_cache_lighting(active_lights)
         elif self._lighting_backend in (UNIFIED_PREVIEW_BACKEND, RAW_HEATMAP_BACKEND):
-            diffuse_rgb, side_rgba = self._compute_unified_lighting()
+            diffuse_rgb, side_rgba = self._compute_unified_lighting(active_lights)
             side_rgb = collapse_premult_rgba_to_rgb(side_rgba)
             colored_light = diffuse_rgb * self._diffuse_weight + side_rgb * self._side_weight
         else:
@@ -1167,11 +1175,10 @@ class LightingFovToolWindow(QMainWindow):
 
         return base_intensity, colored_light
 
-    def _compute_production_cache_lighting(self) -> np.ndarray:
+    def _compute_production_cache_lighting(self, active_lights: list[LightRuntimeResult]) -> np.ndarray:
         """Compute colored light with the renderer-facing contribution cache."""
         scene = self._scene
-        active_results = self._get_active_configured_light_sources()
-        light_sources = [r.source for r in active_results]
+        light_sources = [r.source for r in active_lights]
         if not light_sources:
             return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
@@ -1347,15 +1354,14 @@ class LightingFovToolWindow(QMainWindow):
             )
         return light_sources
 
-    def _get_active_configured_light_sources(self) -> list[LightRuntimeResult]:
-        """Return lights whose *reached* field intersects observer-visible cells."""
-        active_light_results: list[LightRuntimeResult] = []
+    def _compute_frame_light_results(self, observer_visible: np.ndarray) -> list[LightRuntimeResult]:
+        """Return lights with computed shape masks and activation state."""
+        light_results: list[LightRuntimeResult] = []
         active_light_names: set[str] = set()
 
-        observer_visible = self._compute_observer_visible_mask()
         if not bool(np.any(observer_visible)):
             self._active_light_names = active_light_names
-            return active_light_results
+            return light_results
 
         opaque_grid, transparency_grid = self._get_cached_geometry_grids()
         for light_source in self._get_configured_light_sources():
@@ -1388,14 +1394,31 @@ class LightingFovToolWindow(QMainWindow):
                 )
                 self._light_reach_cache[cache_key] = (self._blocker_revision, light_res)
 
-            if not bool(np.any(light_res.reach_mask & observer_visible)):
-                continue
+            light_cfg = self._config_state.lights.get(light_source.name)
+            if light_cfg is not None:
+                shape_mask = self._get_light_shape_mask(light_res, light_cfg)
+            else:
+                shape_mask = np.ones_like(light_res.reach_mask, dtype=np.float32)
 
-            active_light_results.append(light_res)
-            active_light_names.add(light_source.name)
+            effective_reach = light_res.reach_mask & (shape_mask > 0.0)
+
+            light_res.shape_mask = shape_mask
+            light_res.active = bool(np.any(effective_reach & observer_visible))
+            light_res.reached_observer_visible_cells = int(np.count_nonzero(effective_reach & observer_visible))
+            
+            h, w = observer_visible.shape
+            if 0 <= light_source.y < h and 0 <= light_source.x < w:
+                light_res.emitter_seen_by_observer = bool(observer_visible[light_source.y, light_source.x])
+            else:
+                light_res.emitter_seen_by_observer = False
+
+            if light_res.active:
+                active_light_names.add(light_source.name)
+
+            light_results.append(light_res)
 
         self._active_light_names = active_light_names
-        return active_light_results
+        return light_results
 
     def _accumulate_fast_diffuse_light(
         self,
@@ -1410,18 +1433,112 @@ class LightingFovToolWindow(QMainWindow):
             return
 
         valid = light_res.reach_mask
-        dist = np.sqrt(np.maximum(light_res.dist_out, 0).astype(np.float32))
         visibility_out = light_res.visibility_out
 
-        falloff = np.where(valid, 1.0 - dist / float(light_res.source.radius), 0.0)
-        falloff = np.clip(falloff, 0.0, 1.0)
+        falloff = light_res.shape_mask if light_res.shape_mask is not None else np.zeros_like(valid, dtype=np.float32)
 
         if self._use_los_for_debug_radial:
             falloff = falloff * visibility_out
 
         target += falloff[..., None] * np.array(light_res.source.color, dtype=np.float32) * light_res.source.intensity
 
-    def _compute_unified_lighting(self) -> tuple[np.ndarray, np.ndarray]:
+    def _get_light_shape_mask(self, light_res: LightRuntimeResult, light_cfg) -> np.ndarray:
+        """Compute the post-shape effective mask for a light."""
+        scene = self._scene
+        shape = getattr(light_cfg, "shape", "circle")
+        direction = getattr(light_cfg, "direction", 0.0)
+        cone_angle = getattr(light_cfg, "cone_angle", 6.283185307179586)
+        beam_width = getattr(light_cfg, "beam_width", 1.0)
+        beam_length = getattr(light_cfg, "beam_length", 8)
+        softness = getattr(light_cfg, "softness", 0.0)
+
+        origin_x, origin_y = light_res.source.x, light_res.source.y
+        radius = light_res.source.radius
+        valid = light_res.reach_mask
+        dist_out = light_res.dist_out
+
+        y_coords, x_coords = np.ogrid[0:scene.height, 0:scene.width]
+        dx = x_coords - origin_x
+        dy = y_coords - origin_y
+
+        shape_mask = np.zeros_like(valid, dtype=np.float32)
+
+        if shape == "circle":
+            dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
+            falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
+            shape_mask = np.clip(falloff, 0.0, 1.0)
+
+        elif shape == "cone":
+            dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
+            falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
+            falloff = np.clip(falloff, 0.0, 1.0)
+
+            angle = np.arctan2(dy, dx)
+            diff = (angle - direction + np.pi) % (2 * np.pi) - np.pi
+            abs_diff = np.abs(diff)
+
+            half_angle = cone_angle / 2.0
+            if softness > 0.0:
+                inner_angle = half_angle * (1.0 - softness)
+                cone_factor = np.where(
+                    abs_diff <= inner_angle,
+                    1.0,
+                    np.where(
+                        abs_diff > half_angle,
+                        0.0,
+                        1.0 - (abs_diff - inner_angle) / (half_angle - inner_angle + 1e-9)
+                    )
+                )
+            else:
+                cone_factor = np.where(abs_diff <= half_angle, 1.0, 0.0)
+
+            shape_mask = falloff * cone_factor
+
+        elif shape == "beam":
+            cos_dir = np.cos(direction)
+            sin_dir = np.sin(direction)
+
+            p = dx * cos_dir + dy * sin_dir
+            d_perp = np.abs(-dx * sin_dir + dy * cos_dir)
+
+            half_width = beam_width / 2.0
+
+            in_length = (p >= 0.0) & (p <= beam_length)
+
+            if softness > 0.0:
+                inner_width = half_width * (1.0 - softness)
+                perp_factor = np.where(
+                    d_perp <= inner_width,
+                    1.0,
+                    np.where(
+                        d_perp > half_width,
+                        0.0,
+                        1.0 - (d_perp - inner_width) / (half_width - inner_width + 1e-9)
+                    )
+                )
+                inner_length = beam_length * (1.0 - softness)
+                length_factor = np.where(
+                    p <= inner_length,
+                    1.0,
+                    np.where(
+                        p > beam_length,
+                        0.0,
+                        1.0 - (p - inner_length) / (beam_length - inner_length + 1e-9)
+                    )
+                )
+            else:
+                perp_factor = np.where(d_perp <= half_width, 1.0, 0.0)
+                length_factor = 1.0
+
+            beam_factor = np.where(valid & in_length, perp_factor * length_factor, 0.0)
+            falloff = np.where(valid & in_length, 1.0 - p / float(beam_length), 0.0)
+            falloff = np.clip(falloff, 0.0, 1.0)
+
+            shape_mask = falloff * beam_factor
+
+        return shape_mask
+
+    def _compute_unified_lighting(self, active_lights: list[LightRuntimeResult]) -> tuple[np.ndarray, np.ndarray]:
         """Compute both diffuse wash and side highlights from a single visibility run per light."""
         scene = self._scene
         diffuse_rgb = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
@@ -1429,113 +1546,13 @@ class LightingFovToolWindow(QMainWindow):
 
         opaque_grid, transparency_grid = self._get_cached_geometry_grids()
 
-        for light_res in self._get_active_configured_light_sources():
-            light_cfg = self._config_state.lights.get(light_res.source.name)
-            if light_cfg is None:
-                continue
-
-            shape = getattr(light_cfg, "shape", "circle")
-            direction = getattr(light_cfg, "direction", 0.0)
-            cone_angle = getattr(light_cfg, "cone_angle", 6.283185307179586)
-            beam_width = getattr(light_cfg, "beam_width", 1.0)
-            beam_length = getattr(light_cfg, "beam_length", 8)
-            softness = getattr(light_cfg, "softness", 0.0)
-
-            origin_x, origin_y = light_res.source.x, light_res.source.y
-            radius = light_res.source.radius
+        for light_res in active_lights:
             color = np.array(light_res.source.color, dtype=np.float32)
             intensity = light_res.source.intensity
 
-            valid = light_res.reach_mask
-            visible_out = light_res.visible_out
-            dist_out = light_res.dist_out
-            side_bits_out = light_res.side_bits_out
+            shape_mask = light_res.shape_mask if light_res.shape_mask is not None else np.zeros_like(light_res.reach_mask, dtype=np.float32)
             visibility_out = light_res.visibility_out
-
-            # Grid coordinates for shape checks
-            y_coords, x_coords = np.ogrid[0:scene.height, 0:scene.width]
-            dx = x_coords - origin_x
-            dy = y_coords - origin_y
-
-            shape_mask = np.zeros_like(valid, dtype=np.float32)
-
-            if shape == "circle":
-                dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
-                falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
-                shape_mask = np.clip(falloff, 0.0, 1.0)
-
-            elif shape == "cone":
-                dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
-                falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
-                falloff = np.clip(falloff, 0.0, 1.0)
-
-                # Cone angle check
-                angle = np.arctan2(dy, dx)
-                diff = (angle - direction + np.pi) % (2 * np.pi) - np.pi
-                abs_diff = np.abs(diff)
-
-                half_angle = cone_angle / 2.0
-                if softness > 0.0:
-                    inner_angle = half_angle * (1.0 - softness)
-                    cone_factor = np.where(
-                        abs_diff <= inner_angle,
-                        1.0,
-                        np.where(
-                            abs_diff > half_angle,
-                            0.0,
-                            1.0 - (abs_diff - inner_angle) / (half_angle - inner_angle + 1e-9)
-                        )
-                    )
-                else:
-                    cone_factor = np.where(abs_diff <= half_angle, 1.0, 0.0)
-
-                shape_mask = falloff * cone_factor
-
-            elif shape == "beam":
-                # Project coordinates along direction
-                cos_dir = np.cos(direction)
-                sin_dir = np.sin(direction)
-
-                # Projection length (distance along beam)
-                p = dx * cos_dir + dy * sin_dir
-                # Perpendicular distance
-                d_perp = np.abs(-dx * sin_dir + dy * cos_dir)
-
-                half_width = beam_width / 2.0
-
-                # Check bounds
-                in_length = (p >= 0.0) & (p <= beam_length)
-
-                if softness > 0.0:
-                    inner_width = half_width * (1.0 - softness)
-                    perp_factor = np.where(
-                        d_perp <= inner_width,
-                        1.0,
-                        np.where(
-                            d_perp > half_width,
-                            0.0,
-                            1.0 - (d_perp - inner_width) / (half_width - inner_width + 1e-9)
-                        )
-                    )
-                    inner_length = beam_length * (1.0 - softness)
-                    length_factor = np.where(
-                        p <= inner_length,
-                        1.0,
-                        np.where(
-                            p > beam_length,
-                            0.0,
-                            1.0 - (p - inner_length) / (beam_length - inner_length + 1e-9)
-                        )
-                    )
-                else:
-                    perp_factor = np.where(d_perp <= half_width, 1.0, 0.0)
-                    length_factor = 1.0
-
-                beam_factor = np.where(valid & in_length, perp_factor * length_factor, 0.0)
-                falloff = np.where(valid & in_length, 1.0 - p / float(beam_length), 0.0)
-                falloff = np.clip(falloff, 0.0, 1.0)
-
-                shape_mask = falloff * beam_factor
+            side_bits_out = light_res.side_bits_out
 
             # Combine shape mask with JIT shadowcasting transmittance (visibility)
             atten = shape_mask * visibility_out * intensity

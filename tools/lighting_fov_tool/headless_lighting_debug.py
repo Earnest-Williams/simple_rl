@@ -67,19 +67,11 @@ class LightRuntimeResult:
 
     source: LightSourceDef
     fov: FovResult
-
-
-@dataclass(frozen=True)
-class ActiveLightReport:
-    """Headless diagnostic details for one light."""
-
-    name: str
-    active: bool
-    emitter_visible_to_player: bool
-    reached_visible_cells: int
-    reached_observer_cells: int
-    radius_overlap_cells: int
-    backend_used: str
+    active: bool = False
+    emitter_visible_to_player: bool = False
+    reached_visible_cells: int = 0
+    reached_observer_cells: int = 0
+    radius_overlap_cells: int = 0
 
 
 def _ensure_project_in_path() -> None:
@@ -371,8 +363,10 @@ def compute_light_runtime_results(
     opaque_grid: np.ndarray,
     transparency_grid: np.ndarray,
     backend: FovBackend,
+    player_visible: np.ndarray,
+    observer_visible: np.ndarray,
 ) -> list[LightRuntimeResult]:
-    """Compute each light reach mask exactly once."""
+    """Compute each light reach mask exactly once and populate diagnostic fields."""
     results: list[LightRuntimeResult] = []
     for light in scene.light_sources:
         if light.radius <= 0 or light.intensity <= 0.0:
@@ -387,33 +381,25 @@ def compute_light_runtime_results(
                 light.radius,
                 backend,
             )
-        results.append(LightRuntimeResult(source=light, fov=fov))
+            
+        reached = fov.reach_mask
+        radius_mask = light_radius_mask_from_shape(player_visible.shape, light)
+        reached_observer_cells = int(np.count_nonzero(reached & observer_visible))
+        reached_visible_cells = int(np.count_nonzero(reached & player_visible))
+        radius_overlap_cells = int(np.count_nonzero(radius_mask & observer_visible))
+        emitter_visible_to_player = bool(player_visible[light.y, light.x])
+        active = reached_observer_cells > 0
+
+        results.append(LightRuntimeResult(
+            source=light, 
+            fov=fov,
+            active=active,
+            emitter_visible_to_player=emitter_visible_to_player,
+            reached_visible_cells=reached_visible_cells,
+            reached_observer_cells=reached_observer_cells,
+            radius_overlap_cells=radius_overlap_cells,
+        ))
     return results
-
-
-def build_light_report(
-    light_result: LightRuntimeResult,
-    player_visible: np.ndarray,
-    observer_visible: np.ndarray,
-) -> ActiveLightReport:
-    """Return activation diagnostics using a precomputed light reach result."""
-    light = light_result.source
-    reached = light_result.fov.reach_mask
-    radius = light_radius_mask_from_shape(player_visible.shape, light)
-    reached_observer_cells = int(np.count_nonzero(reached & observer_visible))
-    reached_visible_cells = int(np.count_nonzero(reached & player_visible))
-    radius_overlap_cells = int(np.count_nonzero(radius & observer_visible))
-    emitter_visible_to_player = bool(player_visible[light.y, light.x])
-
-    return ActiveLightReport(
-        name=light.name,
-        active=reached_observer_cells > 0,
-        emitter_visible_to_player=emitter_visible_to_player,
-        reached_visible_cells=reached_visible_cells,
-        reached_observer_cells=reached_observer_cells,
-        radius_overlap_cells=radius_overlap_cells,
-        backend_used=light_result.fov.backend_used,
-    )
 
 
 def light_radius_mask_from_shape(
@@ -431,7 +417,7 @@ def light_radius_mask_from_shape(
 def compute_light_reports(
     scene: SceneLayout,
     backend: FovBackend,
-) -> list[ActiveLightReport]:
+) -> list[LightRuntimeResult]:
     """Return activation diagnostics for every light without duplicate reach work."""
     opaque_grid = build_opaque_grid(scene)
     transparency_grid = build_transparency_grid(opaque_grid)
@@ -447,22 +433,20 @@ def compute_light_reports(
         transparency_grid,
         backend,
     )
-    light_results = compute_light_runtime_results(
+    return compute_light_runtime_results(
         scene,
         opaque_grid,
         transparency_grid,
         backend,
+        player_visible,
+        observer_visible,
     )
-    return [
-        build_light_report(light_result, player_visible, observer_visible)
-        for light_result in light_results
-    ]
 
 
 def compute_active_light_mask(
     scene: SceneLayout,
     backend: FovBackend,
-) -> tuple[np.ndarray, list[ActiveLightReport]]:
+) -> tuple[np.ndarray, list[LightRuntimeResult]]:
     """Return all cells reached by active lights plus per-light reports."""
     opaque_grid = build_opaque_grid(scene)
     transparency_grid = build_transparency_grid(opaque_grid)
@@ -483,18 +467,17 @@ def compute_active_light_mask(
         opaque_grid,
         transparency_grid,
         backend,
+        player_visible,
+        observer_visible,
     )
 
     active_mask: np.ndarray = np.zeros((scene.height, scene.width), dtype=bool)
-    reports: list[ActiveLightReport] = []
 
     for light_result in light_results:
-        report = build_light_report(light_result, player_visible, observer_visible)
-        reports.append(report)
-        if report.active:
+        if light_result.active:
             active_mask |= light_result.fov.reach_mask
 
-    return active_mask, reports
+    return active_mask, light_results
 
 
 def parse_xy(raw: str) -> tuple[int, int]:
@@ -574,8 +557,8 @@ def render_ascii(
     monster_positions = {
         (monster.x, monster.y): "M" for monster in scene.monsters if monster.has_eyes
     }
-    active_names = {report.name for report in reports if report.active}
-    backends_used = sorted({report.backend_used for report in reports})
+    active_names = {report.source.name for report in reports if report.active}
+    backends_used = sorted({report.fov.backend_used for report in reports})
 
     min_x, max_x, min_y, max_y = bounds_for_view(scene, focus, DEFAULT_VIEW_MARGIN)
     lines: list[str] = []
@@ -611,7 +594,7 @@ def render_ascii(
     return "\n".join(lines)
 
 
-def format_reports(reports: Sequence[ActiveLightReport]) -> str:
+def format_reports(reports: Sequence[LightRuntimeResult]) -> str:
     """Format per-light activation diagnostics."""
     lines = [
         "light activation report:",
@@ -619,13 +602,13 @@ def format_reports(reports: Sequence[ActiveLightReport]) -> str:
     ]
     for report in reports:
         lines.append(
-            f"{report.name:<20} "
+            f"{report.source.name:<20} "
             f"{str(report.active):<6} "
             f"{str(report.emitter_visible_to_player):<12} "
             f"{report.reached_visible_cells:<14} "
             f"{report.reached_observer_cells:<17} "
             f"{report.radius_overlap_cells:<14} "
-            f"{report.backend_used}"
+            f"{report.fov.backend_used}"
         )
     return "\n".join(lines)
 
