@@ -524,23 +524,25 @@ class LightingFovToolWindow(QMainWindow):
         debug_group = QGroupBox("Debug Visualization")
         debug_layout = QVBoxLayout()
 
-        self._show_full_light_checkbox = QPushButton("Show full light field: ON")
+        self._show_full_light_checkbox = QPushButton()
         self._show_full_light_checkbox.setCheckable(True)
         self._show_full_light_checkbox.setChecked(self._show_full_light_field)
         self._show_full_light_checkbox.clicked.connect(self._on_debug_toggle_changed)
         debug_layout.addWidget(self._show_full_light_checkbox)
 
-        self._show_hidden_lights_checkbox = QPushButton("Show hidden emitters: OFF")
+        self._show_hidden_lights_checkbox = QPushButton()
         self._show_hidden_lights_checkbox.setCheckable(True)
         self._show_hidden_lights_checkbox.setChecked(self._show_hidden_light_sources)
         self._show_hidden_lights_checkbox.clicked.connect(self._on_debug_toggle_changed)
         debug_layout.addWidget(self._show_hidden_lights_checkbox)
 
-        self._use_los_radial_checkbox = QPushButton("Use LOS for debug radial: ON")
+        self._use_los_radial_checkbox = QPushButton()
         self._use_los_radial_checkbox.setCheckable(True)
         self._use_los_radial_checkbox.setChecked(self._use_los_for_debug_radial)
         self._use_los_radial_checkbox.clicked.connect(self._on_debug_toggle_changed)
         debug_layout.addWidget(self._use_los_radial_checkbox)
+
+        self._set_debug_toggle_texts()
 
         debug_group.setLayout(debug_layout)
         actions_layout.addWidget(debug_group)
@@ -632,24 +634,29 @@ class LightingFovToolWindow(QMainWindow):
         self._lighting_backend = backend_name
         self._render_scene()
 
+    def _set_debug_toggle_texts(self) -> None:
+        """Set the text for all debug toggle buttons based on current state."""
+        self._show_full_light_checkbox.setText(
+            f"Show full light field: {'ON' if self._show_full_light_field else 'OFF'}"
+        )
+        self._show_hidden_lights_checkbox.setText(
+            f"Show hidden emitters: {'ON' if self._show_hidden_light_sources else 'OFF'}"
+        )
+        self._use_los_radial_checkbox.setText(
+            f"Use LOS for debug radial: {'ON' if self._use_los_for_debug_radial else 'OFF'}"
+        )
+
     def _on_debug_toggle_changed(self) -> None:
         """Handle debug visualization toggle changes."""
         sender = self.sender()
         if sender is self._show_full_light_checkbox:
             self._show_full_light_field = self._show_full_light_checkbox.isChecked()
-            self._show_full_light_checkbox.setText(
-                f"Show full light field: {'ON' if self._show_full_light_field else 'OFF'}"
-            )
         elif sender is self._show_hidden_lights_checkbox:
             self._show_hidden_light_sources = self._show_hidden_lights_checkbox.isChecked()
-            self._show_hidden_lights_checkbox.setText(
-                f"Show hidden emitters: {'ON' if self._show_hidden_light_sources else 'OFF'}"
-            )
         elif sender is self._use_los_radial_checkbox:
             self._use_los_for_debug_radial = self._use_los_radial_checkbox.isChecked()
-            self._use_los_radial_checkbox.setText(
-                f"Use LOS for debug radial: {'ON' if self._use_los_for_debug_radial else 'OFF'}"
-            )
+        
+        self._set_debug_toggle_texts()
         self._render_scene()
 
     def _on_reset_all(self) -> None:
