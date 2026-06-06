@@ -339,6 +339,11 @@ class LightingFovToolWindow(QMainWindow):
             self._scene.height, self._scene.width
         )
 
+        # Debug visualization toggles
+        self._show_full_light_field = True
+        self._show_hidden_light_sources = False
+        self._use_los_for_debug_radial = True
+
         # Set up render debounce timer
         self._render_timer = QTimer(self)
         self._render_timer.setSingleShot(True)
@@ -515,6 +520,31 @@ class LightingFovToolWindow(QMainWindow):
         backend_layout.addRow("Lighting Backend:", self._lighting_backend_combo)
         actions_layout.addLayout(backend_layout)
 
+        # Debug visualization options
+        debug_group = QGroupBox("Debug Visualization")
+        debug_layout = QVBoxLayout()
+
+        self._show_full_light_checkbox = QPushButton("Show full light field: ON")
+        self._show_full_light_checkbox.setCheckable(True)
+        self._show_full_light_checkbox.setChecked(self._show_full_light_field)
+        self._show_full_light_checkbox.clicked.connect(self._on_debug_toggle_changed)
+        debug_layout.addWidget(self._show_full_light_checkbox)
+
+        self._show_hidden_lights_checkbox = QPushButton("Show hidden emitters: OFF")
+        self._show_hidden_lights_checkbox.setCheckable(True)
+        self._show_hidden_lights_checkbox.setChecked(self._show_hidden_light_sources)
+        self._show_hidden_lights_checkbox.clicked.connect(self._on_debug_toggle_changed)
+        debug_layout.addWidget(self._show_hidden_lights_checkbox)
+
+        self._use_los_radial_checkbox = QPushButton("Use LOS for debug radial: ON")
+        self._use_los_radial_checkbox.setCheckable(True)
+        self._use_los_radial_checkbox.setChecked(self._use_los_for_debug_radial)
+        self._use_los_radial_checkbox.clicked.connect(self._on_debug_toggle_changed)
+        debug_layout.addWidget(self._use_los_radial_checkbox)
+
+        debug_group.setLayout(debug_layout)
+        actions_layout.addWidget(debug_group)
+
         reset_all_btn = QPushButton("Reset All to Original")
         reset_all_btn.clicked.connect(self._on_reset_all)
         actions_layout.addWidget(reset_all_btn)
@@ -602,6 +632,26 @@ class LightingFovToolWindow(QMainWindow):
         self._lighting_backend = backend_name
         self._render_scene()
 
+    def _on_debug_toggle_changed(self) -> None:
+        """Handle debug visualization toggle changes."""
+        sender = self.sender()
+        if sender is self._show_full_light_checkbox:
+            self._show_full_light_field = self._show_full_light_checkbox.isChecked()
+            self._show_full_light_checkbox.setText(
+                f"Show full light field: {'ON' if self._show_full_light_field else 'OFF'}"
+            )
+        elif sender is self._show_hidden_lights_checkbox:
+            self._show_hidden_light_sources = self._show_hidden_lights_checkbox.isChecked()
+            self._show_hidden_lights_checkbox.setText(
+                f"Show hidden emitters: {'ON' if self._show_hidden_light_sources else 'OFF'}"
+            )
+        elif sender is self._use_los_radial_checkbox:
+            self._use_los_for_debug_radial = self._use_los_radial_checkbox.isChecked()
+            self._use_los_radial_checkbox.setText(
+                f"Use LOS for debug radial: {'ON' if self._use_los_for_debug_radial else 'OFF'}"
+            )
+        self._render_scene()
+
     def _on_reset_all(self) -> None:
         """Reset all configurations to original values."""
         self._config_state.reset_all_to_original()
@@ -666,7 +716,10 @@ class LightingFovToolWindow(QMainWindow):
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
                 # Apply lighting: show full light field for tuning (not clipped by player FOV)
-                intensity = base_intensity[y, x] if visible[y, x] else 0.05
+                if self._show_full_light_field:
+                    intensity = base_intensity[y, x]
+                else:
+                    intensity = base_intensity[y, x] if visible[y, x] else 0.05
                 light_rgb = colored_light[y, x]
 
                 # Apply lighting: (base_color * intensity) + colored_light
@@ -701,10 +754,15 @@ class LightingFovToolWindow(QMainWindow):
         # Mark light sources
         for ls in scene.light_sources:
             light_cfg = config.lights.get(ls.name)
-            if light_cfg:
-                lx = ls.x * self._tile_size + self._tile_size // 2
-                ly = ls.y * self._tile_size + self._tile_size // 2
-                self._draw_light_marker(output, lx, ly, light_cfg.color)
+            if light_cfg is None:
+                continue
+
+            if not self._show_hidden_light_sources and not visible[ls.y, ls.x]:
+                continue
+
+            lx = ls.x * self._tile_size + self._tile_size // 2
+            ly = ls.y * self._tile_size + self._tile_size // 2
+            self._draw_light_marker(output, lx, ly, light_cfg.color)
 
         # Convert to QPixmap and display
         img = Image.fromarray(output, "RGBA")
@@ -872,6 +930,17 @@ class LightingFovToolWindow(QMainWindow):
         dist_sq = dx * dx + dy * dy
 
         valid = dist_sq <= radius_sq
+
+        # Add LOS check for debug radial lights if enabled
+        if self._use_los_for_debug_radial:
+            los_valid = np.zeros_like(valid, dtype=bool)
+            for local_y, map_y in enumerate(range(min_y, max_y)):
+                for local_x, map_x in enumerate(range(min_x, max_x)):
+                    if not valid[local_y, local_x]:
+                        continue
+                    if self._has_los(origin_x, origin_y, map_x, map_y):
+                        los_valid[local_y, local_x] = True
+            valid = valid & los_valid
 
         # More readable than squared falloff for a tuning tool.
         dist = np.sqrt(dist_sq.astype(np.float32))
