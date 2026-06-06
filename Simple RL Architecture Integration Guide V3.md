@@ -151,7 +151,7 @@ main.py
 | GOAP headless harness | `cd auto && ./run.sh --mode headless` |
 | GOAP GUI harness | `cd auto && ./run.sh --mode gui` |
 | GOAP regression helper | `python scripts/run_auto_regression.py` |
-| Lighting diagnostic | `python complete_light_diagnostic.py` |
+| Lighting/FOV regression tests | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py` |
 | Lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` |
 | Arrow playback | `python tools/play_from_arrow.py generated_dungeon.arrow` |
 | Glyph metadata generation | `python scripts/generate_glyphs.py` |

@@ -109,6 +109,23 @@ Background music updates automatically based on the current game state:
 - **Deep Dungeon**: Atmospheric music at greater depths
 - **Boss Encounters**: Epic music when facing boss enemies
 
+### Gameplay perception boundary
+
+Gameplay systems emit typed perception events, while propagation and AI-facing
+interpretation stay outside the audio playback layer:
+
+- `game/perception_events.py` defines typed `NoiseEvent` and `ScentEvent`
+  records, plus pending tuple compatibility aliases for older callers.
+- `pathfinding/perception_systems.py` owns noise/scent propagation and
+  flow-cost-aware perception maps used by gameplay and AI.
+- `game/systems/sound.py` may consume integer flow-cost maps to attenuate
+  playback volume by listener/source distance and obstruction cost, but it does
+  not own gameplay propagation or AI perception state.
+
+This keeps SDL2 mixer playback optional and non-intrusive: disabling audio must
+not disable noise/scent propagation, stealth, monster perception, or pathfinding
+behavior.
+
 ## Sound Effect Configuration
 
 ### Basic Sound Effect

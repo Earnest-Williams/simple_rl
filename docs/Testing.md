@@ -46,7 +46,7 @@ Known CI follow-up items:
 3. Keep any modernization job aligned with `pyupgrade --py311-plus`, Ruff fixes,
    and Black formatting.
 
-## Current verification notes
+## Verification snapshot and current caution
 
 The 2026-06-01 final audit follow-up recorded these local results in a fully
 provisioned editable `.[dev]` environment:
@@ -58,9 +58,18 @@ provisioned editable `.[dev]` environment:
 - `python scripts/sync_llm_policy.py --check` passed.
 - `python scripts/check_deterministic_random.py` passed.
 - `pytest -q` passed with 16 tests.
-- `mypy .` passed. Historical typing debt is intentionally quarantined with an
-  explicit module list in `pyproject.toml` so future cleanup PRs can remove
-  those overrides one module at a time.
+- `mypy .` passed in that snapshot. Historical typing debt was intentionally
+  quarantined with an explicit module list in `pyproject.toml` so future cleanup
+  PRs could remove those overrides one module at a time.
+
+Do not treat that snapshot as proof that repository-wide checks still pass
+today. Re-run current checks before relying on it; later lighting-tool and
+lighting-backend PRs have observed pre-existing strict mypy/stub issues in
+lighting and glyph modules such as `engine/glyphs.py` and
+`game/world/light_fov.py`. When a narrower command such as
+`python -m mypy --strict tools/lighting_fov_tool/tool_window.py` reports errors
+outside the edited file, record the exact upstream modules and keep the new code
+strict-clean.
 
 ## Troubleshooting
 

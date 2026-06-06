@@ -24,7 +24,7 @@ Development prioritizes:
 
 * **Performance:** Utilizing libraries like Polars (for data manipulation), Numba (for JIT compilation on hot paths), NumPy, SciPy, scikit-image, and Joblib/multiprocessing (for parallelism) where appropriate.
 * **Determinism:** Employing the custom `GameRNG` for all stochastic processes to ensure reproducibility.
-* **Data-Driven Design:** Modeling game state and entity attributes using efficient data structures (e.g., Polars DataFrames).
+* **Data-Driven Design:** Modeling game state with efficient data structures. Hot runtime entity state is array/store-oriented, while Polars remains important for compatibility snapshots, reporting, fixtures, bulk data operations, and dungeon-generation outputs.
 * **Clarity & Maintainability:** Adhering to Python best practices (PEP 8) and favoring clear, modular code, especially in performance-critical sections.
 
 ## Status
@@ -116,7 +116,7 @@ The project prioritizes performance through high-performance libraries (Polars, 
 
 ### Known Limitations
 * Some rendering operations may benefit from caching and dirty-rect tracking
-* Entity component queries in combat system could be batched for better performance
+* Verify remaining non-combat item/equipment DataFrame paths and profile the next dominant turn-processing bottleneck after the entity-store migration
 * Flow field pathfinding may benefit from caching when targets are stationary
 
 For detailed performance analysis and optimization recommendations, see
