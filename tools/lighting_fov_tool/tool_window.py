@@ -55,6 +55,9 @@ MAX_TILE_SIZE: Final[int] = 32
 LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = (
     0.0  # Light factor for tiles outside player's field of view
 )
+AMBIENT_INTENSITY: Final[float] = 0.30
+LIGHT_EXPOSURE: Final[float] = 2.5
+RENDER_DEBOUNCE_MS: Final[int] = 33
 
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
@@ -319,6 +322,12 @@ class LightingFovToolWindow(QMainWindow):
         self._config_state.initialize_defaults(self._scene.light_sources)
         self._tile_size = DEFAULT_TILE_SIZE
 
+        # Set up render debounce timer
+        self._render_timer = QTimer(self)
+        self._render_timer.setSingleShot(True)
+        self._render_timer.setInterval(RENDER_DEBOUNCE_MS)
+        self._render_timer.timeout.connect(self._render_scene)
+
         # Load tileset
         self._tiles: dict[int, np.ndarray] = {}
         self._load_tileset()
@@ -556,7 +565,7 @@ class LightingFovToolWindow(QMainWindow):
 
     def _on_config_changed(self) -> None:
         """Handle configuration change from any panel."""
-        self._render_scene()
+        self._render_timer.start()
 
     def _on_reset_all(self) -> None:
         """Reset all configurations to original values."""
@@ -734,7 +743,9 @@ class LightingFovToolWindow(QMainWindow):
         config = self._config_state
 
         # Base ambient lighting intensity
-        base_intensity = np.full((scene.height, scene.width), 0.15, dtype=np.float32)
+        base_intensity = np.full(
+            (scene.height, scene.width), AMBIENT_INTENSITY, dtype=np.float32
+        )
 
         # RGB colored light contributions (additive)
         colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
@@ -764,6 +775,10 @@ class LightingFovToolWindow(QMainWindow):
                 target_rgb_array=colored_light,
                 base_color_rgb=light_cfg.color,
             )
+
+        # Apply exposure and clamp
+        colored_light *= LIGHT_EXPOSURE
+        np.clip(colored_light, 0.0, 255.0, out=colored_light)
 
         return base_intensity, colored_light
 
