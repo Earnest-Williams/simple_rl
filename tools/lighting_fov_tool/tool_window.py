@@ -56,8 +56,9 @@ LIGHT_FACTOR_OUTSIDE_FOV: Final[float] = (
     0.0  # Light factor for tiles outside player's field of view
 )
 AMBIENT_INTENSITY: Final[float] = 0.30
-LIGHT_EXPOSURE: Final[float] = 2.5
+LIGHT_EXPOSURE: Final[float] = 3.0
 RENDER_DEBOUNCE_MS: Final[int] = 33
+SHOW_FULL_LIGHT_FIELD: Final[bool] = True
 
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
@@ -630,15 +631,12 @@ class LightingFovToolWindow(QMainWindow):
                 fg_color = np.array(elem_config.fg_color, dtype=np.float32)
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
 
-                # Apply lighting only where player can see (within FOV)
+                # Apply lighting: show full light field for tuning (not clipped by player FOV)
                 if visible[y, x]:
-                    # Apply base intensity and add colored light for visible tiles
                     intensity = base_intensity[y, x]
-                    light_rgb = colored_light[y, x]
                 else:
-                    # Tiles outside FOV are dark
-                    intensity = LIGHT_FACTOR_OUTSIDE_FOV
-                    light_rgb = np.zeros(3, dtype=np.float32)
+                    intensity = 0.05
+                light_rgb = colored_light[y, x]
 
                 # Apply lighting: (base_color * intensity) + colored_light
                 fg_lit = (
@@ -765,6 +763,8 @@ class LightingFovToolWindow(QMainWindow):
                 continue
 
             # Use compute_light_color_array from fov module for colored lighting
+            # Create temporary buffer for this light, then multiply by intensity
+            temp_light = np.zeros_like(colored_light)
             compute_light_color_array(
                 origin_xy=(ls.x, ls.y),
                 range_limit=light_cfg.radius,
@@ -772,13 +772,24 @@ class LightingFovToolWindow(QMainWindow):
                 height_map=scene.height_map,
                 ceiling_map=scene.ceiling_map,
                 origin_height=0,
-                target_rgb_array=colored_light,
+                target_rgb_array=temp_light,
                 base_color_rgb=light_cfg.color,
             )
+            colored_light += temp_light * float(light_cfg.intensity)
 
-        # Apply exposure and clamp
+        # Diagnostic/tool exposure, not production balance.
         colored_light *= LIGHT_EXPOSURE
         np.clip(colored_light, 0.0, 255.0, out=colored_light)
+
+        # Add diagnostic logging
+        lit_mask = np.any(colored_light > 1.0, axis=2)
+        log.info(
+            "light stats",
+            max=colored_light.max(),
+            mean=colored_light.mean(),
+            lit_tiles=int(lit_mask.sum()),
+            total_tiles=scene.height * scene.width,
+        )
 
         return base_intensity, colored_light
 
