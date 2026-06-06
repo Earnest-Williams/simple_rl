@@ -315,7 +315,9 @@ def draw(
 
     _draw_tiles(screen, tile_grid, camera_row, camera_col, view_cols, view_rows, tile_size)
     _draw_player(screen, player, camera_col, camera_row, tile_size)
-    _draw_hud(screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows)
+    _draw_hud(
+        screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows
+    )
 
     pygame.display.flip()
 

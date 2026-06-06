@@ -8,10 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Final
-
-# Any is retained for the return type of run_pipeline which returns a dict[str, object]
-# with heterogeneous values. This will be addressed when the function is split.
+from typing import Final
 
 import numpy as np
 import orjson
@@ -28,12 +25,12 @@ from auto.simulation import (
     World,
     enemy_act,
 )
+from common.tuning import DEFAULT_GRID_SIZE as DEFAULT_GRID_SIZE
 from Dungeon import core, processor, shaper
 from engine.render_lighting import apply_memory_fade
 from skills.utils import numba_warmup
 from utils.game_rng import GameRNG
 from utils.shaped_map import load_shaped_map_as_arrays
-from common.tuning import DEFAULT_GRID_SIZE as DEFAULT_GRID_SIZE
 
 _repo_root_candidate = Path(__file__)
 REPO_ROOT: Final[Path] = (
@@ -160,12 +157,18 @@ def run_pipeline(
                         t_type = trans.get("transition_type")
                         if t_type in {1, 2, "CAVE_ENTRANCE", "PONOR_DESCENT"}:
                             transition_payload = trans
-                            log.info("Loaded transition payload from overland metadata: %s", trans)
+                            log.info(
+                                "Loaded transition payload from overland metadata: %s",
+                                trans,
+                            )
                             break
                     if not transition_payload and transitions:
                         transition_payload = transitions[0]
         except Exception as exc:
-            log.warning("Failed to load overland metadata for themed dungeon generation: %s", exc)
+            log.warning(
+                "Failed to load overland metadata for themed dungeon generation: %s",
+                exc,
+            )
 
     generator = core.CaveGenerator(
         max_nodes=max_nodes,
@@ -266,7 +269,9 @@ def run_pipeline(
         except OSError as exc:
             log.exception("Failed to write node map JSON: %s", exc)
     else:
-        log.warning("Shaped map missing x/y columns; skipping node->tile mapping.")
+        log.warning(
+            "Shaped map missing x/y columns; skipping node->tile mapping."
+        )
 
     map_arrays = load_shaped_map_as_arrays(output_file)
     node_to_tile: dict[int, tuple[int, int]] = {}

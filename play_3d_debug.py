@@ -279,8 +279,12 @@ def _render_wall_column(
     relative_floor: float = hit_floor_z - camera_z
     relative_ceiling: float = hit_ceiling_z - camera_z
 
-    wall_top: int = horizon_y + int((relative_ceiling * PROJECTION_SCALE) / corrected_distance)
-    wall_bottom: int = horizon_y + int((relative_floor * PROJECTION_SCALE) / corrected_distance)
+    wall_top: int = horizon_y + int(
+        (relative_ceiling * PROJECTION_SCALE) / corrected_distance
+    )
+    wall_bottom: int = horizon_y + int(
+        (relative_floor * PROJECTION_SCALE) / corrected_distance
+    )
 
     color: tuple[int, int, int] = get_wall_color(hit.tile_id)
 

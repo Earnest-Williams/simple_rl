@@ -43,9 +43,11 @@ DEFAULT_SEED: Final[int] = 0
 # Detect whether the RNG integers(...) supports 'endpoint' kwarg.
 try:
     np.random.default_rng().integers(0, 1, endpoint=True)
-    _NP_INTEGERS_SUPPORTS_ENDPOINT: Final[bool] = True
+    np_integers_supports_endpoint = True
 except TypeError:
-    _NP_INTEGERS_SUPPORTS_ENDPOINT = False
+    np_integers_supports_endpoint = False
+
+_NP_INTEGERS_SUPPORTS_ENDPOINT: Final[bool] = np_integers_supports_endpoint
 
 
 # ---------------------------------------------------------------------------

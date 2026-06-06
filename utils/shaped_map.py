@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final, NotRequired, TypedDict
+from typing import Final, NotRequired, TypedDict
 
 import numpy as np
 import polars as pl
@@ -10,9 +10,6 @@ from common.constants import Material
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
 MAX_LOOKUP_MATERIAL_ID: Final[int] = 100_000
-
-# Any is retained for Mapping type hint in shaped_dataframe_to_game_map
-# which accepts flexible material_to_tile mappings.
 
 
 class ShapedMapArrays(TypedDict):
