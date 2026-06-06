@@ -33,17 +33,17 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import numpy as np
 
 # Deterministic default seed used when callers do not provide one.
-DEFAULT_SEED: int = 0
+DEFAULT_SEED: Final[int] = 0
 
 # Detect whether the RNG integers(...) supports 'endpoint' kwarg.
 try:
     np.random.default_rng().integers(0, 1, endpoint=True)
-    _NP_INTEGERS_SUPPORTS_ENDPOINT = True
+    _NP_INTEGERS_SUPPORTS_ENDPOINT: Final[bool] = True
 except TypeError:
     _NP_INTEGERS_SUPPORTS_ENDPOINT = False
 

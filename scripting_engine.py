@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal, Protocol, TypedDict
+from typing import Final, Literal, Protocol, TypedDict
 
 import structlog
 
@@ -24,10 +24,10 @@ from magic.bf_backend import (
     PureBackend,
 )
 
-_MACRO_TOKEN: re.Pattern[str] = re.compile(r"!\w+")
-_MACRO_NAME: re.Pattern[str] = re.compile(r"^!\w+$")
-BF_CHARS: set[str] = set("><+-.,[]")
-_MIN_BF_LEN: int = 3
+_MACRO_TOKEN: Final[re.Pattern[str]] = re.compile(r"!\w+")
+_MACRO_NAME: Final[re.Pattern[str]] = re.compile(r"^!\w+$")
+BF_CHARS: Final[set[str]] = set("><+-.,[]")
+_MIN_BF_LEN: Final[int] = 3
 log = structlog.get_logger()
 MacroExpansionReason = Literal[
     "char_limit_exceeded",
@@ -185,8 +185,8 @@ class MacroManager:
     Also handles Brainfuck code execution through integration with BrainfuckRunner.
     """
 
-    MAX_MACROS: int = 1024
-    MAX_DEF_LEN: int = 4096
+    MAX_MACROS: Final[int] = 1024
+    MAX_DEF_LEN: Final[int] = 4096
 
     def __init__(
         self,
@@ -328,7 +328,7 @@ class MacroManager:
                 start, end = match.span()
                 char_count = _append_text(out_parts, seg[pos:start], char_count)
 
-                token: str = match.group(1)
+                token: str = match.group(0)
                 if token in path:
                     raise MacroExpansionError("recursion_detected", token)
                 if token not in self.macros:
@@ -406,7 +406,7 @@ class MacroManager:
             line (str): The input line to process
 
         Returns:
-            str or dict: The result of processing (usually display text or error info)
+            str | ErrorResult | MacroErrorResult: The result of processing
         """
         line = line.strip()
 

@@ -7,13 +7,16 @@ import io
 import itertools
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 import orjson
 import polars as pl
 
-SchemaVersion = str
+SchemaVersion: TypeAlias = str
+
+# Any is used for JSON-serializable payload dictionaries where the structure
+# is dynamic and determined at runtime. This is unavoidable for the save format.
 
 
 class SaveGameSerializationError(Exception):
@@ -140,17 +143,17 @@ def save_game_state(
     # Note: Using BytesIO is necessary as write_ipc needs a file-like object
     buf = io.BytesIO()
     mobs_df.write_ipc(buf)
-    ipc_bytes = buf.getvalue()
+    ipc_bytes: bytes = buf.getvalue()
 
     # Conditionally compress (creates a copy if enabled)
     if compress_ipc:
         ipc_bytes = gzip.compress(ipc_bytes, compresslevel=6)
-        ipc_compressed = True
+        ipc_compressed: bool = True
     else:
         ipc_compressed = False
 
     # Base64 encode for JSON embedding
-    ipc_b64 = base64.b64encode(ipc_bytes).decode("ascii")
+    ipc_b64: str = base64.b64encode(ipc_bytes).decode("ascii")
 
     # Serialize complex objects (may raise SaveGameSerializationError)
     json_world = _make_json_serializable(world_map_data)
@@ -233,11 +236,12 @@ def load_game_state(
         raise ValueError("Save file 'mobs_df_ipc_b64' must be a string.")
 
     try:
-        ipc_bytes = base64.b64decode(ipc_b64)
+        ipc_bytes: bytes = base64.b64decode(ipc_b64)
     except Exception as e:
         raise ValueError(f"Invalid base64 encoding in 'mobs_df_ipc_b64': {e}") from e
 
-    if state.get("mobs_df_ipc_compressed", False):
+    ipc_compressed: bool = state.get("mobs_df_ipc_compressed", False)
+    if ipc_compressed:
         try:
             ipc_bytes = gzip.decompress(ipc_bytes)
         except gzip.BadGzipFile as e:

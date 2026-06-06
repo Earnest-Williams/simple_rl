@@ -26,12 +26,15 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 # Fallback removed
 import polars as pl
 
-POLARS_AVAILABLE = True
+POLARS_AVAILABLE: Final[bool] = True
+
+# Any is used in OutputRecord.rng_state and metadata for flexible state storage.
+# This is unavoidable for the structured logging format.
 
 if TYPE_CHECKING:
     from jinja2 import Environment

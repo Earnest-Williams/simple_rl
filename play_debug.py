@@ -4,7 +4,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, cast
+from typing import Final, cast
 
 import numpy as np
 import polars as pl
@@ -46,6 +46,8 @@ class ViewState:
 
     def zoom_out(self) -> None:
         self.tile_size_index = max(0, self.tile_size_index - 1)
+
+
 FPS: Final[int] = 30
 
 
@@ -181,25 +183,36 @@ def try_move(player: Player, tile_grid: np.ndarray, d_row: int, d_col: int) -> N
         player.col = next_col
 
 
-def draw(
+def _get_tile_color(tile_id: int) -> tuple[int, int, int]:
+    """Get the color for a given tile ID."""
+    if tile_id == int(Material.SOLID_ROCK):
+        return (18, 18, 22)
+    elif tile_id == int(Material.CAVE_FLOOR):
+        return (95, 88, 78)
+    elif tile_id == int(Material.SHAFT_OPENING):
+        return (60, 45, 90)
+    elif tile_id == int(Material.CLIFF_EDGE):
+        return (120, 65, 45)
+    elif tile_id == int(Material.DOOR_OPEN):
+        return (130, 95, 45)
+    elif tile_id == int(Material.DOOR_CLOSED):
+        return (75, 45, 20)
+    else:
+        return (200, 0, 200)
+
+
+def _draw_tiles(
     screen: pygame.Surface,
-    font: pygame.font.Font,
     tile_grid: np.ndarray,
-    player: Player,
-    origin: tuple[int, int],
-    view_state: ViewState,
+    camera_row: int,
+    camera_col: int,
+    view_cols: int,
+    view_rows: int,
+    tile_size: int,
 ) -> None:
-    screen.fill((0, 0, 0))
-
-    tile_size: int = view_state.tile_size
-    view_cols: int = view_state.view_cols
-    view_rows: int = view_state.view_rows
-
+    """Draw the tile grid within the viewport."""
     grid_height: int = int(tile_grid.shape[0])
     grid_width: int = int(tile_grid.shape[1])
-
-    camera_row: int = player.row - view_rows // 2
-    camera_col: int = player.col - view_cols // 2
 
     for screen_row in range(view_rows):
         grid_row: int = camera_row + screen_row
@@ -212,21 +225,7 @@ def draw(
                 continue
 
             tile_id: int = int(tile_grid[grid_row, grid_col])
-
-            if tile_id == int(Material.SOLID_ROCK):
-                color: tuple[int, int, int] = (18, 18, 22)
-            elif tile_id == int(Material.CAVE_FLOOR):
-                color = (95, 88, 78)
-            elif tile_id == int(Material.SHAFT_OPENING):
-                color = (60, 45, 90)
-            elif tile_id == int(Material.CLIFF_EDGE):
-                color = (120, 65, 45)
-            elif tile_id == int(Material.DOOR_OPEN):
-                color = (130, 95, 45)
-            elif tile_id == int(Material.DOOR_CLOSED):
-                color = (75, 45, 20)
-            else:
-                color = (200, 0, 200)
+            color: tuple[int, int, int] = _get_tile_color(tile_id)
 
             rect: pygame.Rect = pygame.Rect(
                 screen_col * tile_size,
@@ -236,6 +235,15 @@ def draw(
             )
             pygame.draw.rect(screen, color, rect)
 
+
+def _draw_player(
+    screen: pygame.Surface,
+    player: Player,
+    camera_col: int,
+    camera_row: int,
+    tile_size: int,
+) -> None:
+    """Draw the player marker on the screen."""
     player_screen_col: int = player.col - camera_col
     player_screen_row: int = player.row - camera_row
 
@@ -255,6 +263,18 @@ def draw(
         )
         pygame.draw.circle(screen, (230, 220, 120), marker_center, marker_radius, 1)
 
+
+def _draw_hud(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    player: Player,
+    tile_grid: np.ndarray,
+    origin: tuple[int, int],
+    tile_size: int,
+    view_cols: int,
+    view_rows: int,
+) -> None:
+    """Draw the HUD with player information."""
     origin_x: int
     origin_y: int
     origin_x, origin_y = origin
@@ -273,6 +293,29 @@ def draw(
         (230, 230, 230),
     )
     screen.blit(hud, (8, 8))
+
+
+def draw(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    tile_grid: np.ndarray,
+    player: Player,
+    origin: tuple[int, int],
+    view_state: ViewState,
+) -> None:
+    """Main draw function that coordinates all rendering."""
+    screen.fill((0, 0, 0))
+
+    tile_size: int = view_state.tile_size
+    view_cols: int = view_state.view_cols
+    view_rows: int = view_state.view_rows
+
+    camera_row: int = player.row - view_rows // 2
+    camera_col: int = player.col - view_cols // 2
+
+    _draw_tiles(screen, tile_grid, camera_row, camera_col, view_cols, view_rows, tile_size)
+    _draw_player(screen, player, camera_col, camera_row, tile_size)
+    _draw_hud(screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows)
 
     pygame.display.flip()
 
