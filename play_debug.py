@@ -313,7 +313,15 @@ def draw(
     camera_row: int = player.row - view_rows // 2
     camera_col: int = player.col - view_cols // 2
 
-    _draw_tiles(screen, tile_grid, camera_row, camera_col, view_cols, view_rows, tile_size)
+    _draw_tiles(
+        screen,
+        tile_grid,
+        camera_row,
+        camera_col,
+        view_cols,
+        view_rows,
+        tile_size,
+    )
     _draw_player(screen, player, camera_col, camera_row, tile_size)
     _draw_hud(
         screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows
