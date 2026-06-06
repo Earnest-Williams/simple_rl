@@ -772,10 +772,12 @@ class LightingFovToolWindow(QMainWindow):
             if light_cfg is None:
                 continue
 
+            h, w = visible.shape
+            is_visible = (0 <= ls.y < h and 0 <= ls.x < w) and visible[ls.y, ls.x]
             should_hide_marker = (
                 not self._show_full_light_field
                 and not self._show_hidden_light_sources
-                and not visible[ls.y, ls.x]
+                and not is_visible
             )
             if should_hide_marker:
                 continue
