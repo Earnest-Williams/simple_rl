@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import polars as pl
 import structlog
 
 from game.effects.handlers import apply_status
@@ -112,24 +111,24 @@ def handle_melee_attack(
     rng: GameRNG = gs.rng_instance  # Get RNG from GameState
     game_map = gs.game_map
 
-    att = entity_reg.get_entity_components(attacker_id, ["name", "strength", "x", "y"])
-    defn = entity_reg.get_entity_components(
-        defender_id,
-        [
-            "name",
-            "defense",
-            "armor",
-            "resistances",
-            "vulnerabilities",
-            "hp",
-            "max_hp",
-            "x",
-            "y",
-        ],
-    )
+    # Bulk fetch combat components for both entities in one call
+    entity_ids = [attacker_id, defender_id]
+    (
+        names,
+        strengths,
+        defenses,
+        armors,
+        hps,
+        max_hps,
+        xs,
+        ys,
+        resistances,
+        vulnerabilities,
+        xp_rewards,
+    ) = entity_reg.get_combat_components_bulk(entity_ids)
 
-    attacker_name = att.get("name") or "Attacker"
-    defender_name = defn.get("name") or "Defender"
+    attacker_name = names.get(attacker_id) or "Attacker"
+    defender_name = names.get(defender_id) or "Defender"
     log.debug(
         "Handling melee attack",
         attacker=attacker_name,
@@ -148,63 +147,69 @@ def handle_melee_attack(
     off_hand_dice: str | None = None
     two_handed = False
 
-    # Find equipped weapon(s)
-    equipped_ids = entity_reg.get_equipped_ids(attacker_id)
-    if equipped_ids:
-        equipped_items = item_reg.get_entity_equipped(attacker_id).filter(
-            pl.col("item_id").is_in(equipped_ids)
-        )
-        if equipped_items.height > 0:
-            items_by_slot = {
-                row["equipped_slot"]: row
-                for row in equipped_items.iter_rows(named=True)
-            }
-            main_hand_item = items_by_slot.get("main_hand")
-            off_hand_item = items_by_slot.get("off_hand")
+    # Bulk fetch equipped items for attacker to avoid DataFrame iteration
+    equipped_items_bulk = item_reg.get_equipped_items_bulk([attacker_id])
+    attacker_equipped = equipped_items_bulk.get(attacker_id, [])
+    
+    # Build items_by_slot from bulk data
+    items_by_slot: dict[str, dict[str, object]] = {}
+    for equipped_slot, item_id, item_name, attributes in attacker_equipped:
+        if item_id < 0:
+            continue
+        items_by_slot[equipped_slot] = {
+            "item_id": item_id,
+            "name": item_name,
+            "equipped_slot": equipped_slot,
+            "damage_dice": attributes.get("damage_dice"),
+            "weapon_type": attributes.get("weapon_type"),
+        }
+    
+    main_hand_item = items_by_slot.get("main_hand")
+    off_hand_item = items_by_slot.get("off_hand")
 
-            if main_hand_item:
-                mid = main_hand_item.get("item_id")
-                if mid is not None and item_reg.item_has_flag(mid, "WEAPON"):
-                    main_hand_weapon_id = mid
-                    two_handed = item_reg.item_has_flag(mid, "TWO_HANDED")
+    if main_hand_item:
+        mid = main_hand_item.get("item_id")
+        if mid is not None and item_reg.item_has_flag(mid, "WEAPON"):
+            main_hand_weapon_id = mid
+            two_handed = item_reg.item_has_flag(mid, "TWO_HANDED")
 
-            if off_hand_item and not two_handed:
-                oid = off_hand_item.get("item_id")
-                if oid is not None and item_reg.item_has_flag(oid, "WEAPON"):
-                    off_hand_weapon_id = oid
+    if off_hand_item and not two_handed:
+        oid = off_hand_item.get("item_id")
+        if oid is not None and item_reg.item_has_flag(oid, "WEAPON"):
+            off_hand_weapon_id = oid
 
-        # Determine main-hand weapon data
-        if main_hand_weapon_id is not None:
-            weapon_damage_dice_attr = item_reg.get_item_static_attribute(
-                main_hand_weapon_id, "damage_dice", default=None
+    # Determine main-hand weapon data from bulk attributes
+    if main_hand_weapon_id is not None:
+        main_hand_data = items_by_slot.get("main_hand", {})
+        weapon_damage_dice_attr = main_hand_data.get("damage_dice")
+        if weapon_damage_dice_attr:
+            damage_dice = weapon_damage_dice_attr
+            weapon_name = main_hand_data.get("name") or "weapon"
+            log.debug(
+                "Attacker using weapon",
+                weapon=weapon_name,
+                dice=damage_dice,
+                off_hand_weapon=off_hand_weapon_id,
+                two_handed=two_handed,
             )
-            if weapon_damage_dice_attr:
-                damage_dice = weapon_damage_dice_attr
-                weapon_name = (
-                    item_reg.get_item_component(main_hand_weapon_id, "name") or "weapon"
-                )
-                log.debug(
-                    "Attacker using weapon",
-                    weapon=weapon_name,
-                    dice=damage_dice,
-                    off_hand_weapon=off_hand_weapon_id,
-                    two_handed=two_handed,
-                )
-            else:
-                log.warning(
-                    "Equipped weapon has no damage_dice attribute",
-                    item_id=main_hand_weapon_id,
-                )
-
-        if off_hand_weapon_id is not None:
-            off_hand_dice = item_reg.get_item_static_attribute(
-                off_hand_weapon_id, "damage_dice", default=None
+        else:
+            log.warning(
+                "Equipped weapon has no damage_dice attribute",
+                item_id=main_hand_weapon_id,
             )
+
+    if off_hand_weapon_id is not None:
+        off_hand_data = items_by_slot.get("off_hand", {})
+        off_hand_dice = off_hand_data.get("damage_dice")
     else:
-        log.debug("Attacker is unarmed")
+        off_hand_dice = None
 
-    # --- Get Attacker Skills and Apply Bonuses ---
-    attacker_skills = entity_reg.get_skills(attacker_id)
+    # --- Get Skills in Bulk for Efficiency ---
+    # Bulk fetch skills for both attacker and defender
+    skills_bulk = entity_reg.get_skills_bulk([attacker_id, defender_id])
+    attacker_skills = skills_bulk.get(attacker_id, {})
+    defender_skills = skills_bulk.get(defender_id, {})
+    
     weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
 
     fighting_level = (
@@ -215,7 +220,6 @@ def handle_melee_attack(
     ).level
 
     # Get defender skills for armor/dodging
-    defender_skills = entity_reg.get_skills(defender_id)
     defender_armour_level = (
         defender_skills.get(Skill.ARMOUR) or SkillProgress(Skill.ARMOUR, 0, 0, 0)
     ).level
@@ -227,13 +231,14 @@ def handle_melee_attack(
     ).level
 
     # Calculate skill-based bonuses
+    defender_armor_value = armors.get(defender_id, 0)
     skill_bonuses = get_combat_bonuses_dict(
         fighting=fighting_level,
         weapon=weapon_level,
         armour=defender_armour_level,
         dodging=defender_dodging_level,
         shields=defender_shields_level,
-        base_armor=defn.get("armor") or 0,
+        base_armor=defender_armor_value,
     )
 
     # --- Calculate Damage ---
@@ -248,32 +253,33 @@ def handle_melee_attack(
     # Apply skill bonuses to damage
     raw_damage = int(raw_damage * skill_bonuses.damage_multiplier)
 
-    attacker_strength = att.get("strength") or 0
-    defender_defense = defn.get("defense") or 0
-    defender_armor = defn.get("armor") or 0
+    attacker_strength_value = strengths.get(attacker_id, 0)
+    defender_defense_value = defenses.get(defender_id, 0)
 
     # Apply armor bonus from skill (already calculated in skill_bonuses)
-    effective_armor = defender_armor + skill_bonuses.armor_bonus
+    effective_armor = defender_armor_value + skill_bonuses.armor_bonus
 
     modified_damage = (
-        raw_damage + attacker_strength - defender_defense - effective_armor
+        raw_damage + attacker_strength_value - defender_defense_value - effective_armor
     )
     # Apply evasion from dodging skill
     modified_damage = max(0, modified_damage - skill_bonuses.evasion_bonus)
 
-    resistances = defn.get("resistances") or {}
-    vulnerabilities = defn.get("vulnerabilities") or {}
+    defender_resistances = resistances.get(defender_id, {})
+    defender_vulnerabilities = vulnerabilities.get(defender_id, {})
     multiplier = 1.0
-    if isinstance(resistances, dict):
-        multiplier *= 1 - float(resistances.get(damage_type, 0))
-    if isinstance(vulnerabilities, dict):
-        multiplier *= 1 + float(vulnerabilities.get(damage_type, 0))
+    if isinstance(defender_resistances, dict):
+        multiplier *= 1 - float(defender_resistances.get(damage_type, 0))
+    if isinstance(defender_vulnerabilities, dict):
+        multiplier *= 1 + float(defender_vulnerabilities.get(damage_type, 0))
     final_damage = max(0, int(modified_damage * multiplier))
 
     # --- Apply Damage & Check Death ---
+    defender_hp = hps.get(defender_id, 0)
+    defender_max_hp = max_hps.get(defender_id, 0)
     defender_stats = CombatStats(
-        hp=defn.get("hp") or 0,
-        max_hp=defn.get("max_hp") or 0,
+        hp=defender_hp,
+        max_hp=defender_max_hp,
     )
     if defender_stats.hp <= 0:
         log.error("Defender missing HP component", defender_id=defender_id)
@@ -292,10 +298,10 @@ def handle_melee_attack(
     )
 
     # Add Combat Messages
-    ax = att.get("x") or 0
-    ay = att.get("y") or 0
-    dx = defn.get("x") or 0
-    dy = defn.get("y") or 0
+    ax = xs.get(attacker_id, 0)
+    ay = ys.get(attacker_id, 0)
+    dx = xs.get(defender_id, 0)
+    dy = ys.get(defender_id, 0)
     visible = game_map.visible[ay, ax] or game_map.visible[dy, dx]
 
     attack_msg = ""
@@ -385,9 +391,7 @@ def handle_melee_attack(
         xp_amount = 50  # Base XP for successful hit
         if defender_died:
             # Award bonus XP for kill based on defender difficulty
-            defender_xp_reward = (
-                entity_reg.get_entity_component(defender_id, "xp_reward") or 0
-            )
+            defender_xp_reward = xp_rewards.get(defender_id, 0)
             xp_amount += max(100, defender_xp_reward)  # At least 100 bonus XP for kills
 
         level_ups = award_xp(entity_reg, attacker_id, xp_amount)
