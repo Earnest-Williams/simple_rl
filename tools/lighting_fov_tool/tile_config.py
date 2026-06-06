@@ -23,6 +23,12 @@ class LightConfig:
     color: tuple[int, int, int]
     radius: int
     intensity: float
+    shape: str = "circle"
+    direction: float = 0.0
+    cone_angle: float = 6.283185307179586  # math.tau
+    beam_width: float = 1.0
+    beam_length: int = 8
+    softness: float = 0.0
 
 
 @dataclass
@@ -42,6 +48,12 @@ class LightConfigSnapshot:
     color: tuple[int, int, int]
     radius: int
     intensity: float
+    shape: str = "circle"
+    direction: float = 0.0
+    cone_angle: float = 6.283185307179586
+    beam_width: float = 1.0
+    beam_length: int = 8
+    softness: float = 0.0
 
 
 # Default tile assignments for each element type
@@ -116,12 +128,24 @@ class TileConfigState:
                     color=ls.color,
                     radius=ls.radius,
                     intensity=ls.intensity,
+                    shape=getattr(ls, "shape", "circle"),
+                    direction=getattr(ls, "direction", 0.0),
+                    cone_angle=getattr(ls, "cone_angle", 6.283185307179586),
+                    beam_width=getattr(ls, "beam_width", 1.0),
+                    beam_length=getattr(ls, "beam_length", 8),
+                    softness=getattr(ls, "softness", 0.0),
                 )
                 self.lights[ls.name] = light_cfg
                 self._original_lights[ls.name] = LightConfigSnapshot(
                     color=ls.color,
                     radius=ls.radius,
                     intensity=ls.intensity,
+                    shape=light_cfg.shape,
+                    direction=light_cfg.direction,
+                    cone_angle=light_cfg.cone_angle,
+                    beam_width=light_cfg.beam_width,
+                    beam_length=light_cfg.beam_length,
+                    softness=light_cfg.softness,
                 )
 
     def set_element_tile(self, element_type: ElementType, tile_name: str) -> None:
@@ -166,6 +190,68 @@ class TileConfigState:
             return
         self.lights[light_name].intensity = max(0.0, min(1.0, intensity))
 
+    def set_light_shape(self, light_name: str, shape: str) -> None:
+        """Set the shape for a light source."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].shape = shape
+
+    def set_light_direction(self, light_name: str, direction: float) -> None:
+        """Set the direction for a light source (radians)."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].direction = direction
+
+    def set_light_cone_angle(self, light_name: str, cone_angle: float) -> None:
+        """Set the cone angle for a light source (radians)."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].cone_angle = cone_angle
+
+    def set_light_beam_width(self, light_name: str, beam_width: float) -> None:
+        """Set the beam width for a light source."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].beam_width = max(0.1, beam_width)
+
+    def set_light_beam_length(self, light_name: str, beam_length: int) -> None:
+        """Set the beam length for a light source."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].beam_length = max(1, beam_length)
+
+    def set_light_softness(self, light_name: str, softness: float) -> None:
+        """Set the softness for a light source."""
+        if light_name not in self.lights:
+            return
+        self.lights[light_name].softness = max(0.0, min(1.0, softness))
+
+    def mark_current_as_original(self) -> None:
+        """Reset the original snapshots to match current config values."""
+        self._original_elements = {
+            element_type: ConfigSnapshot(
+                tile_name=config.tile_name,
+                tile_id=config.tile_id,
+                fg_color=config.fg_color,
+                bg_color=config.bg_color,
+            )
+            for element_type, config in self.elements.items()
+        }
+        self._original_lights = {
+            light_name: LightConfigSnapshot(
+                color=config.color,
+                radius=config.radius,
+                intensity=config.intensity,
+                shape=config.shape,
+                direction=config.direction,
+                cone_angle=config.cone_angle,
+                beam_width=config.beam_width,
+                beam_length=config.beam_length,
+                softness=config.softness,
+            )
+            for light_name, config in self.lights.items()
+        }
+
     def reset_element_to_original(self, element_type: ElementType) -> None:
         """Reset an element's configuration to its original values."""
         if element_type not in self._original_elements:
@@ -187,6 +273,12 @@ class TileConfigState:
             color=original.color,
             radius=original.radius,
             intensity=original.intensity,
+            shape=original.shape,
+            direction=original.direction,
+            cone_angle=original.cone_angle,
+            beam_width=original.beam_width,
+            beam_length=original.beam_length,
+            softness=original.softness,
         )
 
     def reset_all_to_original(self) -> None:
@@ -221,6 +313,12 @@ class TileConfigState:
             current.color != original.color
             or current.radius != original.radius
             or abs(current.intensity - original.intensity) > 0.001
+            or current.shape != original.shape
+            or abs(current.direction - original.direction) > 0.001
+            or abs(current.cone_angle - original.cone_angle) > 0.001
+            or abs(current.beam_width - original.beam_width) > 0.001
+            or current.beam_length != original.beam_length
+            or abs(current.softness - original.softness) > 0.001
         )
 
     def get_element_original(self, element_type: ElementType) -> ConfigSnapshot | None:

@@ -1,0 +1,95 @@
+# Lighting/FOV Tool Configuration Export
+# Generated: 2026-06-06 20:25:00 UTC
+
+# Summary: 0/4 elements changed, 5/5 lights changed
+
+# =============
+# TILE ELEMENTS
+# =============
+
+[wall]
+tile = "wall_stone_bricks"
+tile_id = 38
+fg_color = (180, 180, 180)
+bg_color = (30, 30, 50)
+# (unchanged)
+
+[floor]
+tile = "blank_tile_a"
+tile_id = 13
+fg_color = (200, 200, 200)
+bg_color = (10, 10, 30)
+# (unchanged)
+
+[pillar]
+tile = "prop_pillar"
+tile_id = 103
+fg_color = (160, 140, 120)
+bg_color = (20, 20, 40)
+# (unchanged)
+
+[hallway_floor]
+tile = "blank_tile_a"
+tile_id = 13
+fg_color = (180, 180, 200)
+bg_color = (15, 15, 35)
+# (unchanged)
+
+# =============
+# LIGHT SOURCES
+# =============
+
+[light.orb_center]
+color = (160, 200, 255)
+radius = 8
+intensity = 0.50
+shape = "circle"
+direction = 0.00
+cone_angle = 6.28
+beam_width = 1.00
+beam_length = 8
+softness = 0.00
+
+[light.torch_nw]
+color = (255, 160, 60)
+radius = 7
+intensity = 0.40
+shape = "circle"
+direction = 0.00
+cone_angle = 6.28
+beam_width = 1.00
+beam_length = 8
+softness = 0.00
+
+[light.torch_se]
+color = (255, 160, 60)
+radius = 7
+intensity = 0.40
+shape = "circle"
+direction = 0.00
+cone_angle = 6.28
+beam_width = 1.00
+beam_length = 8
+softness = 0.00
+
+[light.brazier_ne]
+color = (240, 100, 50)
+radius = 7
+intensity = 0.45
+shape = "circle"
+direction = 0.00
+cone_angle = 6.28
+beam_width = 1.00
+beam_length = 8
+softness = 0.00
+
+[light.lantern_sw]
+color = (200, 255, 200)
+radius = 6
+intensity = 0.35
+shape = "circle"
+direction = 0.00
+cone_angle = 6.28
+beam_width = 1.00
+beam_length = 8
+softness = 0.00

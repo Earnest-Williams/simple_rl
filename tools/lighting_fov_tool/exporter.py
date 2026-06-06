@@ -63,6 +63,12 @@ def _format_light_section(
     lines.append(f"color = {_format_color(config.color)}")
     lines.append(f"radius = {config.radius}")
     lines.append(f"intensity = {config.intensity:.2f}")
+    lines.append(f'shape = "{config.shape}"')
+    lines.append(f"direction = {config.direction:.2f}")
+    lines.append(f"cone_angle = {config.cone_angle:.2f}")
+    lines.append(f"beam_width = {config.beam_width:.2f}")
+    lines.append(f"beam_length = {config.beam_length}")
+    lines.append(f"softness = {config.softness:.2f}")
 
     if is_changed and original is not None:
         # Add original values as comments
@@ -73,6 +79,18 @@ def _format_light_section(
             original_parts.append(f"radius = {original.radius}")
         if abs(config.intensity - original.intensity) > 0.001:
             original_parts.append(f"intensity = {original.intensity:.2f}")
+        if config.shape != original.shape:
+            original_parts.append(f'shape = "{original.shape}"')
+        if abs(config.direction - original.direction) > 0.001:
+            original_parts.append(f"direction = {original.direction:.2f}")
+        if abs(config.cone_angle - original.cone_angle) > 0.001:
+            original_parts.append(f"cone_angle = {original.cone_angle:.2f}")
+        if abs(config.beam_width - original.beam_width) > 0.001:
+            original_parts.append(f"beam_width = {original.beam_width:.2f}")
+        if config.beam_length != original.beam_length:
+            original_parts.append(f"beam_length = {original.beam_length}")
+        if abs(config.softness - original.softness) > 0.001:
+            original_parts.append(f"softness = {original.softness:.2f}")
         if original_parts:
             lines.append(f"# original: {', '.join(original_parts)}")
     else:
@@ -151,3 +169,87 @@ def export_configuration(config_state: TileConfigState, output_path: Path) -> No
 def get_default_export_path() -> Path:
     """Get the default export path for configuration files."""
     return Path.cwd() / "lighting_fov_config.txt"
+
+
+def load_configuration(config_state: TileConfigState, path: Path) -> None:
+    """Load configuration from a text file.
+
+    Args:
+        config_state: The configuration state to update.
+        path: Path to the configuration file.
+    """
+    import ast
+
+    if not path.exists():
+        return
+
+    current_section = None
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            # Remove inline comments if present
+            if "#" in line:
+                line = line.split("#")[0].strip()
+
+            if line.startswith("[") and line.endswith("]"):
+                current_section = line[1:-1].strip()
+                continue
+
+            if "=" in line:
+                key, val_str = line.split("=", 1)
+                key = key.strip()
+                val_str = val_str.strip()
+                try:
+                    val = ast.literal_eval(val_str)
+                except Exception:
+                    val = val_str
+
+                if not current_section:
+                    continue
+
+                if current_section.startswith("light."):
+                    light_name = current_section[len("light.") :]
+                    if light_name not in config_state.lights:
+                        # Create LightConfig if not present
+                        config_state.lights[light_name] = LightConfig(
+                            color=(255, 255, 255),
+                            radius=5,
+                            intensity=1.0,
+                        )
+                    light_cfg = config_state.lights[light_name]
+                    if key == "color":
+                        light_cfg.color = val
+                    elif key == "radius":
+                        light_cfg.radius = int(val)
+                    elif key == "intensity":
+                        light_cfg.intensity = float(val)
+                    elif key == "shape":
+                        light_cfg.shape = str(val)
+                    elif key == "direction":
+                        light_cfg.direction = float(val)
+                    elif key == "cone_angle":
+                        light_cfg.cone_angle = float(val)
+                    elif key == "beam_width":
+                        light_cfg.beam_width = float(val)
+                    elif key == "beam_length":
+                        light_cfg.beam_length = int(val)
+                    elif key == "softness":
+                        light_cfg.softness = float(val)
+                else:
+                    # Match ElementType
+                    for et in ElementType:
+                        name = get_element_name(et).lower().replace(" ", "_")
+                        if name == current_section:
+                            element_config = config_state.elements[et]
+                            if key == "tile":
+                                element_config.tile_name = str(val)
+                            elif key == "tile_id":
+                                element_config.tile_id = int(val)
+                            elif key == "fg_color":
+                                element_config.fg_color = val
+                            elif key == "bg_color":
+                                element_config.bg_color = val
+                            break

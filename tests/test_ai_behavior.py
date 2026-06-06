@@ -21,7 +21,6 @@ class MockRNG:
 
 
 def test_goap_behavior_priority() -> None:
-    # Setup minimal game state
     game_map = GameMap(8, 8)
     game_map.tiles.fill(TILE_ID_FLOOR)
     game_state = GameState(
@@ -44,11 +43,8 @@ def test_goap_behavior_priority() -> None:
         ai_type="goap",
         species="enemy",
     )
-
-    row = MockEntityRow({"entity_id": entity_id, "x": 4, "y": 4})
     rng = cast(GameRNG, MockRNG())
 
-    # 1. Visual priority
     fact = PerceptionFact(
         signal_type="visual",
         confidence=1.0,
@@ -66,63 +62,57 @@ def test_goap_behavior_priority() -> None:
         debug_scent_map=np.zeros((8, 8)),
     )
 
-    # Run GOAP behavior
-    _action_move_attack(row, game_state, rng, snapshot)
+    def set_enemy_position(x: int, y: int) -> None:
+        game_state.entity_registry.set_entity_component(entity_id, "x", x)
+        game_state.entity_registry.set_entity_component(entity_id, "y", y)
 
-    # Check if moved towards (6, 4) -> x should become 5
+    # 1. Visual priority.
+    moved = _action_move_attack(entity_id, game_state, rng, snapshot)
+    assert moved is True
+
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert pos.x == 5
     assert pos.y == 4
 
-    # 2. Audio priority (with no visual target)
+    # 2. Audio priority, when no visual target is available.
     fact.visible_targets = []
     fact.signal_type = "audio"
-    fact.heard_source = (5, 6)  # x=5, y=6
+    fact.heard_source = (5, 6)
     fact.last_known_position = (5, 6)
+    set_enemy_position(4, 4)
 
-    # reset pos
-    game_state.entity_registry.set_entity_component(entity_id, "x", 4)
-    game_state.entity_registry.set_entity_component(entity_id, "y", 4)
-    row["x"] = 4
-    row["y"] = 4
-
-    _action_move_attack(row, game_state, rng, snapshot)
+    moved = _action_move_attack(entity_id, game_state, rng, snapshot)
+    assert moved is True
 
     pos = game_state.entity_registry.get_position(entity_id)
-    # Expected movement: flow field towards (5, 6) from (4, 4)
     assert pos is not None
-    assert pos.x >= 4 and pos.y > 4
+    assert pos.x >= 4
+    assert pos.y > 4
 
-    # 3. Scent priority
+    # 3. Scent priority, when visual and audio signals are unavailable.
     fact.heard_source = None
     fact.signal_type = "scent"
     fact.scent_position = (3, 4)
     fact.last_known_position = None
+    set_enemy_position(4, 4)
 
-    game_state.entity_registry.set_entity_component(entity_id, "x", 4)
-    game_state.entity_registry.set_entity_component(entity_id, "y", 4)
-    row["x"] = 4
-    row["y"] = 4
-
-    _action_move_attack(row, game_state, rng, snapshot)
+    moved = _action_move_attack(entity_id, game_state, rng, snapshot)
+    assert moved is True
 
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None
     assert pos.x == 3
     assert pos.y == 4
 
-    # 4. Memory priority
+    # 4. Memory priority, when direct sensory signals are unavailable.
     fact.scent_position = None
     fact.signal_type = "memory"
     fact.last_known_position = (4, 1)
+    set_enemy_position(4, 4)
 
-    game_state.entity_registry.set_entity_component(entity_id, "x", 4)
-    game_state.entity_registry.set_entity_component(entity_id, "y", 4)
-    row["x"] = 4
-    row["y"] = 4
-
-    _action_move_attack(row, game_state, rng, snapshot)
+    moved = _action_move_attack(entity_id, game_state, rng, snapshot)
+    assert moved is True
 
     pos = game_state.entity_registry.get_position(entity_id)
     assert pos is not None

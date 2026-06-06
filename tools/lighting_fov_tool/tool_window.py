@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Literal
+import math
 
 import numpy as np
 import structlog
@@ -14,6 +15,7 @@ from PySide6.QtGui import QColor, QImage, QKeyEvent, QPixmap
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -30,7 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from engine.render_lighting import LightContributionCache
+from engine.render_lighting import LightContributionCache, collapse_premult_rgba_to_rgb
 from tools.lighting_fov_tool.exporter import (
     export_configuration,
     get_default_export_path,
@@ -45,7 +47,7 @@ from tools.lighting_fov_tool.tile_config import TileConfigState
 if TYPE_CHECKING:
     pass
 
-LightingBackend = Literal["Debug radial light", "Production LightContributionCache"]
+LightingBackend = Literal["Fast Diffuse", "Production Side-Aware", "Unified Preview", "Raw Heatmap"]
 
 log = structlog.get_logger(__name__)
 
@@ -57,8 +59,12 @@ MAX_TILE_SIZE: Final[int] = 32
 # Lighting constants
 AMBIENT_INTENSITY: Final[float] = 0.30
 RENDER_DEBOUNCE_MS: Final[int] = 33
-DEBUG_RADIAL_BACKEND: Final[LightingBackend] = "Debug radial light"
-PRODUCTION_CACHE_BACKEND: Final[LightingBackend] = "Production LightContributionCache"
+PLAYER_SIGHT_RADIUS: Final[int] = 12
+DEFAULT_OBSERVER_SIGHT_RADIUS: Final[int] = 12
+FAST_DIFFUSE_BACKEND: Final[LightingBackend] = "Fast Diffuse"
+PRODUCTION_SIDE_AWARE_BACKEND: Final[LightingBackend] = "Production Side-Aware"
+UNIFIED_PREVIEW_BACKEND: Final[LightingBackend] = "Unified Preview"
+RAW_HEATMAP_BACKEND: Final[LightingBackend] = "Raw Heatmap"
 
 # Available tiles for selection (subset of glyphs.yaml)
 AVAILABLE_TILES: Final[dict[str, int]] = {
@@ -91,6 +97,27 @@ class ToolLightSource:
     radius: int
     color: tuple[int, int, int]
     intensity: float
+
+@dataclass
+class LightRuntimeResult:
+    """Combines light configuration with its pre-computed reach and FOV outputs."""
+
+    source: ToolLightSource
+    reach_mask: np.ndarray
+    visible_out: np.ndarray
+    dist_out: np.ndarray
+    side_bits_out: np.ndarray
+    visibility_out: np.ndarray
+
+
+@dataclass(frozen=True)
+class ToolObserver:
+    """Sight source that can activate lights for rendering."""
+
+    name: str
+    x: int
+    y: int
+    sight_radius: int
 
 
 class ColorButton(QPushButton):
@@ -256,6 +283,13 @@ class LightConfigPanel(QGroupBox):
         self._color_button.color_changed.connect(self._on_color_changed)
         layout.addRow("Color:", self._color_button)
 
+        # Shape selector
+        self._shape_combo = QComboBox()
+        self._shape_combo.addItems(["circle", "cone", "beam"])
+        self._shape_combo.setCurrentText(config.shape)
+        self._shape_combo.currentTextChanged.connect(self._on_shape_changed)
+        layout.addRow("Shape:", self._shape_combo)
+
         # Radius
         self._radius_spin = QSpinBox()
         self._radius_spin.setRange(1, 20)
@@ -276,16 +310,108 @@ class LightConfigPanel(QGroupBox):
         intensity_widget.setLayout(intensity_layout)
         layout.addRow("Intensity:", intensity_widget)
 
+        # Direction slider (0 to 360 degrees)
+        self._direction_slider = QSlider(Qt.Orientation.Horizontal)
+        self._direction_slider.setRange(0, 360)
+        self._direction_slider.setValue(int(math.degrees(config.direction)) % 360)
+        self._direction_slider.valueChanged.connect(self._on_direction_changed)
+        self._direction_label = QLabel(f"{int(math.degrees(config.direction)) % 360}°")
+        dir_layout = QHBoxLayout()
+        dir_layout.addWidget(self._direction_slider)
+        dir_layout.addWidget(self._direction_label)
+        self._dir_widget = QWidget()
+        self._dir_widget.setLayout(dir_layout)
+        layout.addRow("Direction:", self._dir_widget)
+
+        # Cone Angle slider (5 to 360 degrees)
+        self._cone_angle_slider = QSlider(Qt.Orientation.Horizontal)
+        self._cone_angle_slider.setRange(5, 360)
+        self._cone_angle_slider.setValue(int(math.degrees(config.cone_angle)))
+        self._cone_angle_slider.valueChanged.connect(self._on_cone_angle_changed)
+        self._cone_angle_label = QLabel(f"{int(math.degrees(config.cone_angle))}°")
+        cone_layout = QHBoxLayout()
+        cone_layout.addWidget(self._cone_angle_slider)
+        cone_layout.addWidget(self._cone_angle_label)
+        self._cone_widget = QWidget()
+        self._cone_widget.setLayout(cone_layout)
+        layout.addRow("Cone Angle:", self._cone_widget)
+
+        # Beam Width (double spinbox)
+        self._beam_width_spin = QDoubleSpinBox()
+        self._beam_width_spin.setRange(0.5, 10.0)
+        self._beam_width_spin.setSingleStep(0.5)
+        self._beam_width_spin.setValue(config.beam_width)
+        self._beam_width_spin.valueChanged.connect(self._on_beam_width_changed)
+        layout.addRow("Beam Width:", self._beam_width_spin)
+
+        # Beam Length (spinbox)
+        self._beam_length_spin = QSpinBox()
+        self._beam_length_spin.setRange(1, 30)
+        self._beam_length_spin.setValue(config.beam_length)
+        self._beam_length_spin.valueChanged.connect(self._on_beam_length_changed)
+        layout.addRow("Beam Length:", self._beam_length_spin)
+
+        # Softness slider (0 to 100)
+        self._softness_slider = QSlider(Qt.Orientation.Horizontal)
+        self._softness_slider.setRange(0, 100)
+        self._softness_slider.setValue(int(config.softness * 100))
+        self._softness_slider.valueChanged.connect(self._on_softness_changed)
+        self._softness_label = QLabel(f"{config.softness:.2f}")
+        soft_layout = QHBoxLayout()
+        soft_layout.addWidget(self._softness_slider)
+        soft_layout.addWidget(self._softness_label)
+        self._soft_widget = QWidget()
+        self._soft_widget.setLayout(soft_layout)
+        layout.addRow("Softness:", self._soft_widget)
+
         # Reset button
         reset_btn = QPushButton("Reset")
         reset_btn.clicked.connect(self._on_reset)
         layout.addRow("", reset_btn)
 
         self.setLayout(layout)
+        self._update_visibility()
+
+    def _update_visibility(self) -> None:
+        """Dynamically show/hide controls based on selected light shape."""
+        shape = self._shape_combo.currentText()
+        is_circle = shape == "circle"
+        is_cone = shape == "cone"
+        is_beam = shape == "beam"
+
+        # Direction
+        self._dir_widget.setVisible(is_cone or is_beam)
+        self.layout().labelForField(self._dir_widget).setVisible(is_cone or is_beam)
+
+        # Cone Angle
+        self._cone_widget.setVisible(is_cone)
+        self.layout().labelForField(self._cone_widget).setVisible(is_cone)
+
+        # Beam Width
+        self._beam_width_spin.setVisible(is_beam)
+        self.layout().labelForField(self._beam_width_spin).setVisible(is_beam)
+
+        # Beam Length
+        self._beam_length_spin.setVisible(is_beam)
+        self.layout().labelForField(self._beam_length_spin).setVisible(is_beam)
+
+        # Softness
+        self._soft_widget.setVisible(is_cone or is_beam)
+        self.layout().labelForField(self._soft_widget).setVisible(is_cone or is_beam)
+
+        # Radius (hidden for beam)
+        self._radius_spin.setVisible(is_circle or is_cone)
+        self.layout().labelForField(self._radius_spin).setVisible(is_circle or is_cone)
 
     def _on_color_changed(self, color: tuple[int, int, int]) -> None:
         """Handle color change."""
         self._config_state.set_light_color(self._light_name, color)
+        self.config_changed.emit()
+
+    def _on_shape_changed(self, shape: str) -> None:
+        """Handle shape selection change."""
+        self._config_state.set_light_shape(self._light_name, shape)
+        self._update_visibility()
         self.config_changed.emit()
 
     def _on_radius_changed(self, radius: int) -> None:
@@ -300,6 +426,37 @@ class LightConfigPanel(QGroupBox):
         self._config_state.set_light_intensity(self._light_name, intensity)
         self.config_changed.emit()
 
+    def _on_direction_changed(self, value: int) -> None:
+        """Handle direction change (convert from degrees to radians)."""
+        rad = math.radians(value)
+        self._direction_label.setText(f"{value}°")
+        self._config_state.set_light_direction(self._light_name, rad)
+        self.config_changed.emit()
+
+    def _on_cone_angle_changed(self, value: int) -> None:
+        """Handle cone angle change (convert from degrees to radians)."""
+        rad = math.radians(value)
+        self._cone_angle_label.setText(f"{value}°")
+        self._config_state.set_light_cone_angle(self._light_name, rad)
+        self.config_changed.emit()
+
+    def _on_beam_width_changed(self, value: float) -> None:
+        """Handle beam width change."""
+        self._config_state.set_light_beam_width(self._light_name, value)
+        self.config_changed.emit()
+
+    def _on_beam_length_changed(self, value: int) -> None:
+        """Handle beam length change."""
+        self._config_state.set_light_beam_length(self._light_name, value)
+        self.config_changed.emit()
+
+    def _on_softness_changed(self, value: int) -> None:
+        """Handle softness change."""
+        softness = value / 100.0
+        self._softness_label.setText(f"{softness:.2f}")
+        self._config_state.set_light_softness(self._light_name, softness)
+        self.config_changed.emit()
+
     def _on_reset(self) -> None:
         """Reset this light to original values."""
         self._config_state.reset_light_to_original(self._light_name)
@@ -312,13 +469,45 @@ class LightConfigPanel(QGroupBox):
         if config is None:
             return
         self._color_button.set_color(config.color)
+        
         self._radius_spin.blockSignals(True)
         self._radius_spin.setValue(config.radius)
         self._radius_spin.blockSignals(False)
+        
         self._intensity_slider.blockSignals(True)
         self._intensity_slider.setValue(int(config.intensity * 100))
         self._intensity_slider.blockSignals(False)
         self._intensity_label.setText(f"{config.intensity:.2f}")
+
+        # Refresh shape fields
+        self._shape_combo.blockSignals(True)
+        self._shape_combo.setCurrentText(config.shape)
+        self._shape_combo.blockSignals(False)
+
+        self._direction_slider.blockSignals(True)
+        self._direction_slider.setValue(int(math.degrees(config.direction)) % 360)
+        self._direction_slider.blockSignals(False)
+        self._direction_label.setText(f"{int(math.degrees(config.direction)) % 360}°")
+
+        self._cone_angle_slider.blockSignals(True)
+        self._cone_angle_slider.setValue(int(math.degrees(config.cone_angle)))
+        self._cone_angle_slider.blockSignals(False)
+        self._cone_angle_label.setText(f"{int(math.degrees(config.cone_angle))}°")
+
+        self._beam_width_spin.blockSignals(True)
+        self._beam_width_spin.setValue(config.beam_width)
+        self._beam_width_spin.blockSignals(False)
+
+        self._beam_length_spin.blockSignals(True)
+        self._beam_length_spin.setValue(config.beam_length)
+        self._beam_length_spin.blockSignals(False)
+
+        self._softness_slider.blockSignals(True)
+        self._softness_slider.setValue(int(config.softness * 100))
+        self._softness_slider.blockSignals(False)
+        self._softness_label.setText(f"{config.softness:.2f}")
+
+        self._update_visibility()
 
 
 class LightingFovToolWindow(QMainWindow):
@@ -333,16 +522,42 @@ class LightingFovToolWindow(QMainWindow):
         self._scene = create_fixed_scene()
         self._config_state = TileConfigState()
         self._config_state.initialize_defaults(self._scene.light_sources)
+
+        # Load default configuration
+        from tools.lighting_fov_tool.exporter import load_configuration
+        default_config_path = Path(__file__).parent / "default_config.txt"
+        if default_config_path.exists():
+            load_configuration(self._config_state, default_config_path)
+            self._config_state.mark_current_as_original()
+
+        # Cached geometry grids
+        self._opaque_grid = None
+        self._transparency_grid = None
+
+        # Caches
+        self._blocker_revision: int = 0
+        self._observer_fov_cache: dict[tuple[str, int, int, int], tuple[int, np.ndarray]] = {}
+        self._light_reach_cache: dict[tuple[str, int, int, int, float], tuple[int, LightRuntimeResult]] = {}
+
+        # Blending weights for unified preview
+        self._diffuse_weight = 1.0
+        self._side_weight = 1.0
+
         self._tile_size = DEFAULT_TILE_SIZE
-        self._lighting_backend: LightingBackend = DEBUG_RADIAL_BACKEND
+        self._lighting_backend: LightingBackend = "Fast Diffuse"
         self._production_light_cache = LightContributionCache(
             self._scene.height, self._scene.width
         )
 
         # Debug visualization toggles
-        self._show_full_light_field = True
+        self._show_full_light_field = False
         self._show_hidden_light_sources = False
         self._use_los_for_debug_radial = True
+
+        # Lights are only emitted when at least part of their light field is
+        # visible to a sighted observer. The observer does not need LOS to the
+        # emitter tile itself.
+        self._active_light_names: set[str] = set()
 
         # Set up render debounce timer
         self._render_timer = QTimer(self)
@@ -405,7 +620,8 @@ class LightingFovToolWindow(QMainWindow):
         px, py = self._scene.player_pos
         self._status_label.setText(
             f"Player Position: ({px}, {py}) | "
-            f"Use Arrow Keys or WASD to move around and see lighting blending"
+            "Use Arrow Keys or WASD to move around, including into the "
+            "left-side light-bleed test hallways"
         )
 
     def _load_tileset(self) -> None:
@@ -511,14 +727,48 @@ class LightingFovToolWindow(QMainWindow):
 
         backend_layout = QFormLayout()
         self._lighting_backend_combo = QComboBox()
-        self._lighting_backend_combo.addItem(DEBUG_RADIAL_BACKEND)
-        self._lighting_backend_combo.addItem(PRODUCTION_CACHE_BACKEND)
+        self._lighting_backend_combo.addItem(FAST_DIFFUSE_BACKEND)
+        self._lighting_backend_combo.addItem(PRODUCTION_SIDE_AWARE_BACKEND)
+        self._lighting_backend_combo.addItem(UNIFIED_PREVIEW_BACKEND)
+        self._lighting_backend_combo.addItem(RAW_HEATMAP_BACKEND)
         self._lighting_backend_combo.setCurrentText(self._lighting_backend)
         self._lighting_backend_combo.currentTextChanged.connect(
             self._on_lighting_backend_changed
         )
         backend_layout.addRow("Lighting Backend:", self._lighting_backend_combo)
         actions_layout.addLayout(backend_layout)
+
+        # Unified Preview weights layout
+        self._weights_group = QGroupBox("Unified Blending Weights")
+        weights_layout = QFormLayout()
+
+        self._diffuse_weight_slider = QSlider(Qt.Orientation.Horizontal)
+        self._diffuse_weight_slider.setRange(0, 200)  # 0.0 to 2.0
+        self._diffuse_weight_slider.setValue(int(self._diffuse_weight * 100))
+        self._diffuse_weight_slider.valueChanged.connect(self._on_diffuse_weight_changed)
+        self._diffuse_weight_label = QLabel(f"{self._diffuse_weight:.2f}")
+        diffuse_w_layout = QHBoxLayout()
+        diffuse_w_layout.addWidget(self._diffuse_weight_slider)
+        diffuse_w_layout.addWidget(self._diffuse_weight_label)
+        diffuse_w_widget = QWidget()
+        diffuse_w_widget.setLayout(diffuse_w_layout)
+        weights_layout.addRow("Diffuse Wash:", diffuse_w_widget)
+
+        self._side_weight_slider = QSlider(Qt.Orientation.Horizontal)
+        self._side_weight_slider.setRange(0, 200)  # 0.0 to 2.0
+        self._side_weight_slider.setValue(int(self._side_weight * 100))
+        self._side_weight_slider.valueChanged.connect(self._on_side_weight_changed)
+        self._side_weight_label = QLabel(f"{self._side_weight:.2f}")
+        side_w_layout = QHBoxLayout()
+        side_w_layout.addWidget(self._side_weight_slider)
+        side_w_layout.addWidget(self._side_weight_label)
+        side_w_widget = QWidget()
+        side_w_widget.setLayout(side_w_layout)
+        weights_layout.addRow("Side Highlights:", side_w_widget)
+
+        self._weights_group.setLayout(weights_layout)
+        self._weights_group.setVisible(self._lighting_backend == UNIFIED_PREVIEW_BACKEND)
+        actions_layout.addWidget(self._weights_group)
 
         # Debug visualization options
         debug_group = QGroupBox("Debug Visualization")
@@ -627,11 +877,24 @@ class LightingFovToolWindow(QMainWindow):
 
     def _on_lighting_backend_changed(self, backend_name: str) -> None:
         """Switch between debug and production lighting backends."""
-        if backend_name not in (DEBUG_RADIAL_BACKEND, PRODUCTION_CACHE_BACKEND):
+        if backend_name not in (FAST_DIFFUSE_BACKEND, PRODUCTION_SIDE_AWARE_BACKEND, UNIFIED_PREVIEW_BACKEND, RAW_HEATMAP_BACKEND):
             log.warning("Ignoring unknown lighting backend", backend=backend_name)
             return
 
         self._lighting_backend = backend_name
+        self._weights_group.setVisible(backend_name == UNIFIED_PREVIEW_BACKEND)
+        self._render_scene()
+
+    def _on_diffuse_weight_changed(self, value: int) -> None:
+        """Handle diffuse weight slider change."""
+        self._diffuse_weight = value / 100.0
+        self._diffuse_weight_label.setText(f"{self._diffuse_weight:.2f}")
+        self._render_scene()
+
+    def _on_side_weight_changed(self, value: int) -> None:
+        """Handle side weight slider change."""
+        self._side_weight = value / 100.0
+        self._side_weight_label.setText(f"{self._side_weight:.2f}")
         self._render_scene()
 
     def _set_debug_toggle_texts(self) -> None:
@@ -664,6 +927,7 @@ class LightingFovToolWindow(QMainWindow):
     def _on_reset_all(self) -> None:
         """Reset all configurations to original values."""
         self._config_state.reset_all_to_original()
+        self._blocker_revision += 1
         # Refresh all panels
         for panel in self._element_panels:
             panel._refresh_ui()
@@ -704,17 +968,39 @@ class LightingFovToolWindow(QMainWindow):
         output = np.zeros((img_height, img_width, 4), dtype=np.uint8)
         output[:, :, 3] = 255  # Full alpha
 
-        # Compute FOV from player position
+        # Compute FOV from player position. This controls what the player sees.
+        opaque_grid, _ = self._get_cached_geometry_grids()
         visible = self._compute_simple_fov(
-            scene.player_pos[0], scene.player_pos[1], radius=12
+            opaque_grid, scene.player_pos[0], scene.player_pos[1], radius=PLAYER_SIGHT_RADIUS
         )
 
-        # Compute lighting (base intensity and colored light)
-        base_intensity, colored_light = self._compute_lighting(visible)
+        # Compute lighting from emitters that are visible to at least one
+        # sighted observer: the player or a monster with eyes.
+        base_intensity, colored_light = self._compute_lighting()
 
         # Render each tile
         for y in range(scene.height):
             for x in range(scene.width):
+                # Apply lighting: show full light field for tuning (not clipped by player FOV)
+                if self._show_full_light_field:
+                    light_rgb = colored_light[y, x]
+                    intensity = base_intensity[y, x]
+                else:
+                    is_visible = visible[y, x]
+                    if is_visible:
+                        light_rgb = colored_light[y, x]
+                        intensity = base_intensity[y, x]
+                    else:
+                        light_rgb = np.zeros(3, dtype=np.float32)
+                        intensity = 0.05
+
+                px = x * self._tile_size
+                py = y * self._tile_size
+
+                if self._lighting_backend == RAW_HEATMAP_BACKEND:
+                    output[py : py + self._tile_size, px : px + self._tile_size, :3] = light_rgb.clip(0, 255).astype(np.uint8)
+                    continue
+
                 element_type = ElementType(scene.tiles[y, x])
                 elem_config = config.elements.get(element_type)
                 if elem_config is None:
@@ -723,19 +1009,6 @@ class LightingFovToolWindow(QMainWindow):
                 tile_id = elem_config.tile_id
                 fg_color = np.array(elem_config.fg_color, dtype=np.float32)
                 bg_color = np.array(elem_config.bg_color, dtype=np.float32)
-
-                # Apply lighting: show full light field for tuning (not clipped by player FOV)
-                if self._show_full_light_field:
-                    intensity = base_intensity[y, x]
-                    light_rgb = colored_light[y, x]
-                else:
-                    is_visible = visible[y, x]
-                    intensity = base_intensity[y, x] if is_visible else 0.05
-                    light_rgb = (
-                        colored_light[y, x]
-                        if is_visible
-                        else colored_light[y, x] * 0.05
-                    )
 
                 # Apply lighting: (base_color * intensity) + colored_light
                 fg_lit = (
@@ -753,8 +1026,6 @@ class LightingFovToolWindow(QMainWindow):
                     continue
 
                 # Composite tile onto output
-                px = x * self._tile_size
-                py = y * self._tile_size
                 self._composite_tile(
                     output, px, py, tile_img, fg_lit, bg_lit, self._tile_size
                 )
@@ -766,6 +1037,22 @@ class LightingFovToolWindow(QMainWindow):
         # Draw a simple @ marker
         self._draw_player_marker(output, player_px, player_py)
 
+        # Mark dummy sighted monsters.
+        for monster in scene.monsters:
+            if not monster.has_eyes:
+                continue
+
+            h, w = visible.shape
+            is_visible = (
+                0 <= monster.y < h
+                and 0 <= monster.x < w
+                and visible[monster.y, monster.x]
+            )
+            if self._show_full_light_field or is_visible:
+                mx = monster.x * self._tile_size
+                my = monster.y * self._tile_size
+                self._draw_monster_marker(output, mx, my)
+
         # Mark light sources
         for ls in scene.light_sources:
             light_cfg = config.lights.get(ls.name)
@@ -774,12 +1061,13 @@ class LightingFovToolWindow(QMainWindow):
 
             h, w = visible.shape
             is_visible = (0 <= ls.y < h and 0 <= ls.x < w) and visible[ls.y, ls.x]
+            is_active = ls.name in self._active_light_names
             should_hide_marker = (
                 not self._show_full_light_field
                 and not self._show_hidden_light_sources
                 and not is_visible
             )
-            if should_hide_marker:
+            if should_hide_marker or (not is_active and not self._show_hidden_light_sources):
                 continue
 
             lx = ls.x * self._tile_size + self._tile_size // 2
@@ -795,7 +1083,7 @@ class LightingFovToolWindow(QMainWindow):
         self._scene_label.setPixmap(pixmap)
         self._scene_label.setFixedSize(pixmap.size())
 
-    def _compute_simple_fov(self, ox: int, oy: int, radius: int) -> np.ndarray:
+    def _compute_simple_fov(self, opaque_grid: np.ndarray, ox: int, oy: int, radius: int) -> np.ndarray:
         """Compute a simple circular FOV."""
         scene = self._scene
         visible = np.zeros((scene.height, scene.width), dtype=bool)
@@ -805,12 +1093,12 @@ class LightingFovToolWindow(QMainWindow):
                 dx = x - ox
                 dy = y - oy
                 dist_sq = dx * dx + dy * dy
-                if dist_sq <= radius * radius and self._has_los(ox, oy, x, y):
+                if dist_sq <= radius * radius and self._has_los(opaque_grid, ox, oy, x, y):
                     visible[y, x] = True
 
         return visible
 
-    def _has_los(self, x0: int, y0: int, x1: int, y1: int) -> bool:
+    def _has_los(self, opaque_grid: np.ndarray, x0: int, y0: int, x1: int, y1: int) -> bool:
         """Simple line of sight check using Bresenham."""
         scene = self._scene
         dx = abs(x1 - x0)
@@ -825,8 +1113,7 @@ class LightingFovToolWindow(QMainWindow):
                 return True
             # Check if current tile blocks light (walls and pillars)
             if (x, y) != (x0, y0):
-                tile = scene.tiles[y, x]
-                if tile in (ElementType.WALL, ElementType.PILLAR):
+                if opaque_grid[y, x]:
                     return False
 
             e2 = 2 * err
@@ -837,18 +1124,34 @@ class LightingFovToolWindow(QMainWindow):
                 err += dx
                 y += sy
 
-    def _compute_lighting(self, visible: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute base intensity and RGB colored lighting for each tile."""
+    def _compute_lighting(self) -> tuple[np.ndarray, np.ndarray]:
+        """Compute base intensity and RGB lighting for active visible emitters."""
         scene = self._scene
 
         base_intensity = np.full(
             (scene.height, scene.width), AMBIENT_INTENSITY, dtype=np.float32
         )
 
-        if self._lighting_backend == DEBUG_RADIAL_BACKEND:
-            colored_light = self._compute_debug_radial_lighting()
-        else:
+        if self._lighting_backend == FAST_DIFFUSE_BACKEND:
+            colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
+            opaque_grid, transparency_grid = self._get_cached_geometry_grids()
+            for light_res in self._get_active_configured_light_sources():
+                self._accumulate_fast_diffuse_light(
+                    colored_light,
+                    light_res=light_res,
+                    opaque_grid=opaque_grid,
+                    transparency_grid=transparency_grid,
+                )
+            # Match 2.0 tool exposure of previous debug radial backend
+            colored_light *= 2.0
+        elif self._lighting_backend == PRODUCTION_SIDE_AWARE_BACKEND:
             colored_light = self._compute_production_cache_lighting()
+        elif self._lighting_backend in (UNIFIED_PREVIEW_BACKEND, RAW_HEATMAP_BACKEND):
+            diffuse_rgb, side_rgba = self._compute_unified_lighting()
+            side_rgb = collapse_premult_rgba_to_rgb(side_rgba)
+            colored_light = diffuse_rgb * self._diffuse_weight + side_rgb * self._side_weight
+        else:
+            colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
         np.clip(colored_light, 0.0, 255.0, out=colored_light)
 
@@ -864,35 +1167,15 @@ class LightingFovToolWindow(QMainWindow):
 
         return base_intensity, colored_light
 
-    def _compute_debug_radial_lighting(self) -> np.ndarray:
-        """Compute tool-only radial light contributions without FOV occlusion."""
-        scene = self._scene
-        colored_light = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
-
-        for light_source in self._get_configured_light_sources():
-            self._accumulate_radial_light_debug(
-                colored_light,
-                origin_x=light_source.x,
-                origin_y=light_source.y,
-                radius=light_source.radius,
-                color=light_source.color,
-                intensity=light_source.intensity,
-            )
-
-        # Tool-only exposure.
-        colored_light *= 2.0
-        return colored_light
-
     def _compute_production_cache_lighting(self) -> np.ndarray:
         """Compute colored light with the renderer-facing contribution cache."""
         scene = self._scene
-        light_sources = self._get_configured_light_sources()
+        active_results = self._get_active_configured_light_sources()
+        light_sources = [r.source for r in active_results]
         if not light_sources:
             return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
-        opaque_grid = (scene.tiles == ElementType.WALL) | (
-            scene.tiles == ElementType.PILLAR
-        )
+        opaque_grid, _ = self._get_cached_geometry_grids()
         colored_light = self._production_light_cache.update(
             light_sources,
             opaque_grid,
@@ -901,6 +1184,148 @@ class LightingFovToolWindow(QMainWindow):
             ceiling_map=scene.ceiling_map,
         )
         return colored_light.astype(np.float32, copy=True)
+
+    def _get_cached_geometry_grids(self) -> tuple[np.ndarray, np.ndarray]:
+        """Get or compute cached grids of opaque and transparent cells."""
+        if self._opaque_grid is None or self._transparency_grid is None:
+            scene = self._scene
+            self._opaque_grid = (scene.tiles == ElementType.WALL) | (
+                scene.tiles == ElementType.PILLAR
+            )
+            self._transparency_grid = (1.0 - self._opaque_grid).astype(np.float32)
+        return self._opaque_grid, self._transparency_grid
+
+    def _get_observers(self) -> list[ToolObserver]:
+        """Return all sighted entities that can activate visible light emitters."""
+        player_x, player_y = self._scene.player_pos
+        observers = [
+            ToolObserver(
+                name="player",
+                x=player_x,
+                y=player_y,
+                sight_radius=PLAYER_SIGHT_RADIUS,
+            )
+        ]
+
+        for monster in self._scene.monsters:
+            if not monster.has_eyes:
+                continue
+
+            observers.append(
+                ToolObserver(
+                    name=monster.name,
+                    x=monster.x,
+                    y=monster.y,
+                    sight_radius=monster.sight_radius,
+                )
+            )
+
+        return observers
+
+    def _compute_observer_visible_mask(self) -> np.ndarray:
+        """Return all cells visible to the player or a sighted monster."""
+        scene = self._scene
+        observer_visible = np.zeros((scene.height, scene.width), dtype=bool)
+
+        opaque_grid, transparency_grid = self._get_cached_geometry_grids()
+        for observer in self._get_observers():
+            cache_key = (observer.name, observer.x, observer.y, observer.sight_radius)
+            if cache_key in self._observer_fov_cache:
+                rev, mask = self._observer_fov_cache[cache_key]
+                if rev == self._blocker_revision:
+                    observer_visible |= mask
+                    continue
+
+            _, visible_out, _, _, _ = self._compute_point_fov_mask(
+                observer.x, observer.y, observer.sight_radius, opaque_grid, transparency_grid
+            )
+            mask = visible_out != 0
+            self._observer_fov_cache[cache_key] = (self._blocker_revision, mask)
+            observer_visible |= mask
+
+        return observer_visible
+
+    def _compute_point_fov_mask(
+        self,
+        origin_x: int,
+        origin_y: int,
+        radius: int,
+        opaque_grid: np.ndarray,
+        transparency_grid: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Compute FOV from a point, returning (reach_mask, visible_out, dist_out, side_bits_out, visibility_out)."""
+        scene = self._scene
+        if radius <= 0:
+            zeros = np.zeros((scene.height, scene.width), dtype=bool)
+            return zeros, zeros.astype(np.uint8), zeros.astype(np.int32), zeros.astype(np.uint8), zeros.astype(np.float32)
+
+        if not (0 <= origin_x < scene.width and 0 <= origin_y < scene.height):
+            zeros = np.zeros((scene.height, scene.width), dtype=bool)
+            return zeros, zeros.astype(np.uint8), zeros.astype(np.int32), zeros.astype(np.uint8), zeros.astype(np.float32)
+
+        if not self._use_los_for_debug_radial:
+            y_coords, x_coords = np.ogrid[0:scene.height, 0:scene.width]
+            dx = x_coords - origin_x
+            dy = y_coords - origin_y
+            dist_sq = dx * dx + dy * dy
+            mask = dist_sq <= radius * radius
+            dist_out = dist_sq.astype(np.int32)
+            visible_out = mask.astype(np.uint8)
+            return mask, visible_out, dist_out, np.zeros_like(visible_out), np.ones_like(dist_out, dtype=np.float32)
+
+        visible_out = np.zeros((scene.height, scene.width), dtype=np.uint8)
+        dist_out = -np.ones((scene.height, scene.width), dtype=np.int32)
+        side_bits_out = np.zeros((scene.height, scene.width), dtype=np.uint8)
+        visibility_out = np.zeros((scene.height, scene.width), dtype=np.float32)
+
+        cell_mask = np.full((scene.height, scene.width), 0xFFFFFFFF, dtype=np.uint32)
+        channels = 0xFFFFFFFF
+
+        from game.world.light_fov import compute_fov_all_octants
+        from engine.render_lighting import _precompute_geometry_blockers
+
+        if scene.height_map is not None and scene.ceiling_map is not None:
+            origin_height = int(scene.height_map[origin_y, origin_x])
+            opaque_u8, transparency_f32 = _precompute_geometry_blockers(
+                opaque_grid,
+                scene.height_map,
+                scene.ceiling_map,
+                origin_x,
+                origin_y,
+                origin_height,
+            )
+        else:
+            opaque_u8 = opaque_grid.astype(np.uint8)
+            transparency_f32 = transparency_grid.astype(np.float32)
+
+        compute_fov_all_octants(
+            opaque_u8,
+            transparency_f32,
+            cell_mask,
+            channels,
+            visible_out,
+            dist_out,
+            side_bits_out,
+            visibility_out,
+            origin_x,
+            origin_y,
+            radius,
+        )
+
+        return visible_out != 0, visible_out, dist_out, side_bits_out, visibility_out
+
+    def _compute_light_reach_mask(
+        self,
+        light_source: ToolLightSource,
+        opaque_grid: np.ndarray,
+        transparency_grid: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Return cached FOV results for a light using the current debug LOS mode."""
+        if light_source.intensity <= 0.0:
+            scene = self._scene
+            zeros = np.zeros((scene.height, scene.width), dtype=bool)
+            return zeros, zeros.astype(np.uint8), zeros.astype(np.int32), zeros.astype(np.uint8), zeros.astype(np.float32)
+        return self._compute_point_fov_mask(light_source.x, light_source.y, light_source.radius, opaque_grid, transparency_grid)
 
     def _get_configured_light_sources(self) -> list[ToolLightSource]:
         """Return scene light definitions overlaid with current UI configuration."""
@@ -922,59 +1347,213 @@ class LightingFovToolWindow(QMainWindow):
             )
         return light_sources
 
-    def _accumulate_radial_light_debug(
+    def _get_active_configured_light_sources(self) -> list[LightRuntimeResult]:
+        """Return lights whose *reached* field intersects observer-visible cells."""
+        active_light_results: list[LightRuntimeResult] = []
+        active_light_names: set[str] = set()
+
+        observer_visible = self._compute_observer_visible_mask()
+        if not bool(np.any(observer_visible)):
+            self._active_light_names = active_light_names
+            return active_light_results
+
+        opaque_grid, transparency_grid = self._get_cached_geometry_grids()
+        for light_source in self._get_configured_light_sources():
+            if light_source.radius <= 0 or light_source.intensity <= 0.0:
+                continue
+
+            cache_key = (light_source.name, light_source.x, light_source.y, light_source.radius, light_source.intensity)
+            if cache_key in self._light_reach_cache:
+                rev, res = self._light_reach_cache[cache_key]
+                if rev == self._blocker_revision:
+                    light_res = res
+                else:
+                    light_res = None
+            else:
+                light_res = None
+
+            if light_res is None:
+                reach_mask, visible_out, dist_out, side_bits_out, visibility_out = self._compute_light_reach_mask(
+                    light_source,
+                    opaque_grid,
+                    transparency_grid,
+                )
+                light_res = LightRuntimeResult(
+                    source=light_source,
+                    reach_mask=reach_mask,
+                    visible_out=visible_out,
+                    dist_out=dist_out,
+                    side_bits_out=side_bits_out,
+                    visibility_out=visibility_out,
+                )
+                self._light_reach_cache[cache_key] = (self._blocker_revision, light_res)
+
+            if not bool(np.any(light_res.reach_mask & observer_visible)):
+                continue
+
+            active_light_results.append(light_res)
+            active_light_names.add(light_source.name)
+
+        self._active_light_names = active_light_names
+        return active_light_results
+
+    def _accumulate_fast_diffuse_light(
         self,
         target: np.ndarray,
         *,
-        origin_x: int,
-        origin_y: int,
-        radius: int,
-        color: tuple[int, int, int],
-        intensity: float,
+        light_res: LightRuntimeResult,
+        opaque_grid: np.ndarray,
+        transparency_grid: np.ndarray,
     ) -> None:
-        """Debug light accumulator for the tool.
-
-        This intentionally bypasses the legacy FOV light path so the tool can verify
-        sliders, colors, radius, exposure, and compositing independently.
-        """
-        if radius <= 0 or intensity <= 0.0:
+        """Compute visible tiles once using production FOV function, then apply NumPy falloff."""
+        if light_res.source.radius <= 0 or light_res.source.intensity <= 0.0:
             return
 
-        scene = self._scene
-        radius_sq = float(radius * radius)
+        valid = light_res.reach_mask
+        dist = np.sqrt(np.maximum(light_res.dist_out, 0).astype(np.float32))
+        visibility_out = light_res.visibility_out
 
-        min_x = max(0, origin_x - radius)
-        max_x = max(min_x, min(scene.width, origin_x + radius + 1))
-        min_y = max(0, origin_y - radius)
-        max_y = max(min_y, min(scene.height, origin_y + radius + 1))
-
-        y_coords, x_coords = np.ogrid[min_y:max_y, min_x:max_x]
-        dx = x_coords - origin_x
-        dy = y_coords - origin_y
-        dist_sq = dx * dx + dy * dy
-
-        valid = dist_sq <= radius_sq
-
-        # Add LOS check for debug radial lights if enabled
-        if self._use_los_for_debug_radial:
-            los_valid = np.zeros_like(valid, dtype=bool)
-            for local_y, map_y in enumerate(range(min_y, max_y)):
-                for local_x, map_x in enumerate(range(min_x, max_x)):
-                    if not valid[local_y, local_x]:
-                        continue
-                    if self._has_los(origin_x, origin_y, map_x, map_y):
-                        los_valid[local_y, local_x] = True
-            valid = valid & los_valid
-
-        # More readable than squared falloff for a tuning tool.
-        dist = np.sqrt(dist_sq.astype(np.float32))
-        falloff = np.where(valid, 1.0 - (dist / float(radius)), 0.0)
+        falloff = np.where(valid, 1.0 - dist / float(light_res.source.radius), 0.0)
         falloff = np.clip(falloff, 0.0, 1.0)
 
-        color_rgb = np.array(color, dtype=np.float32)
-        contribution = falloff[..., None] * color_rgb * float(intensity)
+        if self._use_los_for_debug_radial:
+            falloff = falloff * visibility_out
 
-        target[min_y:max_y, min_x:max_x, :] += contribution
+        target += falloff[..., None] * np.array(light_res.source.color, dtype=np.float32) * light_res.source.intensity
+
+    def _compute_unified_lighting(self) -> tuple[np.ndarray, np.ndarray]:
+        """Compute both diffuse wash and side highlights from a single visibility run per light."""
+        scene = self._scene
+        diffuse_rgb = np.zeros((scene.height, scene.width, 3), dtype=np.float32)
+        side_rgba = np.zeros((scene.height, scene.width, 8, 4), dtype=np.float32)
+
+        opaque_grid, transparency_grid = self._get_cached_geometry_grids()
+
+        for light_res in self._get_active_configured_light_sources():
+            light_cfg = self._config_state.lights.get(light_res.source.name)
+            if light_cfg is None:
+                continue
+
+            shape = getattr(light_cfg, "shape", "circle")
+            direction = getattr(light_cfg, "direction", 0.0)
+            cone_angle = getattr(light_cfg, "cone_angle", 6.283185307179586)
+            beam_width = getattr(light_cfg, "beam_width", 1.0)
+            beam_length = getattr(light_cfg, "beam_length", 8)
+            softness = getattr(light_cfg, "softness", 0.0)
+
+            origin_x, origin_y = light_res.source.x, light_res.source.y
+            radius = light_res.source.radius
+            color = np.array(light_res.source.color, dtype=np.float32)
+            intensity = light_res.source.intensity
+
+            valid = light_res.reach_mask
+            visible_out = light_res.visible_out
+            dist_out = light_res.dist_out
+            side_bits_out = light_res.side_bits_out
+            visibility_out = light_res.visibility_out
+
+            # Grid coordinates for shape checks
+            y_coords, x_coords = np.ogrid[0:scene.height, 0:scene.width]
+            dx = x_coords - origin_x
+            dy = y_coords - origin_y
+
+            shape_mask = np.zeros_like(valid, dtype=np.float32)
+
+            if shape == "circle":
+                dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
+                falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
+                shape_mask = np.clip(falloff, 0.0, 1.0)
+
+            elif shape == "cone":
+                dist = np.sqrt(np.maximum(dist_out, 0).astype(np.float32))
+                falloff = np.where(valid, 1.0 - dist / float(radius), 0.0)
+                falloff = np.clip(falloff, 0.0, 1.0)
+
+                # Cone angle check
+                angle = np.arctan2(dy, dx)
+                diff = (angle - direction + np.pi) % (2 * np.pi) - np.pi
+                abs_diff = np.abs(diff)
+
+                half_angle = cone_angle / 2.0
+                if softness > 0.0:
+                    inner_angle = half_angle * (1.0 - softness)
+                    cone_factor = np.where(
+                        abs_diff <= inner_angle,
+                        1.0,
+                        np.where(
+                            abs_diff > half_angle,
+                            0.0,
+                            1.0 - (abs_diff - inner_angle) / (half_angle - inner_angle + 1e-9)
+                        )
+                    )
+                else:
+                    cone_factor = np.where(abs_diff <= half_angle, 1.0, 0.0)
+
+                shape_mask = falloff * cone_factor
+
+            elif shape == "beam":
+                # Project coordinates along direction
+                cos_dir = np.cos(direction)
+                sin_dir = np.sin(direction)
+
+                # Projection length (distance along beam)
+                p = dx * cos_dir + dy * sin_dir
+                # Perpendicular distance
+                d_perp = np.abs(-dx * sin_dir + dy * cos_dir)
+
+                half_width = beam_width / 2.0
+
+                # Check bounds
+                in_length = (p >= 0.0) & (p <= beam_length)
+
+                if softness > 0.0:
+                    inner_width = half_width * (1.0 - softness)
+                    perp_factor = np.where(
+                        d_perp <= inner_width,
+                        1.0,
+                        np.where(
+                            d_perp > half_width,
+                            0.0,
+                            1.0 - (d_perp - inner_width) / (half_width - inner_width + 1e-9)
+                        )
+                    )
+                    inner_length = beam_length * (1.0 - softness)
+                    length_factor = np.where(
+                        p <= inner_length,
+                        1.0,
+                        np.where(
+                            p > beam_length,
+                            0.0,
+                            1.0 - (p - inner_length) / (beam_length - inner_length + 1e-9)
+                        )
+                    )
+                else:
+                    perp_factor = np.where(d_perp <= half_width, 1.0, 0.0)
+                    length_factor = 1.0
+
+                beam_factor = np.where(valid & in_length, perp_factor * length_factor, 0.0)
+                falloff = np.where(valid & in_length, 1.0 - p / float(beam_length), 0.0)
+                falloff = np.clip(falloff, 0.0, 1.0)
+
+                shape_mask = falloff * beam_factor
+
+            # Combine shape mask with JIT shadowcasting transmittance (visibility)
+            atten = shape_mask * visibility_out * intensity
+
+            # Walkable floors get diffuse Wash RGB
+            walkable = ~opaque_grid
+            diffuse_rgb += (atten * walkable)[..., None] * color
+
+            # Walls/pillars get Side Highlights RGBA
+            for side_idx in range(8):
+                side_bit = 1 << side_idx
+                has_side = (side_bits_out & side_bit) != 0
+
+                side_atten = atten * has_side
+                side_rgba[..., side_idx, 0:3] += side_atten[..., None] * color
+                side_rgba[..., side_idx, 3] += side_atten * 255.0
+
+        return diffuse_rgb, side_rgba
 
     def _composite_tile(
         self,
@@ -1021,6 +1600,26 @@ class LightingFovToolWindow(QMainWindow):
                     y = cy + dy
                     if 0 <= x < output.shape[1] and 0 <= y < output.shape[0]:
                         output[y, x, :3] = [255, 255, 100]
+
+    def _draw_monster_marker(self, output: np.ndarray, px: int, py: int) -> None:
+        """Draw a simple dummy monster marker at the given pixel position."""
+        size = self._tile_size
+        left = px + size // 4
+        right = px + (size * 3) // 4
+        cy = py + size // 2
+        radius = max(2, size // 4)
+
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                if dx * dx + dy * dy <= radius * radius:
+                    x = px + size // 2 + dx
+                    y = cy + dy
+                    if 0 <= x < output.shape[1] and 0 <= y < output.shape[0]:
+                        output[y, x, :3] = [180, 80, 220]
+
+        for eye_x in (left, right):
+            if 0 <= eye_x < output.shape[1] and 0 <= cy < output.shape[0]:
+                output[cy, eye_x, :3] = [255, 255, 255]
 
     def _draw_light_marker(
         self, output: np.ndarray, cx: int, cy: int, color: tuple[int, int, int]
