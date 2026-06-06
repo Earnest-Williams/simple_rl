@@ -378,6 +378,24 @@ class EntityRegistry:
     ) -> dict[str, Any]:
         return self._store.get_components(entity_id, component_names)
 
+    def get_combat_components_bulk(
+        self, entity_ids: list[int]
+    ) -> tuple[
+        dict[int, str | None],  # name
+        dict[int, int],  # strength
+        dict[int, int],  # defense
+        dict[int, int],  # armor
+        dict[int, int],  # hp
+        dict[int, int],  # max_hp
+        dict[int, int],  # x
+        dict[int, int],  # y
+        dict[int, dict[str, float]],  # resistances
+        dict[int, dict[str, float]],  # vulnerabilities
+        dict[int, int],  # xp_reward
+    ]:
+        """Bulk fetch combat-related components for multiple entities."""
+        return self._store.get_combat_components_bulk(entity_ids)
+
     def set_position(self: Self, entity_id: int, position: Position) -> bool:
         """Update an entity's position component."""
         return self._store.set_position(entity_id, position)

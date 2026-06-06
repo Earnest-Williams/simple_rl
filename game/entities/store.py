@@ -272,6 +272,68 @@ class EntityStore:
                 result[component] = self.extra_components[idx].get(component)
         return result
 
+    def get_combat_components_bulk(
+        self, entity_ids: list[int]
+    ) -> tuple[
+        dict[int, str | None],  # name
+        dict[int, int],  # strength
+        dict[int, int],  # defense
+        dict[int, int],  # armor
+        dict[int, int],  # hp
+        dict[int, int],  # max_hp
+        dict[int, int],  # x
+        dict[int, int],  # y
+        dict[int, dict[str, float]],  # resistances
+        dict[int, dict[str, float]],  # vulnerabilities
+        dict[int, int],  # xp_reward
+    ]:
+        """Bulk fetch combat-related components for multiple entities.
+        
+        Returns dictionaries mapping entity_id to component value for efficient
+        lookup during combat resolution.
+        """
+        names: dict[int, str | None] = {}
+        strengths: dict[int, int] = {}
+        defenses: dict[int, int] = {}
+        armors: dict[int, int] = {}
+        hps: dict[int, int] = {}
+        max_hps: dict[int, int] = {}
+        xs: dict[int, int] = {}
+        ys: dict[int, int] = {}
+        resistances: dict[int, dict[str, float]] = {}
+        vulnerabilities: dict[int, dict[str, float]] = {}
+        xp_rewards: dict[int, int] = {}
+
+        for entity_id in entity_ids:
+            idx = self.index_of(entity_id)
+            if idx is None or not self.is_active[idx]:
+                continue
+            
+            eid = int(self.entity_id[idx])
+            names[eid] = self.name[idx]
+            
+            # Get components from extra_components (strength, defense, armor are not in NUMERIC_FIELDS)
+            extra = self.extra_components[idx]
+            strengths[eid] = int(extra.get("strength", 0))
+            defenses[eid] = int(extra.get("defense", 0))
+            armors[eid] = int(extra.get("armor", 0))
+            
+            # Get numeric fields directly from arrays
+            hps[eid] = int(self.hp[idx])
+            max_hps[eid] = int(self.max_hp[idx])
+            xs[eid] = int(self.x[idx])
+            ys[eid] = int(self.y[idx])
+            
+            # Handle other extra components
+            resistances[eid] = extra.get("resistances", {})
+            vulnerabilities[eid] = extra.get("vulnerabilities", {})
+            xp_rewards[eid] = int(extra.get("xp_reward", 0))
+
+        return (
+            names, strengths, defenses, armors, hps, max_hps, xs, ys,
+            resistances, vulnerabilities, xp_rewards
+        )
+
     def get_position(self, entity_id: int) -> Position | None:
         idx = self.index_of(entity_id)
         if idx is None or not self.is_active[idx]:
