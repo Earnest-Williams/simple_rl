@@ -4,11 +4,13 @@ import pytest
 numba = pytest.importorskip("numba", reason="game.world.fov requires numba")
 
 from game.world.fov import (
+    blocks_light_at,
     compute_fov_into,
     compute_visibility,
     compute_visibility_into,
     is_visible,
     iter_visible_cells,
+    set_visible_at,
 )
 
 
@@ -116,6 +118,23 @@ def test_compute_visibility_rejects_invalid_inputs() -> None:
             radius=1,
             is_opaque=lambda y, x: False,
         )
+
+
+def test_numba_helpers_use_numpy_shape_order_for_rectangular_grids() -> None:
+    opaque = np.zeros((25, 40), dtype=np.bool_)
+    height_map = np.zeros((25, 40), dtype=np.int64)
+    ceiling_map = np.full((25, 40), 10, dtype=np.int64)
+    visible = np.zeros((25, 40), dtype=np.bool_)
+    explored = np.zeros((25, 40), dtype=np.bool_)
+    grid_shape = opaque.shape
+
+    set_visible_at(1, 1, 7, (25, 12), grid_shape, visible, explored)
+
+    assert visible[13, 26]
+    assert explored[13, 26]
+    assert not blocks_light_at(
+        1, 1, 7, (25, 12), grid_shape, opaque, height_map, ceiling_map, 0
+    )
 
 
 def test_production_compute_fov_into_marks_origin_and_reuses_output() -> None:

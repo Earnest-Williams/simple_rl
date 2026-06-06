@@ -510,8 +510,7 @@ class LightingFovToolWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
         # Dark style
-        self.setStyleSheet(
-            """
+        self.setStyleSheet("""
             QMainWindow, QWidget {
                 background-color: #1a1a1a;
                 color: #ffffff;
@@ -555,8 +554,7 @@ class LightingFovToolWindow(QMainWindow):
             QScrollArea {
                 border: none;
             }
-            """
-        )
+            """)
 
     def _on_tile_size_changed(self, size: int) -> None:
         """Handle tile size change."""
@@ -784,12 +782,24 @@ class LightingFovToolWindow(QMainWindow):
 
         # Add diagnostic logging
         lit_mask = np.any(colored_light > 1.0, axis=2)
+        max_light = float(colored_light.max())
+        mean_light = float(colored_light.mean())
+        lit_tiles = int(lit_mask.sum())
         log.info(
             "light stats",
-            max=colored_light.max(),
-            mean=colored_light.mean(),
-            lit_tiles=int(lit_mask.sum()),
+            max=max_light,
+            mean=mean_light,
+            lit_tiles=lit_tiles,
             total_tiles=scene.height * scene.width,
+        )
+        print(
+            "colored_light stats:",
+            "max=",
+            max_light,
+            "mean=",
+            mean_light,
+            "lit_tiles=",
+            lit_tiles,
         )
 
         return base_intensity, colored_light
