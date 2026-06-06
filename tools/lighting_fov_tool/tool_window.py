@@ -862,9 +862,9 @@ class LightingFovToolWindow(QMainWindow):
         radius_sq = float(radius * radius)
 
         min_x = max(0, origin_x - radius)
-        max_x = min(scene.width, origin_x + radius + 1)
+        max_x = max(min_x, min(scene.width, origin_x + radius + 1))
         min_y = max(0, origin_y - radius)
-        max_y = min(scene.height, origin_y + radius + 1)
+        max_y = max(min_y, min(scene.height, origin_y + radius + 1))
 
         y_coords, x_coords = np.ogrid[min_y:max_y, min_x:max_x]
         dx = x_coords - origin_x
