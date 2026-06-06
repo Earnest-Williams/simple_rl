@@ -314,9 +314,9 @@ class EntityStore:
             
             # Get components from extra_components (strength, defense, armor are not in NUMERIC_FIELDS)
             extra = self.extra_components[idx]
-            strengths[eid] = int(extra.get("strength", 0))
-            defenses[eid] = int(extra.get("defense", 0))
-            armors[eid] = int(extra.get("armor", 0))
+            strengths[eid] = int(extra.get("strength") or 0)
+            defenses[eid] = int(extra.get("defense") or 0)
+            armors[eid] = int(extra.get("armor") or 0)
             
             # Get numeric fields directly from arrays
             hps[eid] = int(self.hp[idx])
@@ -325,9 +325,9 @@ class EntityStore:
             ys[eid] = int(self.y[idx])
             
             # Handle other extra components
-            resistances[eid] = extra.get("resistances", {})
-            vulnerabilities[eid] = extra.get("vulnerabilities", {})
-            xp_rewards[eid] = int(extra.get("xp_reward", 0))
+            resistances[eid] = extra.get("resistances") or {}
+            vulnerabilities[eid] = extra.get("vulnerabilities") or {}
+            xp_rewards[eid] = int(extra.get("xp_reward") or 0)
 
         return (
             names, strengths, defenses, armors, hps, max_hps, xs, ys,

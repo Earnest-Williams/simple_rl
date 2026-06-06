@@ -633,6 +633,60 @@ def test_get_combat_components_bulk_returns_correct_data() -> None:
     assert xp_rewards.get(entity2_id) == 50
 
 
+def test_get_combat_components_bulk_handles_nullable_components() -> None:
+    """Test that bulk combat component fetching handles None values for nullable components."""
+    state = _make_state()
+    
+    # Create entities with nullable combat components explicitly set to None
+    entity1_id = state.entity_registry.create_entity(
+        x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity1",
+        hp=20, max_hp=25,
+    )
+    entity2_id = state.entity_registry.create_entity(
+        x=2, y=2, glyph=101, color_fg=(0, 255, 0), name="Entity2",
+        hp=15, max_hp=20,
+    )
+    
+    # Explicitly set nullable components to None
+    state.entity_registry.set_entity_component(entity1_id, "strength", None)
+    state.entity_registry.set_entity_component(entity1_id, "defense", None)
+    state.entity_registry.set_entity_component(entity1_id, "armor", None)
+    state.entity_registry.set_entity_component(entity1_id, "xp_reward", None)
+    
+    state.entity_registry.set_entity_component(entity2_id, "strength", None)
+    state.entity_registry.set_entity_component(entity2_id, "defense", None)
+    state.entity_registry.set_entity_component(entity2_id, "armor", None)
+    state.entity_registry.set_entity_component(entity2_id, "xp_reward", None)
+    
+    # Fetch bulk components - should not crash on None values
+    (
+        names, strengths, defenses, armors, hps, max_hps, xs, ys,
+        resistances, vulnerabilities, xp_rewards
+    ) = state.entity_registry.get_combat_components_bulk([entity1_id, entity2_id])
+    
+    # Verify that None values are converted to 0 for numeric components
+    assert strengths.get(entity1_id) == 0
+    assert defenses.get(entity1_id) == 0
+    assert armors.get(entity1_id) == 0
+    assert xp_rewards.get(entity1_id) == 0
+    
+    assert strengths.get(entity2_id) == 0
+    assert defenses.get(entity2_id) == 0
+    assert armors.get(entity2_id) == 0
+    assert xp_rewards.get(entity2_id) == 0
+    
+    # Verify that non-nullable components still work
+    assert names.get(entity1_id) == "Entity1"
+    assert hps.get(entity1_id) == 20
+    assert max_hps.get(entity1_id) == 25
+    assert xs.get(entity1_id) == 1
+    assert ys.get(entity1_id) == 1
+    
+    # Verify that None values for dict components are converted to empty dicts
+    assert resistances.get(entity1_id) == {}
+    assert vulnerabilities.get(entity1_id) == {}
+
+
 def test_get_equipped_items_bulk_returns_correct_data() -> None:
     """Test that bulk equipped items fetching returns correct data."""
     state = _make_state()
