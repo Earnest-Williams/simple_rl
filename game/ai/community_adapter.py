@@ -190,8 +190,6 @@ class CommunityManager:
         self._spawn_configured_regions()
         registry = self.gs.entity_registry
         for idx in registry.active_indices():
-            if not registry.is_active_at(int(idx)):
-                continue
             entity_id = registry.entity_id_at(int(idx))
             agent = registry.get_component_at(int(idx), "community_ai")
             if agent is None:
@@ -212,8 +210,6 @@ class CommunityManager:
             region_x, region_y, region_w, region_h = region
             existing = 0
             for idx in registry.active_indices():
-                if not registry.is_active_at(int(idx)):
-                    continue
                 profile = registry.get_component_at(int(idx), "community_profile")
                 if (
                     profile

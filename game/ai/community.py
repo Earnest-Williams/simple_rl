@@ -54,9 +54,10 @@ def take_turn(
     kept separate so more sophisticated social behaviours can be developed
     later.
     """
-    x, y = game_state.entity_registry.xy_of(entity_id)
-    if x is None or y is None:
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
         return
+    x, y = pos
     if hasattr(perception, "los_map"):
         noise_map = perception.debug_noise_map
         scent_map = perception.debug_scent_map

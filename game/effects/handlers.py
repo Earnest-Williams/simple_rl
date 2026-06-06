@@ -55,9 +55,6 @@ def _get_entities_in_aoe(
 
     # Iterate over active entities using store accessors
     for idx in registry.active_indices():
-        if not registry.is_active_at(int(idx)):
-            continue
-
         entity_id = registry.entity_id_at(int(idx))
         ex, ey = registry.xy_at(int(idx))
 

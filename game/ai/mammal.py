@@ -34,9 +34,10 @@ def take_turn(
     **kwargs: Any,
 ) -> None:
     """Execute one turn for a pack-hunting mammal."""
-    x, y = game_state.entity_registry.xy_of(entity_id)
-    if x is None or y is None:
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
         return
+    x, y = pos
 
     player_pos = game_state.player_position
     if player_pos is not None:

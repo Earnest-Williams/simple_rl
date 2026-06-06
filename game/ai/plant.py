@@ -23,9 +23,10 @@ def take_turn(
     **kwargs,
 ) -> None:
     """Execute one turn for a stationary attacking plant."""
-    x, y = game_state.entity_registry.xy_of(entity_id)
-    if x is None or y is None:
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
         return
+    x, y = pos
     player_pos = game_state.player_position
 
     acted = False

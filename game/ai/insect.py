@@ -31,9 +31,6 @@ def _nearest_ally(
     nearest_y = y
     
     for idx in registry.active_indices():
-        if not registry.is_active_at(int(idx)):
-            continue
-        
         other_id = registry.entity_id_at(int(idx))
         if other_id == entity_id:
             continue
@@ -72,9 +69,10 @@ def take_turn(
     **kwargs,
 ) -> None:
     """Execute one turn for a swarming insect."""
-    x, y = game_state.entity_registry.xy_of(entity_id)
-    if x is None or y is None:
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
         return
+    x, y = pos
 
     dir_to_ally = _nearest_ally(entity_id, x, y, game_state)
     if dir_to_ally is not None:
