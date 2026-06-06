@@ -341,27 +341,35 @@ def find_visible_enemies(
     ex = _row_int(entity_row, "x")
     ey = _row_int(entity_row, "y")
     faction = _row_str(entity_row, "faction")
+    entity_id = _row_int(entity_row, "entity_id")
     game_map = game_state.game_map
     enemies: list[VisibleTarget] = []
 
     if ex is None or ey is None:
         return enemies
 
-    filter_expr = pl.col("is_active")
-    if faction is not None:
-        filter_expr &= pl.col("faction") != faction
-    enemy_df = game_state.entity_registry.entities_df.filter(filter_expr)
-    enemy_rows = {
-        target["entity_id"]: target
-        for row in enemy_df.iter_rows(named=True)
-        if (target := _visible_target_from_row(row)) is not None
-    }
-
+    # Use store accessors instead of entities_df for efficiency
+    registry = game_state.entity_registry
     vision_range = _row_int(entity_row, "vision_range") or game_state.fov_radius
     spatial_index = getattr(game_state, "spatial_index", None)
     nearby: object = None
     if spatial_index is not None and hasattr(spatial_index, "query_radius"):
         nearby = spatial_index.query_radius((ex, ey), vision_range)
+
+    # Build enemy_rows dict from store accessors if spatial index is not available
+    enemy_rows: dict[int, VisibleTarget] = {}
+    if nearby is None:
+        for idx in registry.active_indices():
+            if not registry.is_active_at(int(idx)):
+                continue
+            other_id = registry.entity_id_at(int(idx))
+            other_faction = registry.faction_at(int(idx))
+            # Skip self and same faction
+            if other_id == entity_id or other_faction == faction:
+                continue
+            target = registry.visible_target_at(int(idx))
+            if target is not None:
+                enemy_rows[other_id] = target
 
     candidates = nearby if nearby else enemy_rows.values()
     for other in candidates:
@@ -375,7 +383,7 @@ def find_visible_enemies(
             other_row = enemy_rows.get(int(other_id))
             if other_row is None:
                 continue
-        if other_id == entity_row.get("entity_id"):
+        if other_id == entity_id:
             continue
         if not game_map.in_bounds(int(ox), int(oy)):
             continue
@@ -386,7 +394,7 @@ def find_visible_enemies(
 
     log.debug(
         "Visible enemies located",
-        entity_id=entity_row.get("entity_id"),
+        entity_id=entity_id,
         count=len(enemies),
     )
     return enemies

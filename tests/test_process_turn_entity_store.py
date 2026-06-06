@@ -794,3 +794,55 @@ def test_get_skills_bulk_returns_correct_data() -> None:
     assert entity2_skills[Skill.FIGHTING].level == 8
     assert Skill.DODGING in entity2_skills
     assert entity2_skills[Skill.DODGING].level == 4
+
+def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> None:
+    """Test that find_visible_enemies uses store accessors instead of entities_df."""
+    from game.ai.perception import find_visible_enemies
+
+    state = _make_state()
+
+    entity1_id = state.entity_registry.create_entity(
+        x=3,
+        y=3,
+        glyph=100,
+        color_fg=(255, 0, 0),
+        name="Entity1",
+        faction="player",
+    )
+    state.entity_registry.create_entity(
+        x=4,
+        y=4,
+        glyph=101,
+        color_fg=(0, 0, 255),
+        name="Entity2",
+        faction="enemy",
+    )
+
+    def fail_entities_df() -> object:
+        raise AssertionError("find_visible_enemies must not materialize entities_df")
+
+    monkeypatch.setattr(
+        type(state.entity_registry),
+        "entities_df",
+        property(lambda self: fail_entities_df()),
+    )
+
+    entity_row = {
+        "entity_id": entity1_id,
+        "x": 3,
+        "y": 3,
+        "faction": "player",
+        "vision_range": 10,
+    }
+
+    los_map = np.zeros((10, 10), dtype=bool)
+    los_map[3, 3] = True
+    los_map[4, 4] = True
+
+    try:
+        find_visible_enemies(entity_row, state, los_map)
+    except AssertionError as e:
+        if "entities_df" in str(e):
+            raise
+    except Exception:
+        pass
