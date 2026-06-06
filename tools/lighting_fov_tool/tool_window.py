@@ -255,7 +255,6 @@ class LightConfigPanel(QGroupBox):
         self._intensity_slider.setRange(0, 100)
         self._intensity_slider.setValue(int(config.intensity * 100))
         self._intensity_slider.valueChanged.connect(self._on_intensity_changed)
-        self._intensity_slider.setTracking(False)
         self._intensity_label = QLabel(f"{config.intensity:.2f}")
         intensity_layout = QHBoxLayout()
         intensity_layout.addWidget(self._intensity_slider)
