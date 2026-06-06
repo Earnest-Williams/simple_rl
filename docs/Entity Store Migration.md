@@ -2,29 +2,31 @@
 
 ## Problem
 
-`GameState.advance_turn()` is currently dominated by live entity mutation through
-Polars DataFrames. This is the wrong storage model for the hot simulation loop.
+`GameState.advance_turn()` was previously dominated by live entity mutation
+through Polars DataFrames. That was the wrong storage model for the hot
+simulation loop, and the migration away from DataFrame-owned runtime mutation is
+now well underway.
 
 Polars remains valuable for bulk inspection, debugging, exports, fixtures, tests,
 and analytics, but it should not be the authoritative mutable entity store during
 turn processing.
 
-Current hot-path problems:
+Historical hot-path problems included:
 
-- `EntityRegistry.entities_df` is the live entity table.
-- `set_entity_component()` checks entity existence through a lazy Polars query
+- `EntityRegistry.entities_df` acting as the live entity table instead of a
+  compatibility snapshot.
+- `set_entity_component()` checking entity existence through lazy Polars queries
   and `.collect()`.
-- `set_entity_component()` updates one component by rebuilding a DataFrame column
-  with `with_columns(...)`.
-- `set_position()` calls `set_entity_component()` twice, once for `x` and once
-  for `y`.
-- `try_move()` calls `get_position()` and then `set_position()`, so every move
-  performs DataFrame reads and two scalar DataFrame writes.
-- Collision queries such as `get_blocking_entity_at()` scan/filter the entity
-  DataFrame instead of using an occupancy grid.
+- Scalar component updates rebuilding DataFrame columns with `with_columns(...)`.
+- Position updates writing `x` and `y` through separate scalar component paths.
+- Movement and collision checks scanning/filtering DataFrames instead of using
+  store fields and occupancy/spatial indexes.
 
-This creates catastrophic scaling under AI load. The benchmark harness
-`bench/bench_advance_turn.py` exists to measure this.
+These are no longer all current production blockers. Combat, perception, monster
+perception, sound context, AOE, and AI adapter paths have moved substantially
+toward registry/store accessors, entity IDs, spatial indexes, and cached Polars
+compatibility snapshots. The benchmark harness `bench/bench_advance_turn.py`
+exists to measure remaining turn-loop costs.
 
 ## Goal
 
@@ -45,6 +47,34 @@ The target design is:
 - Do not rewrite every system in one PR.
 - Do not optimize FOV first.
 - Do not preserve Polars as the live mutable entity source.
+
+## Current status as of 2026-06
+
+- [x] **Phase 1: Introduce `EntityStore` behind `EntityRegistry` — mostly
+  complete.** `entities_df` should now be treated as a compatibility/reporting
+  snapshot, while hot registry APIs read and write through store-oriented fields.
+- [x] **Phase 2: Fast movement and occupancy — mostly complete.** Movement,
+  collision, spatial-index population, and common position updates should prefer
+  store/index access. Continue watching for legacy callers that still route
+  movement through scalar DataFrame-shaped updates.
+- [ ] **Phase 3: Rewrite process-turn over indices — partially complete.**
+  `game_state.py` has moved important paths to active indices, entity IDs, and
+  spatial-index entries, but process-turn remains the highest-risk place for
+  compatibility rows and remaining `entities_df` materialization.
+- [x] **Phase 4: Remove Polars from perception hot reads — substantially
+  complete.** Visible-enemy and perception paths now use registry/store
+  accessors and spatial-index candidates in production code; fallback or test
+  compatibility paths should remain cold and explicit.
+- [x] **Phase 5: Replace AI row dicts with entity IDs or typed views —
+  substantially complete for production adapters.** GOAP/strategy adapters and
+  perception snapshots have moved toward entity-ID/store access. Remaining
+  exceptions should be called out when a production path still requires a
+  DataFrame-shaped row dictionary.
+
+Current follow-up work is therefore not "start the migration"; it is to profile
+the next dominant turn-processing bottleneck, remove any remaining hot
+compatibility-row construction, and keep `entities_df` uses clearly separated
+from runtime mutation.
 
 ## Runtime storage model
 
