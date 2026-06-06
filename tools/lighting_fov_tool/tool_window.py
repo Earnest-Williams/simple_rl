@@ -652,10 +652,12 @@ class LightingFovToolWindow(QMainWindow):
         if sender is self._show_full_light_checkbox:
             self._show_full_light_field = self._show_full_light_checkbox.isChecked()
         elif sender is self._show_hidden_lights_checkbox:
-            self._show_hidden_light_sources = self._show_hidden_lights_checkbox.isChecked()
+            self._show_hidden_light_sources = (
+                self._show_hidden_lights_checkbox.isChecked()
+            )
         elif sender is self._use_los_radial_checkbox:
             self._use_los_for_debug_radial = self._use_los_radial_checkbox.isChecked()
-        
+
         self._set_debug_toggle_texts()
         self._render_scene()
 
@@ -729,7 +731,11 @@ class LightingFovToolWindow(QMainWindow):
                 else:
                     is_visible = visible[y, x]
                     intensity = base_intensity[y, x] if is_visible else 0.05
-                    light_rgb = colored_light[y, x] if is_visible else colored_light[y, x] * 0.05
+                    light_rgb = (
+                        colored_light[y, x]
+                        if is_visible
+                        else colored_light[y, x] * 0.05
+                    )
 
                 # Apply lighting: (base_color * intensity) + colored_light
                 fg_lit = (
@@ -766,7 +772,12 @@ class LightingFovToolWindow(QMainWindow):
             if light_cfg is None:
                 continue
 
-            if not self._show_hidden_light_sources and not visible[ls.y, ls.x]:
+            should_hide_marker = (
+                not self._show_full_light_field
+                and not self._show_hidden_light_sources
+                and not visible[ls.y, ls.x]
+            )
+            if should_hide_marker:
                 continue
 
             lx = ls.x * self._tile_size + self._tile_size // 2
@@ -877,7 +888,9 @@ class LightingFovToolWindow(QMainWindow):
         if not light_sources:
             return np.zeros((scene.height, scene.width, 3), dtype=np.float32)
 
-        opaque_grid = (scene.tiles == ElementType.WALL) | (scene.tiles == ElementType.PILLAR)
+        opaque_grid = (scene.tiles == ElementType.WALL) | (
+            scene.tiles == ElementType.PILLAR
+        )
         colored_light = self._production_light_cache.update(
             light_sources,
             opaque_grid,
