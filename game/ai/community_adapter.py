@@ -188,16 +188,19 @@ class CommunityManager:
 
     def step(self) -> None:
         self._spawn_configured_regions()
-        for row in self.gs.entity_registry.entities_df.iter_rows(named=True):
-            if not row.get("is_active", False):
-                continue
-            agent = row.get("community_ai")
+        registry = self.gs.entity_registry
+        for idx in registry.active_indices():
+            entity_id = registry.entity_id_at(int(idx))
+            agent = registry.get_component_at(int(idx), "community_ai")
             if agent is None:
                 continue
-            self._step_agent(row["entity_id"], row, agent)
+            # Get the row dict for the agent (it expects this format)
+            row = registry.row_dict_at(int(idx))
+            self._step_agent(entity_id, row, agent)
 
     def _spawn_configured_regions(self) -> None:
         configs = self.gs.ai_config.get("community_regions", [])
+        registry = self.gs.entity_registry
         for cfg in configs:
             template_id = cfg.get("template")
             region = cfg.get("region")
@@ -206,15 +209,18 @@ class CommunityManager:
             desired = int(cfg.get("count", 1))
             region_x, region_y, region_w, region_h = region
             existing = 0
-            for row in self.gs.entity_registry.entities_df.iter_rows(named=True):
-                profile = row.get("community_profile")
+            for idx in registry.active_indices():
+                profile = registry.get_component_at(int(idx), "community_profile")
                 if (
                     profile
                     and profile.get("template_id") == template_id
-                    and region_x <= row["x"] < region_x + region_w
-                    and region_y <= row["y"] < region_y + region_h
                 ):
-                    existing += 1
+                    ex, ey = registry.xy_at(int(idx))
+                    if (
+                        region_x <= ex < region_x + region_w
+                        and region_y <= ey < region_y + region_h
+                    ):
+                        existing += 1
             for _ in range(max(0, desired - existing)):
                 spawn_x = self.rng.get_int(region_x, region_x + region_w - 1)
                 spawn_y = self.rng.get_int(region_y, region_y + region_h - 1)

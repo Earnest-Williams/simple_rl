@@ -37,7 +37,7 @@ def _random_direction(rng: GameRNG) -> tuple[int, int]:
 
 
 def take_turn(
-    entity_row,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
@@ -48,7 +48,6 @@ def take_turn(
     Birds move quickly, attempting to traverse two tiles in the same
     direction each turn to simulate flight.
     """
-    entity_id = entity_row["entity_id"]
 
     dx, dy = _random_direction(rng)
     moved = movement_system.try_move(entity_id, dx, dy, game_state)

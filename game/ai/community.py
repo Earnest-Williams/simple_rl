@@ -42,7 +42,7 @@ def _ensure_pathfinder(game_state: GameState) -> FlowFieldPathfinder:
 
 
 def take_turn(
-    entity_row,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
@@ -54,8 +54,10 @@ def take_turn(
     kept separate so more sophisticated social behaviours can be developed
     later.
     """
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
+        return
+    x, y = pos
     if hasattr(perception, "los_map"):
         noise_map = perception.debug_noise_map
         scent_map = perception.debug_scent_map

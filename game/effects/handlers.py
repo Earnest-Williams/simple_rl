@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
-import polars as pl
 import structlog
 
 from magic.models import Art, Substance
@@ -50,32 +49,27 @@ def _get_entities_in_aoe(
     radius_sq = radius * radius
     cx, cy = center_pos
 
-    active_entities_df = gs.entity_registry.get_active_entities()
-    if active_entities_df.height == 0:
-        return []
+    # Use EntityStore accessors instead of DataFrame
+    registry = gs.entity_registry
+    transparency = gs.game_map.transparent
 
-    # Filter entities within the bounding box first (minor optimization)
-    potential_targets = active_entities_df.filter(
-        (pl.col("x") >= cx - radius)
-        & (pl.col("x") <= cx + radius)
-        & (pl.col("y") >= cy - radius)
-        & (pl.col("y") <= cy + radius)
-    )
+    # Iterate over active entities using store accessors
+    for idx in registry.active_indices():
+        entity_id = registry.entity_id_at(int(idx))
+        ex, ey = registry.xy_at(int(idx))
 
-    # Precise distance check
-    if potential_targets.height > 0:
-        potential_targets = potential_targets.with_columns(
-            dist_sq=((pl.col("x") - cx) ** 2 + (pl.col("y") - cy) ** 2)
-        ).filter(pl.col("dist_sq") <= radius_sq)
-        candidate_ids = potential_targets["entity_id"].to_list()
+        # Bounding box check first (minor optimization)
+        if not (cx - radius <= ex <= cx + radius and cy - radius <= ey <= cy + radius):
+            continue
 
-        transparency = gs.game_map.transparent
-        for entity_id in candidate_ids:
-            pos = gs.entity_registry.get_position(entity_id)
-            if not pos:
-                continue
-            if line_of_sight(cy, cx, pos.y, pos.x, transparency):
-                target_entities.append(entity_id)
+        # Precise distance check
+        dist_sq = (ex - cx) ** 2 + (ey - cy) ** 2
+        if dist_sq > radius_sq:
+            continue
+
+        # Line of sight check
+        if line_of_sight(cy, cx, ey, ex, transparency):
+            target_entities.append(entity_id)
 
     log.debug(
         "AOE Query results",

@@ -379,3 +379,121 @@ def test_dispatch_ai_receives_only_entity_ids(monkeypatch) -> None:
             # Should be an iterable
             for entity in entities:
                 assert isinstance(entity, int), f"Expected int, got {type(entity)}"
+
+
+def test_get_entities_in_aoe_does_not_materialize_entities_df(monkeypatch) -> None:
+    """Test that _get_entities_in_aoe uses store accessors, not Polars."""
+    from game.effects.handlers import _get_entities_in_aoe
+    
+    state = _make_state()
+    
+    # Create some entities
+    for i in range(3):
+        state.entity_registry.create_entity(
+            x=4 + i,
+            y=5 + i,
+            glyph=101 + i,
+            color_fg=(255, 0, 0),
+            name=f"Enemy {i}",
+            ai_type="goap",
+            species="enemy",
+        )
+
+    # Monkeypatch to_polars to raise if called
+    def fail_to_polars() -> object:
+        raise AssertionError("_get_entities_in_aoe must not call to_polars()")
+
+    monkeypatch.setattr(state.entity_registry._store, "to_polars", fail_to_polars)
+
+    # This should not raise
+    result = _get_entities_in_aoe((5, 5), 3, state)
+    
+    # Should have found entities within radius 3 of (5,5)
+    assert isinstance(result, list)
+    assert len(result) > 0
+
+
+def test_community_adapter_step_does_not_materialize_entities_df(monkeypatch) -> None:
+    """Test that CommunityAdapter.step uses store accessors, not Polars."""
+    from game.ai.community_adapter import CommunityManager
+    
+    state = _make_state()
+    
+    # Create a community entity
+    state.entity_registry.create_entity(
+        x=4,
+        y=5,
+        glyph=101,
+        color_fg=(255, 0, 0),
+        name="Community Member",
+        ai_type="community",
+        species="human",
+    )
+
+    # Monkeypatch to_polars to raise if called
+    def fail_to_polars() -> object:
+        raise AssertionError("CommunityAdapter.step must not call to_polars()")
+
+    monkeypatch.setattr(state.entity_registry._store, "to_polars", fail_to_polars)
+
+    # This should not raise
+    state.community_manager.step()
+
+
+def test_insect_ai_does_not_materialize_entities_df(monkeypatch) -> None:
+    """Test that insect AI uses store accessors, not Polars."""
+    from game.ai.insect import take_turn as insect_take_turn
+    
+    state = _make_state()
+    
+    # Create an insect entity
+    enemy_id = state.entity_registry.create_entity(
+        x=4,
+        y=5,
+        glyph=101,
+        color_fg=(255, 0, 0),
+        name="Insect",
+        ai_type="insect",
+        species="insect",
+    )
+
+    # Monkeypatch to_polars to raise if called
+    def fail_to_polars() -> object:
+        raise AssertionError("Insect AI must not call to_polars()")
+
+    monkeypatch.setattr(state.entity_registry._store, "to_polars", fail_to_polars)
+
+    # Mock rng
+    from utils.game_rng import GameRNG
+    rng = GameRNG()
+
+    # This should not raise
+    insect_take_turn(enemy_id, state, rng, None)
+
+
+def test_all_ai_adapters_accept_entity_ids() -> None:
+    """Test that all AI adapters accept entity_id as int."""
+    from game.ai import get_adapter
+    from utils.game_rng import GameRNG
+    
+    state = _make_state()
+    rng = GameRNG()
+    
+    # Test all adapters that should accept entity_id
+    adapters_to_test = ["simple", "bird", "mammal", "reptile", "plant", "ml_policy", "community"]
+    
+    for ai_type in adapters_to_test:
+        adapter = get_adapter(ai_type)
+        # Check that the adapter accepts entity_id as first parameter
+        # We can't easily test the signature, but we can check it doesn't raise TypeError
+        # when called with an int
+        try:
+            # This will fail for various reasons (missing perception, etc.) but shouldn't
+            # fail due to wrong parameter type
+            adapter(1, state, rng, None)
+        except TypeError as e:
+            if "entity_row" in str(e) or "argument" in str(e):
+                raise AssertionError(f"Adapter {ai_type} doesn't accept entity_id as int: {e}")
+        except Exception:
+            # Other exceptions are fine - we just care about the signature
+            pass

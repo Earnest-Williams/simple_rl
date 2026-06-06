@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import polars as pl
 import structlog
 
 from game.systems import movement_system
@@ -24,18 +23,34 @@ def _nearest_ally(
     entity_id: int, x: int, y: int, gs: GameState
 ) -> tuple[int, int] | None:
     """Return direction towards nearest allied insect if any."""
-    df = gs.entity_registry.entities_df
-    others = df.filter(
-        (pl.col("ai_type") == "insect") & (pl.col("entity_id") != entity_id)
-    )
-    if others.height == 0:
+    registry = gs.entity_registry
+    
+    # Find nearest insect ally using store accessors
+    nearest_dist = float("inf")
+    nearest_x = x
+    nearest_y = y
+    
+    for idx in registry.active_indices():
+        other_id = registry.entity_id_at(int(idx))
+        if other_id == entity_id:
+            continue
+        
+        other_ai_type = registry.ai_type_of(other_id)
+        if other_ai_type != "insect":
+            continue
+        
+        ox, oy = registry.xy_at(int(idx))
+        dist = abs(ox - x) + abs(oy - y)
+        if dist < nearest_dist:
+            nearest_dist = dist
+            nearest_x = ox
+            nearest_y = oy
+    
+    if nearest_dist == float("inf"):
         return None
-    others = others.with_columns(
-        ((pl.col("x") - x).abs() + (pl.col("y") - y).abs()).alias("dist")
-    ).sort("dist")
-    row = others.row(0, named=True)
-    dx = 0 if row["x"] == x else (1 if row["x"] > x else -1)
-    dy = 0 if row["y"] == y else (1 if row["y"] > y else -1)
+    
+    dx = 0 if nearest_x == x else (1 if nearest_x > x else -1)
+    dy = 0 if nearest_y == y else (1 if nearest_y > y else -1)
     return dx, dy
 
 
@@ -47,15 +62,17 @@ def _random_direction(rng: GameRNG) -> tuple[int, int]:
 
 
 def take_turn(
-    entity_row,
+    entity_id: int,
     game_state: GameState,
     rng: GameRNG,
     perception: Any,
     **kwargs,
 ) -> None:
     """Execute one turn for a swarming insect."""
-    entity_id = entity_row["entity_id"]
-    x, y = entity_row["x"], entity_row["y"]
+    pos = game_state.entity_registry.xy_of(entity_id)
+    if pos is None:
+        return
+    x, y = pos
 
     dir_to_ally = _nearest_ally(entity_id, x, y, game_state)
     if dir_to_ally is not None:
