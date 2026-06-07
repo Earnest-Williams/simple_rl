@@ -1,54 +1,53 @@
 from __future__ import annotations
 
+from game.entities.components import Position
 from game.expedition.resolvers import (
     is_player_at_starting_port,
     resolve_first_playable_blockage,
     resolve_first_playable_route,
+    resolve_first_playable_route_endpoints,
+    resolve_first_playable_route_segment,
     resolve_first_playable_target,
     resolve_starting_contract,
 )
 from tools.play_game import create_gamestate_from_overland
 
 
-def test_first_playable_resolvers() -> None:
-    # Use the documented first-playable seed
+def test_first_playable_resolvers_are_consistent() -> None:
     gs = create_gamestate_from_overland(seed=20260604, width=128, height=96)
 
-    # 1. Verify contract exists
     contract = resolve_starting_contract(gs)
-    assert contract is not None, "Starting contract should exist"
-    assert "harbor" in contract, "Contract should have a harbor"
+    assert "harbor" in contract
 
-    # 2. Verify spawn is valid and at starting port
-    spawn = gs.player_position
-    assert spawn is not None, "Player should have a spawn position"
-    assert is_player_at_starting_port(gs), "Player should spawn at the starting port"
+    segment = resolve_first_playable_route_segment(gs)
+    assert segment is not None
 
-    # Move player far away and check distance resolution
-    sx, sy = spawn
-    from game.entities.components import Position
-
-    gs.entity_registry.set_position(gs.player_id, Position(sx + 50, sy + 50))
-    assert not is_player_at_starting_port(
-        gs
-    ), "Player should no longer be at starting port"
-
-    # Restore position
-    gs.entity_registry.set_position(gs.player_id, Position(sx, sy))
-    assert is_player_at_starting_port(gs), "Player should be at starting port again"
-
-    # 3. Verify route target exists (cave or inland site)
     target = resolve_first_playable_target(gs)
-    assert target is not None, "Route target should be discoverable"
-    assert len(target) == 2, "Target should be a coordinate tuple"
+    assert target == tuple(segment["to_point"])
 
-    # 4. Verify route extraction
     route = resolve_first_playable_route(gs)
-    assert route is not None, "Route list should be returned"
-    assert len(route) > 0, "Route list should not be empty"
-    assert len(route[0]) == 2, "Route should contain coordinates"
+    endpoints = resolve_first_playable_route_endpoints(gs)
+    assert route
+    assert endpoints == [tuple(segment["from_point"]), tuple(segment["to_point"])]
+    assert route[0] == tuple(segment["from_point"])
+    assert route[-1] == tuple(segment["to_point"])
 
-    # 5. Verify blockage is discoverable
     blockage = resolve_first_playable_blockage(gs)
-    assert blockage is not None, "Blockage should be discoverable"
-    assert len(blockage) == 2, "Blockage should be a coordinate tuple"
+    expected_blockage = contract["blockages"][0]
+    assert blockage == tuple(expected_blockage["point"])
+    assert expected_blockage["blocks_route"] == segment["route_id"]
+
+
+def test_is_player_at_starting_port_uses_harbor_radius() -> None:
+    gs = create_gamestate_from_overland(seed=20260604, width=128, height=96)
+
+    spawn = gs.player_position
+    assert spawn is not None
+    assert is_player_at_starting_port(gs)
+
+    sx, sy = spawn
+    gs.entity_registry.set_position(gs.player_id, Position(sx + 50, sy + 50))
+    assert not is_player_at_starting_port(gs)
+
+    gs.entity_registry.set_position(gs.player_id, Position(sx, sy))
+    assert is_player_at_starting_port(gs)
