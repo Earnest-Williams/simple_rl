@@ -842,7 +842,7 @@ def test_get_equipped_items_bulk_propagates_exceptions(monkeypatch) -> None:
         state.item_registry.get_equipped_items_bulk([1])
 
 
-def test_handle_melee_attack_uses_bulk_equipped_weapon_damage() -> None:
+def test_handle_melee_attack_uses_bulk_equipped_weapon_damage(monkeypatch) -> None:
     """Test that handle_melee_attack properly uses weapon damage from the bulk fetch."""
     from game.systems.combat_system import handle_melee_attack
 
@@ -872,10 +872,19 @@ def test_handle_melee_attack_uses_bulk_equipped_weapon_damage() -> None:
         equipped_slot="main_hand",
     )
 
+    rolled_dice = None
+
+    def mock_roll_dice(dice_str, rng):
+        nonlocal rolled_dice
+        rolled_dice = dice_str
+        return 5000  # Return a static high value
+
+    monkeypatch.setattr("game.systems.combat_system.roll_dice", mock_roll_dice)
+
     handle_melee_attack(attacker_id, defender_id, state)
 
-    # Check if the weapon damage was used by seeing if defender took massive damage
-    # (more than what unarmed "1d2" could do + strength 1)
+    assert rolled_dice == "100d100", "handle_melee_attack did not roll the weapon's damage dice"
+
     defender_hp = state.entity_registry.get_entity_component(defender_id, "hp")
     assert defender_hp < 29000, "Defender did not take weapon damage"
 
