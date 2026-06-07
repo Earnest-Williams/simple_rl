@@ -331,6 +331,32 @@ def test_gui_route_overlay_is_hidden_before_survey() -> None:
     assert image.getpixel((16, 16)) == (0, 0, 0, 255)
 
 
+def test_first_playable_overland_visibility_is_not_radius_limited() -> None:
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+
+    assert gs.first_playable_lights_on is True
+    assert gs.fov_radius == gs.base_fov_radius
+    assert gs.game_map.visible[0, 0]
+    assert gs.game_map.visible[gs.game_map.height - 1, gs.game_map.width - 1]
+    assert np.all(gs.game_map.explored)
+
+
+def test_first_playable_overland_memory_is_not_faded() -> None:
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+
+    gs.advance_turn()
+
+    assert np.all(gs.game_map.visible)
+    assert np.all(gs.game_map.explored)
+    assert np.all(gs.game_map.memory_intensity == 1.0)
+    assert gs.player_fuel == gs.player_max_fuel
+    assert gs.fov_radius == gs.base_fov_radius
+
+
 def test_expedition_repair_clears_blockage() -> None:
     from engine.action_handler import process_player_action
     from game.expedition.resolvers import resolve_first_playable_blockage
@@ -440,6 +466,29 @@ def test_expedition_cave_handoff() -> None:
 
     messages = [msg for msg, color in gs.message_log]
     assert any("You return to the surface." in msg for msg in messages)
+
+
+def test_first_playable_cave_interior_uses_normal_visibility() -> None:
+    from engine.action_handler import process_player_action
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    contract = resolve_starting_contract(gs)
+    cave_pt = tuple(contract["cave_refs"][0]["point"])
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+
+    gs.entity_registry.set_position(gs.player_id, Position(*blockage_pt))
+    assert process_player_action({"type": "repair"}, gs, max_traversable_step=1)
+
+    gs.entity_registry.set_position(gs.player_id, Position(*cave_pt))
+    assert process_player_action({"type": "enter"}, gs, max_traversable_step=1)
+
+    assert getattr(gs.game_map, "overland_metadata", None) is None
+    assert not np.all(gs.game_map.visible)
+    assert not gs.game_map.visible[0, 0]
 
 
 def test_expedition_enter_defaults_to_player_position_after_repair() -> None:

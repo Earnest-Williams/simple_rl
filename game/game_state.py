@@ -36,7 +36,7 @@ from game.systems.ai_system import dispatch_ai
 from game.systems.sound import get_sound_manager, update_music_context
 
 # Assuming these imports are correct relative to game_state.py
-from game.world.game_map import GameMap, LightSource
+from game.world.game_map import MAX_MEMORY_STRENGTH, GameMap, LightSource
 from game.world.memory import MemoryTraits
 from pathfinding.perception_systems import (
     MAX_FLOWS,
@@ -174,6 +174,7 @@ class GameState:
         self.memory_traits: MemoryTraits = MemoryTraits()
         self.base_fov_radius = player_fov_radius
         self.fov_radius = player_fov_radius
+        self.first_playable_lights_on: bool = False
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
         self.discovered_evidence: dict[str, list[int]] = {}
 
@@ -286,6 +287,12 @@ class GameState:
             self.flush_message_queue()
             return
 
+        if self._is_first_playable_overland_lights_on_active():
+            self._apply_first_playable_overland_visibility_override()
+            self._sync_player_light_source(px, py)
+            self.flush_message_queue()
+            return
+
         self.game_map.compute_fov(px, py, self.fov_radius)
         self._force_player_visible(px, py)
         self.game_map.refresh_visible_memory(self.turn_count)
@@ -302,6 +309,22 @@ class GameState:
             )
         self._sync_player_light_source(px, py)
         self.flush_message_queue()
+
+    def _is_first_playable_overland_lights_on_active(self) -> bool:
+        """Return True when the first-playable overland presentation override applies."""
+        if not self.first_playable_lights_on:
+            return False
+        return getattr(self.game_map, "overland_metadata", None) is not None
+
+    def _apply_first_playable_overland_visibility_override(self) -> None:
+        """Force fully lit overland presentation for first-playable expedition tests."""
+        self.game_map.visible.fill(True)
+        self.game_map.explored.fill(True)
+        self.game_map.memory_intensity.fill(1.0)
+        self.game_map.memory_strength.fill(MAX_MEMORY_STRENGTH)
+        self.game_map.last_seen_time.fill(self.turn_count)
+        self.game_map.memory_fade_mask.fill(False)
+        self.game_map.prev_visible.fill(True)
 
     def _build_player_memory_traits(self) -> MemoryTraits:
         """Resolve memory traits from live player-owned entity components."""
@@ -475,6 +498,11 @@ class GameState:
 
     def _consume_player_fuel(self) -> None:
         """Decrease player torch fuel and adjust light radius."""
+        if self._is_first_playable_overland_lights_on_active():
+            self.fov_radius = self.base_fov_radius
+            with contextlib.suppress(IndexError, AttributeError):
+                self.light_sources[self.player_light_index].radius = self.base_fov_radius
+            return
         if self.player_max_fuel <= 0:
             return
         if self.player_fuel > 0:

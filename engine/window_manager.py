@@ -1378,6 +1378,9 @@ class WindowManager(QMainWindow):
             self.main_loop.show_height_visualization = (
                 not self.main_loop.show_height_visualization
             )
+            self.main_loop.invalidate_render_cache()
+            self._cached_frame = None
+            self._frame_dirty = True
             self.update_frame()
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802

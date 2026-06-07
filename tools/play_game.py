@@ -485,6 +485,8 @@ def create_gamestate_from_overland(
     )
     if first_playable:
         gs.expedition = ExpeditionState()
+        gs.first_playable_lights_on = True
+        gs.update_fov()
     return gs
 
 

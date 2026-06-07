@@ -95,6 +95,11 @@ class MainLoop:
 
         log.info("MainLoop initialized successfully")
 
+    def invalidate_render_cache(self: Self) -> None:
+        """Drop cached render config so the next frame rebuilds presentation state."""
+        self._cached_render_config = None
+        self._cached_fov_radius_sq = -1.0
+
     def handle_action(self: Self, action: dict[str, Any]) -> bool:
         """
         Receives an action, processes it via the action_handler,
