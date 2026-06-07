@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+
 from utils.los.los_wrapper import los_many as _los_many
 
 try:  # Optional Numba acceleration

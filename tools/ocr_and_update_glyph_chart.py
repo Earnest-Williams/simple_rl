@@ -18,13 +18,12 @@ import io
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
 
 # cairosvg may be required; import error will be raised when needed
 from cairosvg import svg2png  # type: ignore
+from PIL import Image, ImageDraw, ImageFont
 
 # Optional OCR
 try:
@@ -50,7 +49,7 @@ RENDER_SIZE: int = 256
 BG_COLOR = (21, 21, 21)
 
 # Printable ASCII characters (for template rendering fallback)
-PRINTABLE_CHARS: List[str] = [chr(c) for c in range(33, 127)]
+PRINTABLE_CHARS: list[str] = [chr(c) for c in range(33, 127)]
 
 
 def clean_tile_background(img: Image.Image) -> Image.Image:
@@ -86,7 +85,7 @@ def rasterize_svg(svg_path: Path, size: int = RENDER_SIZE) -> Image.Image:
         raise RuntimeError(f"Failed to rasterize SVG {svg_path}: {exc}")
 
 
-def ocr_single_char(img: Image.Image) -> Tuple[Optional[str], float]:
+def ocr_single_char(img: Image.Image) -> tuple[str | None, float]:
     """
     Try to OCR a single character using pytesseract (if installed).
     Returns (character_or_None, confidence 0..1).
@@ -135,20 +134,20 @@ def ocr_single_char(img: Image.Image) -> Tuple[Optional[str], float]:
 
 
 def render_ascii_templates(
-    chars: List[str], size: int = RENDER_SIZE
-) -> Dict[str, Image.Image]:
+    chars: list[str], size: int = RENDER_SIZE
+) -> dict[str, Image.Image]:
     """Render ASCII char templates into grayscale images sized `size`×`size`.
 
     Centers glyphs robustly using textbbox/getsize/textsize depending on Pillow version.
     """
-    templates: Dict[str, Image.Image] = {}
+    templates: dict[str, Image.Image] = {}
     # candidate monospace fonts
-    font_paths: List[str] = [
+    font_paths: list[str] = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
-    font_path: Optional[str] = None
+    font_path: str | None = None
     for p in font_paths:
         if Path(p).exists():
             font_path = p
@@ -193,12 +192,12 @@ def mse(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def template_match_char(
-    img: Image.Image, templates: Dict[str, Image.Image]
-) -> Tuple[Optional[str], float]:
+    img: Image.Image, templates: dict[str, Image.Image]
+) -> tuple[str | None, float]:
     """Return the best matching character and a crude confidence (1/(1+mse))."""
     gray = img.convert("L").resize((RENDER_SIZE, RENDER_SIZE), Image.NEAREST)
     a = np.asarray(gray).astype(np.float32)
-    best_ch: Optional[str] = None
+    best_ch: str | None = None
     best_score = float("inf")
     for ch, tpl in templates.items():
         b = np.asarray(tpl).astype(np.float32)
@@ -214,7 +213,7 @@ def template_match_char(
 
 def char_to_kbd_name(ch: str) -> str:
     """Convert a single char to a friendly kbd_ name."""
-    mapping: Dict[str, str] = {
+    mapping: dict[str, str] = {
         "!": "kbd_exclamation",
         "@": "kbd_at",
         "#": "kbd_hash",
@@ -264,7 +263,7 @@ class ChartRow:
     notes: str
 
 
-def read_chart(md_path: Path) -> Tuple[List[str], Dict[str, ChartRow]]:
+def read_chart(md_path: Path) -> tuple[list[str], dict[str, ChartRow]]:
     """
     Read an existing glyph_name_chart.md into:
       - header lines (list of leading markdown lines)
@@ -272,8 +271,8 @@ def read_chart(md_path: Path) -> Tuple[List[str], Dict[str, ChartRow]]:
     """
     text = md_path.read_text(encoding="utf8")
     lines = text.splitlines()
-    header: List[str] = []
-    rows: Dict[str, ChartRow] = {}
+    header: list[str] = []
+    rows: dict[str, ChartRow] = {}
 
     # Collect header until we reach the table header separator (line with '--- | ---')
     i = 0
@@ -304,9 +303,9 @@ def read_chart(md_path: Path) -> Tuple[List[str], Dict[str, ChartRow]]:
     return header, rows
 
 
-def write_chart(md_path: Path, header: List[str], rows: Dict[str, ChartRow]) -> None:
+def write_chart(md_path: Path, header: list[str], rows: dict[str, ChartRow]) -> None:
     """Write the chart back to markdown, sorting rows by numeric glyph index."""
-    out_lines: List[str] = []
+    out_lines: list[str] = []
     out_lines.extend(header)
     out_lines.append("")  # spacer
     out_lines.append(
@@ -327,7 +326,7 @@ def write_chart(md_path: Path, header: List[str], rows: Dict[str, ChartRow]) -> 
     md_path.write_text("\n".join(out_lines), encoding="utf8")
 
 
-def update_keyboard_block(header: List[str], rows: Dict[str, ChartRow]) -> None:
+def update_keyboard_block(header: list[str], rows: dict[str, ChartRow]) -> None:
     """
     For indices in KBD_RANGE: rasterize SVG, OCR with pytesseract if available,
     otherwise template-match against generated ASCII glyph templates.
@@ -363,7 +362,7 @@ def update_keyboard_block(header: List[str], rows: Dict[str, ChartRow]) -> None:
         w, h = img.size
         crop = img.crop((int(w * 0.08), int(h * 0.06), int(w * 0.92), int(h * 0.94)))
 
-        detected_char: Optional[str] = None
+        detected_char: str | None = None
         confidence: float = 0.0
         method: str = "none"
 

@@ -25,12 +25,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Literal, Sequence
+from typing import Final, Literal
 
 import numpy as np
-
 from scene import ElementType, LightSourceDef, SceneLayout, create_fixed_scene
 
 PLAYER_SIGHT_RADIUS: Final[int] = 12
@@ -381,7 +381,7 @@ def compute_light_runtime_results(
                 light.radius,
                 backend,
             )
-            
+
         reached = fov.reach_mask
         radius_mask = light_radius_mask_from_shape(player_visible.shape, light)
         reached_observer_cells = int(np.count_nonzero(reached & observer_visible))
@@ -390,15 +390,17 @@ def compute_light_runtime_results(
         emitter_visible_to_player = bool(player_visible[light.y, light.x])
         active = reached_observer_cells > 0
 
-        results.append(LightRuntimeResult(
-            source=light, 
-            fov=fov,
-            active=active,
-            emitter_visible_to_player=emitter_visible_to_player,
-            reached_visible_cells=reached_visible_cells,
-            reached_observer_cells=reached_observer_cells,
-            radius_overlap_cells=radius_overlap_cells,
-        ))
+        results.append(
+            LightRuntimeResult(
+                source=light,
+                fov=fov,
+                active=active,
+                emitter_visible_to_player=emitter_visible_to_player,
+                reached_visible_cells=reached_visible_cells,
+                reached_observer_cells=reached_observer_cells,
+                radius_overlap_cells=radius_overlap_cells,
+            )
+        )
     return results
 
 
@@ -566,7 +568,9 @@ def render_ascii(
         f"player={scene.player_pos} active_lights={','.join(sorted(active_names)) or '<none>'}"
     )
     lines.append(f"fov_backend={backend} used={','.join(backends_used) or '<none>'}")
-    lines.append("legend: # block . unseen v visible l active-light-only * visible-lit @ player M monster")
+    lines.append(
+        "legend: # block . unseen v visible l active-light-only * visible-lit @ player M monster"
+    )
     lines.append(f"view: x={min_x}..{max_x - 1}, y={min_y}..{max_y - 1}")
 
     for y in range(min_y, max_y):

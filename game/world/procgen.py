@@ -7,11 +7,10 @@ import numpy as np
 import structlog
 
 # Fallback removed
-from utils.game_rng import GameRNG
-
-# Fallback removed
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 
+# Fallback removed
+from utils.game_rng import GameRNG
 
 log = structlog.get_logger()
 
@@ -82,7 +81,9 @@ class Rect(NamedTuple):
                 game_map.tiles[y_start:y_end, x_start:x_end] = TILE_ID_FLOOR
                 # Assign Height/Ceiling
                 game_map.set_height_region(x_start, y_start, x_end, y_end, floor_height)
-                game_map.set_ceiling_region(x_start, y_start, x_end, y_end, ceiling_height)
+                game_map.set_ceiling_region(
+                    x_start, y_start, x_end, y_end, ceiling_height
+                )
                 log.debug("Carved rectangle area", **log_context)
             except IndexError:
                 log.error("IndexError during carving", **log_context)

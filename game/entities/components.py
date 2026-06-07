@@ -159,4 +159,3 @@ class LaborProfile:
             fatigue=data.get("fatigue", 0.0),
             availability=data.get("availability", "available"),
         )
-

@@ -18,9 +18,7 @@ from game.entities.components import Inventory
 # Import specific types needed from other modules
 # Ensure these imports work correctly based on your project structure
 # Fallback removed
-from game.entities.registry import EntityRegistry
-from game.items.registry import BodySlotType, EquipSlot, ItemLocation, ItemRegistry
-
+from game.items.registry import BodySlotType, EquipSlot
 
 if TYPE_CHECKING:
     from game.game_state import GameState

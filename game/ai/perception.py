@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 
 import numpy as np
-import polars as pl
 import structlog
 from numpy.typing import NDArray
 
@@ -142,7 +141,9 @@ def find_visible_enemies_for_index(
     actor_id = registry.entity_id_at(actor_idx)
     ex, ey = registry.xy_at(actor_idx)
     actor_faction = registry.faction_at(actor_idx)
-    vision_range = registry.get_component_at(actor_idx, "vision_range") or game_state.fov_radius
+    vision_range = (
+        registry.get_component_at(actor_idx, "vision_range") or game_state.fov_radius
+    )
     game_map = game_state.game_map
     enemies: list[VisibleTarget] = []
 
@@ -231,7 +232,9 @@ def _batch_visible_targets_for_actors(
     registry = game_state.entity_registry
     game_map = game_state.game_map
     spatial_index = getattr(game_state, "spatial_index", None)
-    prune_by_player_fov = bool(getattr(game_state, "prune_npc_vision_by_player_fov", False))
+    prune_by_player_fov = bool(
+        getattr(game_state, "prune_npc_vision_by_player_fov", False)
+    )
 
     sx_list: list[int] = []
     sy_list: list[int] = []
@@ -243,7 +246,10 @@ def _batch_visible_targets_for_actors(
         actor_id = registry.entity_id_at(actor_idx)
         ex, ey = registry.xy_at(actor_idx)
         actor_faction = registry.faction_at(actor_idx)
-        vision_range = registry.get_component_at(actor_idx, "vision_range") or game_state.fov_radius
+        vision_range = (
+            registry.get_component_at(actor_idx, "vision_range")
+            or game_state.fov_radius
+        )
 
         nearby = None
         if spatial_index is not None and hasattr(spatial_index, "query_radius"):
@@ -486,8 +492,10 @@ def find_visible_enemies(
     registry = game_state.entity_registry
     vision_range = _row_int(entity_row, "vision_range") or game_state.fov_radius
     spatial_index = getattr(game_state, "spatial_index", None)
-    prune_by_player_fov = bool(getattr(game_state, "prune_npc_vision_by_player_fov", False))
-    
+    prune_by_player_fov = bool(
+        getattr(game_state, "prune_npc_vision_by_player_fov", False)
+    )
+
     # Build a dict of all valid enemy targets using store accessors
     enemy_rows: dict[int, VisibleTarget] = {}
     for idx in registry.active_indices():
@@ -504,18 +512,18 @@ def find_visible_enemies(
         target = registry.visible_target_at(int(idx))
         if target is not None:
             enemy_rows[other_id] = target
-    
+
     # Get nearby entities from spatial index if available
     nearby: object = None
     if spatial_index is not None and hasattr(spatial_index, "query_radius"):
         nearby = spatial_index.query_radius((ex, ey), vision_range)
-    
+
     sx_list: list[int] = []
     sy_list: list[int] = []
     ex_list: list[int] = []
     ey_list: list[int] = []
     query_meta: list[int] = []
-    
+
     # Process candidates
     if nearby:
         # Use spatial index results - these are (entity_id, x, y) tuples
@@ -529,7 +537,7 @@ def find_visible_enemies(
                 continue
             if prune_by_player_fov and not los_map[int(oy), int(ox)]:
                 continue
-            
+
             sx_list.append(int(ex))
             sy_list.append(int(ey))
             ex_list.append(int(ox))
@@ -544,7 +552,7 @@ def find_visible_enemies(
                 continue
             if prune_by_player_fov and not los_map[int(oy), int(ox)]:
                 continue
-            
+
             sx_list.append(int(ex))
             sy_list.append(int(ey))
             ex_list.append(int(ox))

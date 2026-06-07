@@ -211,10 +211,7 @@ class CommunityManager:
             existing = 0
             for idx in registry.active_indices():
                 profile = registry.get_component_at(int(idx), "community_profile")
-                if (
-                    profile
-                    and profile.get("template_id") == template_id
-                ):
+                if profile and profile.get("template_id") == template_id:
                     ex, ey = registry.xy_at(int(idx))
                     if (
                         region_x <= ex < region_x + region_w

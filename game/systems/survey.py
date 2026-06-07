@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+
 import structlog
+
 from worldgen.overland.schema import EvidenceTag
 
 if TYPE_CHECKING:
@@ -24,7 +26,7 @@ def get_all_evidence_coords(metadata: Any) -> set[tuple[int, int]]:
 
     # 2. Starting contract features
     contract = getattr(metadata, "starting_contract", {}) or {}
-    
+
     # harbor
     harbor_pt = contract.get("harbor", {}).get("point")
     if harbor_pt:
@@ -90,7 +92,7 @@ def survey_coordinate(gs: GameState, x: int, y: int, actor_id: int) -> list[int]
 
     # 2. Starting contract features
     contract = getattr(metadata, "starting_contract", {}) or {}
-    
+
     # harbor
     harbor = contract.get("harbor", {})
     if harbor.get("point") == [x, y]:
@@ -145,7 +147,7 @@ def survey_coordinate(gs: GameState, x: int, y: int, actor_id: int) -> list[int]
                 tag_name = EvidenceTag(tag_val).name.replace("_", " ").capitalize()
             except ValueError:
                 tag_name = f"Unknown evidence tag {tag_val}"
-            
+
             # Print a premium gold discovery message for the player
             msg = f"Discovered: {tag_name} at ({x}, {y})!"
             gs.add_message(msg, (255, 215, 0))
@@ -178,3 +180,60 @@ def check_automatic_survey(gs: GameState) -> None:
             coord_key = f"{x},{y}"
             # Even if the key exists, if there are new tags (e.g. from state change), we want to reveal them
             survey_coordinate(gs, x, y, gs.player_id)
+
+
+def expedition_survey(gs: GameState) -> None:
+    """Execute the special starting-region survey for the first playable expedition."""
+    from game.expedition.resolvers import (
+        _as_point,
+        _iter_dicts,
+        resolve_first_playable_blockage,
+        resolve_first_playable_route,
+        resolve_first_playable_target,
+        resolve_starting_contract,
+    )
+
+    points_to_survey = set()
+    contract = resolve_starting_contract(gs)
+
+    # 1. Harbor
+    harbor = contract.get("harbor")
+    if harbor:
+        pt = _as_point(harbor.get("point"))
+        if pt:
+            points_to_survey.add(pt)
+
+    # 2. Road
+    for point in resolve_first_playable_route(gs):
+        points_to_survey.add(point)
+
+    # 3. Blockage
+    blockage = resolve_first_playable_blockage(gs)
+    if blockage:
+        points_to_survey.add(blockage)
+
+    # 4. Target (first cave / inland site)
+    target = resolve_first_playable_target(gs)
+    if target:
+        points_to_survey.add(target)
+
+    # 5. Water / Resource Sites
+    for site in _iter_dicts(contract.get("resource_sites")):
+        pt = _as_point(site.get("point"))
+        if pt:
+            points_to_survey.add(pt)
+
+    for x, y in points_to_survey:
+        survey_coordinate(gs, x, y, gs.player_id)
+
+    # Update Expedition State
+    if hasattr(gs, "expedition") and gs.expedition:
+        gs.expedition.survey_completed = True
+        gs.expedition.route_revealed = True
+        gs.expedition.active_objective_id = "follow_ancient_road"
+
+    # Emit acceptance target message
+    gs.add_message(
+        "Survey complete: harbor, road, water, blockage, and first cave marked.",
+        (200, 200, 255),
+    )

@@ -146,15 +146,11 @@ class TileConfigState:
                     beam_width=getattr(ls, "beam_width", 1.0),
                     beam_length=getattr(ls, "beam_length", 8),
                     softness=getattr(ls, "softness", 0.0),
-                    ambient_spill_enabled=getattr(
-                        ls, "ambient_spill_enabled", True
-                    ),
+                    ambient_spill_enabled=getattr(ls, "ambient_spill_enabled", True),
                     ambient_spill_extra_radius=getattr(
                         ls, "ambient_spill_extra_radius", 2
                     ),
-                    ambient_spill_strength=getattr(
-                        ls, "ambient_spill_strength", 0.15
-                    ),
+                    ambient_spill_strength=getattr(ls, "ambient_spill_strength", 0.15),
                     ambient_spill_decay=getattr(ls, "ambient_spill_decay", 0.55),
                     ambient_spill_max_rgb=getattr(ls, "ambient_spill_max_rgb", 30.0),
                 )
@@ -254,25 +250,19 @@ class TileConfigState:
             return
         self.lights[light_name].softness = max(0.0, min(1.0, softness))
 
-    def set_light_ambient_spill_enabled(
-        self, light_name: str, enabled: bool
-    ) -> None:
+    def set_light_ambient_spill_enabled(self, light_name: str, enabled: bool) -> None:
         """Enable or disable ambient spill for a light source."""
         if light_name not in self.lights:
             return
         self.lights[light_name].ambient_spill_enabled = enabled
 
-    def set_light_ambient_spill_extra_radius(
-        self, light_name: str, value: int
-    ) -> None:
+    def set_light_ambient_spill_extra_radius(self, light_name: str, value: int) -> None:
         """Set how far ambient spill can extend beyond direct light."""
         if light_name not in self.lights:
             return
         self.lights[light_name].ambient_spill_extra_radius = max(0, min(8, value))
 
-    def set_light_ambient_spill_strength(
-        self, light_name: str, value: float
-    ) -> None:
+    def set_light_ambient_spill_strength(self, light_name: str, value: float) -> None:
         """Set the starting ambient spill strength."""
         if light_name not in self.lights:
             return
@@ -398,12 +388,9 @@ class TileConfigState:
                 current.ambient_spill_extra_radius
                 != original.ambient_spill_extra_radius
             )
-            or abs(
-                current.ambient_spill_strength - original.ambient_spill_strength
-            )
+            or abs(current.ambient_spill_strength - original.ambient_spill_strength)
             > 0.001
-            or abs(current.ambient_spill_decay - original.ambient_spill_decay)
-            > 0.001
+            or abs(current.ambient_spill_decay - original.ambient_spill_decay) > 0.001
             or abs(current.ambient_spill_max_rgb - original.ambient_spill_max_rgb)
             > 0.001
         )

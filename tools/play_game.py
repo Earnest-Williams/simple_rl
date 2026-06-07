@@ -430,8 +430,9 @@ def create_gamestate_from_arrow(
 
 
 def create_gamestate_from_overland(
-    seed: int, width: int = 128, height: int = 96
+    seed: int, width: int = 128, height: int = 96, first_playable: bool = False
 ) -> GameState:
+    from game.expedition.state import ExpeditionState
     from game.world.start_overland import load_starting_overland_game_map
 
     game_map, (spawn_x, spawn_y) = load_starting_overland_game_map(
@@ -455,6 +456,8 @@ def create_gamestate_from_overland(
         enable_sound=False,
         enable_ai=False,
     )
+    if first_playable:
+        gs.expedition = ExpeditionState()
     return gs
 
 
@@ -463,11 +466,13 @@ class DummyWindow:
         return None
 
 
-def run_cli_mode(arrow_path: Path | None, seed: int) -> None:
+def run_cli_mode(
+    arrow_path: Path | None, seed: int, first_playable: bool = False
+) -> None:
     if arrow_path:
         gs = create_gamestate_from_arrow(arrow_path, seed)
     else:
-        gs = create_gamestate_from_overland(seed)
+        gs = create_gamestate_from_overland(seed, first_playable=first_playable)
 
     ml: MainLoop = MainLoop(
         game_state=gs,
@@ -539,7 +544,9 @@ def _load_gui_dependencies() -> (
     return window_manager, application
 
 
-def run_gui_mode(arrow_path: Path | None, seed: int) -> None:
+def run_gui_mode(
+    arrow_path: Path | None, seed: int, first_playable: bool = False
+) -> None:
     deps: tuple[type[WindowManagerProtocol], type[ApplicationProtocol]] | None = (
         _load_gui_dependencies()
     )
@@ -547,7 +554,7 @@ def run_gui_mode(arrow_path: Path | None, seed: int) -> None:
         print(
             "GUI mode requires PySide6 and engine.window_manager. Falling back to CLI."
         )
-        run_cli_mode(arrow_path, seed)
+        run_cli_mode(arrow_path, seed, first_playable=first_playable)
         return
 
     window_manager_cls: type[WindowManagerProtocol]
@@ -557,7 +564,7 @@ def run_gui_mode(arrow_path: Path | None, seed: int) -> None:
     if arrow_path:
         gs = create_gamestate_from_arrow(arrow_path, seed)
     else:
-        gs = create_gamestate_from_overland(seed)
+        gs = create_gamestate_from_overland(seed, first_playable=first_playable)
 
     app: ApplicationProtocol = application_cls([])
 
@@ -751,9 +758,9 @@ def main() -> None:
     mode: Literal["cli", "gui"] = mode_value
 
     if mode == "cli":
-        run_cli_mode(arrow_path, seed)
+        run_cli_mode(arrow_path, seed, first_playable=args.first_playable)
     else:
-        run_gui_mode(arrow_path, seed)
+        run_gui_mode(arrow_path, seed, first_playable=args.first_playable)
 
 
 if __name__ == "__main__":

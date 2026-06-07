@@ -66,7 +66,9 @@ def main() -> None:
         description="Generate a settlement bundle without starting the UI."
     )
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--out-dir", type=Path, default=Path("tmp/settlements/starting_port"))
+    parser.add_argument(
+        "--out-dir", type=Path, default=Path("tmp/settlements/starting_port")
+    )
     parser.add_argument("--width", type=int, default=160)
     parser.add_argument("--height", type=int, default=112)
     parser.add_argument("--population", type=int, default=2200)

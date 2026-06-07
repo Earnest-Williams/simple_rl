@@ -11,12 +11,12 @@ from typing import Any
 # Third-party Imports
 import numpy as np
 import structlog
-from PIL import Image
 
 # Numba imports with fallback
 # Fallback removed
 from numba import types as nb_types
 from numba.typed import Dict as NumbaTypedDict
+from PIL import Image
 
 _NUMBA_AVAILABLE = True
 

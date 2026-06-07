@@ -150,7 +150,7 @@ def handle_melee_attack(
     # Bulk fetch equipped items for attacker to avoid DataFrame iteration
     equipped_items_bulk = item_reg.get_equipped_items_bulk([attacker_id])
     attacker_equipped = equipped_items_bulk.get(attacker_id, [])
-    
+
     # Build items_by_slot from bulk data
     items_by_slot: dict[str, dict[str, object]] = {}
     for equipped_slot, item_id, item_name, attributes in attacker_equipped:
@@ -163,7 +163,7 @@ def handle_melee_attack(
             "damage_dice": attributes.get("damage_dice"),
             "weapon_type": attributes.get("weapon_type"),
         }
-    
+
     main_hand_item = items_by_slot.get("main_hand")
     off_hand_item = items_by_slot.get("off_hand")
 
@@ -209,7 +209,7 @@ def handle_melee_attack(
     skills_bulk = entity_reg.get_skills_bulk([attacker_id, defender_id])
     attacker_skills = skills_bulk.get(attacker_id, {})
     defender_skills = skills_bulk.get(defender_id, {})
-    
+
     weapon_skill = _determine_weapon_skill(item_reg, main_hand_weapon_id)
 
     fighting_level = (

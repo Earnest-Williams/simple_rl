@@ -86,7 +86,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--width", type=int, default=96)
     parser.add_argument("--height", type=int, default=72)
-    parser.add_argument("--out-dir", type=Path, default=Path("tmp/overland/karst_volcanic"))
+    parser.add_argument(
+        "--out-dir", type=Path, default=Path("tmp/overland/karst_volcanic")
+    )
     parser.add_argument("--with-starting-port", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()

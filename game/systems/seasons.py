@@ -2,25 +2,22 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
 import numpy as np
 import structlog
 
 from common.constants import Material
+from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
+from worldgen.overland.rules import (
+    derive_movement_cost,
+    derive_traversal_class,
+    derive_walkable,
+)
 from worldgen.overland.schema import (
     HydroRole,
-    Wetness,
-    TraversalClass,
     HydroState,
-    SurfaceFlag,
+    Wetness,
 )
-from worldgen.overland.rules import (
-    derive_walkable,
-    derive_blocks_sight,
-    derive_traversal_class,
-    derive_movement_cost,
-    surface_flag_mask,
-)
-from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL
 
 if TYPE_CHECKING:
     from game.game_state import GameState
@@ -59,7 +56,9 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
     """
     metadata = getattr(gs.game_map, "overland_metadata", None)
     if metadata is None:
-        log.warning("Cannot apply seasonal state: OverlandMapMetadata sidecar is missing.")
+        log.warning(
+            "Cannot apply seasonal state: OverlandMapMetadata sidecar is missing."
+        )
         return
 
     # Cache base grids on GameState if not already done
@@ -73,10 +72,10 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
     hydro_grid = metadata.hydro_grid
 
     # Define masks based on base attributes and role definitions
-    is_sinking_lake = (hydro_grid == int(HydroRole.SINKING_LAKE))
-    is_estavelle = (hydro_grid == int(HydroRole.ESTAVELLE))
-    is_ponor = (hydro_grid == int(HydroRole.PONOR))
-    is_fish_trail = (base_material == int(Material.FISH_TRAIL))
+    is_sinking_lake = hydro_grid == int(HydroRole.SINKING_LAKE)
+    is_estavelle = hydro_grid == int(HydroRole.ESTAVELLE)
+    is_ponor = hydro_grid == int(HydroRole.PONOR)
+    is_fish_trail = base_material == int(Material.FISH_TRAIL)
 
     # Initialize transformed grids from base
     new_material = base_material.copy()
@@ -90,7 +89,9 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
         new_material[is_fish_trail] = int(Material.SHALLOW_WATER)
 
         new_wetness[is_sinking_lake] = int(Wetness.DEEP_FLOODED)
-        new_wetness[is_estavelle | is_ponor | is_fish_trail] = int(Wetness.SHALLOW_FLOODED)
+        new_wetness[is_estavelle | is_ponor | is_fish_trail] = int(
+            Wetness.SHALLOW_FLOODED
+        )
 
     elif state == HydroState.DRAINING:
         new_material[is_sinking_lake | is_ponor] = int(Material.SINKING_WATER)
@@ -106,21 +107,24 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
         new_material[is_ponor] = int(Material.PONOR)
         new_material[is_fish_trail] = int(Material.FISH_TRAIL)
 
-        new_wetness[is_sinking_lake | is_estavelle | is_ponor | is_fish_trail] = int(Wetness.WET)
+        new_wetness[is_sinking_lake | is_estavelle | is_ponor | is_fish_trail] = int(
+            Wetness.WET
+        )
 
     elif state == HydroState.DRY_SEASON:
         new_material[is_sinking_lake] = int(Material.CRACKED_MUD)
         new_material[is_estavelle | is_ponor] = int(Material.CAVE_MOUTH)
         new_material[is_fish_trail] = int(Material.FISH_TRAIL)
 
-        new_wetness[is_sinking_lake | is_estavelle | is_ponor | is_fish_trail] = int(Wetness.DRY)
+        new_wetness[is_sinking_lake | is_estavelle | is_ponor | is_fish_trail] = int(
+            Wetness.DRY
+        )
 
     # Protect built structures (roads, bridges, docks, boardwalks) from being overwritten
     current_material = metadata.material_grid
-    is_built_road_bridge = (
-        np.isin(base_material, list(ROAD_BRIDGE_MATERIALS)) |
-        np.isin(current_material, list(ROAD_BRIDGE_MATERIALS))
-    )
+    is_built_road_bridge = np.isin(
+        base_material, list(ROAD_BRIDGE_MATERIALS)
+    ) | np.isin(current_material, list(ROAD_BRIDGE_MATERIALS))
 
     non_built = ~is_built_road_bridge
     metadata.material_grid[non_built] = new_material[non_built]
@@ -132,9 +136,13 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
         for x in range(width):
             mat = Material(int(metadata.material_grid[y, x]))
             wet = Wetness(int(metadata.wetness_grid[y, x]))
-            
+
             # Retrieve flags from grid if available
-            flags = int(metadata.surface_flags_grid[y, x]) if getattr(metadata, "surface_flags_grid", None) is not None else 0
+            flags = (
+                int(metadata.surface_flags_grid[y, x])
+                if getattr(metadata, "surface_flags_grid", None) is not None
+                else 0
+            )
 
             walkable = derive_walkable(mat, wet, flags)
             cost = derive_movement_cost(mat, wet, flags)
@@ -150,7 +158,9 @@ def apply_seasonal_state(gs: GameState, state: HydroState) -> None:
     # Set new state and log event
     gs.hydro_state = state
     gs.game_map.update_tile_transparency()
-    gs.add_message(f"The season changes to: {state.name.replace('_', ' ').title()}.", (0, 191, 255))
+    gs.add_message(
+        f"The season changes to: {state.name.replace('_', ' ').title()}.", (0, 191, 255)
+    )
     log.info("Seasonal state applied", state=state.name)
 
 

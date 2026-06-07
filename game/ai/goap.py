@@ -31,9 +31,7 @@ log = structlog.get_logger()
 # Possible movement directions (x, y offsets)
 
 DIRECTIONS: TypeAlias = list[tuple[int, int]]
-GOAPAction: TypeAlias = Callable[
-    [int, "GameState", "GameRNG", GOAPPerception], bool
-]
+GOAPAction: TypeAlias = Callable[[int, "GameState", "GameRNG", GOAPPerception], bool]
 
 directions: DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
@@ -95,9 +93,11 @@ def _action_move_attack(
         pdx, pdy = pathfinder.get_flow_vector(y, x)
 
         nx, ny = x + pdx, y + pdy
-        if (pdx, pdy) == (0, 0) and (x, y) != (tx, ty):
-            pdx, pdy = _fallback_cardinal_step(x, y, tx, ty, game_state)
-        elif not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height):
+        if (
+            (pdx, pdy) == (0, 0)
+            and (x, y) != (tx, ty)
+            or not (0 <= nx < game_state.map_width and 0 <= ny < game_state.map_height)
+        ):
             pdx, pdy = _fallback_cardinal_step(x, y, tx, ty, game_state)
         move = (pdx, pdy)
 

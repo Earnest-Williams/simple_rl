@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+
 import numpy as np
-from numpy.typing import NDArray
 import polars as pl
 import structlog
+from numpy.typing import NDArray
 
 from game.entities.components import Position
 
@@ -80,7 +81,9 @@ class EntityStore:
         self.species: list[str | None] = [None] * capacity
         self.faction: list[str | None] = [None] * capacity
         self.strategy_state: list[str | None] = [None] * capacity
-        self.status_effects: list[list[dict[str, object]]] = [[] for _ in range(capacity)]
+        self.status_effects: list[list[dict[str, object]]] = [
+            [] for _ in range(capacity)
+        ]
 
         # Fallback dictionary list for all other components not explicitly stored
         self.extra_components: list[dict[str, object]] = [{} for _ in range(capacity)]
@@ -97,7 +100,7 @@ class EntityStore:
 
         def resize_array(arr: np.ndarray, new_cap: int) -> np.ndarray:
             new_arr = np.zeros(new_cap, dtype=arr.dtype)
-            new_arr[:len(arr)] = arr
+            new_arr[: len(arr)] = arr
             return new_arr
 
         # Resize all NumPy arrays
@@ -212,6 +215,7 @@ class EntityStore:
         extra = self.extra_components[idx]
         if component not in extra:
             from game.entities.registry import ENTITY_SCHEMA
+
             dtype = ENTITY_SCHEMA.get(component)
             if dtype is not None:
                 if _is_list_dtype(dtype):
@@ -219,8 +223,13 @@ class EntityStore:
                 elif dtype in (pl.Float32, pl.Float64):
                     return 0.0
                 elif dtype in (
-                    pl.Int16, pl.Int32, pl.Int64,
-                    pl.UInt16, pl.UInt32, pl.UInt64, pl.UInt8
+                    pl.Int16,
+                    pl.Int32,
+                    pl.Int64,
+                    pl.UInt16,
+                    pl.UInt32,
+                    pl.UInt64,
+                    pl.UInt8,
                 ):
                     return 0
                 elif dtype == pl.Boolean:
@@ -234,9 +243,7 @@ class EntityStore:
             return False
 
         old_blocks = bool(self.blocks_movement[idx])
-        if component in NUMERIC_FIELDS:
-            getattr(self, component)[idx] = value
-        elif component in OBJECT_FIELDS:
+        if component in NUMERIC_FIELDS or component in OBJECT_FIELDS:
             getattr(self, component)[idx] = value
         else:
             self.extra_components[idx][component] = value
@@ -256,7 +263,9 @@ class EntityStore:
         self.dirty_polars_snapshot = True
         return True
 
-    def get_components(self, entity_id: int, components: list[str]) -> dict[str, object]:
+    def get_components(
+        self, entity_id: int, components: list[str]
+    ) -> dict[str, object]:
         idx = self.index_of(entity_id)
         if idx is None or not self.is_active[idx]:
             return {}
@@ -272,9 +281,7 @@ class EntityStore:
                 result[component] = self.extra_components[idx].get(component)
         return result
 
-    def get_combat_components_bulk(
-        self, entity_ids: list[int]
-    ) -> tuple[
+    def get_combat_components_bulk(self, entity_ids: list[int]) -> tuple[
         dict[int, str | None],  # name
         dict[int, int],  # strength
         dict[int, int],  # defense
@@ -288,7 +295,7 @@ class EntityStore:
         dict[int, int],  # xp_reward
     ]:
         """Bulk fetch combat-related components for multiple entities.
-        
+
         Returns dictionaries mapping entity_id to component value for efficient
         lookup during combat resolution.
         """
@@ -308,51 +315,58 @@ class EntityStore:
             idx = self.index_of(entity_id)
             if idx is None or not self.is_active[idx]:
                 continue
-            
+
             eid = int(self.entity_id[idx])
             names[eid] = self.name[idx]
-            
+
             # Get components from extra_components (strength, defense, armor are not in NUMERIC_FIELDS)
             extra = self.extra_components[idx]
             strengths[eid] = int(extra.get("strength") or 0)
             defenses[eid] = int(extra.get("defense") or 0)
             armors[eid] = int(extra.get("armor") or 0)
-            
+
             # Get numeric fields directly from arrays
             hps[eid] = int(self.hp[idx])
             max_hps[eid] = int(self.max_hp[idx])
             xs[eid] = int(self.x[idx])
             ys[eid] = int(self.y[idx])
-            
+
             # Handle other extra components
             resistances[eid] = extra.get("resistances") or {}
             vulnerabilities[eid] = extra.get("vulnerabilities") or {}
             xp_rewards[eid] = int(extra.get("xp_reward") or 0)
 
         return (
-            names, strengths, defenses, armors, hps, max_hps, xs, ys,
-            resistances, vulnerabilities, xp_rewards
+            names,
+            strengths,
+            defenses,
+            armors,
+            hps,
+            max_hps,
+            xs,
+            ys,
+            resistances,
+            vulnerabilities,
+            xp_rewards,
         )
 
-    def get_skills_bulk(
-        self, entity_ids: list[int]
-    ) -> dict[int, dict[str, object]]:
+    def get_skills_bulk(self, entity_ids: list[int]) -> dict[int, dict[str, object]]:
         """Bulk fetch skills for multiple entities.
-        
+
         Returns a dict mapping entity_id to skills dict for efficient
         lookup during combat and other multi-entity operations.
         """
         result: dict[int, dict[str, object]] = {}
-        
+
         for entity_id in entity_ids:
             idx = self.index_of(entity_id)
             if idx is None or not self.is_active[idx]:
                 continue
-            
+
             eid = int(self.entity_id[idx])
             skills_data = self.extra_components[idx].get("skills", {})
             result[eid] = skills_data
-        
+
         return result
 
     def get_position(self, entity_id: int) -> Position | None:
@@ -420,12 +434,7 @@ class EntityStore:
                 self.blocking_entity_at[y, x] = int(self.entity_id[idx])
 
     def get_blocking_entity_at(self, x: int, y: int) -> int | None:
-        if (
-            x < 0
-            or y < 0
-            or x >= self.occupancy_width
-            or y >= self.occupancy_height
-        ):
+        if x < 0 or y < 0 or x >= self.occupancy_width or y >= self.occupancy_height:
             return None
         entity_id = int(self.blocking_entity_at[y, x])
         return None if entity_id < 0 else entity_id
@@ -472,10 +481,10 @@ class EntityStore:
         return True, dest_x, dest_y
 
     def active_indices(self) -> np.ndarray:
-        return np.where(self.is_active[:self.count])[0]
+        return np.where(self.is_active[: self.count])[0]
 
     def ai_indices(self) -> np.ndarray:
-        active = self.is_active[:self.count]
+        active = self.is_active[: self.count]
         has_ai = np.array(
             [self.ai_type[idx] is not None for idx in range(self.count)],
             dtype=np.bool_,
@@ -524,15 +533,13 @@ class EntityStore:
         return row
 
     def active_non_player_indices(self, player_id: int) -> np.ndarray:
-        active = self.is_active[:self.count]
-        entity_ids = self.entity_id[:self.count]
+        active = self.is_active[: self.count]
+        entity_ids = self.entity_id[: self.count]
         return np.where(active & (entity_ids != player_id))[0]
 
     def has_perception_profile_at(self, idx: int) -> bool:
         return bool(
-            self.ai_type[idx]
-            or self.species[idx]
-            or int(self.intelligence[idx]) > 0
+            self.ai_type[idx] or self.species[idx] or int(self.intelligence[idx]) > 0
         )
 
     def visible_target_at(self, idx: int) -> dict[str, object]:
@@ -574,6 +581,7 @@ class EntityStore:
         extra = self.extra_components[idx]
         if component not in extra:
             from game.entities.registry import ENTITY_SCHEMA
+
             dtype = ENTITY_SCHEMA.get(component)
             if dtype is not None:
                 if _is_list_dtype(dtype):
@@ -581,8 +589,13 @@ class EntityStore:
                 elif dtype in (pl.Float32, pl.Float64):
                     return 0.0
                 elif dtype in (
-                    pl.Int16, pl.Int32, pl.Int64,
-                    pl.UInt16, pl.UInt32, pl.UInt64, pl.UInt8
+                    pl.Int16,
+                    pl.Int32,
+                    pl.Int64,
+                    pl.UInt16,
+                    pl.UInt32,
+                    pl.UInt64,
+                    pl.UInt8,
                 ):
                     return 0
                 elif dtype == pl.Boolean:
@@ -606,18 +619,24 @@ class EntityStore:
 
             is_dead = not self.is_active[idx] or int(self.hp[idx]) <= 0
 
-            records.append({
-                "id": entity_id,
-                "fy": int(self.y[idx]),
-                "fx": int(self.x[idx]),
-                "is_dead": bool(is_dead),
-                "perception_stat": int(p_stat),
-            })
+            records.append(
+                {
+                    "id": entity_id,
+                    "fy": int(self.y[idx]),
+                    "fx": int(self.x[idx]),
+                    "is_dead": bool(is_dead),
+                    "perception_stat": int(p_stat),
+                }
+            )
         return records
 
-    def monster_perception_arrays(
-        self, player_id: int
-    ) -> tuple[NDArray[np.int64], NDArray[np.int64], NDArray[np.int64], NDArray[np.bool_], NDArray[np.int64]]:
+    def monster_perception_arrays(self, player_id: int) -> tuple[
+        NDArray[np.int64],
+        NDArray[np.int64],
+        NDArray[np.int64],
+        NDArray[np.bool_],
+        NDArray[np.int64],
+    ]:
         """Return NumPy arrays for monster perception without materializing entities_df.
 
         Returns (ids, fy, fx, is_dead, perception_stat) arrays for all active
@@ -625,8 +644,8 @@ class EntityStore:
         monster_perception_records() for use in hot paths.
         """
         # Collect indices of active non-player entities
-        active_mask = self.is_active[:self.count]
-        entity_ids = self.entity_id[:self.count]
+        active_mask = self.is_active[: self.count]
+        entity_ids = self.entity_id[: self.count]
         non_player_mask = entity_ids != player_id
         valid_indices = np.where(active_mask & non_player_mask)[0]
 
@@ -650,10 +669,13 @@ class EntityStore:
 
         # Extract perception_stat with default of 10
         # Single dict lookup per entity for efficiency
-        perception_stat = np.array([
-            int(self.extra_components[idx].get("perception_stat", 10))
-            for idx in valid_indices
-        ], dtype=np.int64)
+        perception_stat = np.array(
+            [
+                int(self.extra_components[idx].get("perception_stat", 10))
+                for idx in valid_indices
+            ],
+            dtype=np.int64,
+        )
 
         return ids, fy, fx, is_dead, perception_stat
 
@@ -661,7 +683,7 @@ class EntityStore:
         if self.count == 0:
             return
 
-        active_indices = np.where(self.is_active[:self.count])[0]
+        active_indices = np.where(self.is_active[: self.count])[0]
         new_count = len(active_indices)
 
         # Allocate new arrays
@@ -750,9 +772,9 @@ class EntityStore:
 
         for col in ENTITY_SCHEMA:
             if col in NUMERIC_FIELDS:
-                std_data[col] = list(getattr(self, col)[:self.count])
+                std_data[col] = list(getattr(self, col)[: self.count])
             elif col in OBJECT_FIELDS:
-                std_data[col] = getattr(self, col)[:self.count]
+                std_data[col] = getattr(self, col)[: self.count]
             else:
                 col_list = []
                 dtype = ENTITY_SCHEMA[col]
@@ -766,8 +788,13 @@ class EntityStore:
                         elif dtype in (pl.Float32, pl.Float64):
                             val = 0.0
                         elif dtype in (
-                            pl.Int16, pl.Int32, pl.Int64,
-                            pl.UInt16, pl.UInt32, pl.UInt64, pl.UInt8
+                            pl.Int16,
+                            pl.Int32,
+                            pl.Int64,
+                            pl.UInt16,
+                            pl.UInt32,
+                            pl.UInt64,
+                            pl.UInt8,
                         ):
                             val = 0
                         elif dtype == pl.Boolean:
@@ -787,7 +814,9 @@ class EntityStore:
         if dynamic_cols:
             dyn_data = {}
             for col in dynamic_cols:
-                dyn_data[col] = [self.extra_components[idx].get(col) for idx in range(self.count)]
+                dyn_data[col] = [
+                    self.extra_components[idx].get(col) for idx in range(self.count)
+                ]
             df_dyn = pl.DataFrame(dyn_data)
             return pl.concat([df_std, df_dyn], how="horizontal")
 
@@ -795,7 +824,6 @@ class EntityStore:
 
     @classmethod
     def from_polars(cls, df: pl.DataFrame) -> EntityStore:
-        from game.entities.registry import ENTITY_SCHEMA
 
         store = cls(capacity=max(256, df.height))
         store.count = df.height
@@ -804,33 +832,35 @@ class EntityStore:
         for col in NUMERIC_FIELDS:
             if col in df.columns:
                 arr = df[col].to_numpy()
-                getattr(store, col)[:df.height] = arr
+                getattr(store, col)[: df.height] = arr
             else:
                 default_val = 0
-                if col == "is_active":
-                    default_val = 1
-                elif col in ("hp", "max_hp", "intelligence"):
-                    default_val = 1
-                elif col == "blocks_movement":
+                if (
+                    col == "is_active"
+                    or col in ("hp", "max_hp", "intelligence")
+                    or col == "blocks_movement"
+                ):
                     default_val = 1
                 elif col == "fullness":
                     default_val = 100.0
-                getattr(store, col)[:df.height] = default_val
+                getattr(store, col)[: df.height] = default_val
 
         # Populate object fields
         for col in OBJECT_FIELDS:
             if col in df.columns:
                 lst = df[col].to_list()
                 # If length doesn't match df.height, pad or truncate
-                getattr(store, col)[:df.height] = lst
+                getattr(store, col)[: df.height] = lst
             else:
                 if col == "status_effects":
-                    getattr(store, col)[:df.height] = [[] for _ in range(df.height)]
+                    getattr(store, col)[: df.height] = [[] for _ in range(df.height)]
                 else:
-                    getattr(store, col)[:df.height] = [None] * df.height
+                    getattr(store, col)[: df.height] = [None] * df.height
 
         # Determine which columns are extras
-        extra_cols = [c for c in df.columns if c not in NUMERIC_FIELDS and c not in OBJECT_FIELDS]
+        extra_cols = [
+            c for c in df.columns if c not in NUMERIC_FIELDS and c not in OBJECT_FIELDS
+        ]
 
         for idx, row in enumerate(df.iter_rows(named=True)):
             extra_dict = {}

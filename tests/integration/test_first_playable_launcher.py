@@ -21,7 +21,7 @@ def test_first_playable_launcher_output() -> None:
         main()
         mock_run_cli.assert_called_once()
         # seed defaults to 20260604 when --first-playable is given without --seed
-        mock_run_cli.assert_called_with(None, 20260604)
+        mock_run_cli.assert_called_with(None, 20260604, first_playable=True)
 
     output = mock_stdout.getvalue()
     assert "First playable expedition mode: starting at ruined harbor." in output
@@ -36,7 +36,7 @@ def test_first_playable_gui_default() -> None:
     ):
         main()
         mock_run_gui.assert_called_once()
-        mock_run_gui.assert_called_with(None, 20260604)
+        mock_run_gui.assert_called_with(None, 20260604, first_playable=True)
 
     output = mock_stdout.getvalue()
     assert "First playable expedition mode: starting at ruined harbor." in output

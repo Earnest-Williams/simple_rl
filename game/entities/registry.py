@@ -1,13 +1,14 @@
 # game/entities/registry.py
 from __future__ import annotations
 
+from collections.abc import Callable
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Self, Callable
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
-from numpy.typing import NDArray
 import polars as pl
 import structlog
+from numpy.typing import NDArray
 
 from game.entities.components import Position
 from game.entities.store import EntityStore
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     pass
 
 # Fallback removed
-from game.items.registry import BodySlotType, EquipSlot
+from game.items.registry import BodySlotType
 
 log = structlog.get_logger()
 
@@ -378,9 +379,7 @@ class EntityRegistry:
     ) -> dict[str, Any]:
         return self._store.get_components(entity_id, component_names)
 
-    def get_combat_components_bulk(
-        self, entity_ids: list[int]
-    ) -> tuple[
+    def get_combat_components_bulk(self, entity_ids: list[int]) -> tuple[
         dict[int, str | None],  # name
         dict[int, int],  # strength
         dict[int, int],  # defense
@@ -544,9 +543,13 @@ class EntityRegistry:
     def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
         return self._store.monster_perception_records(player_id)
 
-    def monster_perception_arrays(
-        self, player_id: int
-    ) -> tuple["NDArray[np.int64]", "NDArray[np.int64]", "NDArray[np.int64]", "NDArray[np.bool_]", "NDArray[np.int64]"]:
+    def monster_perception_arrays(self, player_id: int) -> tuple[
+        NDArray[np.int64],
+        NDArray[np.int64],
+        NDArray[np.int64],
+        NDArray[np.bool_],
+        NDArray[np.int64],
+    ]:
         """Return NumPy arrays for monster perception without materializing entities_df.
 
         Returns (ids, fy, fx, is_dead, perception_stat) arrays for all active

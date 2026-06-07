@@ -291,47 +291,95 @@ def _compute_octant_core_ex(
             mask = _compute_side_mask_from_vector(dx, dy)
             if mask & (SIDE_SE | SIDE_NE | SIDE_SW | SIDE_NW):
                 if mask & SIDE_SE:
-                    if (
-                        mx + 1 >= w
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx + 1, my, opacity_threshold)
+                    if mx + 1 >= w or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx + 1,
+                        my,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_E))
-                    if (
-                        my + 1 >= h
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my + 1, opacity_threshold)
+                    if my + 1 >= h or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx,
+                        my + 1,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_S))
                 if mask & SIDE_NE:
-                    if (
-                        mx + 1 >= w
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx + 1, my, opacity_threshold)
+                    if mx + 1 >= w or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx + 1,
+                        my,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_E))
-                    if (
-                        my - 1 < 0
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my - 1, opacity_threshold)
+                    if my - 1 < 0 or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx,
+                        my - 1,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_N))
                 if mask & SIDE_SW:
-                    if (
-                        mx - 1 < 0
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx - 1, my, opacity_threshold)
+                    if mx - 1 < 0 or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx - 1,
+                        my,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_W))
-                    if (
-                        my + 1 >= h
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my + 1, opacity_threshold)
+                    if my + 1 >= h or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx,
+                        my + 1,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_S))
                 if mask & SIDE_NW:
-                    if (
-                        mx - 1 < 0
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx - 1, my, opacity_threshold)
+                    if mx - 1 < 0 or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx - 1,
+                        my,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_W))
-                    if (
-                        my - 1 < 0
-                        or _cell_blocks_light_side_refinement(opaque, transparency, cell_mask, use_mask, light_channels, mx, my - 1, opacity_threshold)
+                    if my - 1 < 0 or _cell_blocks_light_side_refinement(
+                        opaque,
+                        transparency,
+                        cell_mask,
+                        use_mask,
+                        light_channels,
+                        mx,
+                        my - 1,
+                        opacity_threshold,
                     ):
                         mask = uint8(mask & uint8(255 - SIDE_N))
 
@@ -406,11 +454,11 @@ def _has_clear_legacy_los(
     while x != x1 or y != y1:
         prev_x = x
         prev_y = y
-        
+
         twice_err = 2 * err
         step_x = False
         step_y = False
-        
+
         if twice_err > -dy:
             err -= dy
             x += sx
@@ -424,10 +472,14 @@ def _has_clear_legacy_los(
             # Diagonal step: explicitly check both cardinal intermediate cells
             block1 = False
             if not (prev_x + sx == x1 and prev_y == y1):
-                block1 = _legacy_cell_blocks_los(transparency, opacity_threshold, prev_x + sx, prev_y)
+                block1 = _legacy_cell_blocks_los(
+                    transparency, opacity_threshold, prev_x + sx, prev_y
+                )
             block2 = False
             if not (prev_x == x1 and prev_y + sy == y1):
-                block2 = _legacy_cell_blocks_los(transparency, opacity_threshold, prev_x, prev_y + sy)
+                block2 = _legacy_cell_blocks_los(
+                    transparency, opacity_threshold, prev_x, prev_y + sy
+                )
             if block1 or block2:
                 return False
 
@@ -466,11 +518,11 @@ def _has_clear_extended_los(
     while x != x1 or y != y1:
         prev_x = x
         prev_y = y
-        
+
         twice_err = 2 * err
         step_x = False
         step_y = False
-        
+
         if twice_err > -dy:
             err -= dy
             x += sx
@@ -484,10 +536,28 @@ def _has_clear_extended_los(
             # Diagonal step: explicitly check both cardinal intermediate cells
             block1 = False
             if not (prev_x + sx == x1 and prev_y == y1):
-                block1 = _extended_cell_blocks_los(opaque, transparency, cell_mask, use_mask, light_channels, prev_x + sx, prev_y, opacity_threshold)
+                block1 = _extended_cell_blocks_los(
+                    opaque,
+                    transparency,
+                    cell_mask,
+                    use_mask,
+                    light_channels,
+                    prev_x + sx,
+                    prev_y,
+                    opacity_threshold,
+                )
             block2 = False
             if not (prev_x == x1 and prev_y + sy == y1):
-                block2 = _extended_cell_blocks_los(opaque, transparency, cell_mask, use_mask, light_channels, prev_x, prev_y + sy, opacity_threshold)
+                block2 = _extended_cell_blocks_los(
+                    opaque,
+                    transparency,
+                    cell_mask,
+                    use_mask,
+                    light_channels,
+                    prev_x,
+                    prev_y + sy,
+                    opacity_threshold,
+                )
             if block1 or block2:
                 return False
 

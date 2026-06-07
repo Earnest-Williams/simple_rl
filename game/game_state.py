@@ -7,7 +7,6 @@ from collections.abc import Callable
 from typing import Any, Final, Literal
 
 import numpy as np
-import polars as pl
 import structlog
 from numpy.typing import NDArray
 
@@ -42,7 +41,6 @@ from game.world.memory import MemoryTraits
 from pathfinding.perception_systems import (
     MAX_FLOWS,
     SCENT_RESET_AGE,
-    monster_perception,
     monster_perception_arrays,
     update_noise,
     update_smell,
@@ -606,7 +604,9 @@ class GameState:
             self._map_height = self.game_map.height
             self.zone_manager.map_width = self._map_width
             self.zone_manager.map_height = self._map_height
-            self.entity_registry.ensure_occupancy_shape(self._map_width, self._map_height)
+            self.entity_registry.ensure_occupancy_shape(
+                self._map_width, self._map_height
+            )
 
         expected_cost_shape = (MAX_FLOWS, self.game_map.height, self.game_map.width)
         if self.perception_cave_cost.shape != expected_cost_shape:
@@ -938,7 +938,9 @@ class GameState:
                         or "demon" in entity_name_lower
                     ):
                         enemy_types.append("boss")
-                    elif "elite" in entity_name_lower or "champion" in entity_name_lower:
+                    elif (
+                        "elite" in entity_name_lower or "champion" in entity_name_lower
+                    ):
                         enemy_types.append("elite")
 
         # Build context for sound system

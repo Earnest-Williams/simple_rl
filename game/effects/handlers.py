@@ -14,12 +14,11 @@ from utils.game_rng import GameRNG
 from utils.helpers import roll_dice as _roll_dice
 
 from ..systems.death_system import handle_entity_death
-from ..world import line_of_sight
 
 # Import sound system for audio feedback
 # Fallback removed
-from ..systems.sound import handle_event, play_sound
-
+from ..systems.sound import handle_event
+from ..world import line_of_sight
 
 if TYPE_CHECKING:
     # Corrected relative import path assuming handlers.py is inside effects folder

@@ -19,7 +19,15 @@ def main() -> None:
     parser.add_argument("path", type=Path)
     parser.add_argument(
         "--view",
-        choices=("material", "biome", "hydro", "wetness", "traversal", "actor", "evidence"),
+        choices=(
+            "material",
+            "biome",
+            "hydro",
+            "wetness",
+            "traversal",
+            "actor",
+            "evidence",
+        ),
         default="material",
     )
     parser.add_argument("--profile", default="HUMAN_ON_FOOT")
@@ -61,7 +69,9 @@ def _inspect_evidence(path: Path) -> None:
                     f_type = FeatureType(row["feature_type"]).name
                 except ValueError:
                     f_type = str(row["feature_type"])
-                tags_str = ", ".join(EvidenceTag(tag).name for tag in row["evidence_tags"])
+                tags_str = ", ".join(
+                    EvidenceTag(tag).name for tag in row["evidence_tags"]
+                )
                 print(f"({row['x']}, {row['y']}) {f_type}: {tags_str}")
             print()
 
@@ -76,7 +86,9 @@ def _inspect_evidence(path: Path) -> None:
                     t_type = TransitionType(row["transition_type"]).name
                 except ValueError:
                     t_type = str(row["transition_type"])
-                tags_str = ", ".join(EvidenceTag(tag).name for tag in row["evidence_tags"])
+                tags_str = ", ".join(
+                    EvidenceTag(tag).name for tag in row["evidence_tags"]
+                )
                 print(
                     f"({row['source_x']}, {row['source_y']}) {t_type} -> {row['target_kind']}: {tags_str}"
                 )
@@ -119,7 +131,9 @@ def _inspect_evidence(path: Path) -> None:
         if not df_with_evidence.is_empty():
             print("=== DEBUG ROUTES WITH EVIDENCE TAGS ===")
             for row in df_with_evidence.iter_rows(named=True):
-                tags_str = ", ".join(EvidenceTag(tag).name for tag in row["evidence_tags"])
+                tags_str = ", ".join(
+                    EvidenceTag(tag).name for tag in row["evidence_tags"]
+                )
                 print(
                     f"Route '{row['route_id']}' ({row['source_x']}, {row['source_y']}) to ({row['target_x']}, {row['target_y']}): {tags_str}"
                 )

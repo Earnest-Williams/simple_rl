@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 import structlog
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    import numpy as np
 
     from game.game_state import GameState
     from utils.game_rng import GameRNG

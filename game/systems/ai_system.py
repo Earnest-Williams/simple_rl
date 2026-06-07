@@ -18,7 +18,6 @@ from game.ai import get_adapter, goap
 from utils.game_rng import GameRNG
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    import numpy as np
 
     from game.game_state import GameState
     from utils.game_rng import GameRNG

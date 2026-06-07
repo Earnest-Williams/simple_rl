@@ -104,10 +104,7 @@ def _format_light_section(
             original_parts.append(
                 f"ambient_spill_extra_radius = {original.ambient_spill_extra_radius}"
             )
-        if (
-            abs(config.ambient_spill_strength - original.ambient_spill_strength)
-            > 0.001
-        ):
+        if abs(config.ambient_spill_strength - original.ambient_spill_strength) > 0.001:
             original_parts.append(
                 f"ambient_spill_strength = {original.ambient_spill_strength:.2f}"
             )

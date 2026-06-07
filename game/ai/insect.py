@@ -9,7 +9,6 @@ import structlog
 from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-    import numpy as np
 
     from game.game_state import GameState
     from utils.game_rng import GameRNG
@@ -24,31 +23,31 @@ def _nearest_ally(
 ) -> tuple[int, int] | None:
     """Return direction towards nearest allied insect if any."""
     registry = gs.entity_registry
-    
+
     # Find nearest insect ally using store accessors
     nearest_dist = float("inf")
     nearest_x = x
     nearest_y = y
-    
+
     for idx in registry.active_indices():
         other_id = registry.entity_id_at(int(idx))
         if other_id == entity_id:
             continue
-        
+
         other_ai_type = registry.ai_type_of(other_id)
         if other_ai_type != "insect":
             continue
-        
+
         ox, oy = registry.xy_at(int(idx))
         dist = abs(ox - x) + abs(oy - y)
         if dist < nearest_dist:
             nearest_dist = dist
             nearest_x = ox
             nearest_y = oy
-    
+
     if nearest_dist == float("inf"):
         return None
-    
+
     dx = 0 if nearest_x == x else (1 if nearest_x > x else -1)
     dy = 0 if nearest_y == y else (1 if nearest_y > y else -1)
     return dx, dy

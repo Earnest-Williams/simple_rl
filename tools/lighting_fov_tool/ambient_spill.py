@@ -94,8 +94,7 @@ def compute_ambient_spill_rgb(
 
         falloff = np.zeros((height, width), dtype=np.float32)
         falloff[lit] = strength * (
-            max(0.0, min(1.0, float(light.decay)))
-            ** distance[lit].astype(np.float32)
+            max(0.0, min(1.0, float(light.decay))) ** distance[lit].astype(np.float32)
         )
 
         add = falloff[..., None] * np.array(light.color, dtype=np.float32)

@@ -9,7 +9,6 @@ import structlog  # Added
 # --- Numba Acceleration ---
 # Fallback removed
 from numba import njit
-from numba.typed import Dict as NumbaDict
 
 _NUMBA_AVAILABLE = True
 

@@ -715,8 +715,7 @@ class WindowManager(QMainWindow):
         self.menu_bar = self.menuBar()
 
         # Dark color scheme
-        self.setStyleSheet(
-            """
+        self.setStyleSheet("""
             QWidget {
                 background-color: #1a1a1a;
                 color: #ffffff;
@@ -731,8 +730,7 @@ class WindowManager(QMainWindow):
             QMenu::item:selected {
                 background-color: #3a3a3a;
             }
-        """
-        )
+        """)
 
         # Scroll area for game display
         self.scroll_area = QScrollArea()

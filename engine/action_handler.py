@@ -637,20 +637,29 @@ def process_player_action(
                 )
 
         case "survey":
-            x = action.get("x")
-            y = action.get("y")
-            if x is None or y is None:
-                player_pos = gs.player_position
-                if player_pos:
-                    x, y = player_pos
-            if x is not None and y is not None:
-                from game.systems.survey import survey_coordinate
-                survey_coordinate(gs, int(x), int(y), player_id)
+            if hasattr(gs, "expedition") and gs.expedition:
+                from game.systems.survey import expedition_survey
+
+                expedition_survey(gs)
                 player_acted = True
             else:
-                log.warning("Survey action failed: Player position unknown and no target coordinates provided.")
-                gs.add_message("Survey where?", (255, 100, 100))
-                player_acted = False
+                x = action.get("x")
+                y = action.get("y")
+                if x is None or y is None:
+                    player_pos = gs.player_position
+                    if player_pos:
+                        x, y = player_pos
+                if x is not None and y is not None:
+                    from game.systems.survey import survey_coordinate
+
+                    survey_coordinate(gs, int(x), int(y), player_id)
+                    player_acted = True
+                else:
+                    log.warning(
+                        "Survey action failed: Player position unknown and no target coordinates provided."
+                    )
+                    gs.add_message("Survey where?", (255, 100, 100))
+                    player_acted = False
 
         case "repair":
             x = action.get("x")
@@ -661,9 +670,12 @@ def process_player_action(
                     x, y = player_pos
             if x is not None and y is not None:
                 from game.systems.repair import clear_blockage_at
+
                 player_acted = clear_blockage_at(gs, int(x), int(y))
             else:
-                log.warning("Repair action failed: Player position unknown and no target coordinates provided.")
+                log.warning(
+                    "Repair action failed: Player position unknown and no target coordinates provided."
+                )
                 gs.add_message("Repair what?", (255, 100, 100))
                 player_acted = False
 
@@ -671,9 +683,11 @@ def process_player_action(
             season_name = action.get("season")
             if season_name:
                 from worldgen.overland.schema import HydroState
+
                 try:
                     new_season = HydroState[season_name.upper()]
                     from game.systems.seasons import apply_seasonal_state
+
                     apply_seasonal_state(gs, new_season)
                     player_acted = True
                 except (KeyError, AttributeError):
@@ -682,6 +696,7 @@ def process_player_action(
                     player_acted = False
             else:
                 from game.systems.seasons import cycle_season
+
                 cycle_season(gs)
                 player_acted = True
 
