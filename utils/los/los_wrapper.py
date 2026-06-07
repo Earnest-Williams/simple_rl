@@ -15,8 +15,59 @@ def _py_los_many(
     transparency_map: NDArray[np.uint8],
 ) -> NDArray[np.uint8]:
     """Legacy unoptimized implementation for non-x86-64/Linux platforms."""
-    # Insert your original simple_rl Python LOS logic here
-    pass
+    n = len(starts_x)
+    out = np.empty(n, dtype=np.uint8)
+
+    height, width = transparency_map.shape
+
+    for i in range(n):
+        x0 = int(starts_x[i])
+        y0 = int(starts_y[i])
+        x1 = int(ends_x[i])
+        y1 = int(ends_y[i])
+
+        # Bounds check (matches game/world/los.py behavior)
+        if not (0 <= x0 < width and 0 <= y0 < height and 0 <= x1 < width and 0 <= y1 < height):
+            out[i] = 0
+            continue
+
+        dx = abs(x1 - x0)
+        dy = -abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx + dy
+
+        xi, yi = x0, y0
+        n_steps = max(dx, -dy)
+
+        visible = 1
+        for _ in range(n_steps):
+            e2 = 2 * err
+            check_x, check_y = xi, yi
+
+            if e2 >= dy:
+                if xi == x1:
+                    break
+                err += dy
+                check_x += sx
+
+            if e2 <= dx:
+                if yi == y1:
+                    break
+                err += dx
+                check_y += sy
+
+            if not transparency_map[check_y, check_x]:
+                visible = 0
+                break
+
+            xi, yi = check_x, check_y
+            if xi == x1 and yi == y1:
+                break
+
+        out[i] = visible
+
+    return out
 
 # -----------------------------------------------------------------------------
 # Hardware-Optimized x86-64 loader
