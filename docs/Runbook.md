@@ -24,6 +24,7 @@ pinned development tools used by the repository checks.
 | --- | --- | --- |
 | Run the main entrypoint | `python main.py` | `main.py` forwards to the canonical orchestrator. |
 | Run the orchestrator directly | `python orchestrator.py` | Generates a shaped dungeon Arrow file and optional simulation output. |
+| Run the first-playable expedition slice | `python tools/play_game.py --first-playable` | Starts from the ruined harbor with the default first-playable seed (`20260604`) unless `--seed` is provided. |
 | Inspect orchestrator flags | `python orchestrator.py --help` | Use before changing defaults such as seed, dimensions, or simulation mode. |
 
 The default orchestrator output is `generated_dungeon.arrow`. Treat generated

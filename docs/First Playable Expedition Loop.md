@@ -6,6 +6,8 @@ This document is the current implementation plan for turning the existing overla
 
 This is not a broad design document. It is an execution plan. Decisions here are intentionally explicit so humans and LLM agents stay on-task. These decisions can be changed later, but until this document is updated, treat them as binding for first-playable work.
 
+Status: the first-playable slice is now wired through `python tools/play_game.py --first-playable` and covered by `tests/test_first_playable_expedition.py` plus `tests/integration/test_first_playable_launcher.py`.
+
 ## Goal
 
 Build one complete playable expedition loop:
@@ -24,7 +26,7 @@ ruined harbor / starting port
 
 The target is not a finished game. The target is a coherent 10-minute playable spine that proves the current worldgen, overland UI, runtime map metadata, movement, route semantics, and cave handoff can work together.
 
-The current project state supports this direction: the main game engine is integrated but still needs stronger end-to-end coverage, while overland generation already exposes starting-region, route, transition, and metadata contracts suitable for downstream gameplay work. 
+The current project state now implements this direction: the main game engine is integrated, and the first-playable launch path, overland starting-region contract, route reveal, blockage repair, cave handoff, and return-to-port completion are wired together with focused tests.
 
 ## Source-of-truth context
 
@@ -40,7 +42,7 @@ The first playable target should be one dense starting region, not the full cont
 
 The implemented overland contract already emits most of that shape: ruined harbor, local survey zone, fresh water/resource sites, ancient road, clearable blockage, waystation candidate, inland site, ordinary cave, route metadata, and actor-profile cost hints. 
 
-Therefore the next work is runtime gameplay binding, not additional generator expansion.
+Therefore the remaining work is polish and expansion, not basic runtime gameplay binding.
 
 ---
 

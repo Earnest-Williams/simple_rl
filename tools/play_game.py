@@ -10,6 +10,9 @@ Usage:
     # GUI starting on the generated overland starting port
     python tools/play_game.py --mode gui
 
+    # First playable expedition slice
+    python tools/play_game.py --first-playable
+
     # CLI from an Arrow/IPC shaped map
     python tools/play_game.py --arrow generated_dungeon.arrow --mode cli
 

@@ -331,6 +331,24 @@ rgb += color_rgb * attenuation       # additive RGB policy, clamped on composite
 
 **Use Case:** Core game loop mechanics
 
+### 11. Expedition / First Playable Systems ⭐⭐⭐
+
+**Location:**
+- `game/expedition/` - first-playable state and route/blockage resolvers
+- `game/systems/survey.py` - survey reveal and starting-region discovery logic
+- `game/systems/repair.py` - first-playable blockage handling
+- `tools/play_game.py` - first-playable launcher flag and runtime wiring
+
+**Sophistication Level:** Medium
+
+**Features:**
+- starting-region contract selection from overland metadata
+- survey-driven route reveal for the ruined-harbor launch flow
+- single-blockage repair gate for the first road segment
+- cave handoff and return-to-port completion
+
+**Use Case:** First playable expedition vertical slice
+
 ---
 
 ## DUPLICATE SYSTEMS (CLEANUP CANDIDATES)

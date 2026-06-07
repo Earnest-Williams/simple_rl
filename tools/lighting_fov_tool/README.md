@@ -76,6 +76,9 @@ Marker visibility follows the selected view:
 - In **gameplay view**, hidden emitter markers are suppressed unless **Show hidden
   emitters** is enabled. This prevents the tool from implying that a player can
   see unseen emitters while still allowing explicit debug inspection.
+- Out-of-bounds emitters follow the same gameplay-view rule: they stay hidden
+  unless **Show hidden emitters** is enabled, while full-light-field mode still
+  shows them.
 
 Monster markers follow the same general visibility principle: gameplay view shows
 what the player can see, while full-field/debug views are for development.
