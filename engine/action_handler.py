@@ -642,7 +642,13 @@ def process_player_action(
                 from game.expedition.resolvers import is_player_at_starting_port
                 from game.systems.survey import expedition_survey
 
-                if is_player_at_starting_port(gs):
+                if gs.expedition.cave_entered and not gs.expedition.discovery_recorded:
+                    gs.expedition.discovery_ids.add("first_cave_survey")
+                    gs.expedition.discovery_recorded = True
+                    gs.add_message("Discovery recorded: first cave surveyed.", (255, 215, 0))
+                    player_acted = True
+                    surveyed = True
+                elif is_player_at_starting_port(gs):
                     player_acted = expedition_survey(gs)
                     surveyed = True
 
@@ -740,6 +746,18 @@ def process_player_action(
     if player_acted:
         log.debug("Player action resulted in turn", action_type=action_type)
         # Optionally advance game time, trigger NPC turns etc. handled elsewhere (e.g., MainLoop after this returns True)
+        
+        if hasattr(gs, "expedition") and gs.expedition:
+            if (
+                gs.expedition.cave_entered
+                and gs.expedition.discovery_recorded
+                and not gs.expedition.loop_completed
+            ):
+                from game.expedition.resolvers import is_player_at_starting_port
+                if is_player_at_starting_port(gs):
+                    gs.expedition.returned_to_port = True
+                    gs.expedition.loop_completed = True
+                    gs.add_message("Expedition complete: first cave surveyed and route back to port confirmed.", (0, 255, 0))
     else:
         log.debug("Player action did not result in turn", action_type=action_type)
 

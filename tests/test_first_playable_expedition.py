@@ -195,3 +195,55 @@ def test_expedition_cave_handoff() -> None:
 
     messages = [msg for msg, color in gs.message_log]
     assert any("You return to the surface." in msg for msg in messages)
+
+def test_expedition_discovery_and_completion() -> None:
+    from engine.action_handler import process_player_action
+    from game.expedition.resolvers import resolve_starting_contract
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    contract = resolve_starting_contract(gs)
+    
+    # 1. Enter the cave
+    cave_refs = contract.get("cave_refs", [])
+    assert len(cave_refs) > 0
+    cx, cy = tuple(cave_refs[0].get("point"))
+    
+    gs.entity_registry.set_position(gs.player_id, Position(cx, cy))
+    process_player_action({"type": "enter", "x": cx, "y": cy}, gs, max_traversable_step=1)
+    assert gs.expedition.cave_entered is True
+    
+    # 2. Record discovery via survey
+    acted = process_player_action({"type": "survey"}, gs, max_traversable_step=1)
+    assert acted is True
+    assert "first_cave_survey" in gs.expedition.discovery_ids
+    assert gs.expedition.discovery_recorded is True
+    
+    messages = [msg for msg, color in gs.message_log]
+    assert any("Discovery recorded: first cave surveyed." in msg for msg in messages)
+    
+    # 3. Exit the cave
+    process_player_action({"type": "enter", "x": 10, "y": 10}, gs, max_traversable_step=1)
+    
+    # Loop shouldn't be completed yet
+    assert gs.expedition.loop_completed is False
+    
+    # 4. Return to port
+    harbor = contract.get("harbor")
+    hx, hy = tuple(harbor.get("point"))
+    
+    # Teleport to harbor
+    gs.entity_registry.set_position(gs.player_id, Position(hx, hy))
+    
+    # Perform a valid move action within the harbor to trigger a turn
+    # Assuming (hx+1, hy) is walkable or bumping a wall consumes a turn? 
+    # Actually, a wait action or just a survey action works to consume a turn.
+    process_player_action({"type": "survey"}, gs, max_traversable_step=1)
+    
+    assert gs.expedition.returned_to_port is True
+    assert gs.expedition.loop_completed is True
+    
+    messages = [msg for msg, color in gs.message_log]
+    assert any("Expedition complete: first cave surveyed and route back to port confirmed." in msg for msg in messages)
