@@ -73,7 +73,7 @@ Production rendering, light-aware FOV, and memory behavior live under
 | Task | Command | Notes |
 | --- | --- | --- |
 | Regenerate glyph metadata | `python scripts/generate_glyphs.py` | Updates `fonts/glyphs.yaml` and `fonts/glyphs_report.txt`. |
-| Check asset policy | Read `docs/Asset Pipeline.md` | Source of truth for generated font assets. |
+| Check asset policy | Read [`docs/Asset Pipeline.md`](./Asset%20Pipeline.md) | Source of truth for generated font assets. |
 
 ## Standard repository checks
 

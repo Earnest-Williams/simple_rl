@@ -1,6 +1,6 @@
 # Skill System Integration - Complete
 
-> **Status note (2026-05-31):** See [Skill System Status](Skill%20System%20Status.md) for the current source of truth.
+> **Status note (2026-05-31):** See [Skill System Status](./Skill%20System%20Status.md) for the current source of truth.
 
 
 **Date:** 2026-01-23
