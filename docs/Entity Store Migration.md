@@ -1,5 +1,10 @@
 # Entity Store Migration
 
+Related documents: [Architecture](./Architecture.md),
+[Current Status](./Current%20Status.md),
+[Performance Analysis](./Performance%20Analysis.md), [Testing](./Testing.md), and
+[Sound System](./Sound%20System.md).
+
 ## Problem
 
 `GameState.advance_turn()` was previously dominated by live entity mutation
@@ -186,25 +191,39 @@ Acceptance criteria:
 
 ### Phase 2: Fast movement and occupancy — mostly complete
 
-The direct movement/update path is in place for current movement callers; this
-section records the desired invariant for future movement work:
+The direct movement/update path is in place for current movement callers. The
+current descriptive API surface is:
 
 ```python
-move_entity(entity_id: int, dx: int, dy: int, game_map: GameMap) -> bool
+EntityRegistry.get_position(entity_id: int) -> Position | None
+EntityRegistry.set_position(entity_id: int, position: Position) -> bool
+EntityRegistry.get_blocking_entity_at(x: int, y: int) -> int | None
+EntityRegistry.ensure_occupancy_shape(width: int, height: int) -> None
+EntityRegistry.rebuild_occupancy() -> None
+EntityRegistry.try_move_entity(
+    entity_id: int,
+    dx: int,
+    dy: int,
+    *,
+    width: int,
+    height: int,
+    is_walkable: Callable[[int, int], bool],
+) -> tuple[bool, int, int]
+movement_system.try_move(
+    entity_id: int, dx: int, dy: int, gs: GameState
+) -> bool
 ```
 
-or:
+`movement_system.try_move()` is the gameplay-facing wrapper: it passes map
+bounds and `GameMap.is_walkable` into `EntityRegistry.try_move_entity()`, then
+emits perception noise and player movement audio after a successful move.
 
-```python
-try_move_entity(entity_id: int, dest_x: int, dest_y: int, game_map: GameMap) -> bool
-```
-
-Movement must:
+Movement must continue to:
 - Read current x/y from arrays.
 - Check bounds.
 - Check map walkability.
 - Check occupancy.
-- Update x/y arrays.
+- Update x/y arrays in one store operation.
 - Update occupancy.
 - Mark Polars snapshot dirty.
 - Emit perception noise from `movement_system.try_move()` after success.
@@ -249,7 +268,12 @@ Acceptance criteria:
 Long-term and new AI adapter signatures should continue moving toward:
 
 ```python
-take_turn(entity_id: int, game_state: GameState, rng: GameRNG, perception: PerceptionSnapshot)
+take_turn(
+    entity_id: int,
+    game_state: GameState,
+    rng: GameRNG,
+    perception: PerceptionSnapshot,
+)
 ```
 
 instead of passing loose row dictionaries.
@@ -261,7 +285,8 @@ Acceptance criteria:
 
 ## Benchmark gate
 
-Use `bench/bench_advance_turn.py` after every phase.
+Use [`bench/bench_advance_turn.py`](../bench/bench_advance_turn.py) after every
+phase.
 
 Baseline commands:
 
