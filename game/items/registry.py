@@ -347,56 +347,42 @@ class ItemRegistry:
         Returns a dict mapping entity_id to list of (equipped_slot, item_id, name, attributes)
         tuples for all equipped items. This avoids repeated DataFrame filtering and iteration.
         """
-        result: dict[int, list[tuple[str, int, str | None, dict[str, Any]]]] = {}
+        result: dict[int, list[tuple[str, int, str | None, dict[str, Any]]]] = {
+            eid: [] for eid in entity_ids
+        }
 
         # Filter all items for the given entities in one go
-        try:
-            filtered_df = self.items_df.filter(
-                pl.col("owner_entity_id").is_in(entity_ids)
-                & (pl.col("location_type") == "equipped")
-                & pl.col("is_active")
-            )
+        filtered_df = self.items_df.filter(
+            pl.col("owner_entity_id").is_in(entity_ids)
+            & (pl.col("location_type") == "equipped")
+            & pl.col("is_active")
+        )
 
-            # Group by owner_entity_id and collect item data
-            for row in filtered_df.iter_rows(named=True):
-                owner_id = row.get("owner_entity_id")
-                if owner_id is None:
-                    continue
+        # Group by owner_entity_id and collect item data
+        for row in filtered_df.iter_rows(named=True):
+            owner_id = row.get("owner_entity_id")
+            if owner_id is None:
+                continue
 
-                if owner_id not in result:
-                    result[owner_id] = []
+            item_id = row.get("item_id")
+            equipped_slot = row.get("equipped_slot") or ""
+            name = row.get("name")
 
-                item_id = row.get("item_id")
-                equipped_slot = row.get("equipped_slot") or ""
-                name = row.get("name")
+            # Get template attributes
+            template_id = row.get("template_id")
+            attributes: dict[str, Any] = {}
+            if template_id and template_id in self.item_templates:
+                template = self.item_templates[template_id]
+                attributes = template.get("attributes", {})
 
-                # Get template attributes
-                template_id = row.get("template_id")
-                attributes: dict[str, Any] = {}
-                if template_id and template_id in self.item_templates:
-                    template = self.item_templates[template_id]
-                    attributes = template.get("attributes", {})
-
-                result[owner_id].append(
-                    (
-                        str(equipped_slot),
-                        int(item_id) if item_id is not None else -1,
-                        str(name) if name else None,
-                        attributes,
-                    )
+            result[owner_id].append(
+                (
+                    str(equipped_slot),
+                    int(item_id) if item_id is not None else -1,
+                    str(name) if name else None,
+                    attributes,
                 )
-        except Exception as e:
-            log.error(
-                "Error in bulk equipped items fetch",
-                entity_ids=entity_ids,
-                error=str(e),
-                exc_info=True,
             )
-
-        # Ensure all requested entity_ids are in result, even if empty
-        for entity_id in entity_ids:
-            if entity_id not in result:
-                result[entity_id] = []
 
         return result
 

@@ -827,6 +827,59 @@ def test_get_equipped_items_bulk_returns_correct_data() -> None:
     assert "off_hand" in slots
 
 
+def test_get_equipped_items_bulk_propagates_exceptions(monkeypatch) -> None:
+    """Test that get_equipped_items_bulk does not swallow exceptions."""
+    import pytest
+    state = _make_state()
+
+    # Mock items_df.filter to raise an exception
+    def mock_filter(*args, **kwargs):
+        raise ValueError("Simulated data shape error")
+
+    monkeypatch.setattr(state.item_registry.items_df, "filter", mock_filter)
+
+    with pytest.raises(ValueError, match="Simulated data shape error"):
+        state.item_registry.get_equipped_items_bulk([1])
+
+
+def test_handle_melee_attack_uses_bulk_equipped_weapon_damage() -> None:
+    """Test that handle_melee_attack properly uses weapon damage from the bulk fetch."""
+    from game.systems.combat_system import handle_melee_attack
+
+    state = _make_state()
+
+    from game.items.registry import ItemRegistry
+    state.item_registry = ItemRegistry({
+        "devastating_sword": {
+            "attributes": {"damage_dice": "100d100", "weapon_type": "sword"},
+            "flags": ["WEAPON"]
+        }
+    })
+
+    attacker_id = state.entity_registry.create_entity(
+        x=3, y=3, glyph=100, color_fg=(255, 0, 0), name="Attacker",
+        strength=1, hp=10, max_hp=10
+    )
+    defender_id = state.entity_registry.create_entity(
+        x=3, y=4, glyph=101, color_fg=(0, 0, 255), name="Defender",
+        defense=0, armor=0, hp=30000, max_hp=30000
+    )
+
+    state.item_registry.create_item(
+        template_id="devastating_sword",
+        location="equipped",
+        owner_entity_id=attacker_id,
+        equipped_slot="main_hand",
+    )
+
+    handle_melee_attack(attacker_id, defender_id, state)
+
+    # Check if the weapon damage was used by seeing if defender took massive damage
+    # (more than what unarmed "1d2" could do + strength 1)
+    defender_hp = state.entity_registry.get_entity_component(defender_id, "hp")
+    assert defender_hp < 29000, "Defender did not take weapon damage"
+
+
 def test_get_skills_bulk_returns_correct_data() -> None:
     """Test that bulk skills fetching returns correct data."""
     from skills.models import Skill, SkillProgress
@@ -895,7 +948,7 @@ def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> N
         name="Entity1",
         faction="player",
     )
-    state.entity_registry.create_entity(
+    entity2_id = state.entity_registry.create_entity(
         x=4,
         y=4,
         glyph=101,
@@ -925,13 +978,12 @@ def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> N
     los_map[3, 3] = True
     los_map[4, 4] = True
 
-    try:
-        find_visible_enemies(entity_row, state, los_map)
-    except AssertionError as e:
-        if "entities_df" in str(e):
-            raise
-    except Exception:
-        pass
+    result = find_visible_enemies(entity_row, state, los_map)
+
+    # Assert that it returns a list and contains the expected enemy
+    assert isinstance(result, list)
+    enemy_ids = [e.get("entity_id") for e in result]
+    assert entity2_id in enemy_ids
 
 
 def test_find_visible_enemies_with_none_faction_preserves_old_filtering() -> None:

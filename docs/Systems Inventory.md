@@ -422,14 +422,18 @@ rgb += color_rgb * attenuation       # additive RGB policy, clamped on composite
 5. 🔄 Document GameRNG usage patterns and best practices
 
 ### Priority 3: Address Performance Issues
-See [`Performance Analysis.md`](./Performance%20Analysis.md) for detailed recommendations:
-1. Fix critical bugs (render_frame, apply_overlays method names)
-2. Add bulk component fetching to eliminate N+1 queries
-3. Consolidate entity iterations in game state
-4. Vectorize light calculations
-5. Add spatial hash for entity proximity queries
-6. Implement frame rate limiting and dirty rect tracking
-7. Cache flow fields and frequently accessed data
+See [`Performance Analysis.md`](./Performance%20Analysis.md) for detailed recommendations. Recent fixes have resolved several major bottlenecks:
+- **Resolved:** Combat component N+1 queries are resolved for the melee hot path via bulk fetching.
+- **Resolved:** Perception visible-enemy scanning overhead is substantially resolved by bypassing dictionary construction.
+
+**Current Active Work & Next Steps:**
+1. Fresh `advance_turn()` / `process_turn()` profiling to identify remaining hotspots.
+2. Eliminating remaining `compatibility-row`/`entities_df` materialization outside of core combat.
+3. Optimizing non-combat item/equipment DataFrame paths (e.g., inventory UI rendering).
+4. Implementing rendering dirty-rect/frame pacing.
+5. Investigating flow-field caching (only if profiling confirms it is necessary).
+
+*(Historical context: Previous critical bugs like method name mismatches and spatial hash omissions have been addressed or superseded by the architectural migration.)*
 
 ### Priority 4: Quality & Validation
 1. Validate 3D dungeon generator output
@@ -764,7 +768,8 @@ The codebase has evolved from multiple merged projects and now has clear separat
 - GOAP test harness (auto/) - Core already integrated, used for AI training
 
 **Critical Improvements Needed:**
-- Address performance issues documented in [`Performance Analysis.md`](./Performance%20Analysis.md)
-- Fix method name mismatches (render_frame, apply_overlays)
-- Implement caching and bulk operations to eliminate N+1 patterns
-- Add spatial indexing for entity queries
+- Fresh `advance_turn()` / `process_turn()` profiling to verify recent architecture changes.
+- Continue eliminating `compatibility-row` and `entities_df` materialization.
+- Optimize non-combat item/equipment DataFrame paths.
+- Implement frame rate limiting and dirty rect tracking for rendering.
+- Consider flow-field caching only if profiling confirms it is necessary.

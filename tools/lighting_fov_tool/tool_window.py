@@ -51,6 +51,28 @@ from tools.lighting_fov_tool.tile_config import TileConfigState
 if TYPE_CHECKING:
     pass
 
+def _light_marker_is_visible_or_allowed(
+    light_x: int,
+    light_y: int,
+    visible: np.ndarray,
+    show_full_field: bool,
+    show_hidden: bool,
+) -> bool:
+    """Determine if a light marker should be drawn based on visibility and debug toggles."""
+    if show_full_field:
+        return True
+
+    h, w = visible.shape
+    is_in_bounds = 0 <= light_y < h and 0 <= light_x < w
+    is_visible = is_in_bounds and visible[light_y, light_x]
+
+    if is_visible:
+        return True
+    if show_hidden:
+        return True
+
+    return False
+
 LightingBackend = Literal[
     "Fast Diffuse", "Production Side-Aware", "Unified Preview", "Raw Heatmap"
 ]
@@ -1268,15 +1290,16 @@ class LightingFovToolWindow(QMainWindow):
             if light_cfg is None:
                 continue
 
-            h, w = player_visible.shape
-            is_visible = 0 <= ls.y < h and 0 <= ls.x < w and player_visible[ls.y, ls.x]
             is_active = res.active
-            should_hide_marker = (
-                not self._show_full_light_field
-                and not self._show_hidden_light_sources
-                and not is_visible
+            is_visible_or_allowed = _light_marker_is_visible_or_allowed(
+                ls.x,
+                ls.y,
+                player_visible,
+                self._show_full_light_field,
+                self._show_hidden_light_sources,
             )
-            if should_hide_marker or (
+
+            if not is_visible_or_allowed or (
                 not is_active and not self._show_hidden_light_sources
             ):
                 continue
