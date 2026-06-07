@@ -20,7 +20,7 @@ When keeping non-production material, record the reason in one of these places:
 
 1. [`docs/Current Status.md`](./Current%20Status.md) for subsystem-level maturity and ownership;
 2. [`docs/Asset Pipeline.md`](./Asset%20Pipeline.md) for generated or retained asset outputs;
-3. an ADR under `docs/ADR/` for architecture boundaries;
+3. an ADR under [`docs/ADR/`](./ADR/README.md) for architecture boundaries;
 4. a short README in the directory when the scope is local and long-lived.
 
 A retained R&D or historical file should state at least one of the following:
@@ -42,7 +42,7 @@ Current retained notes are summarized in `notes/README.md`:
 | File | Classification | Retention reason | Deletion condition |
 | --- | --- | --- | --- |
 | `notes/basicrl_project.txt` | Historical note | Captures an older BasicRL roadmap and terminology snapshot. | Delete after useful roadmap items are represented in current issues or docs. |
-| `notes/to implement.txt` | Historical note | Preserves an early cave-species AI sketch that may inform future R&D triage. | Delete after relevant AI ideas are promoted to [`docs/ADR/`](./ADR/), [`docs/Current Status.md`](./Current%20Status.md), or issues. |
+| `notes/to implement.txt` | Historical note | Preserves an early cave-species AI sketch that may inform future R&D triage. | Delete after relevant AI ideas are promoted to [`docs/ADR/`](./ADR/README.md), [`docs/Current Status.md`](./Current%20Status.md), or issues. |
 
 The former `notes/code_basicrl.txt` index was removed after being replaced by
 `notes/README.md`.
