@@ -637,12 +637,16 @@ def process_player_action(
                 )
 
         case "survey":
+            surveyed = False
             if hasattr(gs, "expedition") and gs.expedition:
+                from game.expedition.resolvers import is_player_at_starting_port
                 from game.systems.survey import expedition_survey
 
-                expedition_survey(gs)
-                player_acted = True
-            else:
+                if is_player_at_starting_port(gs):
+                    player_acted = expedition_survey(gs)
+                    surveyed = True
+
+            if not surveyed:
                 x = action.get("x")
                 y = action.get("y")
                 if x is None or y is None:

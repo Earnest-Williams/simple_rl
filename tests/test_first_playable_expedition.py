@@ -51,3 +51,63 @@ def test_is_player_at_starting_port_uses_harbor_radius() -> None:
 
     gs.entity_registry.set_position(gs.player_id, Position(sx, sy))
     assert is_player_at_starting_port(gs)
+
+
+def test_expedition_survey_at_starting_port() -> None:
+    from engine.action_handler import process_player_action
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    assert gs.expedition is not None
+    assert not gs.expedition.survey_completed
+
+    # First survey at starting port
+    action = {"type": "survey"}
+    acted = process_player_action(action, gs, max_traversable_step=1)
+    assert acted is True
+    assert gs.expedition.survey_completed is True
+    assert gs.expedition.route_revealed is True
+    assert gs.expedition.active_objective_id == "follow_ancient_road"
+
+    # Verify message log
+    messages = [msg for msg, color in gs.message_log]
+    assert any(
+        "Survey complete: harbor, road, water, blockage, and first cave marked." in msg
+        for msg in messages
+    )
+
+    # Clear message log to check for the repeated warning
+    gs.message_log.clear()
+
+    # Repeated survey at starting port
+    acted_again = process_player_action(action, gs, max_traversable_step=1)
+    assert acted_again is False  # No turn consumed
+    messages_again = [msg for msg, color in gs.message_log]
+    assert any(
+        "You have already completed the starting-region survey." in msg
+        for msg in messages_again
+    )
+
+
+def test_expedition_survey_away_from_starting_port() -> None:
+    from engine.action_handler import process_player_action
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    assert gs.expedition is not None
+    assert not gs.expedition.survey_completed
+
+    # Move player away from port
+    spawn = gs.player_position
+    assert spawn is not None
+    sx, sy = spawn
+    gs.entity_registry.set_position(gs.player_id, Position(sx + 50, sy + 50))
+    assert not is_player_at_starting_port(gs)
+
+    # Perform survey action
+    action = {"type": "survey"}
+    acted = process_player_action(action, gs, max_traversable_step=1)
+    assert acted is True
+    assert gs.expedition.survey_completed is False

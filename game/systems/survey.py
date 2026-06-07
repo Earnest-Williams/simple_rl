@@ -21,7 +21,7 @@ def get_all_evidence_coords(metadata: Any) -> set[tuple[int, int]]:
 
     # 1. Transitions
     if hasattr(metadata, "transitions") and metadata.transitions:
-        for x, y in metadata.transitions.keys():
+        for x, y in metadata.transitions:
             coords.add((x, y))
 
     # 2. Starting contract features
@@ -176,14 +176,19 @@ def check_automatic_survey(gs: GameState) -> None:
 
     for x, y in evidence_coords:
         if gs.game_map.in_bounds(x, y) and gs.game_map.visible[y, x]:
-            # Check if we have already fully surveyed this coordinate
-            coord_key = f"{x},{y}"
-            # Even if the key exists, if there are new tags (e.g. from state change), we want to reveal them
+            # Even if we have already fully surveyed this coordinate, if there are new tags (e.g. from state change), we want to reveal them
             survey_coordinate(gs, x, y, gs.player_id)
 
 
-def expedition_survey(gs: GameState) -> None:
+def expedition_survey(gs: GameState) -> bool:
     """Execute the special starting-region survey for the first playable expedition."""
+    expedition = getattr(gs, "expedition", None)
+    if expedition is not None and expedition.survey_completed:
+        gs.add_message(
+            "You have already completed the starting-region survey.", (150, 150, 150)
+        )
+        return False
+
     from game.expedition.resolvers import (
         _as_point,
         _iter_dicts,
@@ -227,13 +232,14 @@ def expedition_survey(gs: GameState) -> None:
         survey_coordinate(gs, x, y, gs.player_id)
 
     # Update Expedition State
-    if hasattr(gs, "expedition") and gs.expedition:
-        gs.expedition.survey_completed = True
-        gs.expedition.route_revealed = True
-        gs.expedition.active_objective_id = "follow_ancient_road"
+    if expedition is not None:
+        expedition.survey_completed = True
+        expedition.route_revealed = True
+        expedition.active_objective_id = "follow_ancient_road"
 
     # Emit acceptance target message
     gs.add_message(
         "Survey complete: harbor, road, water, blockage, and first cave marked.",
         (200, 200, 255),
     )
+    return True
