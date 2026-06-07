@@ -606,6 +606,8 @@ def _starting_region_contract(*, width: int, height: int) -> dict[str, object]:
     }
     return {
         "kind": "first_expedition_region",
+        "player_spawn": list(points["road_coast"]),
+        "player_spawn_kind": "starting_port_road_entrance",
         "harbor": {
             "point": list(points["ruined_harbor"]),
             "state": "ruined_dead_port",

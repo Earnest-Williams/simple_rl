@@ -42,8 +42,16 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
     those checks before calling this function.
     """
 
+    from game.systems.overland_movement import human_on_foot_can_enter
+
     entity_reg = gs.entity_registry
     game_map = gs.game_map
+
+    is_walkable = (
+        lambda x, y: human_on_foot_can_enter(gs, x, y)
+        if getattr(game_map, "overland_metadata", None) is not None
+        else game_map.is_walkable
+    )
 
     moved, dest_x, dest_y = entity_reg.try_move_entity(
         entity_id,
@@ -51,7 +59,7 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
         dy,
         width=game_map.width,
         height=game_map.height,
-        is_walkable=game_map.is_walkable,
+        is_walkable=is_walkable,
     )
 
     if moved:

@@ -125,6 +125,20 @@ def prepare_base_layers(
             base_fg[drawn_mask] = tile_fg_colors[valid_tile_ids_in_vp]
             base_bg[drawn_mask] = tile_bg_colors[valid_tile_ids_in_vp]
             glyph_indices[drawn_mask] = tile_indices_render[valid_tile_ids_in_vp]
+
+            metadata = getattr(game_map, "overland_metadata", None)
+            if metadata is not None:
+                from game.world.overland_presentation import get_resolved_overland_presentation
+                pres_cache = get_resolved_overland_presentation()
+                
+                material_vp = _read_only_view(metadata.material_grid[safe_y_slice, safe_x_slice])
+                
+                for mat_id, (glyph, fg, bg) in pres_cache.items():
+                    mat_mask_2d = drawn_mask & (material_vp == mat_id)
+                    if np.any(mat_mask_2d):
+                        base_fg[mat_mask_2d] = fg
+                        base_bg[mat_mask_2d] = bg
+                        glyph_indices[mat_mask_2d] = glyph
         except IndexError as e:
             log.error(
                 "IndexError during color/glyph assignment in prepare_base_layers",
