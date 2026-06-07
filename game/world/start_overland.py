@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from game.world.game_map import GameMap
+from game.world.overland_traversal import human_on_foot_can_enter_map
 from utils.game_rng import GameRNG
-from worldgen.overland.schema import HydroState, TraversalClass
-from worldgen.overland.hydrology import apply_hydrology_state
-from worldgen.overland.generator import generate_overland_region
-from worldgen.overland.settlement_merge import merge_settlement_into_overland
 from worldgen.overland.convert import overland_to_game_map
+from worldgen.overland.generator import generate_overland_region
+from worldgen.overland.hydrology import apply_hydrology_state
+from worldgen.overland.schema import HydroState
+from worldgen.overland.settlement_merge import merge_settlement_into_overland
 from worldgen.settlements import generate_settlement, starting_port_from_overland
 
 
@@ -53,9 +52,11 @@ def load_starting_overland_game_map(
 
     converted = overland_to_game_map(merged, with_metadata=True)
     if not isinstance(converted, tuple):
-        raise TypeError("Expected overland_to_game_map(..., with_metadata=True) to return metadata")
+        raise TypeError(
+            "Expected overland_to_game_map(..., with_metadata=True) to return metadata"
+        )
 
-    game_map, metadata = converted
+    game_map, _ = converted
     spawn = choose_starting_overland_spawn(game_map)
 
     return game_map, spawn
@@ -71,7 +72,7 @@ def choose_starting_overland_spawn(game_map: GameMap) -> tuple[int, int]:
     explicit_spawn = contract.get("player_spawn")
     if _is_point(explicit_spawn):
         x, y = int(explicit_spawn[0]), int(explicit_spawn[1])
-        if _human_can_enter(game_map, x, y):
+        if human_on_foot_can_enter_map(game_map, x, y):
             return x, y
 
     harbor = contract.get("harbor")
@@ -105,9 +106,13 @@ def _nearest_human_walkable_tile(
     best: tuple[int, int] | None = None
     best_dist2: int | None = None
 
-    for y in range(max(0, center_y - radius), min(game_map.height, center_y + radius + 1)):
-        for x in range(max(0, center_x - radius), min(game_map.width, center_x + radius + 1)):
-            if not _human_can_enter(game_map, x, y):
+    for y in range(
+        max(0, center_y - radius), min(game_map.height, center_y + radius + 1)
+    ):
+        for x in range(
+            max(0, center_x - radius), min(game_map.width, center_x + radius + 1)
+        ):
+            if not human_on_foot_can_enter_map(game_map, x, y):
                 continue
             dist2 = (x - center_x) * (x - center_x) + (y - center_y) * (y - center_y)
             if best_dist2 is None or dist2 < best_dist2:
@@ -120,7 +125,7 @@ def _nearest_human_walkable_tile(
 def _first_human_walkable_tile(game_map: GameMap) -> tuple[int, int]:
     for y in range(game_map.height):
         for x in range(game_map.width):
-            if _human_can_enter(game_map, x, y):
+            if human_on_foot_can_enter_map(game_map, x, y):
                 return x, y
     raise ValueError("No human-walkable tile found in starting overland map")
 
@@ -131,21 +136,3 @@ def _first_walkable_tile(game_map: GameMap) -> tuple[int, int]:
             if game_map.is_walkable(x, y):
                 return x, y
     raise ValueError("No walkable tile found in map")
-
-
-def _human_can_enter(game_map: GameMap, x: int, y: int) -> bool:
-    if not game_map.in_bounds(x, y):
-        return False
-
-    metadata = game_map.overland_metadata
-    if metadata is None:
-        return game_map.is_walkable(x, y)
-
-    traversal = int(metadata.traversal_class_grid[y, x])
-    if traversal in {
-        int(TraversalClass.BLOCKED),
-        int(TraversalClass.SWIM_OR_BOAT),
-    }:
-        return False
-
-    return game_map.is_walkable(x, y)

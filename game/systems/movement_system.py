@@ -12,6 +12,7 @@ import contextlib
 from typing import TYPE_CHECKING
 
 from game.perception_events import NoiseEvent
+from game.systems.overland_movement import human_on_foot_can_enter
 
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from game.game_state import GameState
@@ -42,16 +43,16 @@ def try_move(entity_id: int, dx: int, dy: int, gs: GameState) -> bool:
     those checks before calling this function.
     """
 
-    from game.systems.overland_movement import human_on_foot_can_enter
-
     entity_reg = gs.entity_registry
     game_map = gs.game_map
 
-    is_walkable = (
-        lambda x, y: human_on_foot_can_enter(gs, x, y)
-        if getattr(game_map, "overland_metadata", None) is not None
-        else game_map.is_walkable
-    )
+    if getattr(game_map, "overland_metadata", None) is not None:
+
+        def is_walkable(x: int, y: int) -> bool:
+            return human_on_foot_can_enter(gs, x, y)
+
+    else:
+        is_walkable = game_map.is_walkable
 
     moved, dest_x, dest_y = entity_reg.try_move_entity(
         entity_id,

@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-# tools/play_from_arrow.py
+# tools/play_game.py
 """
-Play a generated shaped map.
+Play simple_rl.
 
 Usage:
-    # CLI (no GUI required)
-    python tools/play_from_arrow.py --arrow generated_dungeon.arrow --mode cli
+    # CLI starting on the generated overland starting port
+    python tools/play_game.py --mode cli
 
-    # GUI (requires PySide6 and engine assets)
-    python tools/play_from_arrow.py --arrow generated_dungeon.arrow --mode gui
+    # GUI starting on the generated overland starting port
+    python tools/play_game.py --mode gui
+
+    # CLI from an Arrow/IPC shaped map
+    python tools/play_game.py --arrow generated_dungeon.arrow --mode cli
+
+    # GUI from an Arrow/IPC shaped map
+    python tools/play_game.py --arrow generated_dungeon.arrow --mode gui
 """
 
 from __future__ import annotations
@@ -315,6 +321,33 @@ def _select_spawn_position(
     return 1, 1
 
 
+def _ascii_for_overland_material(material_id: int) -> str:
+    from common.constants import Material
+
+    mapping = {
+        int(Material.ROAD): "=",
+        int(Material.TRACK): ":",
+        int(Material.TRAIL): ",",
+        int(Material.DOCK): "D",
+        int(Material.BRIDGE): "B",
+        int(Material.BUILDING_FLOOR): "_",
+        int(Material.WOOD_WALL): "W",
+        int(Material.STONE_WALL): "#",
+        int(Material.FIELD): "f",
+        int(Material.ORCHARD): "o",
+        int(Material.PASTURE): "p",
+        int(Material.RUIN_FLOOR): "r",
+        int(Material.RUIN_WALL): "R",
+        int(Material.CAVE_MOUTH): "C",
+        int(Material.SHALLOW_WATER): "~",
+        int(Material.DEEP_WATER): "~",
+        int(Material.FLOWING_WATER): "~",
+        int(Material.FOREST_FLOOR): ".",
+        int(Material.MUDFLAT): "m",
+    }
+    return mapping.get(material_id, ".")
+
+
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
     """Print an ASCII viewport centered on the player showing local tiles."""
     gm: GameMap = gs.game_map
@@ -336,6 +369,11 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
         for x in range(x0, x1):
             if x == px and y == py:
                 line.append("@")
+                continue
+            metadata = getattr(gm, "overland_metadata", None)
+            if metadata is not None:
+                mat = int(metadata.material_grid[y, x])
+                line.append(_ascii_for_overland_material(mat))
                 continue
             tid: int = int(gm.tiles[y, x])
             if tid == TILE_ID_FLOOR:

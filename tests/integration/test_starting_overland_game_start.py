@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from engine.render_base_layers import prepare_base_layers
 from game.game_state import GameState
 from game.systems.movement_system import try_move
 from game.systems.overland_movement import human_on_foot_can_enter
-from engine.render_base_layers import prepare_base_layers
 from tools.play_game import create_gamestate_from_overland
-from worldgen.overland.schema import TraversalClass
 
 
 def _find_adjacent_human_walkable_tile(gs: GameState) -> tuple[int, int] | None:
@@ -33,7 +32,9 @@ def _find_adjacent_unwalkable_tile(gs: GameState) -> tuple[int, int] | None:
                 if dx == 0 and dy == 0:
                     continue
                 nx, ny = px + dx, py + dy
-                if gs.game_map.in_bounds(nx, ny) and not human_on_foot_can_enter(gs, nx, ny):
+                if gs.game_map.in_bounds(nx, ny) and not human_on_foot_can_enter(
+                    gs, nx, ny
+                ):
                     return nx, ny
     return None
 
@@ -47,18 +48,18 @@ def test_starting_overland_game_start_and_mechanics() -> None:
     spawn = gs.player_position
     assert spawn is not None
     sx, sy = spawn
-    
+
     # 2. Deterministic-seed regression test for player_spawn
     assert game_map.in_bounds(sx, sy)
     assert human_on_foot_can_enter(gs, sx, sy)
-    
+
     contract = game_map.overland_metadata.starting_contract
     assert "player_spawn" in contract
     harbor = contract.get("harbor")
-    
+
     # Assert near harbor (within a reasonable distance, e.g. 30 tiles)
     hx, hy = harbor["point"]
-    dist2 = (sx - hx)**2 + (sy - hy)**2
+    dist2 = (sx - hx) ** 2 + (sy - hy) ** 2
     assert dist2 < 30 * 30, f"Spawn ({sx},{sy}) too far from harbor ({hx},{hy})"
 
     # Smoke test positive movement
@@ -66,7 +67,7 @@ def test_starting_overland_game_start_and_mechanics() -> None:
     assert adjacent is not None, "No adjacent walkable tile found for player spawn"
     ax, ay = adjacent
     assert try_move(gs.player_id, ax - sx, ay - sy, gs)
-    
+
     # Re-sync pos after move
     sx, sy = ax, ay
 
@@ -74,9 +75,36 @@ def test_starting_overland_game_start_and_mechanics() -> None:
     unwalkable = _find_adjacent_unwalkable_tile(gs)
     assert unwalkable is not None, "No unwalkable tile found near player"
     ux, uy = unwalkable
-    # Move there
-    moved = try_move(gs.player_id, ux - sx, uy - sy, gs)
-    assert not moved, f"Player was incorrectly allowed to move to unwalkable tile ({ux},{uy})"
+
+    assert not human_on_foot_can_enter(gs, ux, uy)
+
+    # Find a walkable tile adjacent to ux, uy to place the player temporarily
+    px_new, py_new = None, None
+    for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+        tx, ty = ux + dx, uy + dy
+        if gs.game_map.in_bounds(tx, ty) and human_on_foot_can_enter(gs, tx, ty):
+            px_new, py_new = tx, ty
+            break
+
+    assert px_new is not None, "No walkable tile adjacent to the unwalkable tile found"
+
+    from game.entities.components import Position
+
+    original_pos = gs.player_position
+    assert original_pos is not None
+
+    # Temporarily place player adjacent to the unwalkable tile
+    gs.entity_registry.set_position(gs.player_id, Position(px_new, py_new))
+    assert gs.player_position == Position(px_new, py_new)
+
+    # Try to move player into the unwalkable tile (should fail)
+    moved = try_move(gs.player_id, ux - px_new, uy - py_new, gs)
+    assert (
+        not moved
+    ), f"Player was incorrectly allowed to move to unwalkable tile ({ux},{uy})"
+
+    # Restore original position
+    gs.entity_registry.set_position(gs.player_id, Position(*original_pos))
 
     # 4. Renderer assertion (more than one glyph index / material presentation value)
     game_map.compute_fov(sx, sy, gs.fov_radius)
@@ -85,8 +113,19 @@ def test_starting_overland_game_start_and_mechanics() -> None:
     fg_colors = np.ones((max_id + 1, 3), dtype=np.uint8) * 255
     bg_colors = np.zeros((max_id + 1, 3), dtype=np.uint8)
     indices = np.arange(max_id + 1, dtype=np.uint16)
-    
-    base_fg, base_bg, glyph_indices, vis, drawn, h_map, map_vis, map_mem, map_tiles, vp_shape = prepare_base_layers(
+
+    (
+        base_fg,
+        base_bg,
+        glyph_indices,
+        vis,
+        drawn,
+        h_map,
+        map_vis,
+        map_mem,
+        map_tiles,
+        vp_shape,
+    ) = prepare_base_layers(
         game_map=game_map,
         viewport_x=max(0, sx - 10),
         viewport_y=max(0, sy - 10),
@@ -97,9 +136,11 @@ def test_starting_overland_game_start_and_mechanics() -> None:
         tile_bg_colors=bg_colors,
         tile_indices_render=indices,
     )
-    
+
     # Assert there's more than one distinct glyph index OR distinct FG color used in the drawn area
     unique_glyphs = np.unique(glyph_indices[drawn])
     unique_fgs = np.unique(base_fg[drawn], axis=0)
-    
-    assert len(unique_glyphs) > 1 or len(unique_fgs) > 1, "Renderer silent fallback to floor/wall visuals detected."
+
+    assert (
+        len(unique_glyphs) > 1 or len(unique_fgs) > 1
+    ), "Renderer silent fallback to floor/wall visuals detected."

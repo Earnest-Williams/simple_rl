@@ -128,17 +128,22 @@ def prepare_base_layers(
 
             metadata = getattr(game_map, "overland_metadata", None)
             if metadata is not None:
-                from game.world.overland_presentation import get_resolved_overland_presentation
+                from game.world.overland_presentation import (
+                    get_resolved_overland_presentation,
+                )
+
                 pres_cache = get_resolved_overland_presentation()
-                
-                material_vp = _read_only_view(metadata.material_grid[safe_y_slice, safe_x_slice])
-                
-                for mat_id, (glyph, fg, bg) in pres_cache.items():
+
+                material_vp = _read_only_view(
+                    metadata.material_grid[safe_y_slice, safe_x_slice]
+                )
+
+                for mat_id, pres in pres_cache.items():
                     mat_mask_2d = drawn_mask & (material_vp == mat_id)
                     if np.any(mat_mask_2d):
-                        base_fg[mat_mask_2d] = fg
-                        base_bg[mat_mask_2d] = bg
-                        glyph_indices[mat_mask_2d] = glyph
+                        base_fg[mat_mask_2d] = pres.fg
+                        base_bg[mat_mask_2d] = pres.bg
+                        glyph_indices[mat_mask_2d] = pres.glyph_index
         except IndexError as e:
             log.error(
                 "IndexError during color/glyph assignment in prepare_base_layers",

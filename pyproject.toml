@@ -194,7 +194,7 @@ module = [
     "tools.lighting_fov_tool.scene",
     "tools.lighting_fov_tool.tile_config",
     "tools.lighting_fov_tool.tool_window",
-    "tools.play_from_arrow",
+    "tools.play_game",
     "tools.sample_variants",
     "utils.core",
     "utils.game_rng",
