@@ -119,6 +119,7 @@ def test_visible_enemy_detection_uses_store_and_spatial_index() -> None:
         game_state.spatial_index.insert(eid, x, y, registry.kind_at(idx))
 
     game_state.update_fov()
+    game_state.prune_npc_vision_by_player_fov = True
     # Mock player's FOV (the los_map parameter in gather_perception_snapshot is derived from FOV)
     los_map = np.zeros((8, 8), dtype=bool)
     los_map[2, 3] = True  # make (3, 2) visible (y, x order)
@@ -164,6 +165,7 @@ def test_visual_audio_scent_memory_priority_survives_store_iteration() -> None:
 
     game_state.update_fov()
     game_state.game_map.visible[:] = True
+    game_state.prune_npc_vision_by_player_fov = True
 
     # 1. Visual wins
     snapshot = gather_perception_snapshot(game_state)

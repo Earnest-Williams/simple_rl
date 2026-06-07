@@ -11,7 +11,7 @@ import structlog
 from numpy.typing import NDArray
 
 from game.perception_events import AIMemoryFact
-from game.world.los import line_of_sight
+from game.world.los import line_of_sight_many_u8
 from pathfinding.perception_systems import FlowType
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -159,6 +159,14 @@ def find_visible_enemies_for_index(
             ox, oy = registry.position_at(other_idx)
             nearby.append((other_id, ox, oy))
 
+    prune_by_player_fov: bool = bool(
+        getattr(game_state, "prune_npc_vision_by_player_fov", False)
+    )
+
+    candidate_indices: list[int] = []
+    target_x: list[int] = []
+    target_y: list[int] = []
+
     for candidate_id, ox, oy in nearby:
         if candidate_id == actor_id:
             continue
@@ -178,11 +186,33 @@ def find_visible_enemies_for_index(
         if not game_map.in_bounds(ox, oy):
             continue
 
-        if not los_map[oy, ox]:
+        if prune_by_player_fov and not los_map[oy, ox]:
             continue
 
-        if line_of_sight(ex, ey, ox, oy, game_map.transparent):
-            enemies.append(registry.visible_target_at(candidate_idx))
+        candidate_indices.append(candidate_idx)
+        target_x.append(int(ox))
+        target_y.append(int(oy))
+
+    n_queries = len(candidate_indices)
+    if n_queries > 0:
+        sx = np.full(n_queries, int(ex), dtype=np.int32)
+        sy = np.full(n_queries, int(ey), dtype=np.int32)
+        ex_arr = np.asarray(target_x, dtype=np.int32)
+        ey_arr = np.asarray(target_y, dtype=np.int32)
+
+        visibility_mask = line_of_sight_many_u8(
+            sx,
+            sy,
+            ex_arr,
+            ey_arr,
+            game_map.transparent,
+        )
+
+        for i, is_visible in enumerate(visibility_mask):
+            if is_visible != 0:
+                target = registry.visible_target_at(candidate_indices[i])
+                if target is not None:
+                    enemies.append(target)
 
     log.debug(
         "Visible enemies located for index",
@@ -190,6 +220,99 @@ def find_visible_enemies_for_index(
         count=len(enemies),
     )
     return enemies
+
+
+def _batch_visible_targets_for_actors(
+    actor_indices: list[int],
+    game_state: GameState,
+    los_map: NDArray[np.bool_],
+) -> dict[int, list[VisibleTarget]]:
+    """Query LOS in a single batch for all listed actors and return visible targets by actor entity_id."""
+    registry = game_state.entity_registry
+    game_map = game_state.game_map
+    spatial_index = getattr(game_state, "spatial_index", None)
+    prune_by_player_fov = bool(getattr(game_state, "prune_npc_vision_by_player_fov", False))
+
+    sx_list: list[int] = []
+    sy_list: list[int] = []
+    ex_list: list[int] = []
+    ey_list: list[int] = []
+    query_meta: list[tuple[int, int]] = []
+
+    for actor_idx in actor_indices:
+        actor_id = registry.entity_id_at(actor_idx)
+        ex, ey = registry.xy_at(actor_idx)
+        actor_faction = registry.faction_at(actor_idx)
+        vision_range = registry.get_component_at(actor_idx, "vision_range") or game_state.fov_radius
+
+        nearby = None
+        if spatial_index is not None and hasattr(spatial_index, "query_radius"):
+            nearby = spatial_index.query_radius((ex, ey), vision_range)
+
+        if not nearby:
+            nearby = []
+            for other_idx in registry.active_indices():
+                other_id = registry.entity_id_at(other_idx)
+                ox, oy = registry.position_at(other_idx)
+                nearby.append((other_id, ox, oy))
+
+        for candidate_id, ox, oy in nearby:
+            if candidate_id == actor_id:
+                continue
+
+            candidate_idx = registry.index_of_entity(candidate_id)
+            if candidate_idx is None:
+                continue
+
+            if not registry.is_active_at(candidate_idx):
+                continue
+
+            candidate_faction = registry.faction_at(candidate_idx)
+            if actor_faction is not None:
+                if candidate_faction is None or candidate_faction == actor_faction:
+                    continue
+
+            if not game_map.in_bounds(ox, oy):
+                continue
+
+            if prune_by_player_fov and not los_map[oy, ox]:
+                continue
+
+            sx_list.append(int(ex))
+            sy_list.append(int(ey))
+            ex_list.append(int(ox))
+            ey_list.append(int(oy))
+            query_meta.append((actor_id, candidate_idx))
+
+    n_queries = len(sx_list)
+    visible_targets_by_actor: dict[int, list[VisibleTarget]] = {
+        int(registry.entity_id_at(idx)): [] for idx in actor_indices
+    }
+
+    if n_queries == 0:
+        return visible_targets_by_actor
+
+    sx = np.asarray(sx_list, dtype=np.int32)
+    sy = np.asarray(sy_list, dtype=np.int32)
+    ex_arr = np.asarray(ex_list, dtype=np.int32)
+    ey_arr = np.asarray(ey_list, dtype=np.int32)
+
+    visibility_mask = line_of_sight_many_u8(
+        sx,
+        sy,
+        ex_arr,
+        ey_arr,
+        game_map.transparent,
+    )
+
+    for i, is_visible in enumerate(visibility_mask):
+        if is_visible != 0:
+            actor_id, candidate_idx = query_meta[i]
+            target = registry.visible_target_at(candidate_idx)
+            if target is not None:
+                visible_targets_by_actor[actor_id].append(target)
+
+    return visible_targets_by_actor
 
 
 def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
@@ -210,16 +333,27 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     cave_when = game_state.perception_cave_when
     game_map = game_state.game_map
 
+    # 1. Collect all perceptive actor indices once
+    actor_indices: list[int] = []
     for idx in registry.active_non_player_indices(game_state.player_id):
         idx = int(idx)
-        if not registry.has_perception_profile_at(idx):
-            continue
+        if registry.has_perception_profile_at(idx):
+            actor_indices.append(idx)
+
+    # 2. Build and execute all actor-target LOS queries in one batch
+    visible_targets_by_actor = _batch_visible_targets_for_actors(
+        actor_indices,
+        game_state,
+        los_map,
+    )
+
+    for idx in actor_indices:
 
         ent_id = registry.entity_id_at(idx)
         ex, ey = registry.xy_at(idx)
 
-        # 1. Visible targets
-        visible_targets = find_visible_enemies_for_index(idx, game_state, los_map)
+        # 3. Retrieve pre-computed visible targets for this actor
+        visible_targets = visible_targets_by_actor.get(ent_id, [])
 
         # 2. Audio facts
         heard_source = None
@@ -345,13 +479,14 @@ def find_visible_enemies(
     game_map = game_state.game_map
     enemies: list[VisibleTarget] = []
 
-    if ex is None or ey is None:
+    if ex is None or ey is None or entity_id is None:
         return enemies
 
     # Use store accessors instead of entities_df for efficiency
     registry = game_state.entity_registry
     vision_range = _row_int(entity_row, "vision_range") or game_state.fov_radius
     spatial_index = getattr(game_state, "spatial_index", None)
+    prune_by_player_fov = bool(getattr(game_state, "prune_npc_vision_by_player_fov", False))
     
     # Build a dict of all valid enemy targets using store accessors
     enemy_rows: dict[int, VisibleTarget] = {}
@@ -375,6 +510,12 @@ def find_visible_enemies(
     if spatial_index is not None and hasattr(spatial_index, "query_radius"):
         nearby = spatial_index.query_radius((ex, ey), vision_range)
     
+    sx_list: list[int] = []
+    sy_list: list[int] = []
+    ex_list: list[int] = []
+    ey_list: list[int] = []
+    query_meta: list[int] = []
+    
     # Process candidates
     if nearby:
         # Use spatial index results - these are (entity_id, x, y) tuples
@@ -386,10 +527,14 @@ def find_visible_enemies(
                 continue
             if not game_map.in_bounds(int(ox), int(oy)):
                 continue
-            if not los_map[int(oy), int(ox)]:
+            if prune_by_player_fov and not los_map[int(oy), int(ox)]:
                 continue
-            if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
-                enemies.append(other_row)
+            
+            sx_list.append(int(ex))
+            sy_list.append(int(ey))
+            ex_list.append(int(ox))
+            ey_list.append(int(oy))
+            query_meta.append(other_id)
     else:
         # Fallback to all enemy_rows
         for other_id, other_row in enemy_rows.items():
@@ -397,10 +542,34 @@ def find_visible_enemies(
             oy = other_row["y"]
             if not game_map.in_bounds(int(ox), int(oy)):
                 continue
-            if not los_map[int(oy), int(ox)]:
+            if prune_by_player_fov and not los_map[int(oy), int(ox)]:
                 continue
-            if line_of_sight(int(ex), int(ey), int(ox), int(oy), game_map.transparent):
-                enemies.append(other_row)
+            
+            sx_list.append(int(ex))
+            sy_list.append(int(ey))
+            ex_list.append(int(ox))
+            ey_list.append(int(oy))
+            query_meta.append(other_id)
+
+    if not sx_list:
+        return enemies
+
+    visibility_mask = line_of_sight_many_u8(
+        np.asarray(sx_list, dtype=np.int32),
+        np.asarray(sy_list, dtype=np.int32),
+        np.asarray(ex_list, dtype=np.int32),
+        np.asarray(ey_list, dtype=np.int32),
+        game_map.transparent,
+    )
+
+    for i, is_visible in enumerate(visibility_mask):
+        if is_visible == 0:
+            continue
+
+        other_id = query_meta[i]
+        target = enemy_rows.get(other_id)
+        if target is not None:
+            enemies.append(target)
 
     log.debug(
         "Visible enemies located",

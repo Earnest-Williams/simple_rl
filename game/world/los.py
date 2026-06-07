@@ -8,6 +8,8 @@ if two points on a grid have a clear view between them.
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
+from utils.los.los_wrapper import los_many as _los_many
 
 try:  # Optional Numba acceleration
     import numba
@@ -88,4 +90,25 @@ def line_of_sight(
     return True
 
 
-__all__ = ["line_of_sight"]
+def line_of_sight_many_u8(
+    starts_x: NDArray[np.int32],
+    starts_y: NDArray[np.int32],
+    ends_x: NDArray[np.int32],
+    ends_y: NDArray[np.int32],
+    transparency_map: NDArray[np.bool_] | NDArray[np.uint8],
+) -> NDArray[np.uint8]:
+    """Return batched line-of-sight results as uint8 values.
+
+    Output uses 0 for blocked/not visible and 1 for clear/visible.
+    Coordinates are in x/y order, matching line_of_sight().
+    """
+    return _los_many(
+        starts_x,
+        starts_y,
+        ends_x,
+        ends_y,
+        np.ascontiguousarray(transparency_map, dtype=np.uint8),
+    )
+
+
+__all__ = ["line_of_sight", "line_of_sight_many_u8"]
