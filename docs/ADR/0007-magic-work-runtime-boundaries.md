@@ -15,7 +15,7 @@ The magic subsystem has three related but distinct concepts:
 - `game/effects/handlers.py`: production effect handlers that can be adapted to
   runtime work execution through `(Art, Substance)` dispatch.
 
-`docs/Current Status.md` correctly marks magic as in development. The system has
+[`docs/Current Status.md`](../Current%20Status.md) correctly marks magic as in development. The system has
 useful pieces, but production claims need a narrow integration boundary and
 tests before broader spellcasting gameplay is added.
 
@@ -44,7 +44,7 @@ than calling effect handlers directly.
   work.
 - Runtime tests should import `magic.Work` or `magic.executor.Work`.
 - New production spellcasting work should add focused executor tests before
-  claiming integration status in `docs/Current Status.md`.
+  claiming integration status in [`docs/Current Status.md`](../Current%20Status.md).
 - The next production slice should add a small game-facing command or system
   wrapper that builds an executor work, calls `execute_work`, and records the
   result for UI/messages, without expanding the full spell catalogue yet.
