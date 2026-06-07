@@ -243,3 +243,22 @@ def expedition_survey(gs: GameState) -> bool:
         (200, 200, 255),
     )
     return True
+
+
+def is_in_first_cave_context(gs: GameState) -> bool:
+    expedition = getattr(gs, "expedition", None)
+    if expedition is None or not expedition.cave_entered:
+        return False
+
+    return getattr(gs, "overland_map_backup", None) is not None
+
+
+def record_first_cave_survey(gs: GameState) -> bool:
+    expedition = getattr(gs, "expedition", None)
+    if expedition is None:
+        return False
+
+    expedition.discovery_ids.add("first_cave_survey")
+    expedition.discovery_recorded = True
+    gs.add_message("Discovery recorded: first cave surveyed.", (255, 215, 0))
+    return True

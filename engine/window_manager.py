@@ -1206,6 +1206,17 @@ class WindowManager(QMainWindow):
         self.label.setFixedSize(frame_image.width, frame_image.height)
         self.label.setPixmap(pixmap)
 
+        try:
+            from game.expedition.resolvers import first_playable_objective_text
+
+            objective_text = first_playable_objective_text(gs)
+            if objective_text:
+                self.setWindowTitle(f"Simple RL - {objective_text}")
+            else:
+                self.setWindowTitle("Simple RL")
+        except Exception as title_err:
+            log.debug("Unable to update objective title", error=str(title_err))
+
         # Log frame timing
         frame_duration = (time.perf_counter() - frame_start_time) * 1000
         if frame_duration > 100:

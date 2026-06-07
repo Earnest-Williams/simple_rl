@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import heapq
+
+import numpy as np
+from PIL import Image
+from engine.renderer import ViewportParams, _draw_first_playable_route_overlay
+
 from game.entities.components import Position
+from game.systems.overland_movement import human_on_foot_can_enter
 from game.expedition.resolvers import (
+    first_playable_objective_text,
+    first_playable_route_points,
     is_player_at_starting_port,
     resolve_first_playable_blockage,
     resolve_first_playable_route,
@@ -10,7 +19,123 @@ from game.expedition.resolvers import (
     resolve_first_playable_target,
     resolve_starting_contract,
 )
-from tools.play_game import create_gamestate_from_overland
+from tools.play_game import create_gamestate_from_overland, print_viewport
+
+
+def _build_human_passable_map(gs) -> np.ndarray:
+    metadata = getattr(gs.game_map, "overland_metadata", None)
+    height = gs.game_map.height
+    width = gs.game_map.width
+    passable = np.zeros((height, width), dtype=bool)
+    if metadata is None:
+        for y in range(height):
+            for x in range(width):
+                passable[y, x] = gs.game_map.is_walkable(x, y)
+    else:
+        for y in range(height):
+            for x in range(width):
+                passable[y, x] = human_on_foot_can_enter(gs, x, y)
+    return passable
+
+
+def _find_path(gs, start: tuple[int, int], target: tuple[int, int]) -> list[tuple[int, int]]:
+    if start == target:
+        return [start]
+
+    passable = _build_human_passable_map(gs)
+    height_map = np.asarray(gs.game_map.height_map, dtype=np.int16)
+    width = gs.game_map.width
+    height = gs.game_map.height
+
+    def heuristic(x: int, y: int) -> float:
+        return max(abs(x - target[0]), abs(y - target[1]))
+
+    frontier: list[tuple[float, int, int]] = []
+    heapq.heappush(frontier, (heuristic(*start), start[0], start[1]))
+    came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
+    cost_so_far: dict[tuple[int, int], float] = {start: 0.0}
+
+    directions = (
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (-1, 1),
+        (1, -1),
+        (1, 1),
+    )
+
+    while frontier:
+        _, current_x, current_y = heapq.heappop(frontier)
+        current = (current_x, current_y)
+        if current == target:
+            break
+
+        current_h = int(height_map[current_y, current_x])
+        for dx, dy in directions:
+            next_x = current_x + dx
+            next_y = current_y + dy
+            next_pt = (next_x, next_y)
+            if not (0 <= next_x < width and 0 <= next_y < height):
+                continue
+            if not passable[next_y, next_x]:
+                continue
+            if abs(int(height_map[next_y, next_x]) - current_h) > 1:
+                continue
+
+            step_cost = 1.41421356237 if dx != 0 and dy != 0 else 1.0
+            new_cost = cost_so_far[current] + step_cost
+            if next_pt not in cost_so_far or new_cost < cost_so_far[next_pt]:
+                cost_so_far[next_pt] = new_cost
+                priority = new_cost + heuristic(next_x, next_y)
+                heapq.heappush(frontier, (priority, next_x, next_y))
+                came_from[next_pt] = current
+
+    if target not in came_from:
+        raise AssertionError(f"No path found from {start} to {target}")
+
+    path: list[tuple[int, int]] = []
+    current: tuple[int, int] | None = target
+    while current is not None:
+        path.append(current)
+        current = came_from[current]
+    path.reverse()
+    return path
+
+
+def _move_step_towards(gs, target: tuple[int, int]) -> bool:
+    player_pos = gs.player_position
+    if player_pos is None:
+        return False
+
+    px, py = player_pos
+    path = _find_path(gs, (px, py), target)
+    if len(path) < 2:
+        return True
+
+    next_x, next_y = path[1]
+    flow_dx = next_x - px
+    flow_dy = next_y - py
+
+    from engine.action_handler import process_player_action
+
+    return process_player_action(
+        {"type": "move", "dx": int(flow_dx), "dy": int(flow_dy)},
+        gs,
+        max_traversable_step=1,
+    )
+
+
+def _walk_to(gs, target: tuple[int, int], *, max_steps: int = 500) -> None:
+    for _ in range(max_steps):
+        player_pos = gs.player_position
+        assert player_pos is not None
+        if (player_pos.x, player_pos.y) == target:
+            return
+        acted = _move_step_towards(gs, target)
+        assert acted is True
+    raise AssertionError(f"Failed to reach {target} within {max_steps} steps")
 
 
 def test_first_playable_resolvers_are_consistent() -> None:
@@ -69,6 +194,13 @@ def test_expedition_survey_at_starting_port() -> None:
     assert gs.expedition.survey_completed is True
     assert gs.expedition.route_revealed is True
     assert gs.expedition.active_objective_id == "follow_ancient_road"
+    assert gs.expedition.discovery_recorded is False
+    assert "first_cave_survey" not in gs.expedition.discovery_ids
+    assert (
+        first_playable_objective_text(gs)
+        == "Objective: follow the ancient road to the first cave."
+    )
+    assert first_playable_route_points(gs)
 
     # Verify message log
     messages = [msg for msg, color in gs.message_log]
@@ -111,6 +243,59 @@ def test_expedition_survey_away_from_starting_port() -> None:
     acted = process_player_action(action, gs, max_traversable_step=1)
     assert acted is True
     assert gs.expedition.survey_completed is False
+    assert gs.expedition.discovery_recorded is False
+    assert "first_cave_survey" not in gs.expedition.discovery_ids
+
+
+def test_ascii_viewport_shows_objective_marker_after_survey(capsys) -> None:
+    from engine.action_handler import process_player_action
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    process_player_action({"type": "survey"}, gs, max_traversable_step=1)
+
+    print_viewport(gs, radius_x=6, radius_y=4)
+    output = capsys.readouterr().out
+
+    assert "Objective: follow the ancient road to the first cave." in output
+    assert "*" in output or "!" in output
+
+
+def test_gui_route_overlay_draws_marker_after_survey() -> None:
+    from engine.action_handler import process_player_action
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    process_player_action({"type": "survey"}, gs, max_traversable_step=1)
+
+    route_points = first_playable_route_points(gs)
+    assert route_points
+    target_x, target_y = route_points[-1]
+
+    viewport = ViewportParams(
+        viewport_x=max(0, target_x - 2),
+        viewport_y=max(0, target_y - 2),
+        viewport_width=5,
+        viewport_height=5,
+        tile_arrays={},
+        tile_fg_colors=np.zeros((1, 3), dtype=np.uint8),
+        tile_bg_colors=np.zeros((1, 3), dtype=np.uint8),
+        tile_indices_render=np.zeros((1,), dtype=np.uint16),
+        max_defined_tile_id=0,
+        tile_w=4,
+        tile_h=4,
+        coord_arrays={
+            "tile_coord_y": np.zeros((20, 20), dtype=np.int32),
+            "tile_coord_x": np.zeros((20, 20), dtype=np.int32),
+        },
+    )
+    image = Image.new("RGBA", (20, 20), (0, 0, 0, 255))
+    _draw_first_playable_route_overlay(image, gs, viewport, 4, 4)
+
+    center_pixel = image.getpixel((10, 10))
+    assert center_pixel != (0, 0, 0, 255)
 
 
 def test_expedition_repair_clears_blockage() -> None:
@@ -196,54 +381,96 @@ def test_expedition_cave_handoff() -> None:
     messages = [msg for msg, color in gs.message_log]
     assert any("You return to the surface." in msg for msg in messages)
 
-def test_expedition_discovery_and_completion() -> None:
+def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     from engine.action_handler import process_player_action
-    from game.expedition.resolvers import resolve_starting_contract
-    from game.entities.components import Position
 
     gs = create_gamestate_from_overland(
         seed=20260604, width=128, height=96, first_playable=True
     )
+    assert gs.expedition is not None
+
     contract = resolve_starting_contract(gs)
-    
-    # 1. Enter the cave
+    route = resolve_first_playable_route(gs)
+    blockage_pt = resolve_first_playable_blockage(gs)
     cave_refs = contract.get("cave_refs", [])
+    assert route
+    assert blockage_pt is not None
     assert len(cave_refs) > 0
-    cx, cy = tuple(cave_refs[0].get("point"))
-    
-    gs.entity_registry.set_position(gs.player_id, Position(cx, cy))
-    process_player_action({"type": "enter", "x": cx, "y": cy}, gs, max_traversable_step=1)
+
+    harbor = contract.get("harbor")
+    assert harbor is not None
+    harbor_pt = tuple(harbor.get("point"))
+    cave_pt = tuple(cave_refs[0].get("point"))
+
+    # Survey at port.
+    acted = process_player_action({"type": "survey"}, gs, max_traversable_step=1)
+    assert acted is True
+    assert gs.expedition.survey_completed is True
+    assert gs.expedition.route_revealed is True
+    assert gs.expedition.active_objective_id == "follow_ancient_road"
+
+    # Walk to the blockage and repair it in place.
+    _walk_to(gs, blockage_pt)
+    player_pos = gs.player_position
+    assert player_pos is not None
+    assert (player_pos.x, player_pos.y) == blockage_pt
+
+    acted = process_player_action(
+        {"type": "repair", "x": blockage_pt[0], "y": blockage_pt[1]},
+        gs,
+        max_traversable_step=1,
+    )
+    assert acted is True
+    assert gs.expedition.blockage_cleared is True
+
+    # Continue to the cave transition and enter without teleporting.
+    _walk_to(gs, cave_pt)
+    player_pos = gs.player_position
+    assert player_pos is not None
+    assert (player_pos.x, player_pos.y) == cave_pt
+
+    overland_map_ref = gs.game_map
+    acted = process_player_action(
+        {"type": "enter", "x": cave_pt[0], "y": cave_pt[1]},
+        gs,
+        max_traversable_step=1,
+    )
+    assert acted is True
     assert gs.expedition.cave_entered is True
-    
-    # 2. Record discovery via survey
+    assert gs.game_map is not overland_map_ref
+
+    # Record the discovery from the cave context.
     acted = process_player_action({"type": "survey"}, gs, max_traversable_step=1)
     assert acted is True
     assert "first_cave_survey" in gs.expedition.discovery_ids
     assert gs.expedition.discovery_recorded is True
-    
+
     messages = [msg for msg, color in gs.message_log]
     assert any("Discovery recorded: first cave surveyed." in msg for msg in messages)
-    
-    # 3. Exit the cave
-    process_player_action({"type": "enter", "x": 10, "y": 10}, gs, max_traversable_step=1)
-    
-    # Loop shouldn't be completed yet
-    assert gs.expedition.loop_completed is False
-    
-    # 4. Return to port
-    harbor = contract.get("harbor")
-    hx, hy = tuple(harbor.get("point"))
-    
-    # Teleport to harbor
-    gs.entity_registry.set_position(gs.player_id, Position(hx, hy))
-    
-    # Perform a valid move action within the harbor to trigger a turn
-    # Assuming (hx+1, hy) is walkable or bumping a wall consumes a turn? 
-    # Actually, a wait action or just a survey action works to consume a turn.
-    process_player_action({"type": "survey"}, gs, max_traversable_step=1)
-    
+
+    # Exit and walk back to port without teleporting.
+    acted = process_player_action(
+        {"type": "enter", "x": 10, "y": 10},
+        gs,
+        max_traversable_step=1,
+    )
+    assert acted is True
+    assert gs.game_map is overland_map_ref
+
+    _walk_to(gs, harbor_pt)
+    player_pos = gs.player_position
+    assert player_pos is not None
+    assert (player_pos.x, player_pos.y) == harbor_pt
+
+    # Trigger completion from the real port context and ensure the message only appears once.
+    gs.message_log.clear()
+    acted = process_player_action({"type": "wait"}, gs, max_traversable_step=1)
+    assert acted is True
     assert gs.expedition.returned_to_port is True
     assert gs.expedition.loop_completed is True
-    
+
+    completion_message = (
+        "Expedition complete: first cave surveyed and route back to port confirmed."
+    )
     messages = [msg for msg, color in gs.message_log]
-    assert any("Expedition complete: first cave surveyed and route back to port confirmed." in msg for msg in messages)
+    assert messages.count(completion_message) == 1

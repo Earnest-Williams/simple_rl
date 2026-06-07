@@ -351,6 +351,18 @@ def _ascii_for_overland_material(material_id: int) -> str:
     return mapping.get(material_id, ".")
 
 
+def _first_playable_objective_text(gs: GameState) -> str | None:
+    from game.expedition.resolvers import first_playable_objective_text
+
+    return first_playable_objective_text(gs)
+
+
+def _first_playable_route_points(gs: GameState) -> list[tuple[int, int]]:
+    from game.expedition.resolvers import first_playable_route_points
+
+    return first_playable_route_points(gs)
+
+
 def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None:
     """Print an ASCII viewport centered on the player showing local tiles."""
     gm: GameMap = gs.game_map
@@ -365,6 +377,9 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
     y1: int = min(gm.height, py + radius_y + 1)
     x0: int = max(0, px - radius_x)
     x1: int = min(gm.width, px + radius_x + 1)
+    route_points = _first_playable_route_points(gs)
+    route_point_set = set(route_points)
+    route_target = route_points[-1] if route_points else None
 
     rows: list[str] = []
     for y in range(y0, y1):
@@ -372,6 +387,12 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
         for x in range(x0, x1):
             if x == px and y == py:
                 line.append("@")
+                continue
+            if (x, y) in route_point_set:
+                if route_target is not None and (x, y) == route_target:
+                    line.append("!")
+                else:
+                    line.append("*")
                 continue
             metadata = getattr(gm, "overland_metadata", None)
             if metadata is not None:
@@ -386,6 +407,9 @@ def print_viewport(gs: GameState, radius_x: int = 12, radius_y: int = 8) -> None
             else:
                 line.append("?")
         rows.append("".join(line))
+    objective_text = _first_playable_objective_text(gs)
+    if objective_text:
+        print(objective_text)
     print("\n".join(rows))
     if gs.message_log:
         print("--- Messages ---")
@@ -511,7 +535,35 @@ def run_cli_mode(
             "a": (-1, 0),
             "d": (1, 0),
         }
-        if cmd[0] in mapping:
+        if cmd in {"survey", "v"}:
+            action: dict[str, str] = {"type": "survey"}
+            try:
+                ml.handle_action(action)
+            except Exception as exc:
+                print(f"Action error: {exc}")
+            print_viewport(gs)
+        elif cmd in {"repair", "r"}:
+            action = {"type": "repair"}
+            try:
+                ml.handle_action(action)
+            except Exception as exc:
+                print(f"Action error: {exc}")
+            print_viewport(gs)
+        elif cmd in {"enter", "x"}:
+            action = {"type": "enter"}
+            try:
+                ml.handle_action(action)
+            except Exception as exc:
+                print(f"Action error: {exc}")
+            print_viewport(gs)
+        elif cmd in {"wait", "."}:
+            action = {"type": "wait"}
+            try:
+                ml.handle_action(action)
+            except Exception as exc:
+                print(f"Action error: {exc}")
+            print_viewport(gs)
+        elif cmd[0] in mapping:
             dx: int
             dy: int
             dx, dy = mapping[cmd[0]]

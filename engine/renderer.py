@@ -122,6 +122,54 @@ def create_error_image(width: int, height: int, message: str = "Error") -> Image
     return img
 
 
+def _draw_first_playable_route_overlay(
+    final_image: Image.Image,
+    gs: GameState,
+    viewport: ViewportParams,
+    tile_w: int,
+    tile_h: int,
+) -> None:
+    from game.expedition.resolvers import first_playable_route_points
+
+    route_points = first_playable_route_points(gs)
+    if not route_points:
+        return
+
+    draw = ImageDraw.Draw(final_image)
+    viewport_x = viewport.viewport_x
+    viewport_y = viewport.viewport_y
+    viewport_right = viewport_x + viewport.viewport_width
+    viewport_bottom = viewport_y + viewport.viewport_height
+
+    for idx, (x, y) in enumerate(route_points):
+        if x < viewport_x or x >= viewport_right or y < viewport_y or y >= viewport_bottom:
+            continue
+        local_x = x - viewport_x
+        local_y = y - viewport_y
+        px0 = local_x * tile_w
+        py0 = local_y * tile_h
+        px1 = px0 + tile_w - 1
+        py1 = py0 + tile_h - 1
+        if idx == len(route_points) - 1:
+            fill = (255, 230, 70, 220)
+            outline = (255, 80, 40, 255)
+            inner_x0 = px0 + 2
+            inner_y0 = py0 + 2
+            inner_x1 = px1 - 2
+            inner_y1 = py1 - 2
+            if inner_x1 < inner_x0 or inner_y1 < inner_y0:
+                draw.rectangle((px0, py0, px1, py1), fill=fill, outline=outline)
+            else:
+                draw.ellipse(
+                    (inner_x0, inner_y0, inner_x1, inner_y1),
+                    fill=fill,
+                    outline=outline,
+                )
+        else:
+            outline = (255, 215, 0, 220)
+            draw.rectangle((px0 + 1, py0 + 1, px1 - 1, py1 - 1), outline=outline, width=1)
+
+
 def render_map_tiles_fallback(
     output_image_array: NDArray[np.uint8],
     glyph_indices: NDArray[np.int_],
@@ -570,6 +618,15 @@ def render_viewport(
     try:
         if output_pixel_h > 0 and output_pixel_w > 0:
             final_image = Image.fromarray(output_image_array, "RGBA")
+            try:
+                _draw_first_playable_route_overlay(
+                    final_image, gs, viewport, tile_w, tile_h
+                )
+            except Exception as overlay_err:
+                log.error(
+                    f"Error drawing first-playable route overlay: {overlay_err}",
+                    exc_info=True,
+                )
             return final_image
         else:
             log.warning("Output pixel dimensions were non-positive after processing")

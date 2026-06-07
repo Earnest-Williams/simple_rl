@@ -185,3 +185,29 @@ def resolve_cave_metadata_at(gs: GameState, x: int, y: int) -> Mapping[str, Any]
         if point == (x, y):
             return cave
     return None
+
+
+def first_playable_objective_text(gs: GameState) -> str | None:
+    expedition = getattr(gs, "expedition", None)
+    if expedition is None or not expedition.route_revealed:
+        return None
+    if expedition.active_objective_id != "follow_ancient_road":
+        return None
+    return "Objective: follow the ancient road to the first cave."
+
+
+def first_playable_route_points(gs: GameState) -> list[Point]:
+    expedition = getattr(gs, "expedition", None)
+    if expedition is None or not expedition.route_revealed:
+        return []
+    route = resolve_first_playable_route(gs)
+    if route:
+        return route
+    return resolve_first_playable_route_endpoints(gs)
+
+
+def first_playable_route_target(gs: GameState) -> Point | None:
+    route = first_playable_route_points(gs)
+    if not route:
+        return resolve_first_playable_target(gs)
+    return route[-1]

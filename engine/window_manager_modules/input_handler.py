@@ -231,7 +231,15 @@ class InputHandler:
                     if action_name == "move":
                         action_to_dispatch = looked_up_action
                         key_handled = True
-                    elif action_name in ["wait", "pickup", "wait_alt", "wait_alt2"]:
+                    elif action_name in [
+                        "wait",
+                        "pickup",
+                        "survey",
+                        "repair",
+                        "enter",
+                        "wait_alt",
+                        "wait_alt2",
+                    ]:
                         # *** MODIFIED: Simplify action assignment ***
                         canonical_action_name = action_name
                         if action_name.startswith("wait"):
