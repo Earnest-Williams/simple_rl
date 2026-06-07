@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from typing import Any, cast
+
 import numpy as np
 
-from game.ai.perception import PerceptionFact, PerceptionSnapshot
 from game.ai.goap import _action_move_attack
+from game.ai.perception import PerceptionFact, PerceptionSnapshot
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 from utils.game_rng import GameRNG
 
 

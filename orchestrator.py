@@ -148,7 +148,7 @@ def run_pipeline(
 
     if metadata_path.exists():
         try:
-            with open(metadata_path, "r", encoding="utf-8") as f:
+            with open(metadata_path, encoding="utf-8") as f:
                 metadata = json.load(f)
                 transitions = metadata.get("transitions", [])
                 if transitions:
@@ -269,9 +269,7 @@ def run_pipeline(
         except OSError as exc:
             log.exception("Failed to write node map JSON: %s", exc)
     else:
-        log.warning(
-            "Shaped map missing x/y columns; skipping node->tile mapping."
-        )
+        log.warning("Shaped map missing x/y columns; skipping node->tile mapping.")
 
     map_arrays = load_shaped_map_as_arrays(output_file)
     node_to_tile: dict[int, tuple[int, int]] = {}

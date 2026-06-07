@@ -1,3 +1,6 @@
+from settlegen.export import write_bundle
+from settlegen.renderers.ascii import render_ascii
+
 from settlegen import (
     BuildingMaterial,
     DefenseStyle,
@@ -12,8 +15,6 @@ from settlegen import (
     TerrainFeature,
     Wealth,
 )
-from settlegen.export import write_bundle
-from settlegen.renderers.ascii import render_ascii
 
 config = SettlementConfig(
     kind=SettlementKind.PORT_CITY,

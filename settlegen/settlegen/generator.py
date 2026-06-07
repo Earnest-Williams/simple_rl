@@ -1205,7 +1205,9 @@ class SettlementGenerator:
             else (
                 2
                 if cfg.kind == SettlementKind.PORT_TOWN
-                else 4 if cfg.kind == SettlementKind.PORT_CITY else 1
+                else 4
+                if cfg.kind == SettlementKind.PORT_CITY
+                else 1
             )
         )
         for i in range(counts):
@@ -1411,40 +1413,55 @@ class SettlementGenerator:
         actual_population: int,
     ) -> None:
         if cfg.kind == SettlementKind.FORT:
-            mix, weights = [Facility.BARRACKS, Facility.HOUSE, Facility.STABLE], [
-                0.55,
-                0.35,
-                0.10,
-            ]
+            mix, weights = (
+                [Facility.BARRACKS, Facility.HOUSE, Facility.STABLE],
+                [
+                    0.55,
+                    0.35,
+                    0.10,
+                ],
+            )
         elif cfg.kind == SettlementKind.NOMAD_CAMP:
             mix, weights = [Facility.HOVEL, Facility.HOUSE], [0.70, 0.30]
         elif design_population > 8000:
-            mix, weights = [
-                Facility.TENEMENT,
-                Facility.HOUSE,
-                Facility.MANOR,
-                Facility.HOVEL,
-            ], [0.45, 0.35, 0.06, 0.14]
+            mix, weights = (
+                [
+                    Facility.TENEMENT,
+                    Facility.HOUSE,
+                    Facility.MANOR,
+                    Facility.HOVEL,
+                ],
+                [0.45, 0.35, 0.06, 0.14],
+            )
         elif cfg.wealth in (Wealth.RICH, Wealth.IMPERIAL):
-            mix, weights = [
-                Facility.HOUSE,
-                Facility.MANOR,
-                Facility.TENEMENT,
-                Facility.HOVEL,
-            ], [0.58, 0.16, 0.18, 0.08]
+            mix, weights = (
+                [
+                    Facility.HOUSE,
+                    Facility.MANOR,
+                    Facility.TENEMENT,
+                    Facility.HOVEL,
+                ],
+                [0.58, 0.16, 0.18, 0.08],
+            )
         elif cfg.wealth in (Wealth.DESTITUTE, Wealth.POOR):
-            mix, weights = [Facility.HOVEL, Facility.HOUSE, Facility.TENEMENT], [
-                0.52,
-                0.38,
-                0.10,
-            ]
+            mix, weights = (
+                [Facility.HOVEL, Facility.HOUSE, Facility.TENEMENT],
+                [
+                    0.52,
+                    0.38,
+                    0.10,
+                ],
+            )
         else:
-            mix, weights = [
-                Facility.HOUSE,
-                Facility.HOVEL,
-                Facility.TENEMENT,
-                Facility.MANOR,
-            ], [0.65, 0.18, 0.12, 0.05]
+            mix, weights = (
+                [
+                    Facility.HOUSE,
+                    Facility.HOVEL,
+                    Facility.TENEMENT,
+                    Facility.MANOR,
+                ],
+                [0.65, 0.18, 0.12, 0.05],
+            )
 
         target_capacity = max(design_population, actual_population)
         if cfg.state in (

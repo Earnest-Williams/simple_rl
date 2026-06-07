@@ -145,6 +145,7 @@ def test_headless_starting_port_generation_writes_inspectable_output(tmp_path) -
     assert isinstance(artifacts, dict)
     assert summary["map_rows"] == 80 * 64
     assert pl.read_ipc(artifacts["map_df"]).height == 80 * 64
-    assert json.loads(tmp_path.joinpath("settlement_metadata.json").read_text())[
-        "kind"
-    ] == "port_town"
+    assert (
+        json.loads(tmp_path.joinpath("settlement_metadata.json").read_text())["kind"]
+        == "port_town"
+    )

@@ -25,4 +25,5 @@ def _has_clear_extended_los(x0, y0, x1, y1):
             return True
         print(f"  check block at x={x}, y={y}")
 
+
 _has_clear_extended_los(2, 19, 4, 19)

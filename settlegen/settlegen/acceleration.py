@@ -9,7 +9,8 @@ try:  # optional dependency; the generator works without it
 except Exception:  # pragma: no cover - depends on environment
     NUMBA_AVAILABLE = False
 
-    from typing import Any, Callable, TypeVar
+    from collections.abc import Callable
+    from typing import Any, TypeVar
 
     F = TypeVar("F", bound=Callable[..., Any])
 

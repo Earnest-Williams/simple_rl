@@ -400,7 +400,7 @@ def test_game_map_geometry_setters_invalidate_cache() -> None:
 
     h = w = 5
     game_map = GameMap(w, h)
-    
+
     # Height
     initial_version = game_map.scene_geometry_version
     game_map.set_height(2, 2, 5)

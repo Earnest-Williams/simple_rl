@@ -44,9 +44,9 @@ def overland_to_game_map(
     if not with_metadata or metadata is None:
         return game_map
 
-    route_segments = metadata.get("route_segments") or metadata.get("starting_region_contract", {}).get(
-        "route_segments", []
-    )
+    route_segments = metadata.get("route_segments") or metadata.get(
+        "starting_region_contract", {}
+    ).get("route_segments", [])
     sidecar = OverlandMapMetadata(
         material_grid=_grid_from_column(tiles_df, "material", width, height, np.int16),
         biome_grid=_grid_from_column(tiles_df, "biome", width, height, np.int16),

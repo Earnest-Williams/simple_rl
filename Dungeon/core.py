@@ -621,6 +621,7 @@ class CaveGenerator:
 
         # Prepare evidence features from transition payload
         from worldgen.overland.schema import EvidenceTag
+
         evidence_features = []
         if self.transition_payload:
             for tag in self.transition_payload.get("evidence_tags", []):
@@ -628,13 +629,20 @@ class CaveGenerator:
                     tag_val = int(tag)
                 except (ValueError, TypeError):
                     continue
-                if tag_val in {int(EvidenceTag.PRECURSOR_OCCUPATION), int(EvidenceTag.ANCIENT_OCCUPATION)}:
+                if tag_val in {
+                    int(EvidenceTag.PRECURSOR_OCCUPATION),
+                    int(EvidenceTag.ANCIENT_OCCUPATION),
+                }:
                     evidence_features.append("precursor_ruin")
                 elif tag_val == int(EvidenceTag.PRIOR_EXPEDITION):
                     evidence_features.append("prior_expedition_camp")
                 elif tag_val == int(EvidenceTag.WAYSTATION_REMAINS):
                     evidence_features.append("ruined_waystation")
-                elif tag_val in {int(EvidenceTag.BURIAL_MOUNDS), int(EvidenceTag.BARROW_FIELD), int(EvidenceTag.MAUSOLEUM_COMPLEX)}:
+                elif tag_val in {
+                    int(EvidenceTag.BURIAL_MOUNDS),
+                    int(EvidenceTag.BARROW_FIELD),
+                    int(EvidenceTag.MAUSOLEUM_COMPLEX),
+                }:
                     evidence_features.append("barrow")
 
         # Initial KDTree build if needed
@@ -673,7 +681,10 @@ class CaveGenerator:
                 feature_assigned_this_step = True
                 step_vars["evidence_feature_assigned"] = parent.feature
                 self.steps.append(
-                    CaveStep(f"Assign Evidence Feature {parent.id}: {parent.feature}", step_vars)
+                    CaveStep(
+                        f"Assign Evidence Feature {parent.id}: {parent.feature}",
+                        step_vars,
+                    )
                 )
 
             # --- Termination / Feature Checks ---

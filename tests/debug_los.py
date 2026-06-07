@@ -1,12 +1,14 @@
 import numpy as np
-from tools.lighting_fov_tool.scene import create_fixed_scene, ElementType
+
+from tools.lighting_fov_tool.scene import ElementType, create_fixed_scene
+
 
 def test_los():
     scene = create_fixed_scene()
-    
+
     opaque_grid = np.zeros((scene.height, scene.width), dtype=np.uint8)
     transparency_grid = np.ones((scene.height, scene.width), dtype=np.float32)
-    
+
     for y in range(scene.height):
         for x in range(scene.width):
             if scene.tiles[y, x] in (ElementType.WALL, ElementType.PILLAR):
@@ -49,6 +51,7 @@ def test_los():
     print(_has_clear_extended_los(2, 19, 4, 18))
     print("checking 4, 20")
     print(_has_clear_extended_los(2, 19, 4, 20))
+
 
 if __name__ == "__main__":
     test_los()

@@ -14,7 +14,6 @@ import structlog
 from game.systems import movement_system
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
-
     from game.game_state import GameState
     from utils.game_rng import GameRNG
 

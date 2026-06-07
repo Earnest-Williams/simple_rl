@@ -1,7 +1,5 @@
 """Tests for pathfinding perception flow, scent, and detection helpers."""
 
-from pathlib import Path
-
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray

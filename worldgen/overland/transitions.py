@@ -6,8 +6,8 @@ from common.constants import Material
 from worldgen.overland.schema import (
     Affordance,
     Biome,
-    EvidenceTag,
     ElevationBand,
+    EvidenceTag,
     FeatureType,
     HydroRole,
     OverlandBundle,

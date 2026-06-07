@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import pytest
 import numpy as np
-import polars as pl
 
 from game.ai.perception import (
-    PerceptionFact,
-    PerceptionSnapshot,
-    apply_perception_memory_updates,
     gather_perception_snapshot,
 )
 from game.game_state import GameState
@@ -31,7 +26,9 @@ def _make_game_state() -> GameState:
     )
 
 
-def test_gather_perception_snapshot_does_not_materialize_entities_df(monkeypatch) -> None:
+def test_gather_perception_snapshot_does_not_materialize_entities_df(
+    monkeypatch,
+) -> None:
     game_state = _make_game_state()
     actor_id = game_state.entity_registry.create_entity(
         x=2,
@@ -144,7 +141,7 @@ def test_visual_audio_scent_memory_priority_survives_store_iteration() -> None:
         species="hunter",
         faction="monsters",
     )
-    
+
     # Target (enemy) is at (5, 3) (visible)
     target_id = game_state.entity_registry.create_entity(
         x=5,

@@ -140,3 +140,58 @@ def test_expedition_repair_clears_blockage() -> None:
         "You clear enough of the blockage to reopen the road." in msg
         for msg in messages
     )
+
+
+def test_expedition_cave_handoff() -> None:
+    from engine.action_handler import process_player_action
+    from game.expedition.resolvers import resolve_starting_contract
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    assert gs.expedition is not None
+    assert not gs.expedition.cave_entered
+
+    contract = resolve_starting_contract(gs)
+    cave_refs = contract.get("cave_refs", [])
+    assert len(cave_refs) > 0
+    cave_pt = tuple(cave_refs[0].get("point"))
+    cx, cy = cave_pt
+
+    # Teleport player to the cave
+    gs.entity_registry.set_position(gs.player_id, Position(cx, cy))
+
+    overland_map_ref = gs.game_map
+
+    # Perform enter action
+    action = {"type": "enter", "x": cx, "y": cy}
+    acted = process_player_action(action, gs, max_traversable_step=1)
+
+    assert acted is True
+    assert gs.expedition.cave_entered is True
+    assert gs.game_map is not overland_map_ref
+
+    # Verify player is at the interior spawn point
+    player_pos = gs.player_position
+    assert player_pos is not None
+    assert player_pos.x == 10 and player_pos.y == 10
+
+    # Verify message log
+    messages = [msg for msg, color in gs.message_log]
+    assert any("Cave entered:" in msg for msg in messages)
+
+    # Perform enter again to exit
+    action_exit = {"type": "enter", "x": 10, "y": 10}
+    acted_exit = process_player_action(action_exit, gs, max_traversable_step=1)
+
+    assert acted_exit is True
+    assert gs.game_map is overland_map_ref
+
+    # Verify player is back at the transition
+    player_pos_return = gs.player_position
+    assert player_pos_return is not None
+    assert player_pos_return.x == cx and player_pos_return.y == cy
+
+    messages = [msg for msg, color in gs.message_log]
+    assert any("You return to the surface." in msg for msg in messages)

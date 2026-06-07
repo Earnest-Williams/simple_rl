@@ -2,22 +2,18 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from common.constants import Material
-from game.game_state import GameState
-from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
-from worldgen.overland.schema import (
-    OverlandMapMetadata,
-    HydroRole,
-    Wetness,
-    TraversalClass,
-    HydroState,
-    SurfaceFlag,
-)
-from worldgen.overland.rules import surface_flag_mask
-from game.systems.seasons import apply_seasonal_state, cycle_season
 from engine.action_handler import process_player_action
+from game.game_state import GameState
+from game.systems.seasons import apply_seasonal_state, cycle_season
+from game.world.game_map import TILE_ID_FLOOR, GameMap
+from worldgen.overland.schema import (
+    HydroRole,
+    HydroState,
+    OverlandMapMetadata,
+    Wetness,
+)
 
 
 def _setup_test_state() -> GameState:
@@ -60,9 +56,7 @@ def _setup_test_state() -> GameState:
         evidence_tags={},
         transitions={},
         affordances={},
-        starting_contract={
-            "seasonal_state": "dry_season"
-        },
+        starting_contract={"seasonal_state": "dry_season"},
         surface_flags_grid=np.zeros((5, 5), dtype=np.uint32),
     )
     gs.game_map.overland_metadata = sidecar
@@ -76,7 +70,10 @@ def test_initial_season_loading() -> None:
 
 
 def test_seasonal_transition_updates_walkability_and_costs() -> None:
-    from worldgen.overland.actor_traversal import movement_cost_for_actor, ActorTraversalProfile
+    from worldgen.overland.actor_traversal import (
+        ActorTraversalProfile,
+        movement_cost_for_actor,
+    )
 
     gs = _setup_test_state()
     metadata = gs.game_map.overland_metadata
@@ -86,7 +83,7 @@ def test_seasonal_transition_updates_walkability_and_costs() -> None:
     assert metadata.material_grid[3, 3] == int(Material.CRACKED_MUD)
     assert metadata.wetness_grid[3, 3] == int(Wetness.DRY)
     assert gs.game_map.is_walkable(3, 3) is True
-    
+
     tile_row_dry = {
         "material": metadata.material_grid[3, 3],
         "wetness": metadata.wetness_grid[3, 3],
@@ -94,15 +91,21 @@ def test_seasonal_transition_updates_walkability_and_costs() -> None:
         "movement_cost": metadata.movement_cost_grid[3, 3],
     }
     # Human on foot can walk over cracked mud, but boat cannot
-    assert movement_cost_for_actor(tile_row_dry, ActorTraversalProfile.HUMAN_ON_FOOT, metadata=metadata) < float("inf")
-    assert movement_cost_for_actor(tile_row_dry, ActorTraversalProfile.BOAT, metadata=metadata) == float("inf")
+    assert movement_cost_for_actor(
+        tile_row_dry, ActorTraversalProfile.HUMAN_ON_FOOT, metadata=metadata
+    ) < float("inf")
+    assert movement_cost_for_actor(
+        tile_row_dry, ActorTraversalProfile.BOAT, metadata=metadata
+    ) == float("inf")
 
     # 2. Change to WET_SEASON: Sinking lake should flood and become SHALLOW_WATER (DEEP_FLOODED)
     apply_seasonal_state(gs, HydroState.WET_SEASON)
     assert metadata.material_grid[3, 3] == int(Material.SHALLOW_WATER)
     assert metadata.wetness_grid[3, 3] == int(Wetness.DEEP_FLOODED)
-    assert gs.game_map.is_walkable(3, 3) is True # physically passable for boats/swimmers
-    
+    assert (
+        gs.game_map.is_walkable(3, 3) is True
+    )  # physically passable for boats/swimmers
+
     tile_row_wet = {
         "material": metadata.material_grid[3, 3],
         "wetness": metadata.wetness_grid[3, 3],
@@ -110,8 +113,12 @@ def test_seasonal_transition_updates_walkability_and_costs() -> None:
         "movement_cost": metadata.movement_cost_grid[3, 3],
     }
     # Human on foot is blocked by deep flooded tiles, but boat can traverse them
-    assert movement_cost_for_actor(tile_row_wet, ActorTraversalProfile.HUMAN_ON_FOOT, metadata=metadata) == float("inf")
-    assert movement_cost_for_actor(tile_row_wet, ActorTraversalProfile.BOAT, metadata=metadata) < float("inf")
+    assert movement_cost_for_actor(
+        tile_row_wet, ActorTraversalProfile.HUMAN_ON_FOOT, metadata=metadata
+    ) == float("inf")
+    assert movement_cost_for_actor(
+        tile_row_wet, ActorTraversalProfile.BOAT, metadata=metadata
+    ) < float("inf")
 
     # 3. Built structures (ROAD at 4, 4) should NOT be overwritten by material changes
     assert metadata.material_grid[4, 4] == int(Material.ROAD)
@@ -132,20 +139,15 @@ def test_cycle_season() -> None:
 
 def test_change_season_action_integration() -> None:
     gs = _setup_test_state()
-    
+
     # Process action with specific season parameter
-    action = {
-        "type": "change_season",
-        "season": "wet_season"
-    }
+    action = {"type": "change_season", "season": "wet_season"}
     acted = process_player_action(action, gs, max_traversable_step=1)
     assert acted is True
     assert gs.hydro_state == HydroState.WET_SEASON
 
     # Process action to cycle season (without parameters)
-    action_cycle = {
-        "type": "change_season"
-    }
+    action_cycle = {"type": "change_season"}
     acted_cycle = process_player_action(action_cycle, gs, max_traversable_step=1)
     assert acted_cycle is True
     assert gs.hydro_state == HydroState.DRAINING

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import numpy as np
 import polars as pl
-import pytest
 
 from game.entities.components import Position
-from game.entities.registry import EntityRegistry, ENTITY_SCHEMA
+from game.entities.registry import EntityRegistry
 from game.entities.store import EntityStore
 
 
@@ -127,7 +125,9 @@ def test_get_entity_components_reads_hot_and_extra_components() -> None:
         defense=5,
     )
 
-    components = registry.get_entity_components(entity_id, ["name", "x", "y", "strength", "defense"])
+    components = registry.get_entity_components(
+        entity_id, ["name", "x", "y", "strength", "defense"]
+    )
     assert components == {
         "name": "Multi Component Entity",
         "x": 4,

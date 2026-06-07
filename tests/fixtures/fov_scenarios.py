@@ -6,7 +6,6 @@ implementation.
 
 from __future__ import annotations
 
-import math as _math
 from collections.abc import Iterator
 
 import numpy as np

@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
-import polars as pl
+
 import numpy as np
+import polars as pl
 
 from common.constants import Material
 from worldgen.overland.affordances import generate_affordances
+from worldgen.overland.rules import surface_flag_mask
 from worldgen.overland.schema import (
     EvidenceTag,
+    HydroRole,
     OverlandBundle,
     RouteSegmentState,
-    HydroRole,
-    SurfaceFlag,
     Substrate,
-    Wetness,
+    SurfaceFlag,
     TraversalClass,
+    Wetness,
 )
-from worldgen.overland.rules import surface_flag_mask
 
 if TYPE_CHECKING:
     from worldgen.settlements.export import SettlementBundle
@@ -79,7 +80,7 @@ def merge_settlement_into_overland(
 
     ox, oy = origin
     settlement_tiles = _settlement_overland_tiles(settlement, ox=ox, oy=oy)
-    
+
     # 1. Replace tiles applying preservation rules (hydrology/transitions)
     merged_tiles = _replace_tiles(
         base=overland.tiles_df,
@@ -92,21 +93,25 @@ def merge_settlement_into_overland(
 
     s_width = int(settlement.metadata.get("width", 0))
     s_height = int(settlement.metadata.get("height", 0))
-    
+
     # Find base road tiles outside the settlement area
     outside_roads = overland.tiles_df.filter(
-        pl.col("material").is_in([int(Material.ROAD), int(Material.TRACK), int(Material.TRAIL)]) &
-        ~(
-            (pl.col("x") >= ox) &
-            (pl.col("x") < ox + s_width) &
-            (pl.col("y") >= oy) &
-            (pl.col("y") < oy + s_height)
+        pl.col("material").is_in(
+            [int(Material.ROAD), int(Material.TRACK), int(Material.TRAIL)]
+        )
+        & ~(
+            (pl.col("x") >= ox)
+            & (pl.col("x") < ox + s_width)
+            & (pl.col("y") >= oy)
+            & (pl.col("y") < oy + s_height)
         )
     )
     if outside_roads.is_empty():
         # Fallback to any base road tiles
         outside_roads = overland.tiles_df.filter(
-            pl.col("material").is_in([int(Material.ROAD), int(Material.TRACK), int(Material.TRAIL)])
+            pl.col("material").is_in(
+                [int(Material.ROAD), int(Material.TRACK), int(Material.TRAIL)]
+            )
         )
 
     world_width = int(overland.metadata.get("width", 0))
@@ -124,7 +129,7 @@ def merge_settlement_into_overland(
 
     for ex, ey in absolute_endpoints:
         if not outside_roads.is_empty():
-            min_dist = float('inf')
+            min_dist = float("inf")
             nearest = None
             for r_row in outside_roads.iter_rows(named=True):
                 rx, ry = int(r_row["x"]), int(r_row["y"])
@@ -157,9 +162,21 @@ def merge_settlement_into_overland(
                         substrate = int(Substrate.WOOD)
                         walkable = True
                         blocks_sight = False
-                        from worldgen.overland.rules import derive_movement_cost, derive_traversal_class
-                        movement_cost = float(derive_movement_cost(Material.BRIDGE, Wetness(wetness), surface_flags))
-                        traversal_class = int(derive_traversal_class(Material.BRIDGE, Wetness(wetness), surface_flags))
+                        from worldgen.overland.rules import (
+                            derive_movement_cost,
+                            derive_traversal_class,
+                        )
+
+                        movement_cost = float(
+                            derive_movement_cost(
+                                Material.BRIDGE, Wetness(wetness), surface_flags
+                            )
+                        )
+                        traversal_class = int(
+                            derive_traversal_class(
+                                Material.BRIDGE, Wetness(wetness), surface_flags
+                            )
+                        )
                         surface_flags |= surface_flag_mask(SurfaceFlag.BUILT)
                     else:
                         new_mat = int(Material.ROAD)
@@ -282,18 +299,14 @@ def _replace_tiles(*, base: pl.DataFrame, overlay: pl.DataFrame) -> pl.DataFrame
     )
 
     transition_mask = 1 << (int(SurfaceFlag.TRANSITION) - 1)
-    is_transition = (
-        pl.col("material_base").is_not_null() & (
-            (pl.col("material_base").is_in(list(TRANSITION_MATERIALS))) |
-            ((pl.col("surface_flags_base") & transition_mask) != 0)
-        )
+    is_transition = pl.col("material_base").is_not_null() & (
+        (pl.col("material_base").is_in(list(TRANSITION_MATERIALS)))
+        | ((pl.col("surface_flags_base") & transition_mask) != 0)
     )
 
-    is_hydrology = (
-        pl.col("material_base").is_not_null() & (
-            (pl.col("hydro_role_base") != int(HydroRole.NONE)) |
-            (pl.col("material_base").is_in(list(WATER_HYDRO_MATERIALS)))
-        )
+    is_hydrology = pl.col("material_base").is_not_null() & (
+        (pl.col("hydro_role_base") != int(HydroRole.NONE))
+        | (pl.col("material_base").is_in(list(WATER_HYDRO_MATERIALS)))
     )
 
     is_overlay_road_bridge = pl.col("material").is_in(list(ROAD_BRIDGE_MATERIALS))
@@ -332,7 +345,10 @@ def _replace_tiles(*, base: pl.DataFrame, overlay: pl.DataFrame) -> pl.DataFrame
                 .when(is_hydrology)
                 .then(
                     pl.when(is_overlay_road_bridge)
-                    .then(pl.col("surface_flags") | (pl.col("surface_flags_base") & seasonal_mask))
+                    .then(
+                        pl.col("surface_flags")
+                        | (pl.col("surface_flags_base") & seasonal_mask)
+                    )
                     .otherwise(pl.col("surface_flags_base"))
                 )
                 .otherwise(pl.col("surface_flags"))
@@ -369,9 +385,9 @@ def _replace_tiles(*, base: pl.DataFrame, overlay: pl.DataFrame) -> pl.DataFrame
         how="anti",
     )
     columns = list(base.columns)
-    return pl.concat([untouched.select(columns), resolved_overlay.select(columns)]).sort(
-        ["y", "x"]
-    )
+    return pl.concat(
+        [untouched.select(columns), resolved_overlay.select(columns)]
+    ).sort(["y", "x"])
 
 
 def _connect_points_with_road(
@@ -399,7 +415,9 @@ def _connect_points_with_road(
             weights[y, x] = 5.0
 
     frontier = []
-    heapq.heappush(frontier, (hypot(start[0] - goal[0], start[1] - goal[1]), 0.0, start))
+    heapq.heappush(
+        frontier, (hypot(start[0] - goal[0], start[1] - goal[1]), 0.0, start)
+    )
     came_from = {start: None}
     cost_so_far = {start: 0.0}
 
@@ -408,13 +426,22 @@ def _connect_points_with_road(
         if current == goal:
             break
         cx, cy = current
-        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)]:
+        for dx, dy in [
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ]:
             nx, ny = cx + dx, cy + dy
             if 0 <= nx < width and 0 <= ny < height:
                 step_mult = 1.414 if (dx != 0 and dy != 0) else 1.0
                 new_cost = current_cost + weights[ny, nx] * step_mult
                 next_node = (nx, ny)
-                if new_cost < cost_so_far.get(next_node, float('inf')):
+                if new_cost < cost_so_far.get(next_node, float("inf")):
                     cost_so_far[next_node] = new_cost
                     priority = new_cost + hypot(nx - goal[0], ny - goal[1])
                     came_from[next_node] = current

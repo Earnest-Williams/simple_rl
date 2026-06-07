@@ -255,11 +255,14 @@ def test_transition_artifacts_include_cave_handoff_payloads(tmp_path) -> None:
     }
 
     loaded = load_worldgen_bundle(tmp_path)
-    assert loaded["overland_metadata"]["starting_region_contract"]["route_segments"][0][
-        "evidence_tags"
-    ] == bundle.metadata["starting_region_contract"]["route_segments"][0][
-        "evidence_tags"
-    ]
+    assert (
+        loaded["overland_metadata"]["starting_region_contract"]["route_segments"][0][
+            "evidence_tags"
+        ]
+        == bundle.metadata["starting_region_contract"]["route_segments"][0][
+            "evidence_tags"
+        ]
+    )
 
 
 def test_karst_hydrology_flow_group_is_connected() -> None:
@@ -535,9 +538,11 @@ def test_starting_port_merges_as_overland_surface_layer() -> None:
     )
 
 
-def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads() -> None:
-    from worldgen.overland.schema import HydroRole
+def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads() -> (
+    None
+):
     from common.constants import Material
+    from worldgen.overland.schema import HydroRole
 
     overland = generate_overland_region(
         seed=991,
@@ -558,16 +563,20 @@ def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads
 
     # Let's count base transitions inside settlement bounds
     base_transitions = overland.tiles_df.filter(
-        pl.col("material").is_in([int(Material.CAVE_MOUTH), int(Material.PONOR)]) &
-        (pl.col("x") >= ox) & (pl.col("x") < ox + s_width) &
-        (pl.col("y") >= oy) & (pl.col("y") < oy + s_height)
+        pl.col("material").is_in([int(Material.CAVE_MOUTH), int(Material.PONOR)])
+        & (pl.col("x") >= ox)
+        & (pl.col("x") < ox + s_width)
+        & (pl.col("y") >= oy)
+        & (pl.col("y") < oy + s_height)
     )
 
     # Let's count base hydrology tiles inside settlement bounds
     base_hydrology = overland.tiles_df.filter(
-        (pl.col("hydro_role") != int(HydroRole.NONE)) &
-        (pl.col("x") >= ox) & (pl.col("x") < ox + s_width) &
-        (pl.col("y") >= oy) & (pl.col("y") < oy + s_height)
+        (pl.col("hydro_role") != int(HydroRole.NONE))
+        & (pl.col("x") >= ox)
+        & (pl.col("x") < ox + s_width)
+        & (pl.col("y") >= oy)
+        & (pl.col("y") < oy + s_height)
     )
 
     # Run the merge
@@ -576,14 +585,18 @@ def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads
     # 1. Assert transition preservation
     for row in base_transitions.iter_rows(named=True):
         x, y = int(row["x"]), int(row["y"])
-        merged_tile = merged.tiles_df.filter((pl.col("x") == x) & (pl.col("y") == y)).to_dicts()[0]
+        merged_tile = merged.tiles_df.filter(
+            (pl.col("x") == x) & (pl.col("y") == y)
+        ).to_dicts()[0]
         assert merged_tile["material"] == row["material"]
 
     # 2. Assert hydrology preservation
     # If a base hydrology tile is overwritten, check that it preserves hydro_role
     for row in base_hydrology.iter_rows(named=True):
         x, y = int(row["x"]), int(row["y"])
-        merged_tile = merged.tiles_df.filter((pl.col("x") == x) & (pl.col("y") == y)).to_dicts()[0]
+        merged_tile = merged.tiles_df.filter(
+            (pl.col("x") == x) & (pl.col("y") == y)
+        ).to_dicts()[0]
         # Should either preserve hydro_role and wetness, OR be a bridge (which also preserves hydro_role)
         assert merged_tile["hydro_role"] == row["hydro_role"]
         assert merged_tile["wetness"] == row["wetness"]
@@ -607,7 +620,9 @@ def test_settlement_merge_preserves_hydrology_and_transitions_and_connects_roads
 
     # For each absolute endpoint, check that it has been paved as a ROAD or BRIDGE in the merged map
     for ex, ey in absolute_endpoints:
-        merged_tile = merged.tiles_df.filter((pl.col("x") == ex) & (pl.col("y") == ey)).to_dicts()[0]
+        merged_tile = merged.tiles_df.filter(
+            (pl.col("x") == ex) & (pl.col("y") == ey)
+        ).to_dicts()[0]
         assert merged_tile["material"] in [int(Material.ROAD), int(Material.BRIDGE)]
 
 
@@ -902,7 +917,9 @@ def _route_uses_any_material(
     return any(material_lookup.get(coord) in wanted for coord in path)
 
 
-def test_metadata_contains_route_segments_and_transitions_with_evidence_tags_shape(tmp_path) -> None:
+def test_metadata_contains_route_segments_and_transitions_with_evidence_tags_shape(
+    tmp_path,
+) -> None:
     bundle = generate_overland_region(
         seed=123,
         width=64,
@@ -934,9 +951,9 @@ def test_metadata_contains_route_segments_and_transitions_with_evidence_tags_sha
 
     # Verify that overland_to_game_map loads sidecar with route_segments & transitions correctly
     # when using the loaded metadata (with-metadata path)
+    from game.world.game_map import GameMap
     from worldgen.overland.convert import overland_to_game_map
     from worldgen.overland.schema import OverlandMapMetadata
-    from game.world.game_map import GameMap
 
     gm, sidecar = overland_to_game_map(bundle, with_metadata=True)
     assert isinstance(gm, GameMap)
@@ -966,10 +983,15 @@ def test_inspect_overland_evidence_view_runs(tmp_path) -> None:
     import subprocess
     import sys
 
-    cmd = [sys.executable, "tools/inspect_overland.py", str(tmp_path), "--view", "evidence"]
+    cmd = [
+        sys.executable,
+        "tools/inspect_overland.py",
+        str(tmp_path),
+        "--view",
+        "evidence",
+    ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
     assert "=== FEATURES WITH EVIDENCE TAGS ===" in result.stdout
     assert "=== TRANSITIONS WITH EVIDENCE TAGS ===" in result.stdout
     assert "=== ROUTE SEGMENTS WITH EVIDENCE TAGS ===" in result.stdout
-

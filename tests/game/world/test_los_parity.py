@@ -1,4 +1,5 @@
 import numpy as np
+
 from game.world.los import line_of_sight, line_of_sight_many_u8
 
 

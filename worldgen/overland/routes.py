@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 from dataclasses import replace
+from typing import Any
 
 import polars as pl
 
@@ -218,10 +218,13 @@ def _route_evidence_tags(
         evidence = row.get("evidence_tags", [])
         if evidence is None:
             continue
-        feature_evidence_tags.setdefault(key, set()).update(int(value) for value in evidence)
+        feature_evidence_tags.setdefault(key, set()).update(
+            int(value) for value in evidence
+        )
 
     tile_lookup = {
-        (int(row["x"]), int(row["y"])): row for row in bundle.tiles_df.iter_rows(named=True)
+        (int(row["x"]), int(row["y"])): row
+        for row in bundle.tiles_df.iter_rows(named=True)
     }
 
     values: set[int] = set()

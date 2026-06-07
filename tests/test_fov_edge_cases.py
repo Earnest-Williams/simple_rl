@@ -7,13 +7,11 @@ Bresenham-based light-leak detection.
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from tests.fixtures.fov_scenarios import (
-    compute_visibility,
     bresenham_line,
+    compute_visibility,
     fov_from_transparency,
-    make_open_room,
     make_walled_room,
 )
 
@@ -109,9 +107,9 @@ def test_thin_wall_no_leak_closed() -> None:
     visible = fov_from_transparency(transparency, cy=7, cx=3, radius=15)
     # Exclude extreme-corner rows which have known production FOV edge cases
     east_cells = [(y, x) for (y, x) in visible if x > 10 and 2 <= y <= 12]
-    assert (
-        east_cells == []
-    ), f"Expected no visibility east of closed wall (mid-rows), got {east_cells}"
+    assert east_cells == [], (
+        f"Expected no visibility east of closed wall (mid-rows), got {east_cells}"
+    )
 
 
 def test_thin_wall_gap_passes_light() -> None:

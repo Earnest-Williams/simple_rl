@@ -11,10 +11,13 @@ import polars as pl
 import pygame  # type: ignore[import-untyped]
 
 from common.constants import Material
-from orchestrator import DEFAULT_CA_ITERATIONS, DEFAULT_MAX_DEPTH, DEFAULT_MAX_NODES
-from orchestrator import run_pipeline
+from orchestrator import (
+    DEFAULT_CA_ITERATIONS,
+    DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_NODES,
+    run_pipeline,
+)
 from utils.shaped_map import load_shaped_map_as_arrays
-
 
 SCREEN_WIDTH: Final[int] = 960
 SCREEN_HEIGHT: Final[int] = 540
@@ -57,7 +60,7 @@ def _walkable_mask(tile_grid: np.ndarray) -> np.ndarray:
         np.ndarray,
         (tile_grid == int(Material.CAVE_FLOOR))
         | (tile_grid == int(Material.SHAFT_OPENING))
-        | (tile_grid == int(Material.DOOR_OPEN))
+        | (tile_grid == int(Material.DOOR_OPEN)),
     )
 
 
@@ -140,10 +143,9 @@ def find_spawn(
     preferred_col: int
     preferred_row, preferred_col = preferred_spawn
 
-    in_bounds: bool = (
-        0 <= preferred_row < int(tile_grid.shape[0])
-        and 0 <= preferred_col < int(tile_grid.shape[1])
-    )
+    in_bounds: bool = 0 <= preferred_row < int(
+        tile_grid.shape[0]
+    ) and 0 <= preferred_col < int(tile_grid.shape[1])
 
     if in_bounds and is_walkable(int(tile_grid[preferred_row, preferred_col])):
         return preferred_row, preferred_col
@@ -357,8 +359,8 @@ def draw_hud(
     height: float = 0.0
     ceiling_z: float = 0.0
 
-    in_bounds: bool = (
-        0 <= r < int(tile_grid.shape[0]) and 0 <= c < int(tile_grid.shape[1])
+    in_bounds: bool = 0 <= r < int(tile_grid.shape[0]) and 0 <= c < int(
+        tile_grid.shape[1]
     )
 
     if in_bounds:
@@ -505,15 +507,15 @@ def main() -> None:
                     running = False
 
         keys = pygame.key.get_pressed()
-        
+
         if keys[pygame.K_q] or keys[pygame.K_LEFT]:
             camera.yaw_rad -= rot_speed
         if keys[pygame.K_e] or keys[pygame.K_RIGHT]:
             camera.yaw_rad += rot_speed
-            
+
         sin_yaw = math.sin(camera.yaw_rad)
         cos_yaw = math.cos(camera.yaw_rad)
-        
+
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             try_move(camera, tile_grid, sin_yaw * move_speed, cos_yaw * move_speed)
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:

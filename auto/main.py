@@ -192,6 +192,7 @@ if __name__ == "__main__":
         print("Starting GUI Mode...")
         # Fallback removed
         from PySide6.QtWidgets import QApplication
+
         from .gui.main_window import MainWindow
 
         try:

@@ -14,27 +14,30 @@ from typing import Any
 import numpy as np
 import polars as pl
 from numba import njit
+from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]
+from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
+from scipy.signal import convolve2d  # type: ignore[import-untyped]
 
 from common.constants import Material
 
 # Import GameRNG using relative path
 # Fallback removed
 from utils.game_rng import GameRNG
-from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]
-from scipy.ndimage import label as ndi_label  # type: ignore[import-untyped]
-from scipy.signal import convolve2d  # type: ignore[import-untyped]
+
 HAS_SCIPY = True
 
 
 try:
     from skimage.draw import disk as sk_draw_disk
     from skimage.draw import ellipse as sk_ellipse
+    from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
     from skimage.draw import line as sk_line
     from skimage.draw import polygon as sk_polygon
-    from skimage.draw import ellipse_perimeter as sk_ellipse_perimeter
+
     HAS_ELLIPSE_PERIMETER = True
     from skimage.morphology import dilation as sk_morphology_dilation
     from skimage.morphology import disk as sk_morphology_disk
+
     HAS_SKIMAGE = True
 except ImportError:
     HAS_ELLIPSE_PERIMETER = False
@@ -889,9 +892,7 @@ def _run_ca_step_scipy(grid: np.ndarray) -> np.ndarray:
     )
 
     born = mutable_rock & (floor_neighbor_count >= CA_BIRTH_THRESHOLD)
-    survived_floor = mutable_floor & (
-        floor_neighbor_count >= CA_SURVIVAL_THRESHOLD
-    )
+    survived_floor = mutable_floor & (floor_neighbor_count >= CA_SURVIVAL_THRESHOLD)
 
     new_grid = grid.copy()
 
@@ -1122,12 +1123,7 @@ def _draw_repair_corridor_mask(
     mask = np.zeros(shape, dtype=bool)
 
     rr, cc = sk_line(start_row, start_col, end_row, end_col)
-    valid = (
-        (rr >= 0)
-        & (rr < shape[0])
-        & (cc >= 0)
-        & (cc < shape[1])
-    )
+    valid = (rr >= 0) & (rr < shape[0]) & (cc >= 0) & (cc < shape[1])
     rr = rr[valid]
     cc = cc[valid]
 
@@ -1251,14 +1247,17 @@ def repair_connectivity(
                     corridor_radius_cells,
                 )
 
-                protected_mask = (
-                    (repaired_grid == Material.CLIFF_EDGE)
-                    | (repaired_grid == Material.DOOR_CLOSED)
+                protected_mask = (repaired_grid == Material.CLIFF_EDGE) | (
+                    repaired_grid == Material.DOOR_CLOSED
                 )
                 corridor_mask &= ~protected_mask
 
-                start_depth = _nearest_valid_depth(repaired_depth, p_nearest_y, p_nearest_x)
-                end_depth = _nearest_valid_depth(repaired_depth, c_nearest_y, c_nearest_x)
+                start_depth = _nearest_valid_depth(
+                    repaired_depth, p_nearest_y, p_nearest_x
+                )
+                end_depth = _nearest_valid_depth(
+                    repaired_depth, c_nearest_y, c_nearest_x
+                )
 
                 corridor_rows, corridor_cols = np.where(corridor_mask)
                 if corridor_rows.size > 0:
@@ -1280,7 +1279,7 @@ def repair_connectivity(
                         start_depth + (end_depth - start_depth) * t
                     ).astype(np.float32)
                     repaired_type[corridor_mask] = repair_type_id
-                
+
                 connected_edges += 1
 
     # After graph-edge repairs: delete tiny crumbs and fallback
@@ -1304,9 +1303,7 @@ def repair_connectivity(
     nearest_main_cols = nearest_indices[1]
 
     component_labels = [
-        int(label)
-        for label in range(1, component_count + 1)
-        if label != largest_label
+        int(label) for label in range(1, component_count + 1) if label != largest_label
     ]
     component_labels.sort(key=lambda label: int(sizes[label]), reverse=True)
 
@@ -1331,10 +1328,9 @@ def repair_connectivity(
         target_rows = nearest_main_rows[comp_rows, comp_cols]
         target_cols = nearest_main_cols[comp_rows, comp_cols]
 
-        dist_sq = (
-            (comp_rows - target_rows) * (comp_rows - target_rows)
-            + (comp_cols - target_cols) * (comp_cols - target_cols)
-        )
+        dist_sq = (comp_rows - target_rows) * (comp_rows - target_rows) + (
+            comp_cols - target_cols
+        ) * (comp_cols - target_cols)
         best_index = int(np.argmin(dist_sq))
 
         start_row = int(comp_rows[best_index])
@@ -1352,9 +1348,8 @@ def repair_connectivity(
         )
 
         # Do not overwrite special semantic blockers.
-        protected_mask = (
-            (repaired_grid == Material.CLIFF_EDGE)
-            | (repaired_grid == Material.DOOR_CLOSED)
+        protected_mask = (repaired_grid == Material.CLIFF_EDGE) | (
+            repaired_grid == Material.DOOR_CLOSED
         )
         corridor_mask &= ~protected_mask
 
@@ -1451,27 +1446,36 @@ def generate_shaped_cave(  # Added rng parameter
         is_basalt = False
         if substrate_val is not None:
             try:
-                is_basalt = (int(substrate_val) == 6)  # Substrate.BASALT is 6
+                is_basalt = int(substrate_val) == 6  # Substrate.BASALT is 6
             except (ValueError, TypeError):
                 pass
-        
+
         cave_type = str(transition_payload.get("cave_type", "")).lower()
         target_kind = str(transition_payload.get("target_kind", "")).lower()
-        if "lava" in cave_type or "basalt" in cave_type or "lava" in target_kind or "basalt" in target_kind:
+        if (
+            "lava" in cave_type
+            or "basalt" in cave_type
+            or "lava" in target_kind
+            or "basalt" in target_kind
+        ):
             is_basalt = True
-            
+
         if is_basalt:
             final_grid[final_grid == Material.CAVE_FLOOR] = Material.LAVA_TUBE_FLOOR
-            print("Themed shaper: Basalt substrate detected. Mapped floor to LAVA_TUBE_FLOOR.")
+            print(
+                "Themed shaper: Basalt substrate detected. Mapped floor to LAVA_TUBE_FLOOR."
+            )
 
         # 2. Flow Group (Wet/Water theme)
         try:
             flow_group = int(transition_payload.get("flow_group", 0))
         except (ValueError, TypeError):
             flow_group = 0
-            
+
         if flow_group > 0:
-            floor_mask = (final_grid == Material.CAVE_FLOOR) | (final_grid == Material.LAVA_TUBE_FLOOR)
+            floor_mask = (final_grid == Material.CAVE_FLOOR) | (
+                final_grid == Material.LAVA_TUBE_FLOOR
+            )
             floor_ys, floor_xs = np.where(floor_mask)
             if len(floor_ys) > 0:
                 floor_depths = depth_grid[floor_ys, floor_xs]
@@ -1480,8 +1484,12 @@ def generate_shaped_cave(  # Added rng parameter
                 # Find the threshold for the deepest 15% of cells
                 threshold = np.partition(floor_depths, -num_flooded)[-num_flooded]
                 flooded_indices = floor_depths >= threshold
-                final_grid[floor_ys[flooded_indices], floor_xs[flooded_indices]] = Material.UNDERGROUND_WATER
-                print(f"Themed shaper: Active flow group ({flow_group}) detected. Flooded {num_flooded} deepest floor cells with UNDERGROUND_WATER.")
+                final_grid[floor_ys[flooded_indices], floor_xs[flooded_indices]] = (
+                    Material.UNDERGROUND_WATER
+                )
+                print(
+                    f"Themed shaper: Active flow group ({flow_group}) detected. Flooded {num_flooded} deepest floor cells with UNDERGROUND_WATER."
+                )
 
     # Removed NPY dump call for post-CA state
 
@@ -1491,6 +1499,7 @@ def generate_shaped_cave(  # Added rng parameter
         print("\n--- Stage: Saving Debug Images ---")
         # Fallback removed
         import matplotlib.pyplot as plt  # Local import
+
         def save_img(filename, data, cmap):
             if np.any(data != 0) and np.any(
                 np.isfinite(data)
@@ -1499,6 +1508,7 @@ def generate_shaped_cave(  # Added rng parameter
                 print(f"Saved {filename}")
             else:
                 print(f"Skipping save of empty/invalid {filename}.")
+
         save_img("debug_initial_grid.png", initial_grid, cmap="viridis")
         save_img("debug_final_grid.png", final_grid, cmap="viridis")
         save_img("debug_depth_grid.png", depth_grid, cmap="magma")

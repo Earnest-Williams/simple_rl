@@ -128,9 +128,9 @@ def test_single_light_lights_adjacent_cells() -> None:
         ceiling_map=ceiling_map,
     )
     for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        assert np.any(
-            contrib[7 + dy, 7 + dx] > 0
-        ), f"Adjacent cell ({7 + dy},{7 + dx}) should be lit"
+        assert np.any(contrib[7 + dy, 7 + dx] > 0), (
+            f"Adjacent cell ({7 + dy},{7 + dx}) should be lit"
+        )
 
 
 def test_single_light_does_not_cross_wall() -> None:
@@ -153,9 +153,9 @@ def test_single_light_does_not_cross_wall() -> None:
     # Exclude extreme-corner rows due to known production FOV edge cases
     for y in range(2, h - 2):
         for x in range(11, w):
-            assert not np.any(
-                contrib[y, x] > 0
-            ), f"Cell ({y},{x}) east of solid wall should not be lit"
+            assert not np.any(contrib[y, x] > 0), (
+                f"Cell ({y},{x}) east of solid wall should not be lit"
+            )
 
 
 def test_single_light_respects_height_barrier() -> None:
@@ -180,9 +180,9 @@ def test_single_light_respects_height_barrier() -> None:
 
     for y in range(3, 6):
         for x in range(6, w):
-            assert not np.any(
-                contrib[y, x] > 0
-            ), f"Cell ({y},{x}) east of height barrier should not be lit"
+            assert not np.any(contrib[y, x] > 0), (
+                f"Cell ({y},{x}) east of height barrier should not be lit"
+            )
 
 
 def test_single_light_zero_radius_returns_zeros() -> None:
@@ -370,9 +370,9 @@ def test_cache_scene_seq_change_triggers_full_rebuild() -> None:
     )
 
     # The wall blocks some cells — output should differ
-    assert not np.array_equal(
-        before, after
-    ), "Scene geometry change must invalidate cache"
+    assert not np.array_equal(before, after), (
+        "Scene geometry change must invalidate cache"
+    )
 
 
 def test_cache_explicit_invalidate_forces_rebuild() -> None:

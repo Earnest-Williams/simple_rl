@@ -58,12 +58,12 @@ def test_deterministic_summary() -> None:
 
 def test_all_terrain_codes_translatable() -> None:
     for code in TerrainCode:
-        assert (
-            code in _SETTLEMENT_TILE_BY_TERRAIN
-        ), f"TerrainCode {code.name} is missing from _SETTLEMENT_TILE_BY_TERRAIN"
-        assert (
-            code in _OVERLAND_MATERIAL_BY_TERRAIN
-        ), f"TerrainCode {code.name} is missing from _OVERLAND_MATERIAL_BY_TERRAIN"
+        assert code in _SETTLEMENT_TILE_BY_TERRAIN, (
+            f"TerrainCode {code.name} is missing from _SETTLEMENT_TILE_BY_TERRAIN"
+        )
+        assert code in _OVERLAND_MATERIAL_BY_TERRAIN, (
+            f"TerrainCode {code.name} is missing from _OVERLAND_MATERIAL_BY_TERRAIN"
+        )
 
 
 def test_all_requested_facilities_accounted_for() -> None:
@@ -91,9 +91,9 @@ def test_all_requested_facilities_accounted_for() -> None:
         facility_val = requested if isinstance(requested, str) else requested.value
         is_placed = requested in placed
         is_failed = facility_val in failed
-        assert (
-            is_placed or is_failed
-        ), f"Requested facility {facility_val} is neither placed nor reported as failed"
+        assert is_placed or is_failed, (
+            f"Requested facility {facility_val} is neither placed nor reported as failed"
+        )
 
 
 def test_no_buildings_outside_bounds() -> None:
@@ -110,13 +110,13 @@ def test_no_buildings_outside_bounds() -> None:
     for building in settlement.buildings:
         rect = building.rect
         assert 0 <= rect.x < width, f"Building {building.id} x out of bounds: {rect.x}"
-        assert (
-            0 <= rect.x2 <= width
-        ), f"Building {building.id} x2 out of bounds: {rect.x2}"
+        assert 0 <= rect.x2 <= width, (
+            f"Building {building.id} x2 out of bounds: {rect.x2}"
+        )
         assert 0 <= rect.y < height, f"Building {building.id} y out of bounds: {rect.y}"
-        assert (
-            0 <= rect.y2 <= height
-        ), f"Building {building.id} y2 out of bounds: {rect.y2}"
+        assert 0 <= rect.y2 <= height, (
+            f"Building {building.id} y2 out of bounds: {rect.y2}"
+        )
 
 
 def test_no_unregistered_facilities() -> None:
@@ -128,9 +128,9 @@ def test_no_unregistered_facilities() -> None:
     settlement: Final[Settlement] = SettlementGenerator(seed=55).generate(cfg)
 
     for building in settlement.buildings:
-        assert isinstance(
-            building.facility, Facility
-        ), f"Building {building.id} has unregistered/invalid facility type: {building.facility}"
+        assert isinstance(building.facility, Facility), (
+            f"Building {building.id} has unregistered/invalid facility type: {building.facility}"
+        )
 
 
 def test_no_unreachable_gates_roads() -> None:
@@ -191,11 +191,13 @@ def test_no_unreachable_gates_roads() -> None:
             assert (
                 rx,
                 ry,
-            ) in visited, f"Road point ({rx}, {ry}) in road {road.id} is unreachable from anchor ({ax}, {ay})"
+            ) in visited, (
+                f"Road point ({rx}, {ry}) in road {road.id} is unreachable from anchor ({ax}, {ay})"
+            )
 
 
 def test_generation_report_metadata() -> None:
-    from settlegen import FailedFacility, GenerationReport
+    from settlegen import GenerationReport
 
     # 1. Test no_water failure
     cfg_no_water = SettlementConfig(

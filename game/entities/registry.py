@@ -379,7 +379,9 @@ class EntityRegistry:
     ) -> dict[str, Any]:
         return self._store.get_components(entity_id, component_names)
 
-    def get_combat_components_bulk(self, entity_ids: list[int]) -> tuple[
+    def get_combat_components_bulk(
+        self, entity_ids: list[int]
+    ) -> tuple[
         dict[int, str | None],  # name
         dict[int, int],  # strength
         dict[int, int],  # defense
@@ -543,7 +545,9 @@ class EntityRegistry:
     def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
         return self._store.monster_perception_records(player_id)
 
-    def monster_perception_arrays(self, player_id: int) -> tuple[
+    def monster_perception_arrays(
+        self, player_id: int
+    ) -> tuple[
         NDArray[np.int64],
         NDArray[np.int64],
         NDArray[np.int64],

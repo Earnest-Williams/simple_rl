@@ -19,7 +19,7 @@ def build_state(
     entities: int,
     fov_radius: int,
     seed: int,
-) -> "GameState":
+) -> GameState:
     from game.game_state import GameState
     from game.world.game_map import TILE_ID_FLOOR, GameMap
 
@@ -63,7 +63,7 @@ def build_state(
     raise ValueError(f"map {width}x{height} does not fit {entities} AI entities")
 
 
-def run_turns(state: "GameState", turns: int) -> None:
+def run_turns(state: GameState, turns: int) -> None:
     for _ in range(turns):
         state.advance_turn()
 
@@ -121,8 +121,10 @@ def bench(
     )
 
     stats_output = io.StringIO()
-    stats = pstats.Stats(profiler, stream=stats_output).strip_dirs().sort_stats(
-        "cumulative"
+    stats = (
+        pstats.Stats(profiler, stream=stats_output)
+        .strip_dirs()
+        .sort_stats("cumulative")
     )
     stats.print_stats(top)
     print(stats_output.getvalue())

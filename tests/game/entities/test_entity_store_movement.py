@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import pytest
-import numpy as np
-
 from game.entities.components import Position
-from game.entities.registry import EntityRegistry
 from game.entities.store import EntityStore
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL
 from game.systems.movement_system import try_move
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 
 def test_try_move_entity_updates_position_and_occupancy() -> None:

@@ -281,7 +281,9 @@ class EntityStore:
                 result[component] = self.extra_components[idx].get(component)
         return result
 
-    def get_combat_components_bulk(self, entity_ids: list[int]) -> tuple[
+    def get_combat_components_bulk(
+        self, entity_ids: list[int]
+    ) -> tuple[
         dict[int, str | None],  # name
         dict[int, int],  # strength
         dict[int, int],  # defense
@@ -630,7 +632,9 @@ class EntityStore:
             )
         return records
 
-    def monster_perception_arrays(self, player_id: int) -> tuple[
+    def monster_perception_arrays(
+        self, player_id: int
+    ) -> tuple[
         NDArray[np.int64],
         NDArray[np.int64],
         NDArray[np.int64],
@@ -824,7 +828,6 @@ class EntityStore:
 
     @classmethod
     def from_polars(cls, df: pl.DataFrame) -> EntityStore:
-
         store = cls(capacity=max(256, df.height))
         store.count = df.height
 

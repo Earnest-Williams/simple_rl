@@ -175,3 +175,13 @@ def is_player_at_starting_port(gs: GameState, radius_squared: int = 100) -> bool
     hx, hy = harbor_point
     px, py = player_pos
     return (px - hx) ** 2 + (py - hy) ** 2 <= radius_squared
+
+
+def resolve_cave_metadata_at(gs: GameState, x: int, y: int) -> Mapping[str, Any] | None:
+    """Find and return cave metadata from the starting contract at the given coordinate."""
+    contract = resolve_starting_contract(gs)
+    for cave in _iter_dicts(contract.get("cave_refs")):
+        point = _as_point(cave.get("point"))
+        if point == (x, y):
+            return cave
+    return None

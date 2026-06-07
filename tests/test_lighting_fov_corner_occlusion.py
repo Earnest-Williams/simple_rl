@@ -1,5 +1,7 @@
 import numpy as np
+
 from game.world.light_fov import compute_fov_all_octants
+
 
 def test_diagonal_corner_occlusion():
     """Verify that a single blocking cardinal corner prevents diagonal line of sight squeezing."""
@@ -7,7 +9,7 @@ def test_diagonal_corner_occlusion():
     transparency = np.ones((h, w), dtype=np.float32)
     # blocker at (2, 1)
     transparency[1, 2] = 0.0  # y=1, x=2 blocker
-    
+
     opaque = (transparency <= 0.0).astype(np.uint8)
     visible = np.zeros((h, w), dtype=np.uint8)
     dist = -np.ones((h, w), dtype=np.int32)
@@ -27,6 +29,6 @@ def test_diagonal_corner_occlusion():
         1,  # cy
         3,  # radius
     )
-    
+
     # Target (2, 2) should not be visible
     assert visible[2, 2] == 0

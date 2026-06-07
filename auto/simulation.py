@@ -5,28 +5,25 @@ import heapq
 
 # Removed 'random' import
 import itertools
-import sys
 import typing  # Use typing instead of from typing import ...
 import uuid
 from collections import defaultdict, deque
 from typing import Final
-
-# --- Use relative imports for project modules ---
-# Fallback removed
-from utils.game_rng import GameRNG
-
 
 # --- NumPy for potential future use ---
 # Use Polars instead of direct numpy for entity state usually
 # --- Polars DataFrame Library ---
 import polars as pl
 
-from .goap_engine import Action, AgentAI
-
 # --- Numba JIT Compiler ---
 # Fallback removed
 from numba import njit
 
+# --- Use relative imports for project modules ---
+# Fallback removed
+from utils.game_rng import GameRNG
+
+from .goap_engine import Action
 
 # --- Type Hinting Aliases (Using modern types where possible) ---
 Position = tuple[int, int]

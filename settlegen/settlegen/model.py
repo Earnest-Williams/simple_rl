@@ -152,9 +152,7 @@ class GenerationReport:
         return {
             "requested_facilities": list(self.requested_facilities),
             "placed_facilities": list(self.placed_facilities),
-            "failed_facilities": {
-                f.facility: f.reason for f in self.failed_facilities
-            },
+            "failed_facilities": {f.facility: f.reason for f in self.failed_facilities},
         }
 
 

@@ -301,6 +301,7 @@ def test_diagonal_leak_cases() -> None:
 def test_adjacent_blocker_clears_diagonal_cardinal_face_bit() -> None:
     """A blocker adjacent to a diagonal target clears that target's cardinal face."""
     from game.world.light_fov import _compute_octant_core_legacy
+
     h = w = 7
     transparency = np.ones((h, w), dtype=np.float32)
     transparency[2, 3] = 0.0

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, cast
@@ -11,16 +10,20 @@ import polars as pl
 import pygame  # type: ignore[import-untyped]
 
 from common.constants import Material
-from orchestrator import DEFAULT_CA_ITERATIONS, DEFAULT_MAX_DEPTH, DEFAULT_MAX_NODES
-from orchestrator import run_pipeline
+from orchestrator import (
+    DEFAULT_CA_ITERATIONS,
+    DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_NODES,
+    run_pipeline,
+)
 from utils.shaped_map import load_shaped_map_as_arrays
-
 
 TILE_SIZE_OPTIONS: Final[tuple[int, ...]] = (2, 3, 4, 6, 8, 12, 16, 24)
 DEFAULT_TILE_SIZE_INDEX: Final[int] = 5
 
 SCREEN_WIDTH: Final[int] = 1152
 SCREEN_HEIGHT: Final[int] = 648
+
 
 @dataclass(slots=True)
 class ViewState:
@@ -152,10 +155,9 @@ def find_spawn(
     preferred_col: int
     preferred_row, preferred_col = preferred_spawn
 
-    in_bounds: bool = (
-        0 <= preferred_row < int(tile_grid.shape[0])
-        and 0 <= preferred_col < int(tile_grid.shape[1])
-    )
+    in_bounds: bool = 0 <= preferred_row < int(
+        tile_grid.shape[0]
+    ) and 0 <= preferred_col < int(tile_grid.shape[1])
 
     if in_bounds and is_walkable(int(tile_grid[preferred_row, preferred_col])):
         return preferred_row, preferred_col
@@ -323,9 +325,7 @@ def draw(
         tile_size,
     )
     _draw_player(screen, player, camera_col, camera_row, tile_size)
-    _draw_hud(
-        screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows
-    )
+    _draw_hud(screen, font, player, tile_grid, origin, tile_size, view_cols, view_rows)
 
     pygame.display.flip()
 

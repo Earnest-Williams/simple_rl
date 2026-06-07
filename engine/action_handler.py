@@ -683,6 +683,30 @@ def process_player_action(
                 gs.add_message("Repair what?", (255, 100, 100))
                 player_acted = False
 
+        case "enter":
+            x = action.get("x")
+            y = action.get("y")
+            if x is None or y is None:
+                player_pos = gs.player_position
+                if player_pos:
+                    x, y = player_pos
+            if x is not None and y is not None:
+                from game.systems.transition import enter_cave_at, exit_cave
+
+                if (
+                    hasattr(gs, "overland_map_backup")
+                    and gs.overland_map_backup is not None
+                ):
+                    player_acted = exit_cave(gs)
+                else:
+                    player_acted = enter_cave_at(gs, int(x), int(y))
+            else:
+                log.warning(
+                    "Enter action failed: Player position unknown and no target coordinates provided."
+                )
+                gs.add_message("Enter where?", (255, 100, 100))
+                player_acted = False
+
         case "change_season":
             season_name = action.get("season")
             if season_name:

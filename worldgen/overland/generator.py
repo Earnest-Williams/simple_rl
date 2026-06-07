@@ -1171,7 +1171,9 @@ def _features_df(
             "evidence_tags": [int(EvidenceTag.QUARRIED_STONE)],
         },
         {
-            "point": _metadata_point(starting_region["route_segments"][0], "from_point"),
+            "point": _metadata_point(
+                starting_region["route_segments"][0], "from_point"
+            ),
             "feature_type": FeatureType.ANCIENT_ROAD,
             "target_id": 105,
             "tags": "starting_region;route;ancient_road;endpoint",
@@ -1239,9 +1241,7 @@ def _features_df(
             "feature_type": [int(spec["feature_type"]) for spec in feature_specs],
             "target_id": [int(spec["target_id"]) for spec in feature_specs],
             "tags": [str(spec["tags"]) for spec in feature_specs],
-            "evidence_tags": [
-                list(spec["evidence_tags"]) for spec in feature_specs
-            ],
+            "evidence_tags": [list(spec["evidence_tags"]) for spec in feature_specs],
         }
     )
 

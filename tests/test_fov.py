@@ -31,7 +31,9 @@ def test_empty_room_center_source() -> None:
             assert (
                 cy + dy,
                 cx + dx,
-            ) in visible, f"Expected cardinal cell ({cy + dy},{cx + dx}) at distance {d} to be visible"
+            ) in visible, (
+                f"Expected cardinal cell ({cy + dy},{cx + dx}) at distance {d} to be visible"
+            )
 
 
 def test_single_blocker() -> None:

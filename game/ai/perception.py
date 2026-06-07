@@ -354,7 +354,6 @@ def gather_perception_snapshot(game_state: GameState) -> PerceptionSnapshot:
     )
 
     for idx in actor_indices:
-
         ent_id = registry.entity_id_at(idx)
         ex, ey = registry.xy_at(idx)
 

@@ -42,9 +42,7 @@ def write_overland_bundle(
     transitions_path = out_dir / COMPUTED_OVERLAND_FILES["transitions_df"]
     _check_writable(transitions_path, overwrite=overwrite)
     transition_reqs = generate_transition_requests(bundle)
-    transition_requests_to_df(transition_reqs).write_ipc(
-        transitions_path
-    )
+    transition_requests_to_df(transition_reqs).write_ipc(transitions_path)
     paths["transitions_df"] = transitions_path
     routes_path = out_dir / COMPUTED_OVERLAND_FILES["routes_df"]
     _check_writable(routes_path, overwrite=overwrite)

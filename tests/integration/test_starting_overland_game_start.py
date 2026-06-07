@@ -99,9 +99,9 @@ def test_starting_overland_game_start_and_mechanics() -> None:
 
     # Try to move player into the unwalkable tile (should fail)
     moved = try_move(gs.player_id, ux - px_new, uy - py_new, gs)
-    assert (
-        not moved
-    ), f"Player was incorrectly allowed to move to unwalkable tile ({ux},{uy})"
+    assert not moved, (
+        f"Player was incorrectly allowed to move to unwalkable tile ({ux},{uy})"
+    )
 
     # Restore original position
     gs.entity_registry.set_position(gs.player_id, Position(*original_pos))
@@ -141,6 +141,6 @@ def test_starting_overland_game_start_and_mechanics() -> None:
     unique_glyphs = np.unique(glyph_indices[drawn])
     unique_fgs = np.unique(base_fg[drawn], axis=0)
 
-    assert (
-        len(unique_glyphs) > 1 or len(unique_fgs) > 1
-    ), "Renderer silent fallback to floor/wall visuals detected."
+    assert len(unique_glyphs) > 1 or len(unique_fgs) > 1, (
+        "Renderer silent fallback to floor/wall visuals detected."
+    )

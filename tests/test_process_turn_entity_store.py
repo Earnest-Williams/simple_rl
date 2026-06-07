@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import pytest
 import numpy as np
 import polars as pl
 
 from game.game_state import GameState
-from game.world.game_map import GameMap, TILE_ID_FLOOR
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 
 
 def _make_state() -> GameState:
@@ -90,10 +89,12 @@ def test_process_turn_returns_ai_entity_ids() -> None:
     assert enemy_id in ai_ids
 
 
-def test_resolve_monster_perception_does_not_materialize_entities_df(monkeypatch) -> None:
+def test_resolve_monster_perception_does_not_materialize_entities_df(
+    monkeypatch,
+) -> None:
     """Test that resolve_monster_perception uses array-based API, not Polars."""
     state = _make_state()
-    
+
     # Create a monster
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -115,7 +116,7 @@ def test_resolve_monster_perception_does_not_materialize_entities_df(monkeypatch
 
     # This should not raise
     state.resolve_monster_perception()
-    
+
     # Should have run without error
     assert isinstance(state.perception_alerted_monster_ids, list)
 
@@ -123,7 +124,7 @@ def test_resolve_monster_perception_does_not_materialize_entities_df(monkeypatch
 def test_resolve_monster_perception_does_not_use_entities_df(monkeypatch) -> None:
     """Test that resolve_monster_perception doesn't access entities_df property."""
     state = _make_state()
-    
+
     # Create a monster
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -149,7 +150,7 @@ def test_resolve_monster_perception_does_not_use_entities_df(monkeypatch) -> Non
 
     # This should not raise
     state.resolve_monster_perception()
-    
+
     # Should have run without error
     assert isinstance(state.perception_alerted_monster_ids, list)
 
@@ -158,10 +159,10 @@ def test_update_sound_context_does_not_materialize_entities_df(monkeypatch) -> N
     """Test that _update_sound_context uses store accessors, not Polars."""
     # Enable sound manager for this test
     state = _make_state()
-    state.sound_manager = type('MockSoundManager', (), {
-        'set_context': lambda self, ctx: None
-    })()
-    
+    state.sound_manager = type(
+        "MockSoundManager", (), {"set_context": lambda self, ctx: None}
+    )()
+
     # Create a monster
     state.entity_registry.create_entity(
         x=4,
@@ -187,10 +188,10 @@ def test_update_sound_context_does_not_use_entities_df(monkeypatch) -> None:
     """Test that _update_sound_context doesn't access entities_df property."""
     # Enable sound manager for this test
     state = _make_state()
-    state.sound_manager = type('MockSoundManager', (), {
-        'set_context': lambda self, ctx: None
-    })()
-    
+    state.sound_manager = type(
+        "MockSoundManager", (), {"set_context": lambda self, ctx: None}
+    )()
+
     # Create a monster
     state.entity_registry.create_entity(
         x=4,
@@ -219,22 +220,27 @@ def test_update_sound_context_does_not_use_entities_df(monkeypatch) -> None:
 def test_update_sound_context_combat_detection(monkeypatch) -> None:
     """Test that _update_sound_context still correctly detects combat."""
     state = _make_state()
-    
+
     # Mock sound manager to capture context
     captured_contexts = []
-    mock_sound_manager = type('MockSoundManager', (), {
-        'enabled': True,
-        'update_background_music': lambda self, ctx: captured_contexts.append(ctx)
-    })()
+    mock_sound_manager = type(
+        "MockSoundManager",
+        (),
+        {
+            "enabled": True,
+            "update_background_music": lambda self, ctx: captured_contexts.append(ctx),
+        },
+    )()
     state.sound_manager = mock_sound_manager
-    
+
     # Mock get_sound_manager to return our mock
     def mock_get_sound_manager():
         return mock_sound_manager
-    
+
     from game.systems import sound
+
     monkeypatch.setattr(sound, "get_sound_manager", mock_get_sound_manager)
-    
+
     # Create a visible enemy nearby
     state.entity_registry.create_entity(
         x=3,
@@ -246,12 +252,12 @@ def test_update_sound_context_combat_detection(monkeypatch) -> None:
         species="enemy",
         blocks_movement=True,
     )
-    
+
     # Make sure the enemy is visible
     state.game_map.visible[:] = True
 
     state._update_sound_context()
-    
+
     # Should have detected combat
     assert len(captured_contexts) > 0
     assert captured_contexts[-1]["game_state"] == "combat"
@@ -260,22 +266,27 @@ def test_update_sound_context_combat_detection(monkeypatch) -> None:
 def test_update_sound_context_elite_boss_detection(monkeypatch) -> None:
     """Test that _update_sound_context still correctly detects elite/boss enemies."""
     state = _make_state()
-    
+
     # Mock sound manager to capture context
     captured_contexts = []
-    mock_sound_manager = type('MockSoundManager', (), {
-        'enabled': True,
-        'update_background_music': lambda self, ctx: captured_contexts.append(ctx)
-    })()
+    mock_sound_manager = type(
+        "MockSoundManager",
+        (),
+        {
+            "enabled": True,
+            "update_background_music": lambda self, ctx: captured_contexts.append(ctx),
+        },
+    )()
     state.sound_manager = mock_sound_manager
-    
+
     # Mock get_sound_manager to return our mock
     def mock_get_sound_manager():
         return mock_sound_manager
-    
+
     from game.systems import sound
+
     monkeypatch.setattr(sound, "get_sound_manager", mock_get_sound_manager)
-    
+
     # Create elite and boss enemies
     state.entity_registry.create_entity(
         x=3,
@@ -286,7 +297,7 @@ def test_update_sound_context_elite_boss_detection(monkeypatch) -> None:
         ai_type="goap",
         species="enemy",
     )
-    
+
     state.entity_registry.create_entity(
         x=4,
         y=4,
@@ -296,12 +307,12 @@ def test_update_sound_context_elite_boss_detection(monkeypatch) -> None:
         ai_type="goap",
         species="enemy",
     )
-    
+
     # Make sure enemies are visible
     state.game_map.visible[:] = True
 
     state._update_sound_context()
-    
+
     # Should have detected enemy types
     assert len(captured_contexts) > 0
     context = captured_contexts[-1]
@@ -313,7 +324,7 @@ def test_update_sound_context_elite_boss_detection(monkeypatch) -> None:
 def test_advance_turn_does_not_use_row_dicts(monkeypatch) -> None:
     """Test that advance_turn does not use row dictionaries in AI dispatch."""
     state = _make_state()
-    
+
     # Create an AI entity
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -341,7 +352,7 @@ def test_advance_turn_does_not_use_row_dicts(monkeypatch) -> None:
 def test_dispatch_ai_receives_only_entity_ids(monkeypatch) -> None:
     """Test that dispatch_ai receives only integer entity IDs."""
     state = _make_state()
-    
+
     # Create an AI entity
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -355,14 +366,15 @@ def test_dispatch_ai_receives_only_entity_ids(monkeypatch) -> None:
 
     # Track what dispatch_ai receives
     received_entities = []
-    
+
     def mock_dispatch_ai(entities, *, game_state, rng, perception=None, **kwargs):
         received_entities.append(entities)
         # Don't actually do anything
         return
-    
+
     # Patch the function in the game_state module where it's imported
     import game.game_state as game_state_module
+
     monkeypatch.setattr(game_state_module, "dispatch_ai", mock_dispatch_ai)
 
     # Enable AI
@@ -384,9 +396,9 @@ def test_dispatch_ai_receives_only_entity_ids(monkeypatch) -> None:
 def test_get_entities_in_aoe_does_not_materialize_entities_df(monkeypatch) -> None:
     """Test that _get_entities_in_aoe uses store accessors, not Polars."""
     from game.effects.handlers import _get_entities_in_aoe
-    
+
     state = _make_state()
-    
+
     # Create some entities
     for i in range(3):
         state.entity_registry.create_entity(
@@ -407,7 +419,7 @@ def test_get_entities_in_aoe_does_not_materialize_entities_df(monkeypatch) -> No
 
     # This should not raise
     result = _get_entities_in_aoe((5, 5), 3, state)
-    
+
     # Should have found entities within radius 3 of (5,5)
     assert isinstance(result, list)
     assert len(result) > 0
@@ -415,10 +427,9 @@ def test_get_entities_in_aoe_does_not_materialize_entities_df(monkeypatch) -> No
 
 def test_community_adapter_step_does_not_materialize_entities_df(monkeypatch) -> None:
     """Test that CommunityAdapter.step uses store accessors, not Polars."""
-    from game.ai.community_adapter import CommunityManager
-    
+
     state = _make_state()
-    
+
     # Create a community entity
     state.entity_registry.create_entity(
         x=4,
@@ -443,9 +454,9 @@ def test_community_adapter_step_does_not_materialize_entities_df(monkeypatch) ->
 def test_insect_ai_does_not_materialize_entities_df(monkeypatch) -> None:
     """Test that insect AI uses store accessors, not Polars."""
     from game.ai.insect import take_turn as insect_take_turn
-    
+
     state = _make_state()
-    
+
     # Create an insect entity
     enemy_id = state.entity_registry.create_entity(
         x=4,
@@ -465,6 +476,7 @@ def test_insect_ai_does_not_materialize_entities_df(monkeypatch) -> None:
 
     # Mock rng
     from utils.game_rng import GameRNG
+
     rng = GameRNG()
 
     # This should not raise
@@ -475,13 +487,21 @@ def test_all_ai_adapters_accept_entity_ids() -> None:
     """Test that all AI adapters accept entity_id as int."""
     from game.ai import get_adapter
     from utils.game_rng import GameRNG
-    
+
     state = _make_state()
     rng = GameRNG()
-    
+
     # Test all adapters that should accept entity_id
-    adapters_to_test = ["simple", "bird", "mammal", "reptile", "plant", "ml_policy", "community"]
-    
+    adapters_to_test = [
+        "simple",
+        "bird",
+        "mammal",
+        "reptile",
+        "plant",
+        "ml_policy",
+        "community",
+    ]
+
     for ai_type in adapters_to_test:
         adapter = get_adapter(ai_type)
         # Check that the adapter accepts entity_id as first parameter
@@ -493,7 +513,9 @@ def test_all_ai_adapters_accept_entity_ids() -> None:
             adapter(1, state, rng, None)
         except TypeError as e:
             if "entity_row" in str(e) or "argument" in str(e):
-                raise AssertionError(f"Adapter {ai_type} doesn't accept entity_id as int: {e}")
+                raise AssertionError(
+                    f"Adapter {ai_type} doesn't accept entity_id as int: {e}"
+                )
         except Exception:
             # Other exceptions are fine - we just care about the signature
             pass
@@ -502,29 +524,42 @@ def test_all_ai_adapters_accept_entity_ids() -> None:
 def test_handle_melee_attack_does_not_materialize_entities_df(monkeypatch) -> None:
     """Test that handle_melee_attack uses bulk component fetching instead of entities_df."""
     from game.systems.combat_system import handle_melee_attack
-    
+
     state = _make_state()
-    
+
     # Create attacker and defender
     attacker_id = state.entity_registry.create_entity(
-        x=3, y=3, glyph=100, color_fg=(255, 0, 0), name="Attacker", 
-        strength=5, hp=10, max_hp=10
+        x=3,
+        y=3,
+        glyph=100,
+        color_fg=(255, 0, 0),
+        name="Attacker",
+        strength=5,
+        hp=10,
+        max_hp=10,
     )
     defender_id = state.entity_registry.create_entity(
-        x=3, y=4, glyph=101, color_fg=(0, 0, 255), name="Defender", 
-        defense=2, armor=1, hp=8, max_hp=8
+        x=3,
+        y=4,
+        glyph=101,
+        color_fg=(0, 0, 255),
+        name="Defender",
+        defense=2,
+        armor=1,
+        hp=8,
+        max_hp=8,
     )
-    
+
     # Mock entities_df to fail if accessed
     def fail_entities_df() -> object:
         raise AssertionError("handle_melee_attack must not materialize entities_df")
-    
+
     monkeypatch.setattr(
         type(state.entity_registry),
         "entities_df",
         property(lambda self: fail_entities_df()),
     )
-    
+
     # This should not raise AssertionError about entities_df
     try:
         handle_melee_attack(attacker_id, defender_id, state)
@@ -540,43 +575,55 @@ def test_handle_melee_attack_does_not_materialize_entities_df(monkeypatch) -> No
 def test_handle_melee_attack_does_not_use_polars(monkeypatch) -> None:
     """Test that handle_melee_attack doesn't use polars DataFrame operations."""
     from game.systems.combat_system import handle_melee_attack
-    import polars as pl
-    
+
     state = _make_state()
-    
+
     # Create attacker and defender
     attacker_id = state.entity_registry.create_entity(
-        x=3, y=3, glyph=100, color_fg=(255, 0, 0), name="Attacker", 
-        strength=5, hp=10, max_hp=10
+        x=3,
+        y=3,
+        glyph=100,
+        color_fg=(255, 0, 0),
+        name="Attacker",
+        strength=5,
+        hp=10,
+        max_hp=10,
     )
     defender_id = state.entity_registry.create_entity(
-        x=3, y=4, glyph=101, color_fg=(0, 0, 255), name="Defender", 
-        defense=2, armor=1, hp=8, max_hp=8
+        x=3,
+        y=4,
+        glyph=101,
+        color_fg=(0, 0, 255),
+        name="Defender",
+        defense=2,
+        armor=1,
+        hp=8,
+        max_hp=8,
     )
-    
+
     # Track if DataFrame.filter or DataFrame.iter_rows is called
     original_filter = pl.DataFrame.filter
     original_iter_rows = pl.DataFrame.iter_rows
     filter_called = []
     iter_rows_called = []
-    
+
     def tracked_filter(self, *args, **kwargs):
         filter_called.append(True)
         return original_filter(self, *args, **kwargs)
-    
+
     def tracked_iter_rows(self, *args, **kwargs):
         iter_rows_called.append(True)
         return original_iter_rows(self, *args, **kwargs)
-    
+
     monkeypatch.setattr(pl.DataFrame, "filter", tracked_filter)
     monkeypatch.setattr(pl.DataFrame, "iter_rows", tracked_iter_rows)
-    
+
     try:
         handle_melee_attack(attacker_id, defender_id, state)
     except Exception:
         # We don't care about other exceptions, just that polars wasn't used
         pass
-    
+
     # Check that filter was not called on DataFrames related to entities
     # (It might be called for items, but we're testing entity path)
     # The key is that entities_df.filter should not be called
@@ -587,25 +634,54 @@ def test_handle_melee_attack_does_not_use_polars(monkeypatch) -> None:
 def test_get_combat_components_bulk_returns_correct_data() -> None:
     """Test that bulk combat component fetching returns correct data."""
     state = _make_state()
-    
+
     # Create entities with known combat components
     entity1_id = state.entity_registry.create_entity(
-        x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity1", 
-        strength=10, defense=5, armor=3, hp=20, max_hp=25,
-        resistances={"fire": 0.5}, vulnerabilities={"ice": 0.2}, xp_reward=100
+        x=1,
+        y=1,
+        glyph=100,
+        color_fg=(255, 0, 0),
+        name="Entity1",
+        strength=10,
+        defense=5,
+        armor=3,
+        hp=20,
+        max_hp=25,
+        resistances={"fire": 0.5},
+        vulnerabilities={"ice": 0.2},
+        xp_reward=100,
     )
     entity2_id = state.entity_registry.create_entity(
-        x=2, y=2, glyph=101, color_fg=(0, 255, 0), name="Entity2",
-        strength=8, defense=3, armor=2, hp=15, max_hp=20,
-        resistances={"physical": 0.1}, vulnerabilities={"fire": 0.3}, xp_reward=50
+        x=2,
+        y=2,
+        glyph=101,
+        color_fg=(0, 255, 0),
+        name="Entity2",
+        strength=8,
+        defense=3,
+        armor=2,
+        hp=15,
+        max_hp=20,
+        resistances={"physical": 0.1},
+        vulnerabilities={"fire": 0.3},
+        xp_reward=50,
     )
-    
+
     # Fetch bulk components
     (
-        names, strengths, defenses, armors, hps, max_hps, xs, ys,
-        resistances, vulnerabilities, xp_rewards
+        names,
+        strengths,
+        defenses,
+        armors,
+        hps,
+        max_hps,
+        xs,
+        ys,
+        resistances,
+        vulnerabilities,
+        xp_rewards,
     ) = state.entity_registry.get_combat_components_bulk([entity1_id, entity2_id])
-    
+
     # Verify data for entity1
     assert names.get(entity1_id) == "Entity1"
     assert strengths.get(entity1_id) == 10
@@ -618,7 +694,7 @@ def test_get_combat_components_bulk_returns_correct_data() -> None:
     assert resistances.get(entity1_id) == {"fire": 0.5}
     assert vulnerabilities.get(entity1_id) == {"ice": 0.2}
     assert xp_rewards.get(entity1_id) == 100
-    
+
     # Verify data for entity2
     assert names.get(entity2_id) == "Entity2"
     assert strengths.get(entity2_id) == 8
@@ -636,52 +712,71 @@ def test_get_combat_components_bulk_returns_correct_data() -> None:
 def test_get_combat_components_bulk_handles_nullable_components() -> None:
     """Test that bulk combat component fetching handles None values for nullable components."""
     state = _make_state()
-    
+
     # Create entities with nullable combat components explicitly set to None
     entity1_id = state.entity_registry.create_entity(
-        x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity1",
-        hp=20, max_hp=25,
+        x=1,
+        y=1,
+        glyph=100,
+        color_fg=(255, 0, 0),
+        name="Entity1",
+        hp=20,
+        max_hp=25,
     )
     entity2_id = state.entity_registry.create_entity(
-        x=2, y=2, glyph=101, color_fg=(0, 255, 0), name="Entity2",
-        hp=15, max_hp=20,
+        x=2,
+        y=2,
+        glyph=101,
+        color_fg=(0, 255, 0),
+        name="Entity2",
+        hp=15,
+        max_hp=20,
     )
-    
+
     # Explicitly set nullable components to None
     state.entity_registry.set_entity_component(entity1_id, "strength", None)
     state.entity_registry.set_entity_component(entity1_id, "defense", None)
     state.entity_registry.set_entity_component(entity1_id, "armor", None)
     state.entity_registry.set_entity_component(entity1_id, "xp_reward", None)
-    
+
     state.entity_registry.set_entity_component(entity2_id, "strength", None)
     state.entity_registry.set_entity_component(entity2_id, "defense", None)
     state.entity_registry.set_entity_component(entity2_id, "armor", None)
     state.entity_registry.set_entity_component(entity2_id, "xp_reward", None)
-    
+
     # Fetch bulk components - should not crash on None values
     (
-        names, strengths, defenses, armors, hps, max_hps, xs, ys,
-        resistances, vulnerabilities, xp_rewards
+        names,
+        strengths,
+        defenses,
+        armors,
+        hps,
+        max_hps,
+        xs,
+        ys,
+        resistances,
+        vulnerabilities,
+        xp_rewards,
     ) = state.entity_registry.get_combat_components_bulk([entity1_id, entity2_id])
-    
+
     # Verify that None values are converted to 0 for numeric components
     assert strengths.get(entity1_id) == 0
     assert defenses.get(entity1_id) == 0
     assert armors.get(entity1_id) == 0
     assert xp_rewards.get(entity1_id) == 0
-    
+
     assert strengths.get(entity2_id) == 0
     assert defenses.get(entity2_id) == 0
     assert armors.get(entity2_id) == 0
     assert xp_rewards.get(entity2_id) == 0
-    
+
     # Verify that non-nullable components still work
     assert names.get(entity1_id) == "Entity1"
     assert hps.get(entity1_id) == 20
     assert max_hps.get(entity1_id) == 25
     assert xs.get(entity1_id) == 1
     assert ys.get(entity1_id) == 1
-    
+
     # Verify that None values for dict components are converted to empty dicts
     assert resistances.get(entity1_id) == {}
     assert vulnerabilities.get(entity1_id) == {}
@@ -690,28 +785,18 @@ def test_get_combat_components_bulk_handles_nullable_components() -> None:
 def test_get_equipped_items_bulk_returns_correct_data() -> None:
     """Test that bulk equipped items fetching returns correct data."""
     state = _make_state()
-    
+
     # Add templates with attributes first
     state.item_registry.item_templates = {
-        "test_sword": {
-            "attributes": {
-                "damage_dice": "1d6",
-                "weapon_type": "sword"
-            }
-        },
-        "test_shield": {
-            "attributes": {
-                "damage_dice": None,
-                "weapon_type": None
-            }
-        }
+        "test_sword": {"attributes": {"damage_dice": "1d6", "weapon_type": "sword"}},
+        "test_shield": {"attributes": {"damage_dice": None, "weapon_type": None}},
     }
-    
+
     # Create an entity
     entity_id = state.entity_registry.create_entity(
         x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity"
     )
-    
+
     # Create and equip some items
     item1_id = state.item_registry.create_item(
         template_id="test_sword",
@@ -725,17 +810,17 @@ def test_get_equipped_items_bulk_returns_correct_data() -> None:
         owner_entity_id=entity_id,
         equipped_slot="off_hand",
     )
-    
+
     # Fetch bulk equipped items
     result = state.item_registry.get_equipped_items_bulk([entity_id])
-    
+
     # Verify structure
     assert entity_id in result
     equipped_items = result[entity_id]
-    
+
     # Should have 2 items
     assert len(equipped_items) == 2
-    
+
     # Check that we have the expected slots
     slots = [item[0] for item in equipped_items]  # First element is equipped_slot
     assert "main_hand" in slots
@@ -745,9 +830,9 @@ def test_get_equipped_items_bulk_returns_correct_data() -> None:
 def test_get_skills_bulk_returns_correct_data() -> None:
     """Test that bulk skills fetching returns correct data."""
     from skills.models import Skill, SkillProgress
-    
+
     state = _make_state()
-    
+
     # Create entities
     entity1_id = state.entity_registry.create_entity(
         x=1, y=1, glyph=100, color_fg=(255, 0, 0), name="Entity1"
@@ -755,7 +840,7 @@ def test_get_skills_bulk_returns_correct_data() -> None:
     entity2_id = state.entity_registry.create_entity(
         x=2, y=2, glyph=101, color_fg=(0, 255, 0), name="Entity2"
     )
-    
+
     # Set skills for entity1
     state.entity_registry.set_entity_component(
         entity1_id,
@@ -765,7 +850,7 @@ def test_get_skills_bulk_returns_correct_data() -> None:
             Skill.ARMOUR: SkillProgress(Skill.ARMOUR, 3, 50, 0),
         },
     )
-    
+
     # Set skills for entity2
     state.entity_registry.set_entity_component(
         entity2_id,
@@ -775,10 +860,10 @@ def test_get_skills_bulk_returns_correct_data() -> None:
             Skill.DODGING: SkillProgress(Skill.DODGING, 4, 75, 0),
         },
     )
-    
+
     # Fetch bulk skills
     skills_bulk = state.entity_registry.get_skills_bulk([entity1_id, entity2_id])
-    
+
     # Verify data for entity1
     assert entity1_id in skills_bulk
     entity1_skills = skills_bulk[entity1_id]
@@ -786,7 +871,7 @@ def test_get_skills_bulk_returns_correct_data() -> None:
     assert entity1_skills[Skill.FIGHTING].level == 5
     assert Skill.ARMOUR in entity1_skills
     assert entity1_skills[Skill.ARMOUR].level == 3
-    
+
     # Verify data for entity2
     assert entity2_id in skills_bulk
     entity2_skills = skills_bulk[entity2_id]
@@ -794,6 +879,7 @@ def test_get_skills_bulk_returns_correct_data() -> None:
     assert entity2_skills[Skill.FIGHTING].level == 8
     assert Skill.DODGING in entity2_skills
     assert entity2_skills[Skill.DODGING].level == 4
+
 
 def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> None:
     """Test that find_visible_enemies uses store accessors instead of entities_df."""
@@ -850,81 +936,105 @@ def test_find_visible_enemies_does_not_materialize_entities_df(monkeypatch) -> N
 
 def test_find_visible_enemies_with_none_faction_preserves_old_filtering() -> None:
     """Test that find_visible_enemies preserves old behavior for factionless actors.
-    
+
     In the old code, when the observer has no faction (faction is None),
     faction filtering was not applied at all. This means factionless entities
     should be included in results when the observer is also factionless.
     """
-    from game.ai.perception import find_visible_enemies
     import numpy as np
-    
+
+    from game.ai.perception import find_visible_enemies
+
     state = _make_state()
-    
+
     # Create a factionless observer entity
     observer_id = state.entity_registry.create_entity(
         x=3, y=3, glyph=100, color_fg=(255, 0, 0), name="Observer"
     )
-    
+
     # Create a factionless target entity (should be visible to factionless observer)
     target_id = state.entity_registry.create_entity(
         x=4, y=4, glyph=101, color_fg=(0, 0, 255), name="Target"
     )
-    
+
     # Create an entity with a faction (should also be visible to factionless observer)
     faction_entity_id = state.entity_registry.create_entity(
         x=5, y=5, glyph=102, color_fg=(0, 255, 0), name="FactionEntity", faction="enemy"
     )
-    
+
     # Create a simple los_map where all positions are visible
     los_map = np.ones((10, 10), dtype=bool)
-    
+
     # Create entity_row for the factionless observer
     entity_row = {
         "entity_id": observer_id,
         "x": 3,
         "y": 3,
         "faction": None,  # No faction
-        "vision_range": 10
+        "vision_range": 10,
     }
-    
+
     # Call find_visible_enemies
     result = find_visible_enemies(entity_row, state, los_map)
-    
+
     # Extract entity_ids from results
     result_ids = {enemy["entity_id"] for enemy in result}
-    
+
     # Both the factionless target and the factioned entity should be visible
     # because the observer has no faction, so no faction filtering should occur
-    assert target_id in result_ids, f"Factionless target should be visible to factionless observer"
-    assert faction_entity_id in result_ids, f"Factioned entity should be visible to factionless observer"
-    
+    assert target_id in result_ids, (
+        "Factionless target should be visible to factionless observer"
+    )
+    assert faction_entity_id in result_ids, (
+        "Factioned entity should be visible to factionless observer"
+    )
+
     # Now test with an observer that HAS a faction
     observer_with_faction_id = state.entity_registry.create_entity(
-        x=6, y=6, glyph=103, color_fg=(255, 255, 0), name="FactionObserver", faction="player"
+        x=6,
+        y=6,
+        glyph=103,
+        color_fg=(255, 255, 0),
+        name="FactionObserver",
+        faction="player",
     )
-    
+
     # Create another entity with the same faction
     same_faction_id = state.entity_registry.create_entity(
-        x=7, y=7, glyph=104, color_fg=(255, 0, 255), name="SameFaction", faction="player"
+        x=7,
+        y=7,
+        glyph=104,
+        color_fg=(255, 0, 255),
+        name="SameFaction",
+        faction="player",
     )
-    
+
     # Create an entity with a different faction
     different_faction_id = state.entity_registry.create_entity(
-        x=8, y=8, glyph=105, color_fg=(0, 255, 255), name="DifferentFaction", faction="enemy"
+        x=8,
+        y=8,
+        glyph=105,
+        color_fg=(0, 255, 255),
+        name="DifferentFaction",
+        faction="enemy",
     )
-    
+
     entity_row_with_faction = {
         "entity_id": observer_with_faction_id,
         "x": 6,
         "y": 6,
         "faction": "player",
-        "vision_range": 10
+        "vision_range": 10,
     }
-    
+
     result2 = find_visible_enemies(entity_row_with_faction, state, los_map)
     result_ids2 = {enemy["entity_id"] for enemy in result2}
-    
+
     # Same faction entity should NOT be visible
-    assert same_faction_id not in result_ids2, f"Same faction entity should not be visible"
+    assert same_faction_id not in result_ids2, (
+        "Same faction entity should not be visible"
+    )
     # Different faction entity SHOULD be visible
-    assert different_faction_id in result_ids2, f"Different faction entity should be visible"
+    assert different_faction_id in result_ids2, (
+        "Different faction entity should be visible"
+    )

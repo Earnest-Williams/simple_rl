@@ -76,8 +76,7 @@ def _apply_region_constraints(
         road_width=config.road_width,
         wall_margin=config.wall_margin,
         allow_bridges=config.allow_bridges,
-        allow_subterranean=config.allow_subterranean
-        or bool(region.cave_entrances),
+        allow_subterranean=config.allow_subterranean or bool(region.cave_entrances),
         allow_secret_features=config.allow_secret_features,
         name=config.name,
         tags=tags,
@@ -89,9 +88,7 @@ def _apply_region_constraints(
     )
 
 
-def _biased_layout(
-    region: RegionConstraints, tags: tuple[str, ...]
-) -> LayoutStyle:
+def _biased_layout(region: RegionConstraints, tags: tuple[str, ...]) -> LayoutStyle:
     """Suggest a layout style based on faction and trade route tags.
 
     Returns ``LayoutStyle.ORGANIC`` when no strong signal is present.
