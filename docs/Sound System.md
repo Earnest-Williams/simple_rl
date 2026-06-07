@@ -40,6 +40,24 @@ The Simple RL sound system provides situationally appropriate sound effects and 
 
 ## Architecture
 
+### Playback/perception boundary
+
+The sound system boundary is intentionally narrow:
+
+- `game/perception_events.py` owns typed gameplay `NoiseEvent` and `ScentEvent`
+  schemas. Gameplay systems should emit those events when they need stealth,
+  smell, monster awareness, or other simulation-visible perception behavior.
+- `pathfinding/perception_systems.py` owns sound/scent propagation concepts,
+  including obstruction-aware maps and flow-cost-style propagation state for AI
+  and gameplay perception.
+- `game/systems/sound.py` is audio playback only. It may consume integer
+  flow-cost maps to attenuate what the player hears, but it should not own or
+  recompute gameplay sound/scent propagation.
+
+SDL_mixer through PySDL2 remains the supported playback backend. Avoid
+reintroducing historical multi-backend audio language unless the implementation
+adds and tests another supported backend.
+
 ### Components
 
 - **SoundManager**: Central manager that handles all audio operations
@@ -109,22 +127,24 @@ Background music updates automatically based on the current game state:
 - **Deep Dungeon**: Atmospheric music at greater depths
 - **Boss Encounters**: Epic music when facing boss enemies
 
-### Gameplay perception boundary
+### Playback attenuation context
 
-Gameplay systems emit typed perception events, while propagation and AI-facing
-interpretation stay outside the audio playback layer:
-
-- `game/perception_events.py` defines typed `NoiseEvent` and `ScentEvent`
-  records, plus pending tuple compatibility aliases for older callers.
-- `pathfinding/perception_systems.py` owns noise/scent propagation and
-  flow-cost-aware perception maps used by gameplay and AI.
-- `game/systems/sound.py` may consume integer flow-cost maps to attenuate
-  playback volume by listener/source distance and obstruction cost, but it does
-  not own gameplay propagation or AI perception state.
-
-This keeps SDL2 mixer playback optional and non-intrusive: disabling audio must
+This keeps SDL_mixer playback optional and non-intrusive: disabling audio must
 not disable noise/scent propagation, stealth, monster perception, or pathfinding
 behavior.
+
+Accepted attenuation context keys for playback volume are:
+
+- `flow_cost_map`: preferred key for an integer NumPy-style flow-cost map.
+- `noise_flow_cost`: descriptive alias accepted for the same integer flow-cost
+  data.
+- `noise_map`: legacy key accepted only when it contains an integer flow-cost map;
+  non-integer intensity maps are ignored for playback attenuation.
+
+The audio layer also uses ordinary playback context keys such as
+`source_position` or `position`, `listener_position`, `listener_orientation`,
+`game_map`, `distance`, `environment`, and `time_of_day` for volume, occlusion,
+directional attenuation, environmental effects, and music matching.
 
 ## Sound Effect Configuration
 

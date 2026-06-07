@@ -24,7 +24,7 @@ Development prioritizes:
 
 * **Performance:** Utilizing libraries like Polars (for data manipulation), Numba (for JIT compilation on hot paths), NumPy, SciPy, scikit-image, and Joblib/multiprocessing (for parallelism) where appropriate.
 * **Determinism:** Employing the custom `GameRNG` for all stochastic processes to ensure reproducibility.
-* **Data-Driven Design:** Modeling game state with efficient data structures. Hot runtime entity state is array/store-oriented, while Polars remains important for compatibility snapshots, reporting, fixtures, bulk data operations, and dungeon-generation outputs.
+* **Data-Driven Design:** Modeling game state with efficient data structures. Polars is used for batch data, exports, snapshots, fixtures, and analysis; hot runtime entity state uses store/array-oriented access where migrated.
 * **Clarity & Maintainability:** Adhering to Python best practices (PEP 8) and favoring clear, modular code, especially in performance-critical sections.
 
 ## Status
@@ -96,8 +96,8 @@ Different components have dedicated development harnesses:
 * **Dungeon Generation:** `cd Dungeon && ./run.sh`
 * **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
 * **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
-* **Lighting/FOV Regression Tests:** `pytest -q tests/test_lighting_leaks.py tests/game/world/test_light_fov.py`
-* **Lighting/FOV Visual Tool:** `python -m tools.lighting_fov_tool.main`
+* **Lighting/FOV Regression Tests:** `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py`
+* **Lighting/FOV Visual Tool:** `python -m tools.lighting_fov_tool.main` (see [`tools/lighting_fov_tool/README.md`](./tools/lighting_fov_tool/README.md))
 
 Refer to individual component READMEs for specific requirements and usage details.
 Generated font assets and glyph metadata are documented in
@@ -109,8 +109,8 @@ The project prioritizes performance through high-performance libraries (Polars, 
 
 ### Performance Optimization
 * Use Numba JIT compilation for hot paths (FOV, lighting, pathfinding)
-* Leverage Polars lazy evaluation for large datasets
-* Consider spatial indexing for entity proximity queries
+* Leverage Polars lazy evaluation for large batch/reporting datasets
+* Keep hot runtime entity reads on store/array accessors and spatial indexes where migrated
 * Profile code with `cProfile` before optimizing
 * See [`docs/Performance Analysis.md`](./docs/Performance%20Analysis.md) for detailed analysis and recommendations
 

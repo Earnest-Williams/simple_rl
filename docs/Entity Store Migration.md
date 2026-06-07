@@ -30,16 +30,22 @@ exists to measure remaining turn-loop costs.
 
 ## Goal
 
-Replace the live entity store with a mutable, row-addressable runtime structure.
+Complete the replacement of live DataFrame-owned entity mutation with a mutable,
+row-addressable runtime structure behind `EntityRegistry`. This is no longer a
+pre-implementation design note: `EntityStore` exists, important hot paths already
+use it, and remaining work is about closing compatibility gaps and measuring the
+next bottleneck.
 
-The target design is:
+The target design remains:
 
 - Numeric hot fields live in NumPy arrays.
 - Object/string/list fields live in Python lists indexed by entity row.
 - `entity_id_to_index: dict[int, int]` maps stable entity IDs to row indices.
 - Movement updates `x` and `y` directly in one operation.
 - Collision uses an occupancy grid, not a DataFrame filter.
-- Polars becomes a cached snapshot/view generated from the live store when needed.
+- Polars remains reporting/compatibility/bulk-data infrastructure generated
+  from the live store when needed, not the authoritative hot runtime storage
+  model.
 
 ## Non-goals
 
@@ -50,9 +56,10 @@ The target design is:
 
 ## Current status as of 2026-06
 
-- [x] **Phase 1: Introduce `EntityStore` behind `EntityRegistry` — mostly
-  complete.** `entities_df` should now be treated as a compatibility/reporting
-  snapshot, while hot registry APIs read and write through store-oriented fields.
+- [x] **Phase 1: `EntityStore` behind `EntityRegistry` — mostly complete.**
+  `EntityStore` exists behind `EntityRegistry`; `entities_df` should now be
+  treated as a compatibility/reporting snapshot, while hot registry APIs read and
+  write through store-oriented fields.
 - [x] **Phase 2: Fast movement and occupancy — mostly complete.** Movement,
   collision, spatial-index population, and common position updates should prefer
   store/index access. Continue watching for legacy callers that still route
@@ -60,16 +67,25 @@ The target design is:
 - [ ] **Phase 3: Rewrite process-turn over indices — partially complete.**
   `game_state.py` has moved important paths to active indices, entity IDs, and
   spatial-index entries, but process-turn remains the highest-risk place for
-  compatibility rows and remaining `entities_df` materialization.
+  compatibility rows and remaining `entities_df` materialization. AI adapters
+  and hot scheduling paths have moved significantly toward entity IDs and
+  active-index iteration, but they are not fully free of compatibility shapes.
 - [x] **Phase 4: Remove Polars from perception hot reads — substantially
   complete.** Visible-enemy and perception paths now use registry/store
-  accessors and spatial-index candidates in production code; fallback or test
-  compatibility paths should remain cold and explicit.
+  accessors and spatial-index filtering in production code instead of
+  materializing `entities_df`; fallback or test compatibility paths should remain
+  cold and explicit.
 - [x] **Phase 5: Replace AI row dicts with entity IDs or typed views —
   substantially complete for production adapters.** GOAP/strategy adapters and
   perception snapshots have moved toward entity-ID/store access. Remaining
   exceptions should be called out when a production path still requires a
   DataFrame-shaped row dictionary.
+
+Combat is also past the original scalar-fetch design: melee combat uses
+`EntityRegistry.get_combat_components_bulk()`,
+`EntityRegistry.get_skills_bulk()`, and
+`ItemRegistry.get_equipped_items_bulk()` to read store-backed combat data in
+batches.
 
 Current follow-up work is therefore not "start the migration"; it is to profile
 the next dominant turn-processing bottleneck, remove any remaining hot
@@ -78,7 +94,7 @@ from runtime mutation.
 
 ## Runtime storage model
 
-Introduce an internal `EntityStore`, likely in:
+The internal `EntityStore` lives in:
 
 ```text
 game/entities/store.py
@@ -108,13 +124,13 @@ All arrays/lists use the same row index.
 
 ### Polars role
 
-Polars becomes a materialized compatibility/reporting view:
+Polars is a materialized compatibility/reporting view for migrated paths:
 
 ```python
 to_polars() -> pl.DataFrame
 ```
 
-`EntityRegistry.entities_df` may remain temporarily as a cached property:
+`EntityRegistry.entities_df` can be exposed as a cached snapshot property:
 
 ```python
 @property
@@ -129,7 +145,7 @@ Runtime mutation must mark the snapshot dirty, but must not mutate through Polar
 
 ### Occupancy grid
 
-Add a map-sized occupancy grid for blocking entities:
+Maintain a map-sized occupancy grid for blocking entities:
 
 ```python
 blocking_entity_at[y, x] = entity_id
@@ -139,11 +155,11 @@ Use `-1` for empty cells.
 
 Movement must update occupancy when blocking entities move.
 
-`get_blocking_entity_at(x, y)` should become one array lookup.
+`get_blocking_entity_at(x, y)` should remain one array lookup.
 
 ## Migration phases
 
-### Phase 1: Introduce EntityStore behind EntityRegistry
+### Phase 1: EntityStore behind EntityRegistry — mostly complete
 
 Keep the public `EntityRegistry` API stable:
 
@@ -158,16 +174,19 @@ Keep the public `EntityRegistry` API stable:
 - `delete_entity`
 - `compact_registry`
 
-Reimplement those methods against `EntityStore`.
+These methods have been reimplemented or routed through `EntityStore` for the
+main registry paths. Remaining work is regression prevention and ensuring new
+callers do not treat `entities_df` as mutable runtime storage.
 
 Acceptance criteria:
 - Existing tests pass.
 - `entities_df` still works as a compatibility snapshot.
 - No hot mutation path calls Polars `.collect()`.
 
-### Phase 2: Fast movement and occupancy
+### Phase 2: Fast movement and occupancy — mostly complete
 
-Add a direct movement/update path:
+The direct movement/update path is in place for current movement callers; this
+section records the desired invariant for future movement work:
 
 ```python
 move_entity(entity_id: int, dx: int, dy: int, game_map: GameMap) -> bool
@@ -194,9 +213,10 @@ Acceptance criteria:
 - `movement_system.try_move()` no longer depends on DataFrame mutation.
 - Scenario tests still pass.
 
-### Phase 3: Rewrite process_turn over indices
+### Phase 3: Rewrite process_turn over indices — partially complete
 
-Change `GameState.process_turn()` to iterate active entity indices from the store, not `entities_df.iter_rows(...)`.
+`GameState.process_turn()` should continue moving toward active entity indices
+from the store, not `entities_df.iter_rows(...)`.
 
 It should build:
 - active indices
@@ -209,9 +229,10 @@ Acceptance criteria:
 - Spatial index population uses array/list fields.
 - AI rows may still be compatibility dicts temporarily.
 
-### Phase 4: Remove Polars from perception hot reads
+### Phase 4: Remove Polars from perception hot reads — substantially complete
 
-Update `find_visible_enemies()` and related perception code to read from:
+`find_visible_enemies()` and related perception code should continue to read
+from:
 - spatial index
 - active indices
 - x/y arrays
@@ -222,9 +243,9 @@ Acceptance criteria:
 - `gather_perception_snapshot()` avoids DataFrame filtering in the per-entity loop.
 - Behavioral perception tests still pass.
 
-### Phase 5: Replace AI row dicts with entity IDs or typed views
+### Phase 5: Replace AI row dicts with entity IDs or typed views — substantially complete in production adapters
 
-Long-term AI adapter signature should move toward:
+Long-term and new AI adapter signatures should continue moving toward:
 
 ```python
 take_turn(entity_id: int, game_state: GameState, rng: GameRNG, perception: PerceptionSnapshot)
