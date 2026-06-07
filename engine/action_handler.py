@@ -698,7 +698,7 @@ def process_player_action(
                 if player_pos:
                     x, y = player_pos
             if x is not None and y is not None:
-                from game.systems.transition import enter_cave_at, exit_cave
+                from game.systems.transition import enter_cave_near, exit_cave
 
                 if (
                     hasattr(gs, "overland_map_backup")
@@ -706,7 +706,7 @@ def process_player_action(
                 ):
                     player_acted = exit_cave(gs)
                 else:
-                    player_acted = enter_cave_at(gs, int(x), int(y))
+                    player_acted = enter_cave_near(gs, int(x), int(y))
             else:
                 log.warning(
                     "Enter action failed: Player position unknown and no target coordinates provided."

@@ -8,6 +8,13 @@ from worldgen.overland.schema import RouteSegmentState
 
 Point = tuple[int, int]
 
+_FIRST_CAVE_KIND_PRIORITY: tuple[str, ...] = (
+    "ordinary_cave",
+    "karst_hydrology_transition",
+    "lava_tube_transition",
+    "inland_site_transition",
+)
+
 
 def _as_point(value: object) -> Point | None:
     if (
@@ -63,11 +70,27 @@ def resolve_first_playable_route_segment(gs: GameState) -> Mapping[str, Any] | N
     return route_segments[0] if route_segments else None
 
 
+def resolve_first_playable_cave(gs: GameState) -> Mapping[str, Any] | None:
+    """Resolve the first-playable cave or cave-like transition by doc priority."""
+    contract = resolve_starting_contract(gs)
+    cave_refs = _iter_dicts(contract.get("cave_refs"))
+    if not cave_refs:
+        return None
+
+    def _priority(cave: Mapping[str, Any]) -> int:
+        kind = cave.get("kind")
+        if isinstance(kind, str) and kind in _FIRST_CAVE_KIND_PRIORITY:
+            return _FIRST_CAVE_KIND_PRIORITY.index(kind)
+        return len(_FIRST_CAVE_KIND_PRIORITY)
+
+    return min(cave_refs, key=_priority)
+
+
 def resolve_first_playable_target(gs: GameState) -> Point | None:
     """Resolve the target of the first playable route."""
-    segment = resolve_first_playable_route_segment(gs)
-    if segment is not None:
-        point = _as_point(segment.get("to_point"))
+    cave = resolve_first_playable_cave(gs)
+    if cave is not None:
+        point = _as_point(cave.get("point"))
         if point is not None:
             return point
 
@@ -77,8 +100,9 @@ def resolve_first_playable_target(gs: GameState) -> Point | None:
         if point is not None:
             return point
 
-    for cave in _iter_dicts(contract.get("cave_refs")):
-        point = _as_point(cave.get("point"))
+    segment = resolve_first_playable_route_segment(gs)
+    if segment is not None:
+        point = _as_point(segment.get("to_point"))
         if point is not None:
             return point
 
@@ -88,12 +112,11 @@ def resolve_first_playable_target(gs: GameState) -> Point | None:
 def resolve_first_playable_route_endpoints(gs: GameState) -> list[Point]:
     """Return route endpoints when a full route path is unavailable."""
     segment = resolve_first_playable_route_segment(gs)
-    if segment is None:
-        return []
-
     route: list[Point] = []
-    from_point = _as_point(segment.get("from_point"))
-    to_point = _as_point(segment.get("to_point"))
+    from_point = _as_point(segment.get("from_point")) if segment is not None else None
+    to_point = resolve_first_playable_target(gs)
+    if to_point is None and segment is not None:
+        to_point = _as_point(segment.get("to_point"))
 
     if from_point is not None:
         route.append(from_point)
@@ -201,13 +224,29 @@ def first_playable_route_points(gs: GameState) -> list[Point]:
     if expedition is None or not expedition.route_revealed:
         return []
     route = resolve_first_playable_route(gs)
-    if route:
-        return route
-    return resolve_first_playable_route_endpoints(gs)
+    blockage = resolve_first_playable_blockage(gs)
+    target = resolve_first_playable_target(gs)
+    if not route:
+        route = resolve_first_playable_route_endpoints(gs)
+
+    markers: list[Point] = []
+    for point in route:
+        if point not in markers:
+            markers.append(point)
+    if blockage is not None and blockage not in markers:
+        markers.append(blockage)
+    if target is not None:
+        if route and target in route:
+            markers = []
+            for point in route:
+                if point not in markers:
+                    markers.append(point)
+                if point == target:
+                    break
+        elif target not in markers:
+            markers.append(target)
+    return markers
 
 
 def first_playable_route_target(gs: GameState) -> Point | None:
-    route = first_playable_route_points(gs)
-    if not route:
-        return resolve_first_playable_target(gs)
-    return route[-1]
+    return resolve_first_playable_target(gs)

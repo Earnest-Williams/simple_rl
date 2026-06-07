@@ -11,8 +11,10 @@ from game.systems.overland_movement import human_on_foot_can_enter
 from game.expedition.resolvers import (
     first_playable_objective_text,
     first_playable_route_points,
+    first_playable_route_target,
     is_player_at_starting_port,
     resolve_first_playable_blockage,
+    resolve_first_playable_cave,
     resolve_first_playable_route,
     resolve_first_playable_route_endpoints,
     resolve_first_playable_route_segment,
@@ -147,15 +149,18 @@ def test_first_playable_resolvers_are_consistent() -> None:
     segment = resolve_first_playable_route_segment(gs)
     assert segment is not None
 
+    cave = resolve_first_playable_cave(gs)
+    assert cave is not None
+
     target = resolve_first_playable_target(gs)
-    assert target == tuple(segment["to_point"])
+    assert target == tuple(cave["point"])
 
     route = resolve_first_playable_route(gs)
     endpoints = resolve_first_playable_route_endpoints(gs)
     assert route
-    assert endpoints == [tuple(segment["from_point"]), tuple(segment["to_point"])]
+    assert endpoints == [tuple(segment["from_point"]), target]
     assert route[0] == tuple(segment["from_point"])
-    assert route[-1] == tuple(segment["to_point"])
+    assert first_playable_route_target(gs) == target
 
     blockage = resolve_first_playable_blockage(gs)
     expected_blockage = contract["blockages"][0]
@@ -298,6 +303,34 @@ def test_gui_route_overlay_draws_marker_after_survey() -> None:
     assert center_pixel != (0, 0, 0, 255)
 
 
+def test_gui_route_overlay_is_hidden_before_survey() -> None:
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+
+    viewport = ViewportParams(
+        viewport_x=20,
+        viewport_y=8,
+        viewport_width=8,
+        viewport_height=8,
+        tile_arrays={},
+        tile_fg_colors=np.zeros((1, 3), dtype=np.uint8),
+        tile_bg_colors=np.zeros((1, 3), dtype=np.uint8),
+        tile_indices_render=np.zeros((1,), dtype=np.uint16),
+        max_defined_tile_id=0,
+        tile_w=4,
+        tile_h=4,
+        coord_arrays={
+            "tile_coord_y": np.zeros((32, 32), dtype=np.int32),
+            "tile_coord_x": np.zeros((32, 32), dtype=np.int32),
+        },
+    )
+    image = Image.new("RGBA", (32, 32), (0, 0, 0, 255))
+    _draw_first_playable_route_overlay(image, gs, viewport, 4, 4)
+
+    assert image.getpixel((16, 16)) == (0, 0, 0, 255)
+
+
 def test_expedition_repair_clears_blockage() -> None:
     from engine.action_handler import process_player_action
     from game.expedition.resolvers import resolve_first_playable_blockage
@@ -327,9 +360,30 @@ def test_expedition_repair_clears_blockage() -> None:
     )
 
 
+def test_expedition_repair_defaults_to_player_position() -> None:
+    from engine.action_handler import process_player_action
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+
+    gs.entity_registry.set_position(gs.player_id, Position(*blockage_pt))
+
+    acted = process_player_action({"type": "repair"}, gs, max_traversable_step=1)
+
+    assert acted is True
+    assert gs.expedition is not None
+    assert gs.expedition.blockage_cleared is True
+
+
 def test_expedition_cave_handoff() -> None:
     from engine.action_handler import process_player_action
-    from game.expedition.resolvers import resolve_starting_contract
+    from game.expedition.resolvers import (
+        resolve_first_playable_blockage,
+        resolve_starting_contract,
+    )
     from game.entities.components import Position
 
     gs = create_gamestate_from_overland(
@@ -343,6 +397,12 @@ def test_expedition_cave_handoff() -> None:
     assert len(cave_refs) > 0
     cave_pt = tuple(cave_refs[0].get("point"))
     cx, cy = cave_pt
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+
+    gs.entity_registry.set_position(gs.player_id, Position(*blockage_pt))
+    acted_repair = process_player_action({"type": "repair"}, gs, max_traversable_step=1)
+    assert acted_repair is True
 
     # Teleport player to the cave
     gs.entity_registry.set_position(gs.player_id, Position(cx, cy))
@@ -381,6 +441,54 @@ def test_expedition_cave_handoff() -> None:
     messages = [msg for msg, color in gs.message_log]
     assert any("You return to the surface." in msg for msg in messages)
 
+
+def test_expedition_enter_defaults_to_player_position_after_repair() -> None:
+    from engine.action_handler import process_player_action
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    contract = resolve_starting_contract(gs)
+    cave_pt = tuple(contract["cave_refs"][0]["point"])
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+
+    gs.entity_registry.set_position(gs.player_id, Position(*blockage_pt))
+    acted_repair = process_player_action({"type": "repair"}, gs, max_traversable_step=1)
+    assert acted_repair is True
+
+    gs.entity_registry.set_position(gs.player_id, Position(*cave_pt))
+    overland_map_ref = gs.game_map
+
+    acted_enter = process_player_action({"type": "enter"}, gs, max_traversable_step=1)
+    assert acted_enter is True
+    assert gs.game_map is not overland_map_ref
+
+    acted_exit = process_player_action({"type": "enter"}, gs, max_traversable_step=1)
+    assert acted_exit is True
+    assert gs.game_map is overland_map_ref
+
+
+def test_expedition_cave_entry_requires_blockage_clearance() -> None:
+    from engine.action_handler import process_player_action
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    contract = resolve_starting_contract(gs)
+    cave_pt = tuple(contract["cave_refs"][0]["point"])
+    gs.entity_registry.set_position(gs.player_id, Position(*cave_pt))
+
+    acted = process_player_action({"type": "enter"}, gs, max_traversable_step=1)
+
+    assert acted is False
+    assert gs.expedition is not None
+    assert gs.expedition.cave_entered is False
+    messages = [msg for msg, _ in gs.message_log]
+    assert any("blocked road must be cleared" in msg for msg in messages)
+
 def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     from engine.action_handler import process_player_action
 
@@ -401,6 +509,9 @@ def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     assert harbor is not None
     harbor_pt = tuple(harbor.get("point"))
     cave_pt = tuple(cave_refs[0].get("point"))
+    path_to_cave_from_harbor = _find_path(gs, harbor_pt, cave_pt)
+    assert path_to_cave_from_harbor
+    assert blockage_pt not in path_to_cave_from_harbor
 
     # Survey at port.
     acted = process_player_action({"type": "survey"}, gs, max_traversable_step=1)
@@ -408,6 +519,7 @@ def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     assert gs.expedition.survey_completed is True
     assert gs.expedition.route_revealed is True
     assert gs.expedition.active_objective_id == "follow_ancient_road"
+    assert first_playable_route_target(gs) == cave_pt
 
     # Walk to the blockage and repair it in place.
     _walk_to(gs, blockage_pt)
@@ -415,11 +527,7 @@ def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     assert player_pos is not None
     assert (player_pos.x, player_pos.y) == blockage_pt
 
-    acted = process_player_action(
-        {"type": "repair", "x": blockage_pt[0], "y": blockage_pt[1]},
-        gs,
-        max_traversable_step=1,
-    )
+    acted = process_player_action({"type": "repair"}, gs, max_traversable_step=1)
     assert acted is True
     assert gs.expedition.blockage_cleared is True
 
@@ -430,11 +538,7 @@ def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     assert (player_pos.x, player_pos.y) == cave_pt
 
     overland_map_ref = gs.game_map
-    acted = process_player_action(
-        {"type": "enter", "x": cave_pt[0], "y": cave_pt[1]},
-        gs,
-        max_traversable_step=1,
-    )
+    acted = process_player_action({"type": "enter"}, gs, max_traversable_step=1)
     assert acted is True
     assert gs.expedition.cave_entered is True
     assert gs.game_map is not overland_map_ref
@@ -449,11 +553,7 @@ def test_expedition_end_to_end_smoke_without_teleportation() -> None:
     assert any("Discovery recorded: first cave surveyed." in msg for msg in messages)
 
     # Exit and walk back to port without teleporting.
-    acted = process_player_action(
-        {"type": "enter", "x": 10, "y": 10},
-        gs,
-        max_traversable_step=1,
-    )
+    acted = process_player_action({"type": "enter"}, gs, max_traversable_step=1)
     assert acted is True
     assert gs.game_map is overland_map_ref
 

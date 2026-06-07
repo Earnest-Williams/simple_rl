@@ -7,12 +7,43 @@ from game.world.game_map import GameMap
 log = structlog.get_logger()
 
 
+def _find_cave_entry_point_near(
+    gs: GameState, x: int, y: int
+) -> tuple[int, int] | None:
+    from game.expedition.resolvers import resolve_cave_metadata_at
+
+    for dx, dy in (
+        (0, 0),
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (-1, 1),
+        (1, -1),
+        (1, 1),
+    ):
+        nx = x + dx
+        ny = y + dy
+        if resolve_cave_metadata_at(gs, nx, ny):
+            return nx, ny
+    return None
+
+
 def enter_cave_at(gs: GameState, x: int, y: int) -> bool:
     from game.expedition.resolvers import resolve_cave_metadata_at
 
     metadata = resolve_cave_metadata_at(gs, x, y)
     if not metadata:
         gs.add_message("There is no cave entrance here.", (150, 150, 150))
+        return False
+
+    expedition = getattr(gs, "expedition", None)
+    if expedition is not None and not expedition.blockage_cleared:
+        gs.add_message(
+            "The blocked road must be cleared before the expedition can enter the cave.",
+            (255, 200, 120),
+        )
         return False
 
     cave_type = metadata.get("cave_type", "cave")
@@ -55,6 +86,14 @@ def enter_cave_at(gs: GameState, x: int, y: int) -> bool:
     gs.update_fov()
 
     return True
+
+
+def enter_cave_near(gs: GameState, x: int, y: int) -> bool:
+    entry_point = _find_cave_entry_point_near(gs, x, y)
+    if entry_point is None:
+        gs.add_message("There is no cave entrance here.", (150, 150, 150))
+        return False
+    return enter_cave_at(gs, entry_point[0], entry_point[1])
 
 
 def exit_cave(gs: GameState) -> bool:
