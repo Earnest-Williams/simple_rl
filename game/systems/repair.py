@@ -21,6 +21,13 @@ def clear_blockage_at(gs: GameState, x: int, y: int) -> bool:
     Mutates GameMap walkability, updates sidecar metadata route state,
     and updates movement cost and material grids.
     """
+    first_playable_blockage: tuple[int, int] | None = None
+    expedition = getattr(gs, "expedition", None)
+    if expedition is not None:
+        from game.expedition.resolvers import resolve_first_playable_blockage
+
+        first_playable_blockage = resolve_first_playable_blockage(gs)
+
     metadata = getattr(gs.game_map, "overland_metadata", None)
     if metadata is None:
         gs.add_message(
@@ -81,12 +88,8 @@ def clear_blockage_at(gs: GameState, x: int, y: int) -> bool:
         metadata.traversal_class_grid[y, x] = int(TraversalClass.NORMAL)
 
     # Update Expedition State if this was the first playable blockage
-    if hasattr(gs, "expedition") and gs.expedition:
-        from game.expedition.resolvers import resolve_first_playable_blockage
-
-        blockage_pt = resolve_first_playable_blockage(gs)
-        if blockage_pt is not None and blockage_pt == (x, y):
-            gs.expedition.blockage_cleared = True
+    if expedition is not None and first_playable_blockage == (x, y):
+        expedition.blockage_cleared = True
 
     # Print success message to log
     gs.add_message(
