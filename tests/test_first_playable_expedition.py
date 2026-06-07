@@ -4,7 +4,13 @@ import heapq
 
 import numpy as np
 from PIL import Image
-from engine.renderer import ViewportParams, _draw_first_playable_route_overlay
+import engine.renderer as renderer_module
+from engine.renderer import (
+    RenderConfig,
+    ViewportParams,
+    _draw_first_playable_route_overlay,
+    render_viewport,
+)
 
 from game.entities.components import Position
 from game.systems.overland_movement import human_on_foot_can_enter
@@ -38,6 +44,43 @@ def _build_human_passable_map(gs) -> np.ndarray:
             for x in range(width):
                 passable[y, x] = human_on_foot_can_enter(gs, x, y)
     return passable
+
+
+def _make_render_viewport(gs, x: int = 0, y: int = 0, width: int = 1, height: int = 1) -> ViewportParams:
+    return ViewportParams(
+        viewport_x=x,
+        viewport_y=y,
+        viewport_width=width,
+        viewport_height=height,
+        tile_arrays={0: np.full((1, 1, 4), 255, dtype=np.uint8)},
+        tile_fg_colors=np.zeros((256, 3), dtype=np.uint8),
+        tile_bg_colors=np.zeros((256, 3), dtype=np.uint8),
+        tile_indices_render=np.zeros((256,), dtype=np.uint16),
+        max_defined_tile_id=255,
+        tile_w=1,
+        tile_h=1,
+        coord_arrays={
+            "tile_coord_y": np.zeros((height, width), dtype=np.int32),
+            "tile_coord_x": np.zeros((height, width), dtype=np.int32),
+        },
+    )
+
+
+def _make_render_config() -> RenderConfig:
+    return RenderConfig(
+        show_height_vis=False,
+        vis_max_diff=2,
+        vis_color_high_np=np.array([255, 255, 255], dtype=np.uint8),
+        vis_color_mid_np=np.array([160, 160, 160], dtype=np.uint8),
+        vis_color_low_np=np.array([60, 60, 60], dtype=np.uint8),
+        vis_blend_factor=np.float32(0.5),
+        lighting_ambient=np.float32(0.2),
+        lighting_min_fov=np.float32(0.0),
+        lighting_falloff=np.float32(1.0),
+        fov_radius_sq=np.float32(16.0),
+        enable_memory_fade=True,
+        enable_colored_lights=True,
+    )
 
 
 def _find_path(gs, start: tuple[int, int], target: tuple[int, int]) -> list[tuple[int, int]]:
@@ -347,6 +390,8 @@ def test_first_playable_overland_memory_is_not_faded() -> None:
     gs = create_gamestate_from_overland(
         seed=20260604, width=128, height=96, first_playable=True
     )
+    gs.entity_registry.set_entity_component(gs.player_id, "fullness", 10)
+    gs.entity_registry.set_entity_component(gs.player_id, "fuel", 10)
 
     gs.advance_turn()
 
@@ -355,6 +400,41 @@ def test_first_playable_overland_memory_is_not_faded() -> None:
     assert np.all(gs.game_map.memory_intensity == 1.0)
     assert gs.player_fuel == gs.player_max_fuel
     assert gs.fov_radius == gs.base_fov_radius
+    assert gs.entity_registry.get_entity_component(gs.player_id, "fullness") == 10
+    assert gs.entity_registry.get_entity_component(gs.player_id, "fuel") == 10
+
+
+def test_first_playable_overland_render_bypasses_radial_lighting(monkeypatch) -> None:
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    viewport = _make_render_viewport(gs, x=0, y=0)
+    render_config = _make_render_config()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(renderer_module, "_NUMBA_AVAILABLE", False)
+
+    def fake_apply_render_lighting(**kwargs):
+        captured.update(kwargs)
+        shape = kwargs["base_fg"].shape[:2]
+        return (
+            kwargs["base_fg"],
+            kwargs["base_bg"],
+            np.ones(shape, dtype=np.float32),
+        )
+
+    render_config.lighting_renderer.apply_render_lighting = fake_apply_render_lighting
+
+    image = render_viewport(gs, viewport, render_config)
+
+    assert image is not None
+    assert viewport.viewport_x == 0 and viewport.viewport_y == 0
+    assert captured["lighting_ambient"] == np.float32(1.0)
+    assert captured["lighting_min_fov"] == np.float32(1.0)
+    assert captured["lighting_falloff"] == np.float32(0.0)
+    assert captured["fov_radius_sq"] == np.float32(1_000_000_000.0)
+    assert captured["enable_colored_lights"] is False
+    assert captured["enable_memory_fade"] is False
 
 
 def test_expedition_repair_clears_blockage() -> None:
@@ -489,6 +569,59 @@ def test_first_playable_cave_interior_uses_normal_visibility() -> None:
     assert getattr(gs.game_map, "overland_metadata", None) is None
     assert not np.all(gs.game_map.visible)
     assert not gs.game_map.visible[0, 0]
+
+
+def test_first_playable_cave_interior_uses_normal_lighting_and_survival(monkeypatch) -> None:
+    from engine.action_handler import process_player_action
+    from game.entities.components import Position
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    contract = resolve_starting_contract(gs)
+    cave_pt = tuple(contract["cave_refs"][0]["point"])
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+
+    gs.entity_registry.set_position(gs.player_id, Position(*blockage_pt))
+    assert process_player_action({"type": "repair"}, gs, max_traversable_step=1)
+    gs.entity_registry.set_position(gs.player_id, Position(*cave_pt))
+    assert process_player_action({"type": "enter"}, gs, max_traversable_step=1)
+
+    gs.entity_registry.set_entity_component(gs.player_id, "fullness", 10)
+    gs.entity_registry.set_entity_component(gs.player_id, "fuel", 10)
+    gs.player_fuel = 10
+
+    viewport = _make_render_viewport(gs, x=0, y=0)
+    render_config = _make_render_config()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(renderer_module, "_NUMBA_AVAILABLE", False)
+
+    def fake_apply_render_lighting(**kwargs):
+        captured.update(kwargs)
+        shape = kwargs["base_fg"].shape[:2]
+        return (
+            kwargs["base_fg"],
+            kwargs["base_bg"],
+            np.ones(shape, dtype=np.float32),
+        )
+
+    render_config.lighting_renderer.apply_render_lighting = fake_apply_render_lighting
+    image = render_viewport(gs, viewport, render_config)
+
+    assert image is not None
+    assert captured["lighting_ambient"] == render_config.lighting_ambient
+    assert captured["lighting_min_fov"] == render_config.lighting_min_fov
+    assert captured["lighting_falloff"] == render_config.lighting_falloff
+    assert captured["fov_radius_sq"] == render_config.fov_radius_sq
+    assert captured["enable_colored_lights"] is True
+    assert captured["enable_memory_fade"] is True
+
+    gs.advance_turn()
+    assert gs.entity_registry.get_entity_component(gs.player_id, "fullness") == 9
+    assert gs.entity_registry.get_entity_component(gs.player_id, "fuel") == 9
+    assert gs.player_fuel == 9
 
 
 def test_expedition_enter_defaults_to_player_position_after_repair() -> None:

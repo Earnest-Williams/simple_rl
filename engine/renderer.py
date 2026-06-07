@@ -170,6 +170,13 @@ def _draw_first_playable_route_overlay(
             draw.rectangle((px0 + 1, py0 + 1, px1 - 1, py1 - 1), outline=outline, width=1)
 
 
+def _is_first_playable_overland_lit(game_state: GameState) -> bool:
+    return (
+        getattr(game_state, "first_playable_lights_on", False)
+        and getattr(game_state.game_map, "overland_metadata", None) is not None
+    )
+
+
 def render_map_tiles_fallback(
     output_image_array: NDArray[np.uint8],
     glyph_indices: NDArray[np.int_],
@@ -352,6 +359,20 @@ def render_viewport(
 
     # Apply lighting and presentation effects through the LightingRenderer so
     # render_viewport() stays an orchestration boundary.
+    lighting_ambient = render_config.lighting_ambient
+    lighting_min_fov = render_config.lighting_min_fov
+    lighting_falloff = render_config.lighting_falloff
+    fov_radius_sq = render_config.fov_radius_sq
+    enable_colored_lights = render_config.enable_colored_lights
+    enable_memory_fade = render_config.enable_memory_fade
+    if _is_first_playable_overland_lit(gs):
+        lighting_ambient = np.float32(1.0)
+        lighting_min_fov = np.float32(1.0)
+        lighting_falloff = np.float32(0.0)
+        fov_radius_sq = np.float32(1_000_000_000.0)
+        enable_colored_lights = False
+        enable_memory_fade = False
+
     final_fg, final_bg, intensity_map = (
         render_config.lighting_renderer.apply_render_lighting(
             base_fg=base_fg,
@@ -377,12 +398,12 @@ def render_viewport(
             vis_color_mid_np=render_config.vis_color_mid_np,
             vis_color_low_np=render_config.vis_color_low_np,
             vis_blend_factor=render_config.vis_blend_factor,
-            lighting_ambient=render_config.lighting_ambient,
-            lighting_min_fov=render_config.lighting_min_fov,
-            lighting_falloff=render_config.lighting_falloff,
-            fov_radius_sq=render_config.fov_radius_sq,
-            enable_colored_lights=render_config.enable_colored_lights,
-            enable_memory_fade=render_config.enable_memory_fade,
+            lighting_ambient=lighting_ambient,
+            lighting_min_fov=lighting_min_fov,
+            lighting_falloff=lighting_falloff,
+            fov_radius_sq=fov_radius_sq,
+            enable_colored_lights=enable_colored_lights,
+            enable_memory_fade=enable_memory_fade,
             memory_fade_color_np=render_config.memory_fade_color_np,
             rng=gs.rng_instance,
             memory_fade_variance=float(render_config.memory_fade_variance),

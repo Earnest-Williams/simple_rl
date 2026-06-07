@@ -175,6 +175,7 @@ class GameState:
         self.base_fov_radius = player_fov_radius
         self.fov_radius = player_fov_radius
         self.first_playable_lights_on: bool = False
+        self.first_playable_survival_disabled: bool = False
         self.message_log: list[tuple[str, tuple[int, int, int]]] = []
         self.discovered_evidence: dict[str, list[int]] = {}
 
@@ -313,6 +314,12 @@ class GameState:
     def _is_first_playable_overland_lights_on_active(self) -> bool:
         """Return True when the first-playable overland presentation override applies."""
         if not self.first_playable_lights_on:
+            return False
+        return getattr(self.game_map, "overland_metadata", None) is not None
+
+    def _is_first_playable_overland_survival_override_active(self) -> bool:
+        """Return True when first-playable overland should skip player survival decay."""
+        if not self.first_playable_survival_disabled:
             return False
         return getattr(self.game_map, "overland_metadata", None) is not None
 
@@ -485,6 +492,11 @@ class GameState:
     def _process_resources_for_entity(self, entity_id: int) -> None:
         """Reduce generic per-turn resources like fullness or fuel."""
         for res in ("fullness", "fuel"):
+            if (
+                entity_id == self.player_id
+                and self._is_first_playable_overland_survival_override_active()
+            ):
+                continue
             try:
                 value = self.entity_registry.get_entity_component(entity_id, res)
             except ValueError:
@@ -498,7 +510,7 @@ class GameState:
 
     def _consume_player_fuel(self) -> None:
         """Decrease player torch fuel and adjust light radius."""
-        if self._is_first_playable_overland_lights_on_active():
+        if self._is_first_playable_overland_survival_override_active():
             self.fov_radius = self.base_fov_radius
             with contextlib.suppress(IndexError, AttributeError):
                 self.light_sources[self.player_light_index].radius = self.base_fov_radius
