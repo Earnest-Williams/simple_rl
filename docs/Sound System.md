@@ -44,15 +44,16 @@ The Simple RL sound system provides situationally appropriate sound effects and 
 
 The sound system boundary is intentionally narrow:
 
-- `game/perception_events.py` owns typed gameplay `NoiseEvent` and `ScentEvent`
-  schemas. Gameplay systems should emit those events when they need stealth,
-  smell, monster awareness, or other simulation-visible perception behavior.
-- `pathfinding/perception_systems.py` owns sound/scent propagation concepts,
-  including obstruction-aware maps and flow-cost-style propagation state for AI
-  and gameplay perception.
-- `game/systems/sound.py` is audio playback only. It may consume integer
-  flow-cost maps to attenuate what the player hears, but it should not own or
-  recompute gameplay sound/scent propagation.
+- [`game/perception_events.py`](../game/perception_events.py) owns typed
+  gameplay `NoiseEvent` and `ScentEvent` schemas. Gameplay systems should emit
+  those events when they need stealth, smell, monster awareness, or other
+  simulation-visible perception behavior.
+- [`pathfinding/perception_systems.py`](../pathfinding/perception_systems.py)
+  owns sound/scent propagation concepts, including obstruction-aware maps and
+  flow-cost-style propagation state for AI and gameplay perception.
+- [`game/systems/sound.py`](../game/systems/sound.py) is audio playback only. It
+  may consume integer flow-cost maps to attenuate what the player hears, but it
+  should not own or recompute gameplay sound/scent propagation.
 
 SDL_mixer through PySDL2 remains the supported playback backend. Avoid
 reintroducing historical multi-backend audio language unless the implementation

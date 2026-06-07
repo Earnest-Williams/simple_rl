@@ -25,8 +25,9 @@ Historical hot-path problems included:
 These are no longer all current production blockers. Combat, perception, monster
 perception, sound context, AOE, and AI adapter paths have moved substantially
 toward registry/store accessors, entity IDs, spatial indexes, and cached Polars
-compatibility snapshots. The benchmark harness `bench/bench_advance_turn.py`
-exists to measure remaining turn-loop costs.
+compatibility snapshots. The benchmark harness
+[`bench/bench_advance_turn.py`](../bench/bench_advance_turn.py) exists to
+measure remaining turn-loop costs.
 
 ## Goal
 
@@ -94,7 +95,7 @@ from runtime mutation.
 
 ## Runtime storage model
 
-The internal `EntityStore` lives in:
+The internal [`EntityStore`](../game/entities/store.py) lives in:
 
 ```text
 game/entities/store.py

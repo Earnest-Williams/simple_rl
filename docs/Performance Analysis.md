@@ -11,8 +11,10 @@
 
 This document is now a historical audit with resolved/open status annotations. It
 should not be read as a current P0 incident list. The canonical entity-store
-migration status lives in `docs/Entity Store Migration.md`, and current day-to-day
-verification guidance lives in `docs/Testing.md` and `docs/Runbook.md`.
+migration status lives in
+[`docs/Entity Store Migration.md`](./Entity%20Store%20Migration.md), and current
+day-to-day verification guidance lives in [`docs/Testing.md`](./Testing.md) and
+[`docs/Runbook.md`](./Runbook.md).
 
 The biggest stale assumptions from the original report have changed:
 
