@@ -1,13 +1,14 @@
 # Lighting/FOV Visual Tool
 
-Run the tool from the repository root:
+Run the GUI tool from the repository root:
 
 ```bash
 python -m tools.lighting_fov_tool.main
 ```
 
-The tool is a PySide6 GUI for inspecting lighting, field-of-view, marker
-visibility, and light-shape tuning against a fixed dungeon scene. It complements
+The tool opens a fixed lighting/FOV scene for checking light leaks, emitter
+visibility, marker visibility, light color/radius sliders, compositing, cone and
+beam controls, ambient spill, and gameplay-view clipping. It complements the
 production regression tests; it does not replace them.
 
 ## Production checks
@@ -23,22 +24,43 @@ These tests exercise production `GameMap`, `LightContributionCache`, and
 
 ## Lighting backends
 
-The backend selector exposes multiple render paths:
+The tool exposes two important lighting paths, plus comparison views built from
+them:
 
-- **Fast Diffuse**: a debug radial/diffuse preview path. It is useful for quick
-  light-shape inspection and can optionally use line-of-sight radial masking.
-- **Production Side-Aware**: the renderer-facing path backed by
-  `LightContributionCache`. Use this when validating side-aware production light
-  contribution behavior.
-- **Unified Preview**: combines diffuse and side-aware buffers with tunable
-  weights so differences between the two contributions are visible.
-- **Raw Heatmap**: shows raw light intensity/color as a diagnostic heatmap rather
+- **Debug radial light / Fast Diffuse**: a tool-only, readable radial accumulator
+  for inspecting slider behavior, light color, radius, falloff, LOS clipping, and
+  compositing. It is intentionally simple and is not the production renderer path.
+- **Production `LightContributionCache` / Production Side-Aware**: the
+  renderer-facing production lighting path. Use this backend when validating
+  production side-aware light contribution behavior.
+
+Additional comparison/debug views may combine or visualize those paths:
+
+- **Unified Preview** combines diffuse and side-aware buffers with tunable
+  weights so differences between the debug radial contribution and production
+  contribution are visible.
+- **Raw Heatmap** shows raw light intensity/color as a diagnostic heatmap rather
   than drawing normal tiles.
 
 When a defect only appears in one backend, record the backend name in the bug or
 PR notes.
 
-## Gameplay view vs full light field
+## Debug visualization toggles
+
+The Debug Visualization controls are intentionally separate from the selected
+lighting backend:
+
+- **Show full light field**: disables gameplay FOV clipping and displays the full
+  computed light field for tuning emitter placement, color, radius, falloff, and
+  leaks.
+- **Show hidden emitters**: displays markers for inactive or hidden light sources
+  that gameplay view would normally suppress.
+- **Use LOS for debug radial**: makes the debug radial/Fast Diffuse path clip
+  contribution through scene geometry using line-of-sight. With this disabled,
+  debug radial contribution is distance-only and may intentionally pass through
+  blockers for comparison.
+
+## Gameplay view, full light field, and marker visibility
 
 The view can be switched between:
 
@@ -47,28 +69,16 @@ The view can be switched between:
 - **Full light field**: shows the complete computed light field for tuning,
   including light outside the player's visible area.
 
-Use gameplay view for player-facing validation and full light field for emitter
-placement, color, falloff, and leak debugging.
+Marker visibility follows the selected view:
 
-## Hidden emitter markers
-
-Light-source markers are hidden in gameplay view when the emitter is outside the
-player-visible area, unless hidden-light-source marker display is enabled. This
-prevents the tool from implying the player can see unseen emitters while still
-letting developers inspect inactive or hidden lights during debugging.
+- In **full-light-field mode**, emitter markers remain visible so developers can
+  inspect source placement while tuning the complete light buffer.
+- In **gameplay view**, hidden emitter markers are suppressed unless **Show hidden
+  emitters** is enabled. This prevents the tool from implying that a player can
+  see unseen emitters while still allowing explicit debug inspection.
 
 Monster markers follow the same general visibility principle: gameplay view shows
 what the player can see, while full-field/debug views are for development.
-
-## LOS radial mode
-
-The Fast Diffuse/debug radial path has an LOS toggle. With LOS enabled, radial
-light contribution is clipped by Bresenham-style line-of-sight through opaque
-scene geometry. With LOS disabled, the debug radial contribution is distance-only
-and can intentionally show through blockers for comparison.
-
-Use the toggle to distinguish geometry/FOV defects from color, radius, or falloff
-configuration issues.
 
 ## Cone, beam, and softness controls
 
@@ -110,7 +120,7 @@ include the exported file in PRs when a visual tuning change is intentional.
 
 - The main tool requires a working Qt/PySide6 GUI environment.
 - In headless CI or containers without display forwarding, prefer the production
-  pytest commands above.
+  pytest command above.
 - If the GUI fails only because no display server is available, treat that as an
   environment limitation rather than a lighting regression.
 - For non-GUI debugging, inspect the production tests and the helper scripts in

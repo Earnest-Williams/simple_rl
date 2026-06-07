@@ -56,7 +56,7 @@ tuning and simulation harness.
 | --- | --- | --- |
 | Run production light-leak diagnostics | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py` | Uses production `GameMap`, `LightContributionCache`, and `game.world.light_fov`. |
 | Run targeted production lighting/FOV/memory tests | `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/game/world/test_memory_traits.py tests/test_world_memory.py` | Covers migration parity checks. |
-| Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support. |
+| Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support; see [`tools/lighting_fov_tool/README.md`](../tools/lighting_fov_tool/README.md). |
 
 Production rendering, light-aware FOV, and memory behavior live under
 `engine/` and `game/world/`.

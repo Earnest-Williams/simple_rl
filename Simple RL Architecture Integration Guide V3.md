@@ -2,7 +2,7 @@
 
 **Status:** Updated consolidated architecture guide  
 **Basis:** Comparison of uploaded v2.0 and v2.1 drafts against current repository documentation and discoverable repository paths  
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-06
 
 ---
 
@@ -268,7 +268,18 @@ Do not attribute unsupported overland gameplay systems to `worldgen/` unless tho
 
 ### 6.2 Entity Registry
 
-`game/entities/registry.py` owns creation, destruction, and querying of entities. The architecture is ECS-like and data-oriented, using structured component and registry patterns rather than heavyweight inheritance.
+`game/entities/registry.py` owns creation, destruction, and querying of
+entities. The architecture is ECS-like and data-oriented, using structured
+component and registry patterns rather than heavyweight inheritance.
+
+Current entity storage is not a pre-implementation migration plan: `EntityStore`
+exists behind `EntityRegistry`, hot combat reads use bulk store-backed
+combat/skill/equipment APIs, visible-enemy perception uses registry/store
+accessors with spatial-index filtering, and AI adapters have moved significantly
+toward entity IDs and active-index iteration. Polars remains important for batch
+data, reporting, exports, snapshots, fixtures, and compatibility views, but it is
+not the authoritative mutable runtime entity storage model for migrated hot
+paths.
 
 Important supporting files include:
 
@@ -291,7 +302,10 @@ Important supporting files include:
 | `magic_system_skill_integration.py` | Skill/magic system integration where applicable. |
 | `pathfinding/flowfield.py` | Production flow-field pathfinding support. |
 
-Unsupported v2.1 systems such as `infrastructure_system.py` and `morale_system.py` are not listed as current architecture.
+Unsupported v2.1 systems such as `infrastructure_system.py` and
+`morale_system.py` are not listed as current architecture. Combat's melee hot
+path should keep using the bulk registry/item APIs rather than scalar per-attack
+component fetches.
 
 ---
 
@@ -476,7 +490,7 @@ It should not be imported directly by production gameplay unless a specific modu
 
 The skill system is integrated in dual-mode form. Vectorized skill storage and legacy compatibility shims coexist while callers migrate to the integrated model.
 
-`docs/SKILL_SYSTEM_STATUS.md` is the source of truth for integration status.
+`docs/Skill System Status.md` is the source of truth for integration status.
 
 ### 10.2 Ownership Boundary
 
@@ -749,13 +763,13 @@ Not every local quality gate is necessarily represented in CI. Local checks rema
 
 | Topic | Source |
 | --- | --- |
-| Architecture map | `docs/ARCHITECTURE.md` |
-| Engineering rules | `docs/ENGINEERING.md` and `docs/LLM_CRITICAL_RULES.md` |
-| Run commands | `docs/RUNBOOK.md` |
-| System maturity | `docs/CURRENT_STATUS.md` |
-| Testing | `docs/TESTING.md` |
-| Deprecation/archive policy | `docs/DEPRECATION_POLICY.md` |
-| Skill status | `docs/SKILL_SYSTEM_STATUS.md` |
+| Architecture map | `docs/Architecture.md` |
+| Engineering rules | `docs/Engineering.md` and `docs/LLM Critical Rules.md` |
+| Run commands | `docs/Runbook.md` |
+| System maturity | `docs/Current Status.md` |
+| Testing | `docs/Testing.md` |
+| Deprecation/archive policy | `docs/Deprecation Policy.md` |
+| Skill status | `docs/Skill System Status.md` |
 | ADR index | `docs/ADR/README.md` |
 
 ### 17.2 ADRs
@@ -771,7 +785,7 @@ ADRs prevent compatibility shims, prototypes, and historical systems from being 
 
 ### 17.3 Documentation Update Rule
 
-When a subsystem changes maturity, gains or loses a runnable command, changes integration state, or receives a new canonical owner, update `docs/CURRENT_STATUS.md` or the relevant status document in the same focused change.
+When a subsystem changes maturity, gains or loses a runnable command, changes integration state, or receives a new canonical owner, update `docs/Current Status.md` or the relevant status document in the same focused change.
 
 ---
 
@@ -793,7 +807,7 @@ When a subsystem changes maturity, gains or loses a runnable command, changes in
 | FOV/LOS | `game/world/fov.py`, `game/world/los.py`, `game/world/light_fov.py` | Visibility and light-aware FOV. | Production world visibility lives under `game/world/`. |
 | Rendering | `engine/renderer.py`, `render_base_layers.py`, `render_entities.py`, `render_lighting.py` | Tile/entity/light composition and viewport output. | Advanced lighting accumulation belongs in `engine/render_lighting.py`. |
 | Memory/fog | `game/world/memory.py` | Map memory and memory fade behavior. | Renderer-adjacent but world-owned. |
-| Skills | `game/skills/`, top-level `skills/` | Game-facing progression plus reusable skill rules. | Current status is centralized in `docs/SKILL_SYSTEM_STATUS.md`. |
+| Skills | `game/skills/`, top-level `skills/` | Game-facing progression plus reusable skill rules. | Current status is centralized in `docs/Skill System Status.md`. |
 | Magic/effects | `magic/`, `game/effects/`, `scripting_engine.py` | Spell/effect execution and status behavior. | Full spell system remains in development. |
 | Audio | `game/audio/`, `game/systems/sound.py` | Playback and synthesized/music/audio cues. | Distinct from AI noise perception. |
 | RNG | `utils/game_rng.py` | Canonical deterministic randomness. | Required for game logic randomness. |
@@ -812,7 +826,7 @@ When a subsystem changes maturity, gains or loses a runnable command, changes in
 2. Use `GameRNG` for randomness.
 3. Do not import directly from top-level `ai/` unless promoting a module.
 4. Add tests or a harness command.
-5. Update `docs/CURRENT_STATUS.md` if maturity or ownership changes.
+5. Update `docs/Current Status.md` if maturity or ownership changes.
 
 ### 19.2 Changing Dungeon Generation
 
@@ -826,14 +840,14 @@ When a subsystem changes maturity, gains or loses a runnable command, changes in
 
 1. Use `engine/render_lighting.py` for production lighting changes.
 2. Use `game/world/light_fov.py`, `fov.py`, and `los.py` for visibility changes.
-3. Run lighting/FOV tests and diagnostics where relevant.
+3. Run `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py` and use `python -m tools.lighting_fov_tool.main` for GUI inspection where relevant.
 4. Avoid moving visibility behavior into unrelated modules.
 
 ### 19.4 Changing Skills
 
 1. Use `game/skills/` for runtime hooks.
 2. Use top-level `skills/` for reusable rule helpers not dependent on live game state.
-3. Update `docs/SKILL_SYSTEM_STATUS.md` for integration changes.
+3. Update `docs/Skill System Status.md` for integration changes.
 4. Add or update skill tests.
 
 ### 19.5 Adding Randomness

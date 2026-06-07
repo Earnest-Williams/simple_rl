@@ -11,15 +11,19 @@
 
 This document is now a historical audit with resolved/open status annotations. It
 should not be read as a current P0 incident list. The canonical entity-store
-migration status lives in `docs/Entity Store Migration.md`, and current day-to-day
-verification guidance lives in `docs/Testing.md` and `docs/Runbook.md`.
+migration status lives in
+[`docs/Entity Store Migration.md`](./Entity%20Store%20Migration.md), and current
+day-to-day verification guidance lives in [`docs/Testing.md`](./Testing.md) and
+[`docs/Runbook.md`](./Runbook.md).
 
 The biggest stale assumptions from the original report have changed:
 
 - **Combat component lookups:** Resolved for the melee hot path. Current
   `game/systems/combat_system.py` bulk-fetches attacker/defender combat
-  components, equipped items, and skills instead of issuing the old sequence of
-  scalar component lookups per attack.
+  components through `EntityRegistry.get_combat_components_bulk()`, skills
+  through `EntityRegistry.get_skills_bulk()`, and equipment through
+  `ItemRegistry.get_equipped_items_bulk()` instead of issuing the old sequence
+  of scalar component lookups per attack.
 - **Perception enemy detection:** Substantially resolved for the production
   visible-enemy paths. Current `game/ai/perception.py` uses registry/store
   accessors and the spatial-index path instead of materializing
@@ -40,7 +44,7 @@ lighting/FOV tests.
 
 | Area from original audit | Current 2026-06 status | Notes / next action |
 | --- | --- | --- |
-| Combat component N+1 queries | **Resolved for melee hot path** | Keep regression tests around bulk component, equipped-item, and skill fetches. |
+| Combat component N+1 queries | **Resolved for melee hot path** | Keep regression tests around `EntityRegistry.get_combat_components_bulk()`, `EntityRegistry.get_skills_bulk()`, and `ItemRegistry.get_equipped_items_bulk()` usage. |
 | Perception visible-enemy O(N²) scan | **Substantially resolved** | Current production paths use store accessors and the spatial index; retain fallback coverage for compatibility paths. |
 | Entity position double query / scalar mutation | **Mostly resolved by store-oriented registry paths** | Continue checking movement and non-combat callers for accidental DataFrame mutation. |
 | `GameState.process_turn()` entity iteration | **Partially migrated** | Review remaining compatibility row-dict construction and any direct `entities_df` materialization. |
@@ -119,8 +123,9 @@ problem has returned.
 The original report described 13 scalar `get_entity_component()` calls per melee
 attack and recommended adding a bulk component fetch method. That recommendation
 has been implemented in the combat hot path. Current combat code bulk-fetches the
-attacker/defender data it needs, reads equipped items through a bulk item-registry
-call, and bulk-fetches attacker/defender skills.
+attacker/defender data it needs with `EntityRegistry.get_combat_components_bulk()`,
+reads equipped items with `ItemRegistry.get_equipped_items_bulk()`, and
+bulk-fetches attacker/defender skills with `EntityRegistry.get_skills_bulk()`.
 
 Regression risk: future combat changes should avoid reintroducing scalar
 component lookups inside per-attack loops.
