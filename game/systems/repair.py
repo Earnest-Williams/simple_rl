@@ -80,9 +80,17 @@ def clear_blockage_at(gs: GameState, x: int, y: int) -> bool:
     ):
         metadata.traversal_class_grid[y, x] = int(TraversalClass.NORMAL)
 
+    # Update Expedition State if this was the first playable blockage
+    if hasattr(gs, "expedition") and gs.expedition:
+        from game.expedition.resolvers import resolve_first_playable_blockage
+
+        blockage_pt = resolve_first_playable_blockage(gs)
+        if blockage_pt is not None and blockage_pt == (x, y):
+            gs.expedition.blockage_cleared = True
+
     # Print success message to log
     gs.add_message(
-        f"You successfully clear the blockage at ({x}, {y})!", (100, 255, 100)
+        "You clear enough of the blockage to reopen the road.", (100, 255, 100)
     )
 
     # Trigger rediscovery of the updated coordinate (to log new repair tags)

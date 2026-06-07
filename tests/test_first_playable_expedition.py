@@ -111,3 +111,32 @@ def test_expedition_survey_away_from_starting_port() -> None:
     acted = process_player_action(action, gs, max_traversable_step=1)
     assert acted is True
     assert gs.expedition.survey_completed is False
+
+
+def test_expedition_repair_clears_blockage() -> None:
+    from engine.action_handler import process_player_action
+    from game.expedition.resolvers import resolve_first_playable_blockage
+
+    gs = create_gamestate_from_overland(
+        seed=20260604, width=128, height=96, first_playable=True
+    )
+    assert gs.expedition is not None
+    assert not gs.expedition.blockage_cleared
+
+    blockage_pt = resolve_first_playable_blockage(gs)
+    assert blockage_pt is not None
+    bx, by = blockage_pt
+
+    # Perform repair action
+    action = {"type": "repair", "x": bx, "y": by}
+    acted = process_player_action(action, gs, max_traversable_step=1)
+
+    assert acted is True
+    assert gs.expedition.blockage_cleared is True
+
+    # Verify message log
+    messages = [msg for msg, color in gs.message_log]
+    assert any(
+        "You clear enough of the blockage to reopen the road." in msg
+        for msg in messages
+    )
