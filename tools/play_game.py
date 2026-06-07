@@ -719,16 +719,21 @@ def main() -> None:
     )
     parser.add_argument("--mode", "-m", type=str, choices=("cli", "gui"), default=None)
     parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--first-playable", action="store_true", help="Launch the first playable expedition loop")
+    parser.add_argument(
+        "--first-playable",
+        action="store_true",
+        help="Launch the first playable expedition loop",
+    )
     args = parser.parse_args()
 
     arrow_path: Path | None = args.arrow
-    if arrow_path and not arrow_path.exists():
-        print(f"Arrow file not found: {arrow_path}")
-        raise SystemExit(1)
 
     if args.first_playable and arrow_path:
         print("Error: --first-playable cannot be used with --arrow.")
+        raise SystemExit(1)
+
+    if arrow_path and not arrow_path.exists():
+        print(f"Arrow file not found: {arrow_path}")
         raise SystemExit(1)
 
     mode_value: str | None = args.mode
