@@ -56,22 +56,23 @@ work should use "surface" terminology when the behavior is actor-scale.
 To support infinite travel and absolute persistence in a character-scale world, the surface map is divided into a grid of discrete, three-dimensional **chunks**.
 
 ### Coordinate Systems
-1. **Global Tile Coordinates** $(X_g, Y_g, Z_g)$: A character-scale grid representing individual walkable tiles across the entire world, relative to the absolute origin $(0,0,0)$. $Z_g = 0$ represents the default surface layer, $Z_g < 0$ represents subterranean layers (e.g. caves), and $Z_g > 0$ represents elevations (e.g. towers, mountain peaks).
+1. **Global Tile Coordinates** $(X_g, Y_g, Z_g)$: A character-scale grid representing individual walkable tiles across the entire world, relative to the absolute origin $(0,0,0)$.
 2. **Chunk Coordinates** $(C_x, C_y, C_z)$: The coordinate of the chunk containing the global tile.
 3. **Local Tile Coordinates** $(X_l, Y_l, Z_l)$: The tile index within its respective chunk.
 
-### Transformation Equations
+### Transformation Equations & Configurable Scale
 Let $S_c$ represent the chunk dimension (width and height), which must be a configurable parameter (default $S_c = 64$):
 
-$$C_x = \lfloor X_g / S_c \rfloor, \quad C_y = \lfloor Y_g / S_c \rfloor, \quad C_z = Z_g$$
-$$X_l = X_g \bmod S_c, \quad Y_l = Y_g \bmod S_c, \quad Z_l = 0 \text{ (local offset inside layer } C_z)$$
+$$C_x = \lfloor X_g / S_c \rfloor, \quad C_y = \lfloor Y_g / S_c \rfloor$$
+$$X_l = X_g \bmod S_c, \quad Y_l = Y_g \bmod S_c$$
 
-### Stable Chunk Identity
-Every chunk is assigned a unique, immutable string identifier formatted as `chunk_{Cx}_{Cy}_{Cz}` (e.g. `chunk_3_-12_0` for the surface, `chunk_3_-12_-1` for a cave layer). This ID serves as the key for persistent files and runtime cache lookups.
+- **Stacked 2D Planes**: The vertical Z-axis $Z_g$ determines the vertical chunk coordinate $C_z = Z_g$ and $Z_l = 0$. Each $C_z$ level represents a distinct, flat 2D chunk plane of size $S_c \times S_c \times 1$. This reserves $C_z$ transitions for major structural changes (such as cave layers, dungeons, or completely separate building floors).
+- **Local Elevation Offset ($H_t$)**: For vertical structures within the same active viewport (such as bridges, rooftops, low walls, or scaffolding), tiles store a local property $H_t$ (elevation height offset, represented as an integer or float). This separates tactical vertical heights from logical 2D chunk plane shifts.
 
-### Chunk Scaling & Expected Playable Area
-- **Region Scaling**: One regional cell from the overland generator maps to exactly a $1 \times 1$ surface chunk of $64 \times 64$ local character-scale tiles. This establishes a fixed, unambiguous scale mapping.
-- **First Playable Area**: The initial gameplay region loads a $3 \times 3$ grid of chunks ($192 \times 192$ character-scale tiles) centered on the player's spawn point (the harbor and surrounding ruins).
+### Configurable Region-to-Chunk Footprint Scaling
+Rather than mapping a regional cell strictly to a $1 \times 1$ chunk, regional features specify a configurable grid footprint of $M \times N$ chunks.
+- **Example**: A major port feature can claim a $2 \times 2$ chunk footprint, allowing the generator to produce continuous streets, harbor structures, and shoreline across four chunks.
+- **Expected First Playable Area**: The initial vertical slice loads a $3 \times 3$ grid of chunks ($192 \times 192$ character-scale tiles) centered on the player's spawn.
 - **Feature Density Constraints**:
   - Max 1 primary settlement structure or ruin cluster per chunk (occupying up to a $30 \times 30$ bounding box).
   - Max 3 minor affordance anchors (e.g., caves, springs, forage patches).
@@ -90,12 +91,25 @@ To prevent process-unstable hashing, every chunk receives a unique, reproducible
   seed_bytes = f"{world_seed}:{Cx}:{Cy}:{Cz}:{content_version}:{generation_version}".encode()
   chunk_seed = int(hashlib.sha256(seed_bytes).hexdigest(), 16) % (2**32)
   ```
-  This guarantees that terrain generated procedurally on-the-fly remains identical when re-generated.
 
 ### Border Stitching
 Adjacent chunks must align perfectly without seams or visual tears:
 - Roads, coastlines, and biomes are determined by querying the immutable regional Polars/Arrow overland map.
 - When generating local details along chunk boundaries, the generation algorithm queries a 1-chunk boundary buffer from adjacent coordinates to ensure features (such as walls, fences, or rivers) flow continuously.
+
+---
+
+## The Surface Materializer (Semantic-to-Simulation)
+
+The **Surface Materializer** is the system layer responsible for expanding high-level regional metadata promises ("road", "spring", "ruin", "harbor") into concrete local tile geometries, props, blockers, pathways, hazards, loot anchors, and entity spawn zones.
+
+### Materialization Templates
+Each high-level regional feature maps to a specific expansion template:
+- **Road**: Expands into paved limestone/basalt tiles, gravel shoulders, worn tire/carriage ruts (retaining tracks easily), and sparse encroaching weeds.
+- **Spring**: Expands into central deep water tiles (swim-only), shallow muddy banks, tall reeds (line-of-sight blockers), mudflats, and wildlife spawn nodes.
+- **Harbor/Port**: Expands into wooden planks, stone docks, crates (destructible containers), rope props, and starting player spawn zones.
+- **Forest**: Expands into dirt/grass tiles, heavy concentrations of tree obstacles, fallen logs, undergrowth, and forage nodes.
+- **Ruin**: Expands into crumbling brick walls, basalt rubble, flagstone floor tiles, locked iron doors, chests, and hazard anchors (traps/monster spawners).
 
 ---
 
@@ -171,10 +185,10 @@ To prevent data duplication and competing sources of truth, state transitions be
 
 ### Sequential LOD Roadmap
 To manage implementation complexity, the simulation layers will be introduced progressively in four distinct milestones:
-- **Milestone A (Phase 1 & 2)**: Fixed-radius chunk loading/unloading (active bubble radius $R_1$ is a constant configuration setting). Base terrain loads procedurally, and local modifications load/save via the Save-Diff Journal.
-- **Milestone B (Phase 3)**: Actor Dehydration. Serializing active entity attributes to disk files when their containing chunk is unloaded, and restoring them upon reload.
-- **Milestone C (Phase 4)**: NumPy Presence Simulation. Vectorized batch updates for the Outer Bubble ($R_2$) to handle migrations and coarse movements.
-- **Milestone D (Phase 5)**: Dynamic Auto-Scaling. Adaptive resizing of $R_1$ and $R_2$ based on rolling frame-time performance markers.
+- **Milestone A (Phase 1 to 4)**: Fixed-radius chunk loading/unloading (active bubble radius $R_1$ is a constant configuration setting). Base terrain loads procedurally, and local modifications load/save via the Save-Diff Journal.
+- **Milestone B (Phase 5)**: Actor Dehydration. Serializing active entity attributes to disk files when their containing chunk is unloaded, and restoring them upon reload.
+- **Milestone C (Phase 6)**: NumPy Presence Simulation. Vectorized batch updates for the Outer Bubble ($R_2$) to handle migrations and coarse movements.
+- **Milestone D (Phase 7)**: Dynamic Auto-Scaling. Adaptive resizing of $R_1$ and $R_2$ based on rolling frame-time performance markers.
 
 ---
 
@@ -184,7 +198,7 @@ To manage implementation complexity, the simulation layers will be introduced pr
 All output files produced by the region generator (Polars/Arrow/Parquet data representing biomes, routes, settlements, and base topography) are **strictly immutable**. Running gameplay must never overwrite these files.
 
 ### Save-Diff Journal Storage Mechanics
-Any modification to the world (terrain broken, doors opened, items dropped, trees chopped) is recorded as a **Mutation Overlay** in the chunk's **Save-Diff Journal**.
+Any modification to the physical world (terrain broken, doors opened, items dropped, trees chopped) is recorded as a **Mutation Overlay** in the chunk's **Save-Diff Journal**.
 
 - **Format & Serialization**: Journals are saved in a compact, structured format (JSON or Msgpack) per chunk. Every journal file begins with a header block:
   ```json
@@ -197,13 +211,13 @@ Any modification to the world (terrain broken, doors opened, items dropped, tree
 - **Atomic Writes**: Save-Diff files are written to a temporary file in the same directory, then renamed atomically using OS-native calls (`os.replace`) to prevent corruption during power loss or application crashes.
 - **Corruption Handling**: Keep a `.bak` backup file alongside the primary file. If loading the primary file fails, the engine falls back to `.bak`. If both fail, it logs the failure and falls back to generating the base chunk (sacrificing player mutations but preventing crash loops).
 - **Compaction & Snapshots**: If the change event log exceeds a threshold (e.g., 500 mutation events), the engine compacts the mutations directly into a static state overlay map and truncates the event log to save space.
-- **Delta Categorization**: Data in the journal is strictly divided into distinct tables:
+- **Delta Categorization**: Data in the journal is strictly divided into distinct tables representing physical changes:
   - `tile_mutations`: `(x, y) -> new_tile_type_id`
   - `item_deltas`: `(x, y) -> {"added": [items], "removed": [item_ids]}`
   - `entity_snapshots`: `entity_id -> serialized_state_dict`
-  - `player_knowledge`: `(x, y) -> revealed_bool`
+- **Separation of Player Knowledge**: Player exploration status, fog of war, and map discoveries are **not** stored in the Save-Diff Journal. This knowledge is treated as actor/faction cognitive state and saved separately in a dedicated player/faction data store (e.g., `FactionKnowledgeStore`), preventing mixing of mind and world states.
 
-### Unloaded Regions & Catch-Up Contract
+### Unloaded Regions & Migration/Catch-Up Contract
 When a player returns to a chunk that was unloaded for $T$ turns:
 - The system checks the timestamp of when the chunk was dehydrated: $\Delta t = t_{\text{current}} - t_{\text{unloaded}}$.
 - A **Migration/Catch-Up Contract** calculates changes that occurred during the elapsed $\Delta t$ using a whitelisted set of cheap deterministic rules:
@@ -246,49 +260,70 @@ The `SurfaceContext` class serves as the sole API seam wrapping the underlying `
 
 ## Implementation Phases
 
-### Phase 1: Foundational Coordinates, Stitching, & Semantics API
+### Phase 1: Coordinates & Chunk Identity
 
 Goal:
 ```text
-Establish the surface chunk coordinate systems, border stitching, and a clean semantics 
-query API (SurfaceContext) so all subsequent phases consume runtime meanings directly.
+Establish pure chunk coordinate calculations, index transforms, and stable chunk seeding.
 ```
 
 Tasks:
 - Implement the coordinate transform functions (`global_to_local`, `local_to_global`, `chunk_coordinates`) in 3D.
-- Create `SurfaceContext` query class to wrap verb queries (`can_walk`, `can_dig`, `can_burn`, `can_track`, `sound_conductivity`, `scent_permeability`, `is_valid_spawn_anchor`).
-- Keep the `GameMap.overland_metadata` as the backing data structure, routing queries through `SurfaceContext`.
-- Write unit tests verifying chunk boundary stitching and coordinate calculations.
+- Add `chunk_id` string formatting with Z-coordinate layer support.
+- Implement SHA-256 process-stable seed derivation.
+- Add tests for 3D coordinate edge cases and seed stability.
 
-### Phase 2: Save-Diff Journals & Absolute Persistence
+### Phase 2: SurfaceContext Semantics API
 
 Goal:
 ```text
-Provide absolute persistence for terrain changes, items, and structures using 
-immutable worldgen data combined with JSON/Msgpack mutation overlays.
+Expose local semantic query verbs wrapping the existing GameMap.overland_metadata.
 ```
 
 Tasks:
-- Define the `SaveDiffJournal` structure for representing tile and terrain mutations with header versioning and atomic replace.
+- Implement `SurfaceContext` wrapping the monolithic metadata object.
+- Expose verbs: `can_walk`, `can_dig`, `can_burn`, `can_forage`, `has_shelter`, `can_track`, `sound_conductivity`, `scent_permeability`, and `is_valid_spawn_anchor`.
+- Verify semantics API queries return correct values for starting port regions and wild terrain.
+
+### Phase 3: Surface Chunk Materializer & Stitching
+
+Goal:
+```text
+Expand abstract regional promises into concrete tile and blocker geometries, and stitch borders.
+```
+
+Tasks:
+- Build `SurfaceMaterializer` to expand road, spring, forest, ruin, and port templates.
+- Implement the 1-chunk boundary stitching engine reading from immutable Polars maps.
+- Ensure transitions and starting spawns are resolved into physical geometries.
+
+### Phase 4: Save-Diff Journals & Absolute World Persistence
+
+Goal:
+```text
+Provide absolute physical persistence for terrain changes, items, and structures.
+```
+
+Tasks:
+- Define the `SaveDiffJournal` structure for representing tile and terrain mutations (excluding player knowledge).
 - Implement the chunk serializer and deserializer (using JSON or Msgpack) with `.bak` recovery.
-- Write a terrain-modification interceptor that writes all gameplay changes to the current chunk's journal.
+- Implement atomic rename (`os.replace`) storage replacement.
 - Create tests verifying that a chunk can be modified, unloaded, reloaded, and matches its modified state perfectly.
 
-### Phase 3: Three-Tier LOD & Hydration Flow
+### Phase 5: Three-Tier LOD & Hydration Flow
 
 Goal:
 ```text
-Implement hydration/dehydration mechanics for entities moving between the 
-Immediate Bubble (ECS), Outer Bubble (NumPy), and Deep Map (Journals), using stable IDs.
+Implement hydration/dehydration mechanics and stable IDs for entities moving in/out of the bubble.
 ```
 
 Tasks:
-- Add a stable identity tracking mapping to `EntityRegistry`.
+- Add stable identity tracking mapping to `EntityRegistry`.
 - Implement hydration (`hydrate_chunk_entities`) and dehydration (`dehydrate_chunk_entities`) routines.
 - Implement eviction locks ensuring visible/engaged actors are never dehydrated.
 - Add validation checking that entity state (HP, inventory) is preserved across hydration cycles.
 
-### Phase 4: Deterministic Population & Living Behavior
+### Phase 6: Deterministic Population & Behavior
 
 Goal:
 ```text
@@ -298,33 +333,34 @@ SurfaceContext API, and give them simple, context-aware behaviors.
 
 Tasks:
 - Create actor templates for humans, wildlife, and monsters.
-- Use `SurfaceContext` to place entities near logical starting anchors (e.g., port survivors near settlements, wildlife near springs).
+- Use `SurfaceContext` to place entities near logical starting anchors.
 - Create basic AI behaviors: animals seeking water/forage biomes, monsters remaining near caves/hazards.
 - Verify actors participate in the normal turn loop and respect surface bounds.
 
-### Phase 5: Dynamic LOD Auto-Scaling
+### Phase 7: Dynamic LOD & Catch-Up
 
 Goal:
 ```text
-Enable dynamic expansion and contraction of simulation bubbles based on frame-times 
-while maintaining the defined safety invariants.
+Enable dynamic expansion/contraction of simulation bubbles based on frame-times 
+and run cheap catch-up contracts.
 ```
 
 Tasks:
 - Build a frame-time monitoring system.
 - Implement dynamic radius adjustment for $R_1$ and $R_2$ based on rolling processing times.
+- Implement whitelisted cheap catch-up calculations (status decay, crop growth) for dehydrated entities on hydration.
 - Assert the Eviction Lock and Sizing Bounds invariants under heavy simulated load.
 
-### Phase 6: Knowledge & Survey Integration
+### Phase 8: Faction Knowledge & Survey Integration
 
 Goal:
 ```text
-Integrate local surface maps with the exploration, survey, and evidence tracking systems.
+Integrate faction discovery, fog of war, and surveys separately from chunk persistence.
 ```
 
 Tasks:
-- Map NPC, monster, and wild animal movements to local tracks and evidence nodes.
-- Save player discovery and map knowledge separately from base generation data.
+- Map discoveries to a dedicated `FactionKnowledgeStore`.
+- Connect NPC, monster, and wild animal movements to local tracks and evidence nodes.
 
 ---
 
@@ -341,13 +377,17 @@ The following named tests will be implemented:
 - `test_surface_seed_determinism`:
   Asserts that SHA-256 chunk seeds are stable across multiple processes and match identical inputs.
 - `test_surface_z_axis_coordinates`:
-  Verifies coordinate transform mappings in 3D space.
+  Verifies coordinate transform mappings in 3D space, separating plane layers ($C_z$) from local heights ($H_t$).
 - `test_surface_context_verb_queries`:
   Asserts that `SurfaceContext` correctly evaluates `can_dig`, `can_track`, `sound_conductivity`, and other query verbs.
+- `test_surface_materializer_templates`:
+  Verifies that roads, springs, forests, and ruins expand to correct local tile geometry and obstacle footprints.
 - `test_surface_chunk_reload_preserves_mutations`:
   Asserts that modifying a tile (e.g. digging a wall), unloading the chunk, and reloading it preserves the modifications.
 - `test_save_diff_atomic_replacement`:
   Simulates interrupted writes and asserts that backup recovery prevents save corruption.
+- `test_faction_knowledge_separated_from_save_diff`:
+  Confirms that exploring tiles or updating fog of war updates player state but does not write changes to the physical chunk Save-Diff Journals.
 - `test_hydrate_dehydrate_actor_identity`:
   Verifies that an entity's stable ID, health, inventory, and active status are preserved without duplication when moving in and out of the Immediate Bubble.
 - `test_lod_bubble_dynamic_scaling_invariants`:
