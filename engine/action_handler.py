@@ -17,6 +17,7 @@ from typing import Any
 
 import structlog
 
+from common.constants import Material
 from game.effects.executor import execute_effect
 from game.entities.components import Position
 from game.entities.registry import EntityRegistry
@@ -26,7 +27,7 @@ from game.game_state import GameState
 from game.items.registry import ItemRegistry
 from game.systems import movement_system
 from game.systems.death_system import handle_entity_death
-from game.world.game_map import GameMap
+from game.world.game_map import GameMap, TILE_ID_FLOOR, TILE_ID_WALL, TILE_TYPES
 
 log = structlog.get_logger(__name__)
 
@@ -67,6 +68,30 @@ FALL_DAMAGE_THRESHOLD: int = 3  # Units (e.g., 1.5 meters)
 # Damage per unit height beyond threshold
 FALL_DAMAGE_PER_UNIT_HEIGHT: float = 2.0
 MAX_FALL_DEPTH: int = 20  # Max tiles to check downwards
+
+
+def _tile_type_name(game_map: GameMap, x: int, y: int) -> str:
+    """Return a human-readable tile/material name for debug logging."""
+    if not game_map.in_bounds(x, y):
+        return "out_of_bounds"
+
+    metadata = getattr(game_map, "overland_metadata", None)
+    if metadata is not None and getattr(metadata, "material_grid", None) is not None:
+        try:
+            material_id = int(metadata.material_grid[y, x])
+            return Material(material_id).name.lower()
+        except (ValueError, TypeError):
+            return f"material_{int(metadata.material_grid[y, x])}"
+
+    tile_id = int(game_map.tiles[y, x])
+    tile_type = TILE_TYPES.get(tile_id)
+    if tile_type is None:
+        return f"tile_{tile_id}"
+    if tile_id == TILE_ID_FLOOR:
+        return "floor"
+    if tile_id == TILE_ID_WALL:
+        return "wall"
+    return f"tile_{tile_id}"
 
 
 # --- Fall Handling Helper ---
@@ -247,9 +272,21 @@ def _handle_player_move(dx: int, dy: int, gs: GameState, max_step: int) -> bool:
     # If no blocking entity, proceed to terrain checks:
 
     # 2. Check Tile Walkability
-    if not gm.is_walkable(new_x, new_y):
-        log.debug("Walkability check FAILED")
-        gs.add_message("That way is blocked by terrain.", (255, 127, 0))
+    is_walkable = gm.is_walkable(new_x, new_y)
+    if getattr(gm, "overland_metadata", None) is not None:
+        from game.systems.overland_movement import human_on_foot_can_enter
+        is_walkable = human_on_foot_can_enter(gs, new_x, new_y)
+
+    if not is_walkable:
+        log.debug(
+            "Walkability check FAILED",
+            current_tile_type=_tile_type_name(gm, current_x, current_y),
+            blocked_tile_type=_tile_type_name(gm, new_x, new_y),
+            current_pos=(current_x, current_y),
+            blocked_pos=(new_x, new_y),
+        )
+        blocked_name = _tile_type_name(gm, new_x, new_y)
+        gs.add_message(f"That way is blocked by {blocked_name}.", (255, 127, 0))
         return False
 
     # 3. Check Height Difference & Fall

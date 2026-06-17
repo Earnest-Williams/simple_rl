@@ -15,6 +15,62 @@ class OverlandMaterialPresentation:
 
 
 OVERLAND_MATERIAL_PRESENTATION: dict[int, OverlandMaterialPresentation] = {
+    int(Material.GRASS): OverlandMaterialPresentation(
+        glyph_name="vegetation_bush_small",
+        fallback_glyph_name="blank_tile_b",
+        fg=(80, 140, 50),
+        bg=(15, 35, 15),
+        notes="Standard grass tile.",
+    ),
+    int(Material.DIRT): OverlandMaterialPresentation(
+        glyph_name="terrain_mound",
+        fallback_glyph_name="terrain_pebbles",
+        fg=(130, 100, 70),
+        bg=(35, 25, 20),
+        notes="Bare dirt.",
+    ),
+    int(Material.MUD): OverlandMaterialPresentation(
+        glyph_name="terrain_mound",
+        fallback_glyph_name="terrain_pebbles",
+        fg=(100, 80, 60),
+        bg=(30, 25, 20),
+        notes="Muddy ground.",
+    ),
+    int(Material.LIMESTONE): OverlandMaterialPresentation(
+        glyph_name="wall_stone_bricks",
+        fallback_glyph_name="blank_tile_b",
+        fg=(160, 160, 160),
+        bg=(30, 30, 30),
+        notes="Solid limestone.",
+    ),
+    int(Material.LIMESTONE_PAVEMENT): OverlandMaterialPresentation(
+        glyph_name="terrain_pebbles",
+        fallback_glyph_name="blank_tile_b",
+        fg=(150, 150, 150),
+        bg=(30, 30, 30),
+        notes="Limestone pavement/floor.",
+    ),
+    int(Material.LIMESTONE_CLIFF): OverlandMaterialPresentation(
+        glyph_name="wall_stone_bricks",
+        fallback_glyph_name="blank_tile_b",
+        fg=(140, 140, 140),
+        bg=(20, 20, 20),
+        notes="Steep limestone cliff.",
+    ),
+    int(Material.BASALT): OverlandMaterialPresentation(
+        glyph_name="wall_stone_bricks",
+        fallback_glyph_name="blank_tile_b",
+        fg=(80, 80, 80),
+        bg=(10, 10, 10),
+        notes="Dark basalt rock.",
+    ),
+    int(Material.PEAT): OverlandMaterialPresentation(
+        glyph_name="terrain_mound",
+        fallback_glyph_name="blank_tile_b",
+        fg=(110, 90, 60),
+        bg=(25, 20, 15),
+        notes="Peat bog surface.",
+    ),
     int(Material.ROAD): OverlandMaterialPresentation(
         glyph_name="road_stone",
         fallback_glyph_name="terrain_pebbles",

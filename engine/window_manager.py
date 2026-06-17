@@ -131,6 +131,26 @@ class ClickableLabel(QLabel):
         super().mousePressEvent(event)
 
 
+class InteractiveLabel(QLabel):
+    """QLabel that emits clicked and hovered signals with QPoint."""
+
+    clicked = Signal(QPoint)
+    hovered = Signal(QPoint)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMouseTracking(True)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(event.pos())
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self.hovered.emit(event.pos())
+        super().mouseMoveEvent(event)
+
+
 class NodeInspectorDock(QDockWidget):
     """Docked inspector for backbone nodes: summary, generator steps, children, JSON."""
 
@@ -745,9 +765,10 @@ class WindowManager(QMainWindow):
         self.layout.addWidget(self.scroll_area)
 
         # Main display label
-        self.label = QLabel()
+        self.label = InteractiveLabel()
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scroll_area.setWidget(self.label)
+        self.label.hovered.connect(self.on_map_hover)
 
         # State
         self.main_loop: MainLoop | None = None
@@ -755,6 +776,21 @@ class WindowManager(QMainWindow):
         self.viewport_height: int = 0
         self.window_width = self.width()
         self.window_height = self.height()
+
+        from engine.window_manager_modules.angband_docks import (
+            CharacterStatusDock,
+            MessageLogDock,
+            TileInspectorDock,
+        )
+
+        self.char_status_dock = CharacterStatusDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.char_status_dock)
+
+        self.msg_log_dock = MessageLogDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.msg_log_dock)
+
+        self.tile_inspector_dock = TileInspectorDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.tile_inspector_dock)
 
         # Build menus
         self.build_menus()
@@ -959,6 +995,16 @@ class WindowManager(QMainWindow):
         open_diag.triggered.connect(lambda: self.show_diagnostics_dock())
         diag_menu.addAction(open_diag)
         self.menu_bar.addMenu(diag_menu)
+        
+        # Window menu for Angband-style panels
+        window_menu: QMenu = QMenu("Window", self)
+        if hasattr(self, 'char_status_dock'):
+            window_menu.addAction(self.char_status_dock.toggleViewAction())
+        if hasattr(self, 'msg_log_dock'):
+            window_menu.addAction(self.msg_log_dock.toggleViewAction())
+        if hasattr(self, 'tile_inspector_dock'):
+            window_menu.addAction(self.tile_inspector_dock.toggleViewAction())
+        self.menu_bar.addMenu(window_menu)
 
         log.debug("Menus built")
 
@@ -1221,6 +1267,39 @@ class WindowManager(QMainWindow):
         frame_duration = (time.perf_counter() - frame_start_time) * 1000
         if frame_duration > 100:
             log.warning(f"Slow frame: {frame_duration:.1f}ms")
+
+        self.update_ui_panels()
+
+    def update_ui_panels(self) -> None:
+        if not self.main_loop or not self.main_loop.game_state:
+            return
+        gs = self.main_loop.game_state
+        if hasattr(self, 'char_status_dock'):
+            self.char_status_dock.update_ui(gs)
+        if hasattr(self, 'msg_log_dock'):
+            self.msg_log_dock.update_ui(gs)
+
+    def on_map_hover(self, pos: QPoint) -> None:
+        if not self.main_loop or not self.main_loop.game_state:
+            return
+        if not hasattr(self, '_last_viewport_params') or not self._last_viewport_params:
+            return
+        if not hasattr(self, 'tile_inspector_dock'):
+            return
+            
+        vp = self._last_viewport_params
+        
+        # Calculate tile coordinate
+        tile_w = self.tileset_manager.tile_width
+        tile_h = self.tileset_manager.tile_height
+        
+        # Pos is relative to the label
+        # The image drawn is vp.viewport_width * tile_w x vp.viewport_height * tile_h
+        px, py = pos.x(), pos.y()
+        tx = vp.viewport_x + (px // tile_w)
+        ty = vp.viewport_y + (py // tile_h)
+        
+        self.tile_inspector_dock.update_tile_info(self.main_loop.game_state, tx, ty)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         try:

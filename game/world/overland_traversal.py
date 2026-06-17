@@ -23,7 +23,17 @@ def human_on_foot_can_enter_map(game_map: GameMap, x: int, y: int) -> bool:
 
     wetness = int(metadata.wetness_grid[y, x])
     if wetness == int(Wetness.DEEP_FLOODED):
-        return False
+        from common.constants import Material
+        material = int(metadata.material_grid[y, x])
+        if material not in {
+            int(Material.BRIDGE),
+            int(Material.BOARDWALK),
+            int(Material.DOCK),
+            int(Material.ROAD),
+            int(Material.TRACK),
+            int(Material.TRAIL),
+        }:
+            return False
 
     cost = float(metadata.movement_cost_grid[y, x])
     if not np.isfinite(cost):

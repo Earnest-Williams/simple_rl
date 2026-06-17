@@ -55,7 +55,7 @@ log = structlog.get_logger(__name__)
 FlowCostMap = NDArray[np.integer[Any]]
 
 # SDL_mixer configuration
-SDL_MIXER_FREQUENCY: Final[int] = 22050  # Hz
+SDL_MIXER_FREQUENCY: Final[int] = 44100  # Hz
 SDL_MIXER_CHANNELS: Final[int] = 2  # Stereo
 SDL_MIXER_CHUNK_SIZE: Final[int] = 512  # Buffer size in samples
 

@@ -59,6 +59,9 @@ def derive_walkable(material: Material, wetness: Wetness, flags: int = 0) -> boo
             Material.BRIDGE,
             Material.BOARDWALK,
             Material.DOCK,
+            Material.ROAD,
+            Material.TRACK,
+            Material.TRAIL,
             Material.SHALLOW_WATER,
         }
     if material == Material.DEEP_MUD:

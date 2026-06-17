@@ -1,123 +1,108 @@
-# Simple RL Project - Simulation-Heavy Game Development
+# simple_rl
 
-## Overview
+> *« Je fis une prière de reconnaissance à Dieu, car il m’avait conduit parmi ces immensités sombres au seul point peut-être où la voix de mes compagnons pouvait me parvenir. »*
+> — Jules Verne, Voyage au centre de la Terre, chap. XXVIII.
+> 
+> *“It is not down on any map; true places never are.”*
+> — Herman Melville, Moby-Dick
 
-This project focuses on the development of a simulation-heavy game, likely a roguelike or RPG, set primarily within vast, procedurally generated cave systems on an isolated continent. Key development goals include creating complex, emergent AI behaviors, realistic environmental interactions, and a persistent world state, all built upon a foundation of high-performance, idiomatic Python.
+A simulation-heavy roguelike/RPG research project emphasizing determinism, complex AI, multi-stage 3D cave generation, and deep perception systems.
 
-The project emphasizes robust simulation, leveraging performant libraries and patterns to handle complexity efficiently. Determinism, modularity, and clear code structure are core tenets.
+## Milestone & Status Summary
 
-## Core Components
+Active. Canonical roguelike/RPG research project.
 
-This project is structured into several key component directories, each with its own detailed `README.md`:
+- **Entity Store Architecture**: Transitioned the engine to a robust, array-oriented entity store.
+- **First Playable Expedition Loop**: Fully functional overland map and expedition flow (surveying, navigating blockages, discovering locations).
+- **Cave Handoff and Minimal Interior**: Completed the vertical slice for transitioning between the overland map and a generated interior cave map, including tracking transition metadata (cave types, seasonal flow states) and looping back to the surface to complete an expedition.
 
-* **`Dungeon/`**: The primary procedural generation pipeline for creating complex, multi-featured cave systems using a multi-stage process (Core Graph → Processing → Shaping). Outputs Polars DataFrames with preserved 3D depth information. ([See README](./Dungeon/README.md))
-* **`ai/`**: Implements experimental AI for **community-based NPCs**, focusing on complex social behaviors, needs, traits, and habit learning. Under active development and not yet integrated with the main game. ([See README](./ai/README.md))
-* **`auto/`**: Contains a **combat/survival AI test environment** based on Goal-Oriented Action Planning (GOAP). The core GOAP planner has been extracted and integrated into the main game via `game/ai/goap.py`. This directory serves as a simulation testbed and development GUI for training and tuning AI behavior. ([See README](./auto/README.md))
-* **`pathfinding/`**: Simulates non-visual **perception systems** (noise propagation, scent tracking) integrated with the main game to provide input for AI decision-making. Production AI now consumes visual, audio, scent, and memory-priority perception signals through these systems. ([See README](./pathfinding/README.md))
-* **`utils/game_rng.py`**: Provides the foundational `GameRNG` class, a deterministic, high-performance **Random Number Generator** with state management, used throughout the project. `worldgen/game_rng.py` re-exports the same class for world-generation compatibility. ([See README](./utils/README.md))
-* **`scripting_engine.py`**: Implements macro expansion and a Brainfuck interpreter, designed as a foundation for the **game's spell system**. Currently in development; basic effect system is functional.
-* **`game/`**: Main game engine integrating all production systems including combat, movement, equipment, AI, effects, entities, and world management.
+## Core Game Systems
 
-## Technical Philosophy
+- **Procedural Generation (`Dungeon/`, `worldgen/`)**: Polars/graph-based multi-stage cave generation preserving 3D depth, and robust overland map generation.
+- **Perception & AI (`ai/`, `auto/`, `pathfinding/`)**: Multi-sense perception (visual, audio, scent, memory) feeding into a GOAP (Goal-Oriented Action Planning) testbed and production AI.
+- **Main Engine (`game/`, `engine/`)**: Integrated combat, movement, equipment, and world management systems.
+- **Magic & Effects (`magic/`)**: A scripting foundation (macro expansion + Brainfuck interpreter) for esoteric spell systems.
 
-Development prioritizes:
+## Project Layout
 
-* **Performance:** Utilizing libraries like Polars (for data manipulation), Numba (for JIT compilation on hot paths), NumPy, SciPy, scikit-image, and Joblib/multiprocessing (for parallelism) where appropriate.
-* **Determinism:** Employing the custom `GameRNG` for all stochastic processes to ensure reproducibility.
-* **Data-Driven Design:** Modeling game state with efficient data structures. Polars is used for batch data, exports, snapshots, fixtures, and analysis; hot runtime entity state uses store/array-oriented access where migrated.
-* **Clarity & Maintainability:** Adhering to Python best practices (PEP 8) and favoring clear, modular code, especially in performance-critical sections.
+```text
+simple_rl/
+  ai/             Experimental community-based NPC AI.
+  auto/           GOAP-based combat/survival AI testbed.
+  docs/           Extensive architecture, lore, and planning notes.
+  Dungeon/        Procedural cave generation pipeline (Graph → Processing → Shaping).
+  engine/         Core action handling, rendering layers, and base loops.
+  game/           Main integrated game engine and runtime state.
+  magic/          Experimental scripting foundation for spell systems.
+  pathfinding/    Non-visual perception (noise, scent) and pathfinding algorithms.
+  scripts/        Development helper scripts.
+  tests/          Pytest coverage for the core systems.
+  worldgen/       Overland map and settlement generation.
+```
 
-## Status
+## Runtime and Tooling Files
 
-This project is **under active development**. The core game systems are integrated and functional, including dungeon generation, FOV/lighting, combat, equipment, AI (GOAP and strategy-based), pathfinding, and rendering. Some experimental systems remain in dedicated R&D directories for testing and refinement.
+- `pyproject.toml`: The canonical Python packaging and tool-configuration file. Targets Python 3.11+, configures pytest, and handles core project metadata.
+- `environment.yml`: Defines a Conda/mamba environment named `simple_rl`. Installs core dependencies like Polars, NumPy, Numba, PySide6, and Pytest.
 
-### Production-Ready Systems
-* **Dungeon Generation**: 3D cave networks with 2D rasterization (fully integrated)
-* **Rendering Pipeline**: Tile-based rendering with lighting, FOV, and memory fade
-* **Combat & Movement**: Complete systems with equipment, stats, and collision
-* **AI Systems**: GOAP planner and strategy-based behaviors for NPCs/monsters, including structured visual/audio/scent/memory perception priority
-* **Perception**: Sound and scent propagation systems feeding AI decisions
-* **Effects System**: Comprehensive effect handlers and status management
+## Quickstart
 
-### R&D Systems and Testbeds
-* **Community NPC AI** (`ai/`): Advanced trait-based AI for non-combat NPCs with habit learning; not yet integrated.
-* **GOAP Test Environment** (`auto/`): Simulation harness for AI training and tuning (core GOAP is already integrated).
-
-### Planned Features
-* Historical/lore layer for dungeon generation
-* Full spell system based on `scripting_engine.py`
-* Community and settlement management systems
-
-## Legacy status
-
-The repository no longer contains a `legacy/` directory or the historical
-`simple_rl.py` / `dungeon_generator.py` entrypoints. New development should use
-the canonical component entrypoints documented in the directory READMEs:
-
-- `Dungeon/` for procedural cave generation.
-- `game/` for integrated production game systems.
-- `engine/render_lighting.py`, `game/world/light_fov.py`, and `game/world/memory.py` own production lighting, light-aware FOV, and memory behavior.
-- `auto/` for GOAP simulation and tuning.
-
-## Getting Started
-
-### Installation
-
-1. **Clone the repository:**
+1. Clone and enter the directory.
+2. Initialize and activate the environment:
    ```bash
-   git clone https://github.com/Earnest-Williams/simple_rl.git
-   cd simple_rl
+   mamba env create -f environment.yml
+   mamba activate simple_rl
+   ```
+3. Run the main game:
+   ```bash
+   sdc
+   # or
+   python -m lights_dev
    ```
 
-2. **Install dependencies:**
-   ```bash
-   pip install -e .
-   # OR for development:
-   pip install -e ".[dev]"
-   ```
-   
-   Python 3.11+ is required. Core dependencies include Polars, NumPy, Numba, SciPy, scikit-image, PySide6, PySDL2, and pysdl2-dll.
-   The glyph metadata generator (`scripts/generate_glyphs.py`) requires PyYAML.
+## Tests
 
-3. **Run the main game:**
-   ```bash
-   python main.py
-   ```
-   
-   Or use the orchestrator for more control:
-   ```bash
-   python orchestrator.py
-   ```
+The project maintains a comprehensive test suite (currently 270+ passing tests) covering everything from FOV caching and walkability checks to GOAP AI behavior and full expedition loops.
 
-### Development Harnesses
+```bash
+mamba run -n simple_rl pytest
+```
 
-Different components have dedicated development harnesses:
+## Development Principles
 
-* **Dungeon Generation:** `cd Dungeon && ./run.sh`
-* **GOAP AI Development (Headless):** `cd auto && ./run.sh --mode headless`
-* **GOAP AI Development (GUI):** `cd auto && ./run.sh --mode gui`
-* **Lighting/FOV Regression Tests:** `python -m pytest tests/engine/test_render_lighting_advanced.py tests/game/world/test_light_fov.py tests/test_lighting_leaks.py`
-* **Lighting/FOV Visual Tool:** `python -m tools.lighting_fov_tool.main` (see [`tools/lighting_fov_tool/README.md`](./tools/lighting_fov_tool/README.md))
+### 1. Build the playable game first
+The project may support ambitious simulation over time, but every major system should serve a playable expedition roguelike. Technical ambition is valuable only when it strengthens command, consequence, discovery, survival, exploration, or practical magic.
 
-Refer to individual component READMEs for specific requirements and usage details.
-Generated font assets and glyph metadata are documented in
-[`docs/Asset Pipeline.md`](./docs/Asset%20Pipeline.md).
+### 2. Separate True Targets from Moonshots
+True Targets are the real commitments. They must be achievable, testable, and capable of producing an excellent game without speculative infrastructure.
+Moonshots may influence architecture and long-term direction, but they must not block playable milestones. Every moonshot should have a simpler fallback: a narrative version, an approximate deterministic simulation version, or a full simulation version only when justified by performance and development cost.
 
-## Performance & Known Issues
+### 3. Preserve determinism
+All stochastic systems should use the project’s canonical deterministic RNG path. Procedural generation, AI behavior, simulation events, tests, and debugging tools should remain reproducible from explicit state.
 
-The project prioritizes performance through high-performance libraries (Polars, Numba, NumPy) and efficient data structures. However, some known performance considerations exist:
+### 4. Prefer data-driven systems
+Game state, procedural generation, fixtures, exports, balancing data, and analysis paths should be represented in structured, inspectable data wherever practical. Use Polars, NumPy, arrays, typed records, or configuration files according to the access pattern and performance requirements.
 
-### Performance Optimization
-* Use Numba JIT compilation for hot paths (FOV, lighting, pathfinding)
-* Leverage Polars lazy evaluation for large batch/reporting datasets
-* Keep hot runtime entity reads on store/array accessors and spatial indexes where migrated
-* Profile code with `cProfile` before optimizing
-* See [`docs/Performance Analysis.md`](./docs/Performance%20Analysis.md) for detailed analysis and recommendations
+### 5. Keep hot paths fast and explicit
+Performance-sensitive systems should avoid accidental Python overhead. Use store-oriented access, spatial indexes, vectorized operations, Numba, caching, or compiled-style data layouts where profiling shows they matter. Do not optimize blindly; measure first, then optimize the actual bottleneck.
 
-### Known Limitations
-* Some rendering operations may benefit from caching and dirty-rect tracking
-* Non-combat item/equipment DataFrame paths remain unverified and may represent the next dominant turn-processing bottleneck after the entity-store migration
-* Flow field pathfinding may benefit from caching when targets are stationary
+### 6. Maintain clear system boundaries
+Major systems should have explicit ownership and entrypoints. Experimental systems may live in R&D areas, but production systems should have stable interfaces and clear integration paths. Avoid hidden cross-system coupling.
 
-For detailed performance analysis and optimization recommendations, see
-[`docs/Performance Analysis.md`](./docs/Performance%20Analysis.md).
+### 7. Make simulation player-facing
+A simulation is valuable when the player can perceive, reason about, and act on it. Consequences should surface through visible state, tactical choices, companion behavior, environmental change, expedition reports, or meaningful UI feedback.
+
+### 8. Treat knowledge as a first-class resource
+Discovery should not be cosmetic. Evidence, inscriptions, maps, artifacts, route knowledge, ecological observations, and historical clues should feed back into survival, planning, research, safer travel, better assignments, and new options in the world.
+
+### 9. Preserve responsibility as the central pressure
+The player is not merely an adventurer. He is responsible for the expedition. Systems should reinforce tradeoffs between safety, labor, morale, knowledge, time, tools, and human capability.
+
+### 10. Prefer boring correctness over clever fragility
+Use straightforward, typed, testable code. Clever abstractions are acceptable only when they reduce repeated complexity without obscuring control flow, data ownership, or failure modes.
+
+### 11. Document systems where they live
+Each major component should explain its purpose, canonical entrypoints, data flow, dependencies, test commands, known limitations, and relationship to the overall game. Documentation should help future work continue from the current architecture rather than rediscover it.
+
+### 12. Keep legacy paths retired
+Old entrypoints and deprecated architecture should not be revived casually. New work should build through the documented canonical systems unless there is an explicit migration reason.

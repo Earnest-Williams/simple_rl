@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from common.constants import Material
+import engine.action_handler as action_handler_module
 from engine.action_handler import process_player_action
 from game.game_state import GameState
 from game.systems.repair import clear_blockage_at
@@ -126,3 +127,26 @@ def test_repair_action_integration() -> None:
     acted = process_player_action(action, gs, max_traversable_step=1)
     assert acted is True
     assert gs.game_map.tiles[3, 2] == TILE_ID_FLOOR
+
+
+def test_walkability_failure_logs_current_and_blocked_tile_types(monkeypatch) -> None:
+    gs = _setup_test_state()
+    captured: dict[str, object] = {}
+
+    def fake_debug(event: str, **kwargs) -> None:
+        if event == "Walkability check FAILED":
+            captured.update(kwargs)
+
+    monkeypatch.setattr(action_handler_module.log, "debug", fake_debug)
+
+    acted = process_player_action(
+        {"type": "move", "dx": 0, "dy": 1},
+        gs,
+        max_traversable_step=1,
+    )
+
+    assert acted is False
+    assert captured["current_tile_type"] == "dirt"
+    assert captured["blocked_tile_type"] == "limestone"
+    assert captured["current_pos"] == (2, 2)
+    assert captured["blocked_pos"] == (2, 3)
