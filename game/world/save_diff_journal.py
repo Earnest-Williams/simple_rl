@@ -249,6 +249,20 @@ class SaveDiffJournal:
         self._entity_snapshots[entity_id] = dict(state)
         self._append_event({"kind": "entity", "entity_id": entity_id})
 
+    def has_entity_snapshot(self, entity_id: str) -> bool:
+        """Whether a dehydration record exists for ``entity_id``."""
+        return entity_id in self._entity_snapshots
+
+    def pop_entity_snapshot(self, entity_id: str) -> dict[str, Any] | None:
+        """Remove and return the snapshot record for ``entity_id``.
+
+        Hydration (Surface Map Plan Phase 5) *consumes* dehydration
+        records: once an actor re-enters the active ECS registry it must
+        exist only there, never both as a live entity and a journal
+        record (the no-double-simulation rule).
+        """
+        return self._entity_snapshots.pop(entity_id, None)
+
     def _append_event(self, event: dict[str, Any]) -> None:
         self._event_log.append(event)
         if len(self._event_log) > self._compaction_threshold:
