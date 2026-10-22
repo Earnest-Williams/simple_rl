@@ -238,8 +238,25 @@ class EntityRegistry:
         resistances: dict[str, float] | None = None,
         vulnerabilities: dict[str, float] | None = None,
         drop_table: list[dict] | None = None,
+        entity_id: int | None = None,
     ) -> int:
-        new_id = self._get_next_id()
+        if entity_id is None:
+            new_id = self._get_next_id()
+        else:
+            # Stable-identity spawn (Surface Map Plan Phase 5): replaying a
+            # dehydrated actor must keep its birth ID so identity, history,
+            # and cross-references survive hydration cycles.
+            new_id = int(entity_id)
+            if not 0 <= new_id <= 2**32 - 1:
+                raise ValueError(
+                    f"Explicit entity_id out of UInt32 range: {new_id}"
+                )
+            if self._store.index_of(new_id) is not None:
+                raise ValueError(
+                    f"Entity ID {new_id} already exists in the registry"
+                )
+            if new_id >= self._next_entity_id:
+                self._next_entity_id = new_id + 1
         log_context = {"name": name, "pos": (x, y), "glyph": glyph, "hp": hp}
         log.debug("Attempting to create entity", **log_context)
         default_body_plan = {
