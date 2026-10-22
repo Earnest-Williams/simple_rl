@@ -764,7 +764,7 @@ Not every local quality gate is necessarily represented in CI. Local checks rema
 | Topic | Source |
 | --- | --- |
 | Architecture map | `docs/Architecture.md` |
-| Engineering rules | `docs/Engineering.md` and `docs/LLM Critical Rules.md` |
+| Engineering rules | `docs/Engineering.md` and `docs/LLM_CRITICAL_RULES.md` |
 | Run commands | `docs/Runbook.md` |
 | System maturity | `docs/Current Status.md` |
 | Testing | `docs/Testing.md` |
