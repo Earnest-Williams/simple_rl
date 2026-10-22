@@ -129,6 +129,15 @@ class ActorStore(Protocol):
         """
         ...
 
+    def move_actor(self, actor_id: int, x: int, y: int) -> bool:
+        """Move an active actor to tile ``(x, y)``.
+
+        Surface behaviors (Phase 6) call this after validating
+        walkability, bounds, and occupancy themselves. Returns
+        ``False`` when the actor is not active.
+        """
+        ...
+
     def is_tile_blocked(self, x: int, y: int) -> bool:
         """Whether ``(x, y)`` cannot host an actor (occupied/unwalkable)."""
         ...
@@ -309,6 +318,14 @@ class InMemoryActorStore:
         """Re-create an actor from a snapshot, keeping its stable ID."""
         actor_id = int(snapshot[ACTOR_ID_KEY])
         self._actors[actor_id] = dict(snapshot)
+
+    def move_actor(self, actor_id: int, x: int, y: int) -> bool:
+        """Move an active actor to ``(x, y)`` (caller-validated)."""
+        snapshot = self._actors.get(actor_id)
+        if snapshot is None:
+            return False
+        snapshot["x"], snapshot["y"] = int(x), int(y)
+        return True
 
     def is_tile_blocked(self, x: int, y: int) -> bool:
         """A tile is blocked if unwalkable or occupied by an actor."""
