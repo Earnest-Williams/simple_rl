@@ -305,6 +305,15 @@ class SurfaceContext:
             )
         )
 
+    def material_at(self, x: int, y: int) -> Material | None:
+        """Return the tile's material, or ``None`` without a sidecar.
+
+        Read-only material query for gameplay systems: Phase 6 surface
+        behaviors ask which material an actor stands on (e.g. to stop
+        a water-seeker once it reaches water).
+        """
+        return self._material_at(x, y)
+
     def can_dig(self, x: int, y: int) -> bool:
         """Return whether the tile material is diggable (soil vs rock)."""
         material = self._material_at(x, y)

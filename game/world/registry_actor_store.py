@@ -134,6 +134,25 @@ class EntityRegistryActorStore:
         """Whether a movement-blocking entity occupies the tile."""
         return self._registry.get_blocking_entity_at(x, y) is not None
 
+    def move_actor(self, actor_id: int, x: int, y: int) -> bool:
+        """Move an active actor to a behavior-validated tile.
+
+        Thin bridge for the Phase 6 surface behaviors: the caller has
+        already validated walkability, bounds, and occupancy through
+        ``SurfaceContext`` and the store's own ``is_tile_blocked``.
+        Occupancy structures are refreshed by the engine's normal turn
+        pipeline (``rebuild_occupancy``) rather than here.
+        """
+        from game.entities.components import Position
+
+        if self._registry.get_position(actor_id) is None:
+            return False
+        return bool(
+            self._registry.set_position(
+                actor_id, Position(x=int(x), y=int(y))
+            )
+        )
+
 
 def _plain_value(value: Any) -> Any:
     """Normalize a component value to JSON-serializable data."""
