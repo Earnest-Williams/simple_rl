@@ -59,7 +59,7 @@ orchestrator.py
 | Document | Location |
 |----------|----------|
 | Engineering rules | [`docs/Engineering.md`](./Engineering.md) |
-| LLM critical rules | [`docs/LLM Critical Rules.md`](./LLM%20Critical%20Rules.md) |
+| LLM critical rules | [`docs/LLM_CRITICAL_RULES.md`](./LLM_CRITICAL_RULES.md) |
 | Architecture (this file) | [`docs/Architecture.md`](./Architecture.md) |
 | Changelog | [`docs/Changelog.md`](./Changelog.md) |
 | Systems inventory | [`docs/Systems Inventory.md`](./Systems%20Inventory.md) |
