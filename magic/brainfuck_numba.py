@@ -1,10 +1,12 @@
 # brainfuck_numba.py
 from __future__ import annotations
 
+import math
 import resource
 import time
 from multiprocessing import Pipe, get_context
 from multiprocessing.connection import Connection
+from pathlib import Path
 from typing import Final, Literal
 
 import numpy as np
@@ -33,9 +35,12 @@ SandboxMode = Literal["auto", "always", "never"]
 BFResultTuple = tuple[bool, str, str | None, int, bool]
 
 _SANDBOX_STEP_THRESHOLD = 1_000_000
-_DEFAULT_SANDBOX_CPU_SECONDS = 1
-_DEFAULT_SANDBOX_WALL_TIME_S = 1.0
-_DEFAULT_SANDBOX_MEMORY_BYTES = 256 * 1024 * 1024
+# Sandbox limits apply on top of the worker's post-start-up usage (see
+# _apply_resource_limits), so imports of numpy/numba do not consume them.
+_DEFAULT_SANDBOX_CPU_SECONDS = 1  # CPU seconds available to the program
+_DEFAULT_SANDBOX_WALL_TIME_S = 1.0  # wall-clock seconds, including start-up
+_DEFAULT_SANDBOX_MEMORY_BYTES = 256 * 1024 * 1024  # extra address space, bytes
+_PROC_STATM: Final[Path] = Path("/proc/self/statm")  # Linux address-space stats
 
 
 # -----------------------
@@ -347,11 +352,50 @@ def _run_numba_core(
     return (output_str, int(steps), bool(halted_flag), None)
 
 
+def _current_address_space_bytes() -> int:
+    """Return this process's virtual address-space size, or 0 if unknown."""
+    try:
+        total_pages = int(_PROC_STATM.read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0
+    return total_pages * resource.getpagesize()
+
+
 def _apply_resource_limits(cpu_time_s: int, memory_bytes: int) -> None:
+    """Cap the worker's CPU time and address space for the Brainfuck run.
+
+    Both limits are set relative to what the worker has already used by the time
+    it gets here. A spawned worker has imported numpy and numba by then, which
+    costs ~0.3 s of CPU and reserves ~320 MB of address space for LLVM; absolute
+    limits of 1 s and 256 MB left the program almost no CPU and made every Numba
+    allocation fail, so the sandbox silently fell back to the pure interpreter.
+    """
     if cpu_time_s > 0 and hasattr(resource, "RLIMIT_CPU"):
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu_time_s, cpu_time_s))
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        cpu_limit: int = math.ceil(usage.ru_utime + usage.ru_stime) + cpu_time_s
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit))
     if memory_bytes > 0 and hasattr(resource, "RLIMIT_AS"):
-        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+        as_limit: int = _current_address_space_bytes() + memory_bytes
+        resource.setrlimit(resource.RLIMIT_AS, (as_limit, as_limit))
+
+
+def _ensure_numba_core_compiled() -> None:
+    """Compile the Numba core in this process so sandbox workers load the cache.
+
+    Without this a worker compiles inside its resource limits, which takes longer
+    (~1.9 s CPU) than the default CPU budget allows.
+    """
+    if _numba_core is not None and not _numba_core.signatures:
+        _run_numba_core("+", b"", np.zeros(1, dtype=np.uint8), {}, 1, True, False)
+
+
+def _receive_result(parent_conn: Connection) -> BFResult | None:
+    """Read the worker's result, or return None if it exited without sending one."""
+    try:
+        result_tuple: BFResultTuple = parent_conn.recv()
+    except EOFError:
+        return None
+    return BFResult(*result_tuple)
 
 
 def _run_brainfuck_internal(
@@ -617,6 +661,9 @@ def _run_brainfuck_sandboxed(
             halted=False,
         )
 
+    if use_numba is not False:
+        _ensure_numba_core_compiled()
+
     parent_conn, child_conn = Pipe(duplex=False)
     ctx = get_context("spawn")
     process = ctx.Process(
@@ -643,16 +690,20 @@ def _run_brainfuck_sandboxed(
         if remaining <= 0.0:
             break
         if parent_conn.poll(remaining):
-            result_tuple: BFResultTuple = parent_conn.recv()
+            # poll() is also true when the worker died and closed the pipe.
+            received = _receive_result(parent_conn)
             process.join(timeout=0.1)
-            return BFResult(*result_tuple)
+            if received is not None:
+                return received
+            break
         if not process.is_alive():
             break
 
     if parent_conn.poll(0.0):
-        result_tuple: BFResultTuple = parent_conn.recv()
+        received = _receive_result(parent_conn)
         process.join(timeout=0.1)
-        return BFResult(*result_tuple)
+        if received is not None:
+            return received
     if not process.is_alive():
         process.join(timeout=0.1)
         return BFResult(
