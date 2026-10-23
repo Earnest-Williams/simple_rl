@@ -5,11 +5,10 @@ Implements the ``ActorStore`` protocol from
 real ECS registry, so ``ChunkHydrationManager`` can dehydrate and
 hydrate live actors without knowing registry internals.
 
-Snapshot fields are the JSON-serializable subset of ``ENTITY_SCHEMA``:
-identity, presentation, AI, combat stats, resources, and equipment IDs.
-Object-typed columns (body plans, skills, community profiles) are not
-snapshotted here; Phase 5 scope is actor identity, position, and core
-state (HP, stats, resources, equipped items).
+Snapshot fields include core ``ENTITY_SCHEMA`` values, supported typed
+components, and the separate vectorized skills table. Unsupported opaque
+Python objects are not silently converted to strings: hydration skips their
+eviction and logs a warning until an explicit codec is implemented.
 """
 
 from __future__ import annotations
