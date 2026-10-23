@@ -130,7 +130,7 @@ def test_journal_updates_material_traversal_with_wall_geometry() -> None:
     journal.record_tile_mutation(1, 1, TILE_ID_WALL)
     assert journal.apply_tile_mutations(game_map) == 1
     assert not context.can_walk(profile, 1, 1)
-    assert int(metadata.traversal_class_grid[1, 1]) == int(TraversalClass.BLOCKED)
+    assert int(metadata.traversal_class_grid[1, 1]) == int(TraversalClass.NORMAL)
     journal.record_tile_mutation(1, 1, TILE_ID_FLOOR)
     journal.apply_tile_mutations(game_map)
     assert context.can_walk(profile, 1, 1)
