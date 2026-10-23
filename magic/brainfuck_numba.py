@@ -5,21 +5,17 @@ import resource
 import time
 from multiprocessing import Pipe, get_context
 from multiprocessing.connection import Connection
-from typing import Literal
+from typing import Final, Literal
 
 import numpy as np
+from numba import njit
 
 from common.tuning import BF_MAX_STEPS, BF_TAPE_SIZE
 from magic.bf_backend import BFResult
 
-# Try to import numba explicitly; if missing we'll fall back.
-try:
-    from numba import njit  # type: ignore
-
-    _NUMBA_AVAILABLE = True
-except Exception:
-    njit = None  # type: ignore
-    _NUMBA_AVAILABLE = False
+_NUMBA_AVAILABLE: Final[bool] = True  # numba is a core dependency
+# Numba core outcomes that are final results, not reasons to re-run in Python
+_NUMBA_TERMINAL_ERRORS: Final[frozenset[str]] = frozenset({"max_steps_exceeded"})
 
 
 # Brainfuck command ASCII values
@@ -418,15 +414,23 @@ def _run_brainfuck_internal(
                 return BFResult(
                     success=True, output=out, error=None, steps=steps, halted=halted
                 )
-            else:
-                # Numba executed but returned an error; fall through to pure interpreter fallback.
-                # We return fallback result below.
-                pass
+            if error in _NUMBA_TERMINAL_ERRORS:
+                # Hitting the step budget is the program's real outcome. Re-running
+                # it in the pure interpreter would repeat every step ~65x slower
+                # and reach the same limit.
+                return BFResult(
+                    success=False, output=out, error=error, steps=steps, halted=halted
+                )
+            # Other Numba errors (e.g. output buffer overflow) fall through to the
+            # pure interpreter below, which needs a clean tape.
+            tape.fill(0)
         except Exception as exc:
             # Numba compile/runtime failure: log-ish fallback by returning fallback result
             # Caller can inspect error message if needed.
             numba_err = str(exc)
-            # Fall back to pure interpreter (safe)
+            # Fall back to pure interpreter (safe); the failed run may have
+            # partially written the tape.
+            tape.fill(0)
             out, steps, halted, error = _interpret_pure(
                 clean,
                 input_bytes,

@@ -127,7 +127,6 @@ module = [
     "auto.gui.worker",
     "auto.main",
     "auto.simulation",
-    "bench.bench_fov",
     "engine.action_handler",
     "engine.main_loop",
     "engine.render_base_layers",

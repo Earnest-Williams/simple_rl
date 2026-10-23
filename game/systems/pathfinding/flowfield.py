@@ -1,7 +1,6 @@
 # game/systems/pathfinding/flowfield.py
-import heapq
 import time
-from typing import Final
+from typing import Any, Final
 
 import numpy as np
 import structlog  # Added
@@ -9,6 +8,14 @@ import structlog  # Added
 # --- Numba Acceleration ---
 # Fallback removed
 from numba import njit
+from numpy.typing import NDArray
+
+from worldgen.kernels.heap import (
+    heap_decrease_key,
+    heap_init,
+    heap_pop_min,
+    heap_push,
+)
 
 _NUMBA_AVAILABLE = True
 
@@ -24,6 +31,8 @@ DIRECTIONS_8: Final[np.ndarray] = np.array(
     dtype=np.int8,
 )
 DIAGONAL_MOVE_COST: Final[float] = np.sqrt(2.0)
+# Extra cost multiplier for a diagonal step on top of the base terrain cost
+DIAGONAL_EXTRA_COST: Final[float] = float(np.sqrt(2.0)) - 1.0
 # Multiplier for height difference cost
 DEFAULT_HEIGHT_COST_FACTOR: Final[float] = 0.5
 MAX_PATHFIND_DISTANCE: Final[float] = 50.0
@@ -101,6 +110,108 @@ def _calculate_flow_vectors_numba(
             flow_y[y, x] = best_dy
 
 
+@njit(cache=True)
+def _integrate_field_numba(
+    passable: NDArray[np.bool_],
+    # Any float/int width is accepted; Numba compiles one specialisation per dtype.
+    terrain_cost: NDArray[np.floating[Any]],
+    height_map: NDArray[np.integer[Any]],
+    source_ys: NDArray[np.int64],
+    source_xs: NDArray[np.int64],
+    max_traversable_step: int,
+    height_cost_factor: float,
+    max_distance: float,
+    integration_field: NDArray[np.float32],
+    heap_nodes: NDArray[np.int32],
+    heap_pos: NDArray[np.int32],
+    heap_keys: NDArray[np.float64],
+) -> int:
+    """Fill ``integration_field`` with Dijkstra costs from the sources.
+
+    ``integration_field`` must be pre-filled with ``inf`` and every source must be
+    in bounds and passable. Returns the number of heap pops, for logging.
+
+    The search uses the indexed heap from ``worldgen.kernels.heap``: a cell is in
+    the heap at most once and its key is updated in place (decrease-key), so the
+    key always equals the cell's current field value. The previous ``heapq`` loop
+    instead skipped "stale" entries by comparing float64 heap costs against the
+    float32 field, which discarded live cells whenever float32 rounding went down
+    and left large parts of the map unreached. Costs here are accumulated in
+    float32 so they match the field exactly.
+
+    The search stops once the cheapest frontier cost exceeds ``max_distance``.
+    Cells already reached keep their tentative cost, as before.
+    """
+    height: int = passable.shape[0]
+    width: int = passable.shape[1]
+    diagonal_extra: np.float32 = np.float32(DIAGONAL_EXTRA_COST)
+
+    size: int = heap_init(heap_nodes, heap_pos, heap_keys)
+    for s in range(source_ys.shape[0]):
+        source_node: int = source_ys[s] * width + source_xs[s]
+        integration_field[source_ys[s], source_xs[s]] = np.float32(0.0)
+        if heap_pos[source_node] < 0:
+            size = heap_push(
+                heap_nodes, heap_pos, heap_keys, size=size, node=source_node, key=0.0
+            )
+
+    processed: int = 0
+    while size > 0:
+        node, size = heap_pop_min(heap_nodes, heap_pos, heap_keys, size)
+        processed += 1
+        y: int = node // width
+        x: int = node - y * width
+        cost: np.float32 = integration_field[y, x]
+        if cost > max_distance:
+            break
+
+        current_h: int = int(height_map[y, x])
+        for i in range(DIRECTIONS_8.shape[0]):
+            dy: int = int(DIRECTIONS_8[i, 0])
+            dx: int = int(DIRECTIONS_8[i, 1])
+            ny: int = y + dy
+            nx: int = x + dx
+            if ny < 0 or ny >= height or nx < 0 or nx >= width:
+                continue
+            if not passable[ny, nx]:
+                continue
+            delta_h: int = abs(int(height_map[ny, nx]) - current_h)
+            if delta_h > max_traversable_step:
+                continue
+
+            base_cost: np.float32 = np.float32(terrain_cost[ny, nx])
+            diagonal_penalty: np.float32 = np.float32(0.0)
+            if dy != 0 and dx != 0:
+                diagonal_penalty = base_cost * diagonal_extra
+            height_penalty: np.float32 = np.float32(delta_h * height_cost_factor)
+            new_cost: np.float32 = np.float32(
+                cost + (base_cost + diagonal_penalty + height_penalty)
+            )
+
+            if new_cost < integration_field[ny, nx]:
+                integration_field[ny, nx] = new_cost
+                neighbor: int = ny * width + nx
+                if heap_pos[neighbor] >= 0:
+                    heap_decrease_key(
+                        heap_nodes,
+                        heap_pos,
+                        heap_keys,
+                        node=neighbor,
+                        new_key=float(new_cost),
+                    )
+                else:
+                    size = heap_push(
+                        heap_nodes,
+                        heap_pos,
+                        heap_keys,
+                        size=size,
+                        node=neighbor,
+                        key=float(new_cost),
+                    )
+
+    return processed
+
+
 class FlowFieldPathfinder:
     """
     Manages creation of Integration and Flow Fields using NumPy.
@@ -152,6 +263,11 @@ class FlowFieldPathfinder:
         self._flow_field_cache: dict[
             tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]
         ] = {}
+        # Indexed-heap buffers for _integrate_field_numba, reused across calls
+        n_cells: int = self.height * self.width
+        self._heap_nodes: NDArray[np.int32] = np.empty(n_cells, dtype=np.int32)
+        self._heap_pos: NDArray[np.int32] = np.empty(n_cells, dtype=np.int32)
+        self._heap_keys: NDArray[np.float64] = np.empty(n_cells, dtype=np.float64)
 
     def invalidate_flow_fields(self) -> None:
         self._flow_field_cache.clear()
@@ -186,67 +302,38 @@ class FlowFieldPathfinder:
             self._last_sources = list(stimulus_sources)
             return False
 
-        pq = []  # Min-heap: [(cost, y, x)]
+        passable_sources: list[GridPosition] = []
         for y_s, x_s in valid_sources:
             if self.passable[y_s, x_s]:
-                cost = 0.0
-                self.integration_field[y_s, x_s] = cost
-                heapq.heappush(pq, (cost, y_s, x_s))
+                passable_sources.append((y_s, x_s))
             else:
                 log.warning(f"Source at ({y_s}, {x_s}) is on impassable terrain.")
-        if not pq:
+        if not passable_sources:
             log.warning("No valid stimulus sources on passable terrain.")
             self._last_sources = list(stimulus_sources)
             return False
 
-            # --- Dijkstra Loop ---
-        processed_count = 0
-        while pq:
-            cost, y, x = heapq.heappop(pq)
-            processed_count += 1
-            if cost > MAX_PATHFIND_DISTANCE:
-                break
-
-            if cost > self.integration_field[y, x]:
-                continue
-
-            current_h = self.height_map[y, x]  # Get height of current cell
-
-            # Explore neighbors
-            for i in range(DIRECTIONS_8.shape[0]):
-                dy, dx = DIRECTIONS_8[i]
-                ny, nx = y + dy, x + dx
-
-                # Check bounds
-                if not (0 <= ny < self.height and 0 <= nx < self.width):
-                    continue
-
-                # --- MODIFIED: Check Passability AND Height Difference ---
-                neighbor_h = self.height_map[ny, nx]
-                delta_h = abs(neighbor_h - current_h)
-
-                if self.passable[ny, nx] and delta_h <= self.max_traversable_step:
-                    # --- Calculate Move Cost with Height Penalty ---
-                    # Cost to enter neighbor
-                    base_move_cost = self.terrain_cost[ny, nx]
-                    diagonal_penalty = 0.0
-                    if dy != 0 and dx != 0:  # Diagonal move
-                        # Apply diagonal cost multiplier to base cost
-                        diagonal_penalty = base_move_cost * (DIAGONAL_MOVE_COST - 1.0)
-
-                    # Calculate height penalty (simple linear penalty for change)
-                    height_penalty = delta_h * self.height_cost_factor
-                    # Optional: Penalize uphill movement more?
-                    # height_penalty = max(0, neighbor_h - current_h) * self.height_cost_factor
-
-                    move_cost = base_move_cost + diagonal_penalty + height_penalty
-                    new_cost = cost + move_cost
-                    # --- End Cost Calculation ---
-
-                    if new_cost < self.integration_field[ny, nx]:
-                        self.integration_field[ny, nx] = new_cost
-                        heapq.heappush(pq, (new_cost, ny, nx))
-                # --- END MODIFICATION ---
+        # --- Dijkstra (compiled; see _integrate_field_numba) ---
+        source_ys: NDArray[np.int64] = np.array(
+            [s[0] for s in passable_sources], dtype=np.int64
+        )
+        source_xs: NDArray[np.int64] = np.array(
+            [s[1] for s in passable_sources], dtype=np.int64
+        )
+        processed_count: int = _integrate_field_numba(
+            self.passable,
+            self.terrain_cost,
+            self.height_map,
+            source_ys,
+            source_xs,
+            self.max_traversable_step,
+            self.height_cost_factor,
+            MAX_PATHFIND_DISTANCE,
+            self.integration_field,
+            self._heap_nodes,
+            self._heap_pos,
+            self._heap_keys,
+        )
 
         integration_time = time.time()
         log.info(
