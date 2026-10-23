@@ -110,6 +110,26 @@ def test_registry_hydration_requires_terrain_and_excludes_player() -> None:
     assert _position(registry, 0x80000001).y == 9
 
 
+def test_real_population_refuses_missing_journal() -> None:
+    source = InMemoryPromiseSource(
+        [RegionalPromise(SurfaceFeatureKind.SPRING, 8, 8)],
+        chunk_size=16,
+    )
+    chunk = SurfaceMaterializer(
+        source, world_seed=1, chunk_size=16, debris_fraction=0.0
+    ).materialize_chunk(0, 0)
+    game_map = GameMap(width=16, height=16)
+    apply_materialized_chunk(game_map, chunk)
+    registry = EntityRegistry()
+    planner = SurfacePopulationPlanner(
+        EntityRegistryActorStore(registry),
+        SurfaceContext(game_map),
+        world_seed=1,
+    )
+    with pytest.raises(ValueError, match="requires its chunk journal"):
+        planner.populate_chunk(chunk)
+
+
 def test_complete_actor_components_and_skill_rows_survive() -> None:
     registry = EntityRegistry()
     registry.ensure_occupancy_shape(16, 16)
