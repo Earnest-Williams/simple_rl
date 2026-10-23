@@ -167,7 +167,9 @@ def test_complete_actor_components_and_skill_rows_survive() -> None:
     assert registry.skills_df.to_dicts() == [skill_row]
 
 
-def test_unsupported_component_stays_active_instead_of_being_lost() -> None:
+def test_unsupported_component_stays_active_instead_of_being_lost(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     registry = EntityRegistry()
     store = EntityRegistryActorStore(registry)
     actor_id = 0x80000003
@@ -182,6 +184,8 @@ def test_unsupported_component_stays_active_instead_of_being_lost() -> None:
     assert manager.dehydrate_chunk_entities(journal, 0, 0) == []
     assert registry._store.has_active(actor_id)
     assert not journal.entity_snapshots
+    assert "cannot serialize" in caplog.text
+    assert str(actor_id) in caplog.text
 
 
 def test_world_ledger_collision_probe_persists_reserved_id() -> None:
