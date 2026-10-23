@@ -34,7 +34,9 @@ def test_production_registry_reuses_slots_across_dehydration() -> None:
     })
     initial_index = registry.index_of_entity(actor_id)
     assert initial_index is not None
-    manager = ChunkHydrationManager(store, chunk_size=16)
+    manager = ChunkHydrationManager(
+        store, chunk_size=16, can_occupy=lambda x, y: True
+    )
     journal = SaveDiffJournal(0, 0)
     assert manager.dehydrate_chunk_entities(journal, 0, 0) == [actor_id]
     assert registry.index_of_entity(actor_id) is None
