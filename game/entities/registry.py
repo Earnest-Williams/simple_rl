@@ -195,7 +195,9 @@ class EntityRegistry:
                     default=default,
                 )
                 # Use repeat for better performance on large DataFrames
-                default_series = pl.Series([default] * self.entities_df.height).cast(dtype)
+                default_series = pl.Series([default] * self.entities_df.height).cast(
+                    dtype
+                )
                 self.entities_df = self.entities_df.with_columns(
                     default_series.alias(col)
                 )
