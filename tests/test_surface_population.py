@@ -10,6 +10,8 @@ with the Phase 5 hydration machinery.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from common.constants import Material
@@ -103,7 +105,9 @@ def _build_surface_map(
     return game_map
 
 
-def _actor(template_id: str, x: int, y: int, **overrides) -> dict:
+def _actor(
+    template_id: str, x: int, y: int, **overrides: Any
+) -> dict[str, Any]:
     """Build a behavior snapshot from a template, with overrides."""
     template = TEMPLATE_LIBRARY[template_id]
     snapshot = {
