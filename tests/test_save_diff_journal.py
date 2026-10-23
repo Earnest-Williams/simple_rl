@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import orjson
 import pytest
 
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
@@ -76,6 +77,33 @@ def test_save_diff_journal_round_trip() -> None:
         }
         # Raw events are preserved pre-compaction.
         assert loaded.event_count == 6
+
+
+def test_legacy_stdlib_json_primary_is_readable_and_rewritten_by_orjson() -> None:
+    """Serializer migration preserves old schema and JSON string interface."""
+    with _temp_save_dir() as saves:
+        old = _journal()
+        old.record_tile_mutation(52, -28, TILE_ID_FLOOR)
+        old.record_entity_snapshot("npc-1", {"hp": 7, "flags": ["wet"]})
+        old_document = old.to_dict()
+        old_document["schema_version"] = 1
+        primary = Path(saves) / SaveDiffJournal.journal_filename(3, -2, 0)
+        primary.write_text(json.dumps(old_document), encoding="utf-8")
+
+        loaded = SaveDiffJournal.load(saves, 3, -2, 0)
+        assert loaded is not None
+        assert loaded.tile_mutations == old.tile_mutations
+        assert loaded.entity_snapshots == old.entity_snapshots
+        assert isinstance(loaded.to_json(), str)
+        assert orjson.loads(loaded.to_json()) == loaded.to_dict()
+
+        loaded.write_atomic(saves, timestamp=1781669340)
+        encoded = primary.read_bytes()
+        assert orjson.loads(encoded)["schema_version"] == JOURNAL_SCHEMA_VERSION
+        assert b'"npc-1"' in encoded
+        reloaded = SaveDiffJournal.load(saves, 3, -2, 0)
+        assert reloaded is not None
+        assert reloaded.entity_snapshots == old.entity_snapshots
 
 
 def test_save_diff_journal_negative_coordinates_and_z_layers() -> None:
