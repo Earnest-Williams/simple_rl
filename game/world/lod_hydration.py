@@ -35,6 +35,7 @@ bridges the production ``EntityRegistry``.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Final, Protocol, runtime_checkable
 
@@ -44,6 +45,8 @@ from worldgen.overland.actor_traversal import ActorTraversalProfile
 
 if TYPE_CHECKING:
     from game.world.surface_context import SurfaceContext
+
+_LOGGER = logging.getLogger(__name__)
 
 ACTOR_ID_KEY: Final[str] = "actor_id"
 """Snapshot key holding the actor's stable identity."""
@@ -112,6 +115,12 @@ class ActorStore(Protocol):
 
     def active_actor_ids(self) -> list[int]:
         """Return every currently active (hydrated) actor ID."""
+        ...
+
+    def active_actor_ids_in_rect(
+        self, x0: int, y0: int, x1: int, y1: int
+    ) -> list[int]:
+        """Select residents without capturing heavyweight ECS snapshots."""
         ...
 
     def can_dehydrate_actor(self, actor_id: int) -> bool:
@@ -224,14 +233,22 @@ class ChunkHydrationManager:
         """
         x0, y0, x1, y1 = self._chunk_rect(cx, cy)
         dehydrated: list[int] = []
-        for actor_id in self._store.active_actor_ids():
+        for actor_id in self._store.active_actor_ids_in_rect(x0, y0, x1, y1):
+            if self._locks.is_locked(actor_id):
+                continue
             if not self._store.can_dehydrate_actor(actor_id):
                 continue
             try:
                 snapshot = self._store.snapshot_actor(actor_id)
-            except (TypeError, ValueError):
-                # Do not evict or silently corrupt actors whose opaque
-                # components have no approved JSON serializer yet.
+            except (TypeError, ValueError) as exc:
+                # Keep opaque state active, but make serialization failures
+                # visible so unsupported actor components can be fixed.
+                _LOGGER.warning(
+                    "Actor %s remains live: cannot serialize for chunk %s: %s",
+                    actor_id,
+                    journal.chunk_id,
+                    exc,
+                )
                 continue
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
@@ -356,6 +373,16 @@ class InMemoryActorStore:
     def active_actor_ids(self) -> list[int]:
         """Return every currently active actor ID."""
         return sorted(self._actors.keys())
+
+    def active_actor_ids_in_rect(
+        self, x0: int, y0: int, x1: int, y1: int
+    ) -> list[int]:
+        """Cheap reference-store residency test for chunk selection."""
+        return sorted(
+            actor_id
+            for actor_id, state in self._actors.items()
+            if x0 <= int(state["x"]) < x1 and y0 <= int(state["y"]) < y1
+        )
 
     def can_dehydrate_actor(self, actor_id: int) -> bool:
         """The in-memory reference store supports arbitrary test actors."""
