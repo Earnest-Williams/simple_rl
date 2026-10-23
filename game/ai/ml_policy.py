@@ -6,7 +6,7 @@ until an actual trained policy is integrated.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
