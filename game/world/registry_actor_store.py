@@ -18,13 +18,12 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from game.world.lod_hydration import ACTOR_ID_KEY
 from skills.models import ManualBonus, Skill, SkillProgress, SkillTrainingConfig, TrainingMode
 from skills.registry_integration import SKILL_TABLE_SCHEMA
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
-
-from game.world.lod_hydration import ACTOR_ID_KEY
 
 _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
     "name",
@@ -83,7 +82,7 @@ class EntityRegistryActorStore:
     """``ActorStore`` implementation over the production registry."""
 
     def __init__(
-        self, registry: "EntityRegistry", *, viewport_origin_x: int = 0,
+        self, registry: EntityRegistry, *, viewport_origin_x: int = 0,
         viewport_origin_y: int = 0,
     ) -> None:
         self._registry = registry
@@ -259,7 +258,7 @@ def _plain_value(value: Any) -> Any:
     Snapshot payloads cross a JSON boundary; unknown Python objects must
     fail closed until an explicit serializer has been defined for them.
     """
-    if isinstance(value, (bool, int, float, str)) or value is None:
+    if isinstance(value, bool | int | float | str) or value is None:
         return value
     if isinstance(value, SkillProgress):
         return {
@@ -286,13 +285,13 @@ def _plain_value(value: Any) -> Any:
                 "remaining_xp": value.remaining_xp,
             }
         }
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_plain_value(item) for item in value]
     if isinstance(value, dict):
         return {str(key): _plain_value(item) for key, item in value.items()}
     if hasattr(value, "item"):
         scalar = value.item()
-        if isinstance(scalar, (bool, int, float, str)):
+        if isinstance(scalar, bool | int | float | str):
             return scalar
     raise TypeError(f"Unsupported dehydration component: {type(value).__name__}")
 
