@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any, Final, Mapping
 
 from game.world.lod_hydration import ACTOR_ID_KEY, ActorStore
@@ -380,6 +381,7 @@ class SurfacePopulationPlanner:
         self._world_seed = world_seed
         self._content_version = int(content_version)
         self._generation_version = int(generation_version)
+        self._first_actor_id = int(first_actor_id)
         self._next_actor_id = int(first_actor_id)
         self._placement_radius = int(placement_radius)
         self._templates_by_profile = dict(templates_by_profile)
@@ -421,14 +423,15 @@ class SurfacePopulationPlanner:
         )
         placed: list[int] = []
         chunk_key = chunk_id(chunk.cx, chunk.cy, chunk.cz)
-        for entry in roster:
+        for entry_index, entry in enumerate(roster):
             template = TEMPLATE_LIBRARY[entry.template_id]
-            for _ in range(entry.count):
+            for ordinal in range(entry.count):
                 tile = self._find_spawn_tile(entry.anchor, template)
                 if tile is None:
                     continue
-                actor_id = self._next_actor_id
-                self._next_actor_id += 1
+                actor_id = self._derived_actor_id(chunk_key, entry_index, ordinal)
+                if actor_id in self._store.active_actor_ids():
+                    continue
                 snapshot = _build_snapshot(
                     template, actor_id, tile[0], tile[1], chunk_key,
                     entry.anchor,
@@ -436,6 +439,19 @@ class SurfacePopulationPlanner:
                 self._store.spawn_actor(snapshot)
                 placed.append(actor_id)
         return placed
+
+    def _derived_actor_id(self, chunk_key: str, entry: int, ordinal: int) -> int:
+        """Stable UInt32 birth ID independent of chunk visitation order.
+
+        Generated IDs use the upper half of the registry ID space; the
+        configured first_actor_id acts as a namespace seed, not a counter.
+        """
+        digest = hashlib.sha256(
+            f"surface-id:{self._world_seed}:{self._content_version}:"
+            f"{self._generation_version}:{self._first_actor_id}:"
+            f"{chunk_key}:{entry}:{ordinal}".encode("utf-8")
+        ).digest()
+        return 0x80000000 | (int.from_bytes(digest[:4], "big") & 0x7FFFFFFF)
 
     def _find_spawn_tile(
         self, anchor: SurfaceSpawnAnchor, template: ActorTemplate
@@ -446,14 +462,13 @@ class SurfacePopulationPlanner:
         (radius, then dy, then dx); the first tile satisfying the
         template's spawn profile and free of other actors wins.
         """
-        height, width = self._context.game_map.tiles.shape
         for radius in range(0, self._placement_radius + 1):
             for dy in range(-radius, radius + 1):
                 for dx in range(-radius, radius + 1):
                     if max(abs(dx), abs(dy)) != radius:
                         continue
                     tx, ty = anchor.x + dx, anchor.y + dy
-                    if not (0 <= tx < int(width) and 0 <= ty < int(height)):
+                    if not self._context.in_bounds(tx, ty):
                         continue
                     if not self._context.is_valid_spawn_anchor(
                         template.spawn_profile, tx, ty
@@ -519,6 +534,8 @@ def run_surface_turn(
     stats = {"moved": 0, "waited": 0, "blocked": 0}
     for actor_id in sorted(store.active_actor_ids()):
         snapshot = store.snapshot_actor(actor_id)
+        if snapshot.get("behavior") not in KNOWN_BEHAVIORS:
+            continue
         stats[step_actor(store, context, snapshot, turn)] += 1
     return stats
 
@@ -558,14 +575,13 @@ def _choose_step(
     candidate tile is bounded, checked through ``SurfaceContext``
     semantics, and checked for occupancy before being returned.
     """
-    height, width = context.game_map.tiles.shape
     profile = ActorTraversalProfile(
         int(snapshot.get("traversal", int(ActorTraversalProfile.HUMAN_ON_FOOT)))
     )
     behavior = str(snapshot.get("behavior", BEHAVIOR_WANDER))
 
     def in_bounds(tx: int, ty: int) -> bool:
-        return 0 <= tx < int(width) and 0 <= ty < int(height)
+        return context.in_bounds(tx, ty)
 
     def enterable(tx: int, ty: int) -> bool:
         return (
@@ -648,7 +664,10 @@ def _wander_step(
     return None
 
 
-def _greedy_step_toward(goal, x, y, enterable):
+def _greedy_step_toward(
+    goal: tuple[int, int], x: int, y: int,
+    enterable: Callable[[int, int], bool],
+) -> tuple[int, int] | None:
     """Deterministic single-tile step reducing distance to ``goal``."""
     gx, gy = goal
     step_x = (gx > x) - (gx < x)
@@ -664,16 +683,18 @@ def _greedy_step_toward(goal, x, y, enterable):
     return None
 
 
-def _scan_for_tile(context, x, y, radius, predicate):
+def _scan_for_tile(
+    context: SurfaceContext, x: int, y: int, radius: int,
+    predicate: Callable[[int, int], bool],
+) -> tuple[int, int] | None:
     """Deterministic ring scan for the nearest tile passing ``predicate``."""
-    height, width = context.game_map.tiles.shape
     for r in range(1, radius + 1):
         for dy in range(-r, r + 1):
             for dx in range(-r, r + 1):
                 if max(abs(dx), abs(dy)) != r:
                     continue
                 tx, ty = x + dx, y + dy
-                if not (0 <= tx < int(width) and 0 <= ty < int(height)):
+                if not context.in_bounds(tx, ty):
                     continue
                 if predicate(tx, ty):
                     return (tx, ty)
