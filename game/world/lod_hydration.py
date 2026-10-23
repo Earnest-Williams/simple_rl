@@ -227,7 +227,12 @@ class ChunkHydrationManager:
         for actor_id in self._store.active_actor_ids():
             if not self._store.can_dehydrate_actor(actor_id):
                 continue
-            snapshot = self._store.snapshot_actor(actor_id)
+            try:
+                snapshot = self._store.snapshot_actor(actor_id)
+            except (TypeError, ValueError):
+                # Do not evict or silently corrupt actors whose opaque
+                # components have no approved JSON serializer yet.
+                continue
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
