@@ -1,9 +1,9 @@
 name: Diagnose registry changed-line Black
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/surface-lod-and-traversal-20261023
+      - main
 
 jobs:
   registry-black-diff:
