@@ -1,0 +1,38 @@
+name: Diagnose registry changed-line Black
+
+on:
+  push:
+    branches:
+      - fix/surface-lod-and-traversal-20261023
+
+jobs:
+  registry-black-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/surface-lod-and-traversal-20261023
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install black==24.1.0
+      - name: Show only changed registry formatting diff
+        run: |
+          python - <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+          from scripts.check_black_changed_lines import changed_line_ranges
+
+          base = subprocess.check_output(
+              ["git", "merge-base", "origin/main", "HEAD"], text=True
+          ).strip()
+          ranges = changed_line_ranges(base, Path("game/entities/registry.py"))
+          command = [sys.executable, "-m", "black", "--diff", "--check"]
+          for first, last in ranges:
+              command.extend(["--line-ranges", f"{first}-{last}"])
+          command.append("game/entities/registry.py")
+          subprocess.run(command, check=False)
+          PY
