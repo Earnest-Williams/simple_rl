@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from pathlib import Path
 from threading import RLock
 from typing import Final
@@ -63,36 +63,69 @@ class SurfaceIdentityLedger:
         with self._lock:
             return self._by_id.get(actor_id)
 
+    def reserve_many(
+        self,
+        birth_keys: Iterable[str],
+        *,
+        occupied_ids: Collection[int] = (),
+    ) -> dict[str, int]:
+        """Reserve a batch, writing the ledger once before any actor spawn.
+
+        All new assignments are staged under the world lock. A failed
+        persistence attempt rolls back the in-memory reservations; callers
+        must not spawn actors until this method has returned successfully.
+        """
+        with self._lock:
+            occupied = set(occupied_ids)
+            assignments: dict[str, int] = {}
+            staged: dict[int, str] = {}
+            for birth_key in birth_keys:
+                if birth_key in assignments:
+                    continue
+                known = self._by_birth.get(birth_key)
+                if known is not None:
+                    assignments[birth_key] = known
+                    continue
+                if not birth_key:
+                    raise ValueError("Surface birth key must not be empty")
+                for salt in range(_MAX_PROBES):
+                    actor_id = self._candidate(birth_key, salt)
+                    if (
+                        actor_id in occupied
+                        or actor_id in self._by_id
+                        or actor_id in staged
+                    ):
+                        continue
+                    assignments[birth_key] = actor_id
+                    staged[actor_id] = birth_key
+                    break
+                else:
+                    raise RuntimeError("Surface actor ID namespace exhausted by probes")
+
+            if not staged:
+                return assignments
+            for actor_id, birth_key in staged.items():
+                self._add_existing(birth_key, actor_id)
+            try:
+                if self._directory is not None:
+                    self.write_atomic(self._directory)
+            except OSError:
+                for actor_id, birth_key in staged.items():
+                    del self._by_birth[birth_key]
+                    del self._by_id[actor_id]
+                raise
+            return assignments
+
     def reserve(
         self,
         birth_key: str,
         *,
         occupied_ids: Collection[int] = (),
     ) -> int:
-        """Reserve and durably record one surrogate, probing on collisions.
-
-        The occupied_ids collection must include live non-ledger entities
-        and any legacy journal snapshots. Existing reservations never move.
-        """
-        with self._lock:
-            known = self._by_birth.get(birth_key)
-            if known is not None:
-                return known
-            occupied = set(occupied_ids)
-            for salt in range(_MAX_PROBES):
-                actor_id = self._candidate(birth_key, salt)
-                if actor_id in occupied or actor_id in self._by_id:
-                    continue
-                self._add_existing(birth_key, actor_id)
-                try:
-                    if self._directory is not None:
-                        self.write_atomic(self._directory)
-                except OSError:
-                    del self._by_birth[birth_key]
-                    del self._by_id[actor_id]
-                    raise
-                return actor_id
-            raise RuntimeError("Surface actor ID namespace exhausted by probes")
+        """Reserve one ID with the same durable semantics as a batch."""
+        return self.reserve_many(
+            (birth_key,), occupied_ids=occupied_ids
+        )[birth_key]
 
     def to_dict(self) -> dict[str, object]:
         """JSON-compatible world ledger, sorted for reproducible saves."""
