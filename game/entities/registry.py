@@ -250,9 +250,13 @@ class EntityRegistry:
             # and cross-references survive hydration cycles.
             new_id = int(entity_id)
             if not 0 <= new_id <= 2**32 - 1:
-                raise ValueError(f"Explicit entity_id out of UInt32 range: {new_id}")
+                raise ValueError(
+                    f"Explicit entity_id out of UInt32 range: {new_id}"
+                )
             if self._store.index_of(new_id) is not None:
-                raise ValueError(f"Entity ID {new_id} already exists in the registry")
+                raise ValueError(
+                    f"Entity ID {new_id} already exists in the registry"
+                )
             # High-bit IDs are reserved for deterministic surface actors.
             # They must not advance the ordinary sequential ID allocator.
             if new_id < 0x80000000 and new_id >= self._next_entity_id:
@@ -397,7 +401,9 @@ class EntityRegistry:
     ) -> dict[str, Any]:
         return self._store.get_components(entity_id, component_names)
 
-    def get_combat_components_bulk(self, entity_ids: list[int]) -> tuple[
+    def get_combat_components_bulk(
+        self, entity_ids: list[int]
+    ) -> tuple[
         dict[int, str | None],  # name
         dict[int, int],  # strength
         dict[int, int],  # defense
@@ -565,7 +571,9 @@ class EntityRegistry:
     def monster_perception_records(self, player_id: int) -> list[dict[str, object]]:
         return self._store.monster_perception_records(player_id)
 
-    def monster_perception_arrays(self, player_id: int) -> tuple[
+    def monster_perception_arrays(
+        self, player_id: int
+    ) -> tuple[
         NDArray[np.int64],
         NDArray[np.int64],
         NDArray[np.int64],
