@@ -549,35 +549,63 @@ class SurfaceMaterializer:
     def _select_promises(
         self, overlapping: list[RegionalPromise]
     ) -> dict[SurfaceFeatureKind, list[RegionalPromise]]:
-        """Filter promises by kind and enforce the density caps.
+        """Apply anchor-owner density caps before clipping neighboring features.
 
-        Selection is deterministic: promises sort by kind, anchor
-        coordinates, and footprint, and caps truncate the sorted list.
+        An anchor is selected or rejected by exactly one chunk: the chunk
+        containing its global anchor. Neighbor chunks replay that decision
+        rather than counting a bleeding footprint against their own cap.
         """
-        ordered = sorted(
-            overlapping,
-            key=lambda p: (
-                p.kind.value,
-                p.anchor_x,
-                p.anchor_y,
-                p.footprint_chunks,
-            ),
-        )
+        capped = PRIMARY_STRUCTURE_KINDS | MINOR_ANCHOR_KINDS
         selected: dict[SurfaceFeatureKind, list[RegionalPromise]] = {
             kind: [] for kind in SurfaceFeatureKind
         }
-        primary_count = 0
-        minor_count = 0
-        for promise in ordered:
-            if promise.kind in PRIMARY_STRUCTURE_KINDS:
-                if primary_count >= MAX_PRIMARY_STRUCTURES_PER_CHUNK:
-                    continue
-                primary_count += 1
-            elif promise.kind in MINOR_ANCHOR_KINDS:
-                if minor_count >= MAX_MINOR_ANCHORS_PER_CHUNK:
-                    continue
-                minor_count += 1
-            selected[promise.kind].append(promise)
+        owner_cache: dict[tuple[int, int], set[RegionalPromise]] = {}
+
+        def order_key(
+            promise: RegionalPromise,
+        ) -> tuple[int, int, int, tuple[int, int]]:
+            return (
+                promise.kind.value,
+                promise.anchor_x,
+                promise.anchor_y,
+                promise.footprint_chunks,
+            )
+
+        for promise in sorted(overlapping, key=order_key):
+            if promise.kind not in capped:
+                selected[promise.kind].append(promise)
+                continue
+            owner = (
+                promise.anchor_x // self._chunk_size,
+                promise.anchor_y // self._chunk_size,
+            )
+            if owner not in owner_cache:
+                locally_owned = sorted(
+                    (
+                        candidate
+                        for candidate in self._promise_source.promises_for_chunk(*owner)
+                        if candidate.kind in capped
+                        and candidate.anchor_x // self._chunk_size == owner[0]
+                        and candidate.anchor_y // self._chunk_size == owner[1]
+                    ),
+                    key=order_key,
+                )
+                approved: set[RegionalPromise] = set()
+                primary = 0
+                minor = 0
+                for candidate in locally_owned:
+                    if candidate.kind in PRIMARY_STRUCTURE_KINDS:
+                        if primary >= MAX_PRIMARY_STRUCTURES_PER_CHUNK:
+                            continue
+                        primary += 1
+                    else:
+                        if minor >= MAX_MINOR_ANCHORS_PER_CHUNK:
+                            continue
+                        minor += 1
+                    approved.add(candidate)
+                owner_cache[owner] = approved
+            if promise in owner_cache[owner]:
+                selected[promise.kind].append(promise)
         return selected
 
     def _feature_rng(self, promise: RegionalPromise) -> GameRNG:
