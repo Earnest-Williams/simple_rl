@@ -46,7 +46,7 @@ def test_production_registry_reuses_slots_across_dehydration() -> None:
     )
     assert store.snapshot_actor(actor_id)["move_every"] == 2
     assert registry.create_entity(
-        x=1, y=1, glyph=64, color_fg=(1, 2, 3), name="another",
+        x=20, y=20, glyph=64, color_fg=(1, 2, 3), name="another",
     ) != actor_id
     for _ in range(5):
         assert manager.dehydrate_chunk_entities(journal, 0, 0) == [actor_id]
