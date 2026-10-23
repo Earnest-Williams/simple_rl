@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 
 from common.constants import Material
-from game.world.game_map import GameMap
+from game.world.game_map import TILE_ID_FLOOR, GameMap
 from game.world.lod_hydration import (
     ACTOR_ID_KEY,
     ChunkHydrationManager,
@@ -70,6 +70,8 @@ def _build_surface_map(
 ) -> GameMap:
     """Build a runtime map with an overland metadata sidecar."""
     game_map = GameMap(width=width, height=height)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    game_map.update_tile_transparency()
     material_grid = np.full((height, width), int(Material.GRASS), dtype=np.int16)
     traversal_grid = np.full(
         (height, width), int(TraversalClass.NORMAL), dtype=np.int16
