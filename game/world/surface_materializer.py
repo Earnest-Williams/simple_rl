@@ -39,9 +39,10 @@ on :class:`MaterializedChunk` for those phases to consume.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import IntEnum, auto
-from typing import Any, Final, Iterable, Protocol
+from typing import Any, Final, Protocol
 
 import numpy as np
 
