@@ -249,6 +249,8 @@ def test_save_diff_player_knowledge_excluded() -> None:
         "chunk_id",
         "timestamp",
         "tile_mutations",
+        "tile_metadata",
+        "population",
         "item_deltas",
         "entity_snapshots",
         "event_log",
