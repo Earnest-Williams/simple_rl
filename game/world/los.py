@@ -8,21 +8,10 @@ if two points on a grid have a clear view between them.
 from __future__ import annotations
 
 import numpy as np
+from numba import njit
 from numpy.typing import NDArray
 
 from utils.los.los_wrapper import los_many as _los_many
-
-try:  # Optional Numba acceleration
-    import numba
-
-    njit = numba.njit
-except Exception:  # pragma: no cover - fallback when Numba isn't available
-
-    def njit(*args, **kwargs):  # type: ignore
-        def wrapper(func):
-            return func
-
-        return wrapper
 
 
 @njit(cache=True)

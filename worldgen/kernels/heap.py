@@ -20,7 +20,6 @@ def heap_push(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
     heap_keys: NDArray[np.float64],  # float64[n_cells]
-    *,
     size: int,
     node: int,
     key: float,
@@ -104,7 +103,6 @@ def heap_decrease_key(
     heap_nodes: NDArray[np.int32],  # int32[capacity]
     heap_pos: NDArray[np.int32],  # int32[n_cells]
     heap_keys: NDArray[np.float64],  # float64[n_cells]
-    *,
     node: int,
     new_key: float,
 ) -> None:

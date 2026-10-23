@@ -3,20 +3,22 @@ import os
 import warnings
 
 import numpy as np
+from numba import njit
 from numpy.typing import NDArray
 
 
 # -----------------------------------------------------------------------------
-# Legacy Pure-Python Fallback
+# Portable Numba implementation (used when liblos.so is not built)
 # -----------------------------------------------------------------------------
-def _py_los_many(
+@njit(cache=True)
+def _numba_los_many(
     starts_x: NDArray[np.int32],
     starts_y: NDArray[np.int32],
     ends_x: NDArray[np.int32],
     ends_y: NDArray[np.int32],
     transparency_map: NDArray[np.uint8],
 ) -> NDArray[np.uint8]:
-    """Legacy unoptimized implementation for non-x86-64/Linux platforms."""
+    """Batched Bresenham LOS, bit-identical to the x86-64 ``los_many`` kernel."""
     n = len(starts_x)
     out = np.empty(n, dtype=np.uint8)
 
@@ -80,7 +82,7 @@ def _py_los_many(
 # -----------------------------------------------------------------------------
 # Hardware-Optimized x86-64 loader
 # -----------------------------------------------------------------------------
-_HAS_ASM = False
+_HAS_ASM: bool = False
 
 try:
     _lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "liblos.so")
@@ -102,8 +104,9 @@ try:
 
 except OSError:
     warnings.warn(
-        "Optimized x86-64 LOS library not loaded. Falling back to pure Python.",
+        "Optimized x86-64 LOS library not loaded. Using the Numba implementation.",
         RuntimeWarning,
+        stacklevel=2,
     )
 
 
@@ -122,15 +125,16 @@ def los_many(
     if t.ndim != 2:
         raise ValueError("transparency_map must be 2D")
 
-    if not _HAS_ASM:
-        return _py_los_many(starts_x, starts_y, ends_x, ends_y, t)
-
-    h, w = t.shape
-
     sx = np.ascontiguousarray(starts_x, dtype=np.int32)
     sy = np.ascontiguousarray(starts_y, dtype=np.int32)
     ex = np.ascontiguousarray(ends_x, dtype=np.int32)
     ey = np.ascontiguousarray(ends_y, dtype=np.int32)
+
+    if not _HAS_ASM:
+        result: NDArray[np.uint8] = _numba_los_many(sx, sy, ex, ey, t)
+        return result
+
+    h, w = t.shape
 
     out = np.empty(n, dtype=np.uint8)
 

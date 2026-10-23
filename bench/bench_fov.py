@@ -17,12 +17,12 @@ def bench(h: int = 200, w: int = 200, radius: int = 20, trials: int = 50) -> Non
     # make some random walls
     rng = GameRNG(seed=1)
     for _ in range(h * w // WALL_DENSITY_DIVISOR):
-        y = rng.randint(0, h)
-        x = rng.randint(0, w)
+        y = rng.get_randrange(0, h)
+        x = rng.get_randrange(0, w)
         transparency[y, x] = 0.0
 
     def is_opaque(y: int, x: int) -> bool:
-        return transparency[y, x] < 0.5
+        return bool(transparency[y, x] < 0.5)
 
     # warm up
     for _ in range(WARMUP_RUNS):
