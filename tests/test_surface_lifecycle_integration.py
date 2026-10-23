@@ -9,6 +9,7 @@ import polars as pl
 import pytest
 
 from common.constants import Material
+from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 from game.world.lod_hydration import ChunkHydrationManager
@@ -28,6 +29,12 @@ from game.world.surface_population import SurfacePopulationPlanner, run_surface_
 from skills.registry_integration import SKILL_TABLE_SCHEMA
 from worldgen.overland.actor_traversal import ActorTraversalProfile
 from worldgen.overland.schema import TraversalClass
+
+
+def _position(registry: EntityRegistry, actor_id: int) -> Position:
+    position = registry.get_position(actor_id)
+    assert position is not None
+    return position
 
 
 def _minimal_actor(actor_id: int, x: int, y: int) -> dict[str, object]:
@@ -95,8 +102,8 @@ def test_registry_hydration_requires_terrain_and_excludes_player() -> None:
             if (xx, yy) not in {(1, 1), (9, 9)}:
                 game_map.tiles[yy, xx] = TILE_ID_WALL
     assert manager.hydrate_chunk_entities(journal, 0, 0) == [0x80000001]
-    assert registry.get_position(0x80000001).x == 9
-    assert registry.get_position(0x80000001).y == 9
+    assert _position(registry, 0x80000001).x == 9
+    assert _position(registry, 0x80000001).y == 9
 
 
 def test_complete_actor_components_and_skill_rows_survive() -> None:
@@ -280,7 +287,7 @@ def _build_two_chunk_world(
     for cx in order:
         assert len(manager.dehydrate_chunk_entities(journals[cx], cx, 0)) == 2
         journals[cx].write_atomic(directory)
-    assert registry.get_position(player).x == 1
+    assert _position(registry, player).x == 1
     assert store.active_actor_ids() == [player]
 
     # Destroy and regenerate the viewport while journal records hold actors.
@@ -307,7 +314,7 @@ def _build_two_chunk_world(
     for cx in reversed(order):
         assert revisiting.populate_chunk(chunks[cx], loaded[cx]) == []
         assert len(manager.hydrate_chunk_entities(loaded[cx], cx, 0)) == 2
-    assert registry.get_position(player).x == 1
+    assert _position(registry, player).x == 1
     assert len(set(store.active_actor_ids())) == 5
     for birth_key, actor_id in births.items():
         assert store.snapshot_actor(actor_id)["birth_key"] == birth_key
@@ -316,7 +323,7 @@ def _build_two_chunk_world(
         assert registry.get_blocking_entity_at(position.x, position.y) == actor_id
 
     run_surface_turn(store, replacement_context, 2)
-    assert registry.get_position(player).x == 1
+    assert _position(registry, player).x == 1
 
     # A permanent death must not cause the original NPC to be respawned.
     dead_key, dead_id = next(iter(loaded[0].population_births.items()))
