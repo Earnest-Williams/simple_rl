@@ -58,6 +58,7 @@ jobs:
           tests/test_surface_lifecycle_integration.py
           tests/test_surface_performance_contracts.py
           tests/test_surface_ledger_log.py
+          scripts/check_black_changed_lines.py
       - name: Check Black on modified legacy lines only
         if: always()
         run: >
@@ -77,6 +78,7 @@ jobs:
           tests/test_surface_lifecycle_integration.py
           tests/test_surface_performance_contracts.py
           tests/test_surface_ledger_log.py
+          scripts/check_black_changed_lines.py
       - name: Strict mypy gate for modified surface modules
         if: always()
         run: >
