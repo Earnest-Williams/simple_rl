@@ -114,7 +114,7 @@ class ActorStore(Protocol):
         """Return every currently active (hydrated) actor ID."""
         ...
 
-    def can_dehydrate_actor(self, snapshot: dict[str, Any]) -> bool:
+    def can_dehydrate_actor(self, actor_id: int) -> bool:
         """Whether this actor may leave the immediate simulation."""
         ...
 
@@ -231,13 +231,13 @@ class ChunkHydrationManager:
         x0, y0, x1, y1 = self._chunk_rect(cx, cy)
         dehydrated: list[int] = []
         for actor_id in self._store.active_actor_ids():
+            if not self._store.can_dehydrate_actor(actor_id):
+                continue
             snapshot = self._store.snapshot_actor(actor_id)
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
             if self._locks.is_locked(actor_id):
-                continue
-            if not self._store.can_dehydrate_actor(snapshot):
                 continue
             snapshot[ACTOR_ID_KEY] = actor_id
             journal.record_entity_snapshot(str(actor_id), snapshot)
@@ -363,7 +363,7 @@ class InMemoryActorStore:
         """Return every currently active actor ID."""
         return sorted(self._actors.keys())
 
-    def can_dehydrate_actor(self, snapshot: dict[str, Any]) -> bool:
+    def can_dehydrate_actor(self, actor_id: int) -> bool:
         """The in-memory reference store supports arbitrary test actors."""
         return True
 
