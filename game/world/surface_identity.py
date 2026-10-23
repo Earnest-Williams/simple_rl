@@ -71,7 +71,7 @@ class SurfaceIdentityLedger:
         if existing_id is not None or existing_birth is not None:
             if existing_id == actor_id and existing_birth == birth_key:
                 return  # Replay after checkpoint replacement, before log trim.
-            raise ValueError("Conflicting surface birth identity or numerical ID")
+            raise ValueError("Duplicate or conflicting surface birth identity or numerical ID")
         self._by_birth[birth_key] = actor_id
         self._by_id[actor_id] = birth_key
 
@@ -162,7 +162,11 @@ class SurfaceIdentityLedger:
             if not staged:
                 return assignments
             additions = {birth_key: actor_id for actor_id, birth_key in staged.items()}
-            self._append_batch(additions)
+            try:
+                self._append_batch(additions)
+            except OSError:
+                self._write_failed = True
+                raise
             for actor_id, birth_key in staged.items():
                 self._add_existing(birth_key, actor_id)
             return assignments
@@ -229,7 +233,7 @@ class SurfaceIdentityLedger:
             for key, value in raw.items()
         ):
             raise ValueError("Malformed identity log assignments")
-        return raw  # type: ignore[return-value]
+        return {str(key): int(value) for key, value in raw.items()}
 
     @classmethod
     def load_or_create(
