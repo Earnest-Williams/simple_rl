@@ -117,9 +117,7 @@ class ActorStore(Protocol):
         """Return every currently active (hydrated) actor ID."""
         ...
 
-    def active_actor_ids_in_rect(
-        self, x0: int, y0: int, x1: int, y1: int
-    ) -> list[int]:
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
         """Select residents without capturing heavyweight ECS snapshots."""
         ...
 
@@ -374,9 +372,7 @@ class InMemoryActorStore:
         """Return every currently active actor ID."""
         return sorted(self._actors.keys())
 
-    def active_actor_ids_in_rect(
-        self, x0: int, y0: int, x1: int, y1: int
-    ) -> list[int]:
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
         """Cheap reference-store residency test for chunk selection."""
         return sorted(
             actor_id

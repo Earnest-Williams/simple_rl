@@ -446,9 +446,7 @@ class SurfacePopulationPlanner:
             )
         # Plan tiles before allocating IDs. Local reservations prevent
         # duplicate placements in a chunk before actors reach the ECS.
-        planned: list[
-            tuple[str, ActorTemplate, SurfaceSpawnAnchor, int, int]
-        ] = []
+        planned: list[tuple[str, ActorTemplate, SurfaceSpawnAnchor, int, int]] = []
         reserved_tiles: set[tuple[int, int]] = set()
         for entry_index, entry in enumerate(roster):
             template = TEMPLATE_LIBRARY[entry.template_id]
@@ -460,9 +458,7 @@ class SurfacePopulationPlanner:
                     continue
                 reserved_tiles.add(tile)
                 birth_key = self._birth_key(chunk_key, entry_index, ordinal)
-                planned.append(
-                    (birth_key, template, entry.anchor, tile[0], tile[1])
-                )
+                planned.append((birth_key, template, entry.anchor, tile[0], tile[1]))
 
         # This is the only ledger disk write for the entire chunk, and
         # it completes before the first newly reserved actor is spawned.

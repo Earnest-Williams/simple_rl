@@ -71,9 +71,7 @@ def test_chunk_eviction_serializes_only_local_unlocked_actors(
         store, chunk_size=16, can_occupy=lambda x, y: True, locks=locks
     )
     journal = SaveDiffJournal(0, 0)
-    assert manager.dehydrate_chunk_entities(journal, 0, 0) == [
-        local[0], local[2]
-    ]
+    assert manager.dehydrate_chunk_entities(journal, 0, 0) == [local[0], local[2]]
     assert calls == [local[0], local[2]]
     assert len(store.active_actor_ids()) == 501
 
@@ -87,12 +85,8 @@ def test_vectorized_bounds_support_negative_global_viewports() -> None:
     store.spawn_actor(_actor(local_id, -30, 66))
     store.spawn_actor(_actor(0x80020002, -10, 66))
     assert store.active_actor_ids_in_rect(-32, 64, -16, 80) == [local_id]
-    manager = ChunkHydrationManager(
-        store, chunk_size=16, can_occupy=lambda x, y: True
-    )
-    assert manager.dehydrate_chunk_entities(
-        SaveDiffJournal(-2, 4), -2, 4
-    ) == [local_id]
+    manager = ChunkHydrationManager(store, chunk_size=16, can_occupy=lambda x, y: True)
+    assert manager.dehydrate_chunk_entities(SaveDiffJournal(-2, 4), -2, 4) == [local_id]
 
 
 def test_population_ledger_flushes_once_before_spawning(

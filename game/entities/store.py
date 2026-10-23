@@ -522,9 +522,7 @@ class EntityStore:
         self.dirty_polars_snapshot = True
         return True, dest_x, dest_y
 
-    def active_ids_in_rect(
-        self, x0: int, y0: int, x1: int, y1: int
-    ) -> list[int]:
+    def active_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
         """Select active IDs by position before any expensive snapshots."""
         active = self.is_active[: self.count]
         x = self.x[: self.count]

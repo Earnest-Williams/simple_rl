@@ -114,9 +114,7 @@ class EntityRegistryActorStore:
             for idx in self._registry.active_indices()
         ]
 
-    def active_actor_ids_in_rect(
-        self, x0: int, y0: int, x1: int, y1: int
-    ) -> list[int]:
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
         """Use ECS coordinate arrays; never serialize out-of-chunk actors."""
         return self._registry.active_ids_in_rect(
             x0 - self._origin_x,

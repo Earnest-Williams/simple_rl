@@ -123,9 +123,7 @@ class SurfaceIdentityLedger:
         occupied_ids: Collection[int] = (),
     ) -> int:
         """Reserve one ID with the same durable semantics as a batch."""
-        return self.reserve_many(
-            (birth_key,), occupied_ids=occupied_ids
-        )[birth_key]
+        return self.reserve_many((birth_key,), occupied_ids=occupied_ids)[birth_key]
 
     def to_dict(self) -> dict[str, object]:
         """JSON-compatible world ledger, sorted for reproducible saves."""
