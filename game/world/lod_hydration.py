@@ -157,6 +157,7 @@ class ChunkHydrationManager:
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         locks: EvictionLocks | None = None,
         relocation_radius: int = DEFAULT_RELOCATION_RADIUS,
+        can_occupy: Callable[[int, int], bool] | None = None,
     ) -> None:
         if chunk_size <= 0:
             raise ValueError(
@@ -170,6 +171,7 @@ class ChunkHydrationManager:
         self._chunk_size = chunk_size
         self._locks = locks if locks is not None else EvictionLocks()
         self._relocation_radius = relocation_radius
+        self._can_occupy = can_occupy
 
     @property
     def chunk_size(self) -> int:
@@ -242,8 +244,8 @@ class ChunkHydrationManager:
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
-            if self._store.is_tile_blocked(gx, gy):
-                relocated = self._nearest_free_tile(gx, gy)
+            if not self._tile_available(gx, gy, (x0, y0, x1, y1)):
+                relocated = self._nearest_free_tile(gx, gy, (x0, y0, x1, y1))
                 if relocated is None:
                     continue  # No room in the bubble; stay a record.
                 rx, ry = relocated
@@ -255,8 +257,18 @@ class ChunkHydrationManager:
             hydrated.append(actor_id)
         return hydrated
 
+    def _tile_available(
+        self, x: int, y: int, bounds: tuple[int, int, int, int]
+    ) -> bool:
+        x0, y0, x1, y1 = bounds
+        return (
+            x0 <= x < x1 and y0 <= y < y1
+            and not self._store.is_tile_blocked(x, y)
+            and (self._can_occupy is None or self._can_occupy(x, y))
+        )
+
     def _nearest_free_tile(
-        self, x: int, y: int
+        self, x: int, y: int, bounds: tuple[int, int, int, int]
     ) -> tuple[int, int] | None:
         """Deterministic spiral search for the nearest unblocked tile."""
         for radius in range(1, self._relocation_radius + 1):
@@ -265,7 +277,7 @@ class ChunkHydrationManager:
                     if max(abs(dx), abs(dy)) != radius:
                         continue  # Only this ring, inner rings done earlier.
                     candidate_x, candidate_y = x + dx, y + dy
-                    if not self._store.is_tile_blocked(candidate_x, candidate_y):
+                    if self._tile_available(candidate_x, candidate_y, bounds):
                         return (candidate_x, candidate_y)
         return None
 
