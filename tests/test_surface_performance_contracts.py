@@ -107,15 +107,14 @@ def test_population_ledger_flushes_once_before_spawning(
 
     with tempfile.TemporaryDirectory() as directory:
         ledger = SurfaceIdentityLedger.load_or_create(directory)
-        flushes: list[Path] = []
-        write_original = ledger.write_atomic
+        flushes: list[dict[str, int]] = []
+        append_original = ledger._append_batch
 
-        def record_flush(target: str | Path) -> Path:
-            result = write_original(target)
-            flushes.append(result)
-            return result
+        def record_flush(assignments: dict[str, int]) -> None:
+            append_original(assignments)
+            flushes.append(dict(assignments))
 
-        monkeypatch.setattr(ledger, "write_atomic", record_flush)
+        monkeypatch.setattr(ledger, "_append_batch", record_flush)
         spawn_original = store.spawn_actor
 
         def guarded_spawn(snapshot: dict[str, Any]) -> None:
@@ -149,31 +148,32 @@ def test_batch_collision_probe_and_failed_flush_roll_back(
 
     with tempfile.TemporaryDirectory() as directory:
         ledger = CollidingLedger(directory=directory)
-        writes: list[Path] = []
-        write_original = ledger.write_atomic
+        writes: list[dict[str, int]] = []
+        append_original = ledger._append_batch
 
-        def record_flush(target: str | Path) -> Path:
-            result = write_original(target)
-            writes.append(result)
-            return result
+        def record_flush(assignments: dict[str, int]) -> None:
+            append_original(assignments)
+            writes.append(dict(assignments))
 
-        monkeypatch.setattr(ledger, "write_atomic", record_flush)
+        monkeypatch.setattr(ledger, "_append_batch", record_flush)
         assigned = ledger.reserve_many(("alpha", "bravo", "charlie"))
         assert len(set(assigned.values())) == 3
         assert len(writes) == 1
         reloaded = SurfaceIdentityLedger.load_or_create(directory)
         assert all(reloaded.id_for(key) == value for key, value in assigned.items())
 
-    def fail_flush(target: str | Path) -> Path:
+    def fail_flush(assignments: dict[str, int]) -> None:
         raise OSError("disk full")
 
     with tempfile.TemporaryDirectory() as directory:
         ledger = CollidingLedger(directory=directory)
-        monkeypatch.setattr(ledger, "write_atomic", fail_flush)
+        monkeypatch.setattr(ledger, "_append_batch", fail_flush)
         with pytest.raises(OSError, match="disk full"):
             ledger.reserve_many(("alpha", "bravo"))
         assert ledger.id_for("alpha") is None
         assert ledger.id_for("bravo") is None
+        with pytest.raises(RuntimeError, match="reload"):
+            ledger.reserve_many(("charlie",))
 
 
 def test_rerecorded_geometry_retains_semantics_until_explicit_clear() -> None:
