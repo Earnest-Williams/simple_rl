@@ -32,13 +32,14 @@ Design invariants:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import shutil
 import time
 from pathlib import Path
 from typing import Any, Final
+
+import orjson
 
 from game.world.game_map import TILE_TYPES, GameMap
 from game.world.surface_chunks import CHUNK_ID_PREFIX, chunk_id
@@ -410,8 +411,14 @@ class SaveDiffJournal:
         }
 
     def to_json(self) -> str:
-        """Return the journal document as a deterministic JSON string."""
-        return json.dumps(self.to_dict(), sort_keys=True, indent=2)
+        """Return the deterministic JSON document (string API retained)."""
+        return self._serialize_bytes().decode("utf-8")
+
+    def _serialize_bytes(self) -> bytes:
+        """Produce encoded bytes directly for efficient atomic persistence."""
+        return orjson.dumps(
+            self.to_dict(), option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SaveDiffJournal:
@@ -507,9 +514,9 @@ class SaveDiffJournal:
         return journal
 
     @classmethod
-    def from_json(cls, text: str) -> SaveDiffJournal:
-        """Rebuild a journal from a JSON string (see :meth:`from_dict`)."""
-        return cls.from_dict(json.loads(text))
+    def from_json(cls, text: str | bytes) -> SaveDiffJournal:
+        """Rebuild a journal from JSON text or bytes (including old saves)."""
+        return cls.from_dict(orjson.loads(text))
 
     # ------------------------------------------------------------------
     # Storage paths
@@ -553,8 +560,8 @@ class SaveDiffJournal:
             # Only promote a parseable primary to .bak; a corrupt primary
             # must never overwrite the last known-good backup.
             try:
-                SaveDiffJournal.from_json(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                SaveDiffJournal.from_json(path.read_bytes())
+            except (OSError, ValueError, TypeError, orjson.JSONDecodeError):
                 _LOGGER.warning(
                     "Refusing to promote corrupt primary journal %s to backup",
                     path,
@@ -563,8 +570,10 @@ class SaveDiffJournal:
                 shutil.copyfile(path, backup)
         self._timestamp = int(time.time()) if timestamp is None else int(timestamp)
         temp_path = path.with_name(f"{path.name}{TEMP_SUFFIX}")
-        with open(temp_path, "w", encoding="utf-8") as handle:
-            handle.write(self.to_json())
+        with temp_path.open("wb") as handle:
+            handle.write(self._serialize_bytes())
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temp_path, path)
         return path
 
@@ -586,12 +595,12 @@ class SaveDiffJournal:
         backup = primary.with_name(f"{primary.name}{BACKUP_SUFFIX}")
         for label, candidate in (("primary", primary), ("backup", backup)):
             try:
-                text = candidate.read_text(encoding="utf-8")
+                text = candidate.read_bytes()
             except OSError:
                 continue
             try:
                 journal = cls.from_json(text)
-            except (ValueError, TypeError, json.JSONDecodeError):
+            except (ValueError, TypeError, orjson.JSONDecodeError):
                 _LOGGER.warning(
                     "Save-Diff Journal %s for chunk %s is corrupt; trying fallback",
                     label,
