@@ -53,6 +53,7 @@ _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
     "max_fuel",
     "status_effects",
     "equipped_item_ids",
+    "surface_actor_state",
 )
 """ENTITY_SCHEMA components captured in dehydration snapshots."""
 
@@ -77,12 +78,17 @@ class EntityRegistryActorStore:
         )
         snapshot: dict[str, Any] = {ACTOR_ID_KEY: int(actor_id)}
         for name, value in components.items():
+            if name == "surface_actor_state":
+                if isinstance(value, dict):
+                    snapshot.update(_plain_value(value))
+                continue
             snapshot[name] = _plain_value(value)
         return snapshot
 
     def despawn_actor(self, actor_id: int) -> None:
-        """Mark the entity inactive (registry deletion semantics)."""
-        self._registry.delete_entity(actor_id)
+        """Release its active slot; the journal retains its world identity."""
+        if not self._registry.release_entity(actor_id):
+            raise KeyError(f"Actor {actor_id} is not active")
 
     def spawn_actor(self, snapshot: dict[str, Any]) -> None:
         """Re-create the entity with its stable ID and saved state."""
@@ -126,6 +132,10 @@ class EntityRegistryActorStore:
             max_fuel=float(snapshot.get("max_fuel", 0.0)),
             status_effects=status_effects,
         )
+        core = set(_SNAPSHOT_COMPONENTS) | {ACTOR_ID_KEY}
+        surface_state = {k: v for k, v in snapshot.items() if k not in core}
+        if surface_state:
+            self._registry.set_entity_component(entity_id, "surface_actor_state", surface_state)
         equipped_ids = snapshot.get("equipped_item_ids")
         if equipped_ids:
             self._registry.set_equipped_ids(entity_id, list(equipped_ids))
