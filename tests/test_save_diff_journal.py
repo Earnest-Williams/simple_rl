@@ -212,9 +212,7 @@ def test_save_diff_compaction() -> None:
         journal.record_tile_mutation(index, 0, TILE_ID_FLOOR)
     # The event log compacted itself once it exceeded the threshold.
     assert journal.event_count <= 10
-    assert journal.tile_mutations == {
-        (index, 0): TILE_ID_FLOOR for index in range(15)
-    }
+    assert journal.tile_mutations == {(index, 0): TILE_ID_FLOOR for index in range(15)}
 
     # Explicit compaction empties the log and keeps the overlay intact.
     expected_events = journal.event_count

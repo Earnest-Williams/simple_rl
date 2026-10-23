@@ -24,9 +24,9 @@ from game.world.lod_hydration import (
 )
 from game.world.save_diff_journal import SaveDiffJournal
 from game.world.surface_context import (
+    WATER_SPAWN_MATERIALS,
     SurfaceContext,
     SurfaceSpawnProfile,
-    WATER_SPAWN_MATERIALS,
 )
 from game.world.surface_materializer import (
     InMemoryPromiseSource,
@@ -43,7 +43,6 @@ from game.world.surface_population import (
     run_surface_turn,
 )
 from worldgen.overland.schema import (
-    HydroRole,
     OverlandMapMetadata,
     TraversalClass,
     Wetness,
@@ -105,9 +104,7 @@ def _build_surface_map(
     return game_map
 
 
-def _actor(
-    template_id: str, x: int, y: int, **overrides: Any
-) -> dict[str, Any]:
+def _actor(template_id: str, x: int, y: int, **overrides: Any) -> dict[str, Any]:
     """Build a behavior snapshot from a template, with overrides."""
     template = TEMPLATE_LIBRARY[template_id]
     snapshot = {
@@ -185,11 +182,7 @@ def test_actor_templates_cover_spawn_profiles() -> None:
 def test_population_roster_is_deterministic() -> None:
     """Identical chunk and seed always derive the identical roster."""
     source = InMemoryPromiseSource(
-        [
-            RegionalPromise(
-                kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8
-            )
-        ],
+        [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8)],
         chunk_size=_CHUNK,
     )
     chunk = SurfaceMaterializer(
@@ -221,11 +214,7 @@ def test_population_roster_is_deterministic() -> None:
 def test_populate_chunk_places_valid_anchored_actors() -> None:
     """Placed actors sit on valid spawn-anchor tiles with template state."""
     source = InMemoryPromiseSource(
-        [
-            RegionalPromise(
-                kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8
-            )
-        ],
+        [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8)],
         chunk_size=_CHUNK,
     )
     materializer = SurfaceMaterializer(
@@ -236,9 +225,7 @@ def test_populate_chunk_places_valid_anchored_actors() -> None:
     apply_materialized_chunk(game_map, chunk)
     context = SurfaceContext(game_map)
     store = InMemoryActorStore()
-    planner = SurfacePopulationPlanner(
-        store, context, world_seed=_WORLD_SEED
-    )
+    planner = SurfacePopulationPlanner(store, context, world_seed=_WORLD_SEED)
 
     placed = planner.populate_chunk(chunk)
     assert placed, "the spring chunk should attract wildlife"
@@ -262,13 +249,10 @@ def test_populate_chunk_places_valid_anchored_actors() -> None:
 
 def test_populate_chunk_is_deterministic() -> None:
     """Identical worlds populate identically, including actor IDs."""
+
     def populate() -> list[tuple[int, str, int, int]]:
         source = InMemoryPromiseSource(
-            [
-                RegionalPromise(
-                    kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8
-                )
-            ],
+            [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8)],
             chunk_size=_CHUNK,
         )
         materializer = SurfaceMaterializer(
@@ -302,11 +286,7 @@ def test_populate_chunk_is_deterministic() -> None:
 def test_populate_relocates_around_blocked_anchor() -> None:
     """An occupied anchor tile relocates actors to the nearest valid tile."""
     source = InMemoryPromiseSource(
-        [
-            RegionalPromise(
-                kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8
-            )
-        ],
+        [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8)],
         chunk_size=_CHUNK,
     )
     materializer = SurfaceMaterializer(
@@ -331,11 +311,7 @@ def test_populate_relocates_around_blocked_anchor() -> None:
 def test_populate_skips_when_no_valid_tile() -> None:
     """Actors are simply not placed when no valid tile exists nearby."""
     source = InMemoryPromiseSource(
-        [
-            RegionalPromise(
-                kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8
-            )
-        ],
+        [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=8, anchor_y=8)],
         chunk_size=_CHUNK,
     )
     chunk = SurfaceMaterializer(
@@ -378,11 +354,7 @@ def test_seek_water_reaches_water() -> None:
 
 def test_forage_moves_toward_forage() -> None:
     """A deer on barren road walks to the nearest forage tile."""
-    materials = {
-        (x, y): Material.ROAD
-        for x in range(_WIDTH)
-        for y in range(_HEIGHT)
-    }
+    materials = {(x, y): Material.ROAD for x in range(_WIDTH) for y in range(_HEIGHT)}
     materials[(0, 0)] = Material.FOREST_FLOOR
     game_map = _build_surface_map(materials)
     context = SurfaceContext(game_map)
@@ -401,9 +373,7 @@ def test_anchor_leash_bounds_monsters() -> None:
     game_map = _build_surface_map({(6, 6): Material.CAVE_FLOOR})
     context = SurfaceContext(game_map)
     store = InMemoryActorStore()
-    store.add_actor(
-        _actor("cave_creeper", 6, 6, actor_id=11, leash_radius=5)
-    )
+    store.add_actor(_actor("cave_creeper", 6, 6, actor_id=11, leash_radius=5))
 
     for x, y in _trajectory(store, context, 11, turns=60):
         assert max(abs(x - 6), abs(y - 6)) <= 5, (x, y)
@@ -411,6 +381,7 @@ def test_anchor_leash_bounds_monsters() -> None:
 
 def test_wander_deterministic_and_bounded() -> None:
     """Wandering actors stay in bounds and follow identical trajectories."""
+
     def wander_path() -> list[tuple[int, int]]:
         context = SurfaceContext(_build_surface_map({}))
         store = InMemoryActorStore()
@@ -427,16 +398,18 @@ def test_move_every_gates_actions() -> None:
     """A boar (move_every=2) only acts on every second turn."""
     context = SurfaceContext(_build_surface_map({}))
     store = InMemoryActorStore()
-    store.add_actor(
-        _actor("boar", 6, 6, actor_id=5, behavior="wander")
-    )
+    store.add_actor(_actor("boar", 6, 6, actor_id=5, behavior="wander"))
 
     assert run_surface_turn(store, context, 1) == {
-        "moved": 0, "waited": 1, "blocked": 0,
+        "moved": 0,
+        "waited": 1,
+        "blocked": 0,
     }
     assert _positions(store, 5) == (6, 6)
     assert run_surface_turn(store, context, 2) == {
-        "moved": 1, "waited": 0, "blocked": 0,
+        "moved": 1,
+        "waited": 0,
+        "blocked": 0,
     }
     assert _positions(store, 5) != (6, 6)
 
@@ -447,9 +420,7 @@ def test_turn_loop_respects_hydration_no_double_simulation() -> None:
     store = InMemoryActorStore()
     store.add_actor(_actor("otter", 5, 5, actor_id=21))
     journal = SaveDiffJournal(0, 0)
-    manager = ChunkHydrationManager(
-        store, chunk_size=64, locks=EvictionLocks()
-    )
+    manager = ChunkHydrationManager(store, chunk_size=64, locks=EvictionLocks())
 
     dehydrated = manager.dehydrate_chunk_entities(journal, 0, 0)
     assert dehydrated == [21]
@@ -458,7 +429,9 @@ def test_turn_loop_respects_hydration_no_double_simulation() -> None:
     # Dehydrated: the actor is not active, so the turn loop touches
     # nothing -- no double simulation while it is a frozen record.
     assert run_surface_turn(store, context, 1) == {
-        "moved": 0, "waited": 0, "blocked": 0,
+        "moved": 0,
+        "waited": 0,
+        "blocked": 0,
     }
     assert journal.entity_snapshots["21"]["x"] == 5
     assert journal.entity_snapshots["21"]["y"] == 5

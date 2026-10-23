@@ -80,7 +80,11 @@ def test_registry_hydration_requires_terrain_and_excludes_player() -> None:
     registry = EntityRegistry()
     registry.ensure_occupancy_shape(16, 16)
     player_id = registry.create_entity(
-        x=1, y=1, glyph=64, color_fg=(1, 2, 3), name="player",
+        x=1,
+        y=1,
+        glyph=64,
+        color_fg=(1, 2, 3),
+        name="player",
     )
     store = EntityRegistryActorStore(registry)
     store.spawn_actor(_minimal_actor(0x80000001, 8, 8))
@@ -163,10 +167,12 @@ def test_world_ledger_collision_probe_persists_reserved_id() -> None:
         assert restored.reserve("bravo") == b
         assert restored.reserve("charlie", occupied_ids={0x80000000}) not in {a, b}
         with pytest.raises(ValueError, match="Duplicate"):
-            SurfaceIdentityLedger.from_dict({
-                "version": 1,
-                "assignments": {"alpha": a, "bravo": a},
-            })
+            SurfaceIdentityLedger.from_dict(
+                {
+                    "version": 1,
+                    "assignments": {"alpha": a, "bravo": a},
+                }
+            )
 
 
 def test_spring_density_uses_anchor_owner_not_neighbor() -> None:
@@ -220,15 +226,15 @@ def test_journal_preserves_water_and_restores_explicit_passages() -> None:
     metadata.traversal_class_grid[2, 2] = int(TraversalClass.BLOCKED)
     game_map.tiles[2, 2] = TILE_ID_WALL
     journal.record_tile_mutation(
-        2, 2, TILE_ID_FLOOR,
+        2,
+        2,
+        TILE_ID_FLOOR,
         material=int(Material.DOOR_OPEN),
         traversal=int(TraversalClass.NORMAL),
         movement_cost=1.0,
     )
     journal.apply_tile_mutations(game_map)
-    assert SurfaceContext(game_map).can_walk(
-        ActorTraversalProfile.HUMAN_ON_FOOT, 2, 2
-    )
+    assert SurfaceContext(game_map).can_walk(ActorTraversalProfile.HUMAN_ON_FOOT, 2, 2)
     with tempfile.TemporaryDirectory() as directory:
         journal.write_atomic(directory)
         reloaded = SaveDiffJournal.load_or_create(directory, 0, 0)
@@ -265,8 +271,12 @@ def _build_two_chunk_world(
     store = EntityRegistryActorStore(registry)
     ledger = SurfaceIdentityLedger.load_or_create(directory)
     planner = SurfacePopulationPlanner(
-        store, context, world_seed="travel", identity_ledger=ledger,
-        min_per_anchor=2, max_per_anchor=2,
+        store,
+        context,
+        world_seed="travel",
+        identity_ledger=ledger,
+        min_per_anchor=2,
+        max_per_anchor=2,
     )
     journals = {cx: SaveDiffJournal(cx, 0) for cx in chunks}
     order = (1, 0) if reverse else (0, 1)
@@ -296,21 +306,18 @@ def _build_two_chunk_world(
         apply_materialized_chunk(replacement, chunk)
     replacement_context = SurfaceContext(replacement)
     revisiting = SurfacePopulationPlanner(
-        store, replacement_context, world_seed="travel",
+        store,
+        replacement_context,
+        world_seed="travel",
         identity_ledger=SurfaceIdentityLedger.load_or_create(directory),
-        min_per_anchor=2, max_per_anchor=2,
+        min_per_anchor=2,
+        max_per_anchor=2,
     )
-    manager = ChunkHydrationManager(
-        store, context=replacement_context, chunk_size=16
-    )
-    loaded = {
-        cx: SaveDiffJournal.load_or_create(directory, cx, 0) for cx in chunks
-    }
+    manager = ChunkHydrationManager(store, context=replacement_context, chunk_size=16)
+    loaded = {cx: SaveDiffJournal.load_or_create(directory, cx, 0) for cx in chunks}
     loaded[0].record_tile_mutation(5, 5, TILE_ID_WALL)
     assert loaded[0].apply_tile_mutations(replacement) == 1
-    assert not replacement_context.can_walk(
-        ActorTraversalProfile.HUMAN_ON_FOOT, 5, 5
-    )
+    assert not replacement_context.can_walk(ActorTraversalProfile.HUMAN_ON_FOOT, 5, 5)
     for cx in reversed(order):
         assert revisiting.populate_chunk(chunks[cx], loaded[cx]) == []
         assert len(manager.hydrate_chunk_entities(loaded[cx], cx, 0)) == 2
@@ -333,8 +340,7 @@ def _build_two_chunk_world(
     assert revisiting.populate_chunk(chunks[0], loaded[0]) == []
     assert not registry._store.has_active(dead_id)
     return births, {
-        str(cx): int(journal.population_initialized)
-        for cx, journal in loaded.items()
+        str(cx): int(journal.population_initialized) for cx, journal in loaded.items()
     }
 
 

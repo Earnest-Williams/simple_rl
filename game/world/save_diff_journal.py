@@ -281,7 +281,12 @@ class SaveDiffJournal:
         else:
             self._tile_metadata.pop((x, y), None)
         self._append_event(
-            {"kind": "tile", "x": int(x), "y": int(y), "tile_type_id": int(tile_type_id)}
+            {
+                "kind": "tile",
+                "x": int(x),
+                "y": int(y),
+                "tile_type_id": int(tile_type_id),
+            }
         )
 
     def record_item_delta(
@@ -415,7 +420,9 @@ class SaveDiffJournal:
         sneak in through a journal file.
         """
         if not isinstance(data, dict):
-            raise ValueError(f"Journal document must be an object, got {type(data).__name__}")
+            raise ValueError(
+                f"Journal document must be an object, got {type(data).__name__}"
+            )
         schema_version = data.get("schema_version")
         if schema_version not in (1, JOURNAL_SCHEMA_VERSION):
             raise ValueError(
@@ -443,9 +450,10 @@ class SaveDiffJournal:
             xy = _parse_coordinate_key(str(key))
             if not isinstance(payload, dict):
                 raise ValueError("tile_metadata values must be objects")
-            if any(k not in {
-                "material", "traversal", "movement_cost", "wetness", "hydro"
-            } for k in payload):
+            if any(
+                k not in {"material", "traversal", "movement_cost", "wetness", "hydro"}
+                for k in payload
+            ):
                 raise ValueError("Unknown tile_metadata semantic key")
             if xy not in journal._tile_mutations:
                 raise ValueError("Tile metadata requires a matching tile mutation")
@@ -486,9 +494,7 @@ class SaveDiffJournal:
             raise ValueError("entity_snapshots must be an object")
         for entity_id, state in entity_snapshots.items():
             if not isinstance(state, dict):
-                raise ValueError(
-                    f"entity_snapshots[{entity_id!r}] must be an object"
-                )
+                raise ValueError(f"entity_snapshots[{entity_id!r}] must be an object")
             journal._entity_snapshots[str(entity_id)] = dict(state)
 
         event_log = data.get("event_log", [])

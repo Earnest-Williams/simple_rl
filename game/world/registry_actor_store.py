@@ -19,7 +19,13 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from game.world.lod_hydration import ACTOR_ID_KEY
-from skills.models import ManualBonus, Skill, SkillProgress, SkillTrainingConfig, TrainingMode
+from skills.models import (
+    ManualBonus,
+    Skill,
+    SkillProgress,
+    SkillTrainingConfig,
+    TrainingMode,
+)
 from skills.registry_integration import SKILL_TABLE_SCHEMA
 
 if TYPE_CHECKING:
@@ -82,7 +88,10 @@ class EntityRegistryActorStore:
     """``ActorStore`` implementation over the production registry."""
 
     def __init__(
-        self, registry: EntityRegistry, *, viewport_origin_x: int = 0,
+        self,
+        registry: EntityRegistry,
+        *,
+        viewport_origin_x: int = 0,
         viewport_origin_y: int = 0,
     ) -> None:
         self._registry = registry
@@ -91,15 +100,12 @@ class EntityRegistryActorStore:
 
     def can_dehydrate_actor(self, actor_id: int) -> bool:
         """Exclude the player and non-surface residents from LOD eviction."""
-        state = self._registry.get_entity_component(
-            actor_id, "surface_actor_state"
-        )
+        state = self._registry.get_entity_component(actor_id, "surface_actor_state")
         return (
             isinstance(state, dict)
             and isinstance(state.get("template_id"), str)
-            and state.get("behavior") in {
-                "wander", "seek_water", "forage", "anchor_leash"
-            }
+            and state.get("behavior")
+            in {"wander", "seek_water", "forage", "anchor_leash"}
         )
 
     def active_actor_ids(self) -> list[int]:
@@ -186,10 +192,21 @@ class EntityRegistryActorStore:
         # unsupported object fails at snapshot time instead of being
         # silently replaced by its Python string representation.
         extra_components = (
-            "body_plan", "resistances", "vulnerabilities", "drop_table",
-            "linked_positions", "target_map", "seal_tags", "font_sources",
-            "vent_targets", "community_ai", "community_profile", "skills",
-            "skill_training", "active_manuals", "shapeshifted_form",
+            "body_plan",
+            "resistances",
+            "vulnerabilities",
+            "drop_table",
+            "linked_positions",
+            "target_map",
+            "seal_tags",
+            "font_sources",
+            "vent_targets",
+            "community_ai",
+            "community_profile",
+            "skills",
+            "skill_training",
+            "active_manuals",
+            "shapeshifted_form",
             "training_mode",
         )
         for name in extra_components:
@@ -219,16 +236,21 @@ class EntityRegistryActorStore:
         core = set(_SNAPSHOT_COMPONENTS) | {ACTOR_ID_KEY, "skill_rows"}
         surface_state = {k: v for k, v in snapshot.items() if k not in core}
         if surface_state:
-            self._registry.set_entity_component(entity_id, "surface_actor_state", surface_state)
+            self._registry.set_entity_component(
+                entity_id, "surface_actor_state", surface_state
+            )
         equipped_ids = snapshot.get("equipped_item_ids")
         if equipped_ids:
             self._registry.set_equipped_ids(entity_id, list(equipped_ids))
 
     def is_tile_blocked(self, x: int, y: int) -> bool:
         """Whether a movement-blocking entity occupies the tile."""
-        return self._registry.get_blocking_entity_at(
-            x - self._origin_x, y - self._origin_y
-        ) is not None
+        return (
+            self._registry.get_blocking_entity_at(
+                x - self._origin_x, y - self._origin_y
+            )
+            is not None
+        )
 
     def move_actor(self, actor_id: int, x: int, y: int) -> bool:
         """Move an active actor to a behavior-validated tile.
@@ -245,9 +267,7 @@ class EntityRegistryActorStore:
             return False
         return bool(
             self._registry.set_position(
-                actor_id, Position(
-                    x=int(x) - self._origin_x, y=int(y) - self._origin_y
-                )
+                actor_id, Position(x=int(x) - self._origin_x, y=int(y) - self._origin_y)
             )
         )
 
@@ -314,14 +334,8 @@ def _restore_value(value: Any) -> Any:
     if isinstance(training, dict):
         return SkillTrainingConfig(
             mode=TrainingMode(int(training["mode"])),
-            weights={
-                Skill(int(k)): float(v)
-                for k, v in training["weights"].items()
-            },
-            targets={
-                Skill(int(k)): int(v)
-                for k, v in training["targets"].items()
-            },
+            weights={Skill(int(k)): float(v) for k, v in training["weights"].items()},
+            targets={Skill(int(k)): int(v) for k, v in training["targets"].items()},
         )
     manual = value.get("__manual_bonus__")
     if isinstance(manual, dict):

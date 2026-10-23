@@ -46,18 +46,18 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from game.world.lod_hydration import ACTOR_ID_KEY, ActorStore
+from game.world.save_diff_journal import SaveDiffJournal
 from game.world.surface_chunks import chunk_id, derive_chunk_seed
 from game.world.surface_context import (
+    WATER_SPAWN_MATERIALS,
     SurfaceContext,
     SurfaceSpawnProfile,
-    WATER_SPAWN_MATERIALS,
 )
+from game.world.surface_identity import SurfaceIdentityLedger
 from game.world.surface_materializer import (
     MaterializedChunk,
     SurfaceSpawnAnchor,
 )
-from game.world.save_diff_journal import SaveDiffJournal
-from game.world.surface_identity import SurfaceIdentityLedger
 from worldgen.overland.actor_traversal import ActorTraversalProfile
 
 BEHAVIOR_WANDER: Final[str] = "wander"
@@ -113,9 +113,7 @@ class ActorTemplate:
         if self.behavior not in KNOWN_BEHAVIORS:
             raise ValueError(f"Unknown behavior: {self.behavior!r}")
         if self.hp < 0 or self.max_hp < 1 or self.hp > self.max_hp:
-            raise ValueError(
-                f"Invalid hp/max_hp for template {self.template_id!r}"
-            )
+            raise ValueError(f"Invalid hp/max_hp for template {self.template_id!r}")
         if self.move_every < 1:
             raise ValueError(
                 f"move_every must be >= 1 for template {self.template_id!r}"
@@ -252,9 +250,7 @@ TEMPLATE_LIBRARY: Final[dict[str, ActorTemplate]] = {
 }
 """Built-in actor templates for humans, wildlife, and monsters."""
 
-DEFAULT_TEMPLATES_BY_PROFILE: Final[
-    dict[SurfaceSpawnProfile, tuple[str, ...]]
-] = {
+DEFAULT_TEMPLATES_BY_PROFILE: Final[dict[SurfaceSpawnProfile, tuple[str, ...]]] = {
     SurfaceSpawnProfile.HUMAN_SETTLEMENT: ("villager", "dock_worker"),
     SurfaceSpawnProfile.WATER_WILDLIFE: ("heron", "otter"),
     SurfaceSpawnProfile.FORAGE_WILDLIFE: ("deer", "boar"),
@@ -281,9 +277,7 @@ class SeedStream:
         """Draw the next deterministic integer in ``range(modulo)``."""
         if modulo < 1:
             raise ValueError(f"modulo must be >= 1, got {modulo}")
-        digest = hashlib.sha256(
-            f"{self._label}:{self._counter}".encode()
-        ).digest()
+        digest = hashlib.sha256(f"{self._label}:{self._counter}".encode()).digest()
         self._counter += 1
         return int.from_bytes(digest[:8], "big") % modulo
 
@@ -336,9 +330,7 @@ def derive_population_roster(
         span = max_per_anchor - min_per_anchor
         count = min_per_anchor + (stream.next_int(span + 1) if span else 0)
         roster.append(
-            PopulationRosterEntry(
-                anchor=anchor, template_id=template_id, count=count
-            )
+            PopulationRosterEntry(anchor=anchor, template_id=template_id, count=count)
         )
     return roster
 
@@ -372,13 +364,9 @@ class SurfacePopulationPlanner:
         max_per_anchor: int = DEFAULT_MAX_PER_ANCHOR,
     ) -> None:
         if first_actor_id < 0:
-            raise ValueError(
-                f"first_actor_id must be >= 0, got {first_actor_id}"
-            )
+            raise ValueError(f"first_actor_id must be >= 0, got {first_actor_id}")
         if placement_radius < 0:
-            raise ValueError(
-                f"placement_radius must be >= 0, got {placement_radius}"
-            )
+            raise ValueError(f"placement_radius must be >= 0, got {placement_radius}")
         self._store = store
         self._context = context
         self._world_seed = world_seed
@@ -448,7 +436,8 @@ class SurfacePopulationPlanner:
         if journal is not None:
             reserved.update(journal.population_births.values())
             reserved.update(
-                int(actor_id) for actor_id in journal.entity_snapshots
+                int(actor_id)
+                for actor_id in journal.entity_snapshots
                 if actor_id.isdecimal()
             )
         for entry_index, entry in enumerate(roster):
@@ -458,19 +447,20 @@ class SurfacePopulationPlanner:
                 tile = self._find_spawn_tile(entry.anchor, template)
                 if tile is None:
                     continue
-                actor_id = self._ledger.reserve(
-                    birth_key, occupied_ids=reserved
-                )
+                actor_id = self._ledger.reserve(birth_key, occupied_ids=reserved)
                 if actor_id in active_ids:
                     active = self._store.snapshot_actor(actor_id)
                     if active.get("birth_key") != birth_key:
-                        raise ValueError(
-                            f"Conflicting generated actor ID {actor_id}"
-                        )
+                        raise ValueError(f"Conflicting generated actor ID {actor_id}")
                     continue
                 snapshot = _build_snapshot(
-                    template, actor_id, tile[0], tile[1], chunk_key,
-                    entry.anchor, birth_key,
+                    template,
+                    actor_id,
+                    tile[0],
+                    tile[1],
+                    chunk_key,
+                    entry.anchor,
+                    birth_key,
                 )
                 self._store.spawn_actor(snapshot)
                 active_ids.add(actor_id)
@@ -634,7 +624,10 @@ def _choose_step(
         if in_bounds(x, y) and _is_water_tile(context, x, y):
             return (x, y)
         goal = _scan_for_tile(
-            context, x, y, int(snapshot.get("seek_radius", 16)),
+            context,
+            x,
+            y,
+            int(snapshot.get("seek_radius", 16)),
             lambda tx, ty: _is_water_tile(context, tx, ty),
         )
         if goal is None:
@@ -645,7 +638,10 @@ def _choose_step(
         if in_bounds(x, y) and context.can_forage(x, y):
             return (x, y)
         goal = _scan_for_tile(
-            context, x, y, int(snapshot.get("seek_radius", 16)),
+            context,
+            x,
+            y,
+            int(snapshot.get("seek_radius", 16)),
             lambda tx, ty: in_bounds(tx, ty) and context.can_forage(tx, ty),
         )
         if goal is None:
@@ -663,7 +659,9 @@ def _choose_step(
 
         if distance > leash:
             return _greedy_step_toward(
-                (home_x, home_y), x, y,
+                (home_x, home_y),
+                x,
+                y,
                 lambda tx, ty: enterable(tx, ty) and leashed(tx, ty),
             )
         wander = _wander_step(store, snapshot, x, y, turn, enterable)
@@ -693,8 +691,14 @@ def _wander_step(
     """
     stream = SeedStream(f"{int(snapshot[ACTOR_ID_KEY])}:{turn}")
     ring = [
-        (0, -1), (1, -1), (1, 0), (1, 1),
-        (0, 1), (-1, 1), (-1, 0), (-1, -1),
+        (0, -1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+        (0, 1),
+        (-1, 1),
+        (-1, 0),
+        (-1, -1),
     ]
     rotation = stream.next_int(len(ring))
     ordered = ring[rotation:] + ring[:rotation]
@@ -705,7 +709,9 @@ def _wander_step(
 
 
 def _greedy_step_toward(
-    goal: tuple[int, int], x: int, y: int,
+    goal: tuple[int, int],
+    x: int,
+    y: int,
     enterable: Callable[[int, int], bool],
 ) -> tuple[int, int] | None:
     """Deterministic single-tile step reducing distance to ``goal``."""
@@ -724,7 +730,10 @@ def _greedy_step_toward(
 
 
 def _scan_for_tile(
-    context: SurfaceContext, x: int, y: int, radius: int,
+    context: SurfaceContext,
+    x: int,
+    y: int,
+    radius: int,
     predicate: Callable[[int, int], bool],
 ) -> tuple[int, int] | None:
     """Deterministic ring scan for the nearest tile passing ``predicate``."""

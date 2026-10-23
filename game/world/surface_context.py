@@ -269,7 +269,10 @@ class SurfaceContext:
     """
 
     def __init__(
-        self, game_map: GameMap, *, viewport_origin_x: int = 0,
+        self,
+        game_map: GameMap,
+        *,
+        viewport_origin_x: int = 0,
         viewport_origin_y: int = 0,
     ) -> None:
         self._origin_x = int(viewport_origin_x)
@@ -316,9 +319,7 @@ class SurfaceContext:
             "movement_cost": float(self._metadata.movement_cost_grid[ly, lx]),
         }
         return bool(
-            can_actor_enter(
-                tile_row, actor_profile, metadata=self._overland_metadata()
-            )
+            can_actor_enter(tile_row, actor_profile, metadata=self._overland_metadata())
         )
 
     def material_at(self, x: int, y: int) -> Material | None:
@@ -402,9 +403,9 @@ class SurfaceContext:
                 ActorTraversalProfile.SMALL_AMPHIBIOUS, x, y
             ) and self.can_forage(x, y)
         if spawn_profile == SurfaceSpawnProfile.CAVE_MONSTER:
-            return self.can_walk(
-                ActorTraversalProfile.SMALL_AMPHIBIOUS, x, y
-            ) and bool(material is not None and material in CAVE_ANCHOR_MATERIALS)
+            return self.can_walk(ActorTraversalProfile.SMALL_AMPHIBIOUS, x, y) and bool(
+                material is not None and material in CAVE_ANCHOR_MATERIALS
+            )
         raise ValueError(f"Unhandled spawn profile: {spawn_profile}")
 
     def _overland_metadata(self) -> Any:

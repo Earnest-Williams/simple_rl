@@ -31,19 +31,30 @@ def test_production_registry_reuses_slots_across_dehydration() -> None:
     registry = EntityRegistry()
     store = EntityRegistryActorStore(registry)
     actor_id = 42
-    store.spawn_actor({
-        "actor_id": actor_id, "x": 3, "y": 4, "name": "deer",
-        "glyph": 100, "color_fg_r": 1, "color_fg_g": 2,
-        "color_fg_b": 3, "blocks_movement": True, "hp": 5,
-        "max_hp": 8, "behavior": "forage", "move_every": 2,
-        "traversal": int(ActorTraversalProfile.PACK_ANIMAL),
-        "home_x": 3, "home_y": 4, "template_id": "deer",
-    })
+    store.spawn_actor(
+        {
+            "actor_id": actor_id,
+            "x": 3,
+            "y": 4,
+            "name": "deer",
+            "glyph": 100,
+            "color_fg_r": 1,
+            "color_fg_g": 2,
+            "color_fg_b": 3,
+            "blocks_movement": True,
+            "hp": 5,
+            "max_hp": 8,
+            "behavior": "forage",
+            "move_every": 2,
+            "traversal": int(ActorTraversalProfile.PACK_ANIMAL),
+            "home_x": 3,
+            "home_y": 4,
+            "template_id": "deer",
+        }
+    )
     initial_index = registry.index_of_entity(actor_id)
     assert initial_index is not None
-    manager = ChunkHydrationManager(
-        store, chunk_size=16, can_occupy=lambda x, y: True
-    )
+    manager = ChunkHydrationManager(store, chunk_size=16, can_occupy=lambda x, y: True)
     journal = SaveDiffJournal(0, 0)
     assert manager.dehydrate_chunk_entities(journal, 0, 0) == [actor_id]
     assert registry.index_of_entity(actor_id) is None
@@ -54,9 +65,16 @@ def test_production_registry_reuses_slots_across_dehydration() -> None:
         ActorTraversalProfile.PACK_ANIMAL
     )
     assert store.snapshot_actor(actor_id)["move_every"] == 2
-    assert registry.create_entity(
-        x=20, y=20, glyph=64, color_fg=(1, 2, 3), name="another",
-    ) != actor_id
+    assert (
+        registry.create_entity(
+            x=20,
+            y=20,
+            glyph=64,
+            color_fg=(1, 2, 3),
+            name="another",
+        )
+        != actor_id
+    )
     for _ in range(5):
         assert manager.dehydrate_chunk_entities(journal, 0, 0) == [actor_id]
         assert manager.hydrate_chunk_entities(journal, 0, 0) == [actor_id]
@@ -70,9 +88,12 @@ def test_surface_turn_does_not_move_unrelated_player() -> None:
     )
     game_map = GameMap(width=8, height=8)
     game_map.tiles[:, :] = TILE_ID_FLOOR
-    assert run_surface_turn(EntityRegistryActorStore(registry),
-                            SurfaceContext(game_map), 1) == {
-        "moved": 0, "waited": 0, "blocked": 0,
+    assert run_surface_turn(
+        EntityRegistryActorStore(registry), SurfaceContext(game_map), 1
+    ) == {
+        "moved": 0,
+        "waited": 0,
+        "blocked": 0,
     }
     assert _position(registry, player).x == 2
 
@@ -81,9 +102,7 @@ def test_nonzero_viewport_and_wall_gate_walkability() -> None:
     game_map = GameMap(width=8, height=8)
     game_map.tiles[:, :] = TILE_ID_FLOOR
     game_map.tiles[1, 1] = TILE_ID_WALL
-    context = SurfaceContext(
-        game_map, viewport_origin_x=-32, viewport_origin_y=64
-    )
+    context = SurfaceContext(game_map, viewport_origin_x=-32, viewport_origin_y=64)
     profile = ActorTraversalProfile.HUMAN_ON_FOOT
     assert context.in_bounds(-31, 65)
     assert context.can_walk(profile, -31, 65) is False
@@ -93,8 +112,8 @@ def test_nonzero_viewport_and_wall_gate_walkability() -> None:
 
 def test_spring_crosses_chunk_boundary() -> None:
     source = InMemoryPromiseSource(
-        [RegionalPromise(kind=SurfaceFeatureKind.SPRING,
-                         anchor_x=15, anchor_y=8)], chunk_size=16
+        [RegionalPromise(kind=SurfaceFeatureKind.SPRING, anchor_x=15, anchor_y=8)],
+        chunk_size=16,
     )
     materializer = SurfaceMaterializer(
         source, world_seed=50, chunk_size=16, debris_fraction=0.0
@@ -117,13 +136,16 @@ def test_hydration_relocation_respects_chunk_and_terrain() -> None:
     journal = SaveDiffJournal(0, 0)
     journal.record_entity_snapshot("500", {"actor_id": 500, "x": 0, "y": 0})
     manager = ChunkHydrationManager(
-        store, chunk_size=2, relocation_radius=2,
+        store,
+        chunk_size=2,
+        relocation_radius=2,
         can_occupy=lambda x, y: (x, y) == (1, 1),
     )
     assert manager.hydrate_chunk_entities(journal, 0, 0) == [500]
     restored = store.actor(500)
     assert restored is not None
     assert (restored["x"], restored["y"]) == (1, 1)
+
 
 def test_journal_updates_material_traversal_with_wall_geometry() -> None:
     from game.world.surface_materializer import ensure_surface_metadata
@@ -150,12 +172,22 @@ def test_production_adapter_world_origin_preserves_global_snapshot() -> None:
     store = EntityRegistryActorStore(
         registry, viewport_origin_x=-16, viewport_origin_y=32
     )
-    store.spawn_actor({
-        "actor_id": 99, "x": -12, "y": 35, "name": "otter",
-        "glyph": 111, "color_fg_r": 4, "color_fg_g": 5,
-        "color_fg_b": 6, "blocks_movement": True, "hp": 5,
-        "max_hp": 5, "behavior": "seek_water",
-    })
+    store.spawn_actor(
+        {
+            "actor_id": 99,
+            "x": -12,
+            "y": 35,
+            "name": "otter",
+            "glyph": 111,
+            "color_fg_r": 4,
+            "color_fg_g": 5,
+            "color_fg_b": 6,
+            "blocks_movement": True,
+            "hp": 5,
+            "max_hp": 5,
+            "behavior": "seek_water",
+        }
+    )
     assert _position(registry, 99).x == 4
     assert _position(registry, 99).y == 3
     assert store.snapshot_actor(99)["x"] == -12

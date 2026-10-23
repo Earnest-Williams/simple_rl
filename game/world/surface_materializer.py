@@ -129,9 +129,7 @@ class RegionalPromise:
         """
         if self.kind == SurfaceFeatureKind.ROAD:
             if len(self.waypoints) < 2:
-                raise ValueError(
-                    f"Road promise needs at least two waypoints: {self}"
-                )
+                raise ValueError(f"Road promise needs at least two waypoints: {self}")
             xs = [point[0] for point in self.waypoints]
             ys = [point[1] for point in self.waypoints]
             return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
@@ -196,15 +194,19 @@ class InMemoryPromiseSource:
         for promise in self._promises:
             if promise.kind == SurfaceFeatureKind.SPRING:
                 rect = (
-                    promise.anchor_x - 3, promise.anchor_y - 3,
-                    promise.anchor_x + 4, promise.anchor_y + 4,
+                    promise.anchor_x - 3,
+                    promise.anchor_y - 3,
+                    promise.anchor_x + 4,
+                    promise.anchor_y + 4,
                 )
             elif self._promise_kind_needs_geometry(promise):
                 rect = promise.global_rect(chunk_size=self._chunk_size)
             else:
                 rect = (
-                    promise.anchor_x, promise.anchor_y,
-                    promise.anchor_x + 1, promise.anchor_y + 1,
+                    promise.anchor_x,
+                    promise.anchor_y,
+                    promise.anchor_x + 1,
+                    promise.anchor_y + 1,
                 )
             if self._rects_overlap(rect, chunk_rect):
                 overlapping.append(promise)
@@ -289,9 +291,7 @@ class _ChunkCanvas:
         self.origin_x = cx * chunk_size
         self.origin_y = cy * chunk_size
         self.base_material = base_material
-        self.materials: np.ndarray = np.full(
-            size, int(base_material), dtype=np.int16
-        )
+        self.materials: np.ndarray = np.full(size, int(base_material), dtype=np.int16)
         self.traversal: np.ndarray = np.full(
             size, int(TraversalClass.NORMAL), dtype=np.int16
         )
@@ -408,9 +408,7 @@ class _ChunkCanvas:
             spawn_anchors=list(self.spawn_anchors),
             hazard_anchors=list(self.hazard_anchors),
             transitions={key: list(rows) for key, rows in self.transitions.items()},
-            affordances={
-                key: list(rows) for key, rows in self.affordances.items()
-            },
+            affordances={key: list(rows) for key, rows in self.affordances.items()},
             player_start=self.player_start,
             stats=dict(self.stats),
         )
@@ -470,9 +468,7 @@ class SurfaceMaterializer:
         debris_fraction: float = DEFAULT_DEBRIS_FRACTION,
     ) -> None:
         if chunk_size <= 0:
-            raise ValueError(
-                f"chunk_size must be a positive integer, got {chunk_size}"
-            )
+            raise ValueError(f"chunk_size must be a positive integer, got {chunk_size}")
         if not 0.0 <= debris_fraction <= MAX_DEBRIS_FRACTION:
             raise ValueError(
                 f"debris_fraction must be in [0.0, {MAX_DEBRIS_FRACTION}], "
@@ -624,9 +620,7 @@ class SurfaceMaterializer:
         seed = int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16)
         return GameRNG(seed=seed % _FEATURE_SEED_MODULUS)
 
-    def _expand_road(
-        self, canvas: _ChunkCanvas, promise: RegionalPromise
-    ) -> None:
+    def _expand_road(self, canvas: _ChunkCanvas, promise: RegionalPromise) -> None:
         """Expand a road promise: paving, shoulders, ruts, and weeds.
 
         The center line is paved ``Material.ROAD`` with ``TRACK`` ruts
@@ -639,9 +633,7 @@ class SurfaceMaterializer:
             x0, y0 = waypoints[index]
             x1, y1 = waypoints[index + 1]
             if x0 != x1 and y0 != y1:
-                raise ValueError(
-                    f"Road waypoints must be orthogonal: {waypoints}"
-                )
+                raise ValueError(f"Road waypoints must be orthogonal: {waypoints}")
             dx = (x1 > x0) - (x1 < x0)
             dy = (y1 > y0) - (y1 < y0)
             steps = abs(x1 - x0) + abs(y1 - y0)
@@ -690,9 +682,7 @@ class SurfaceMaterializer:
                         blocked=False,
                     )
 
-    def _expand_spring(
-        self, canvas: _ChunkCanvas, promise: RegionalPromise
-    ) -> None:
+    def _expand_spring(self, canvas: _ChunkCanvas, promise: RegionalPromise) -> None:
         """Expand a spring promise into water, banks, and reed beds.
 
         The center is swim-only deep water ringed by muddy banks, reed
@@ -764,9 +754,7 @@ class SurfaceMaterializer:
             )
         )
 
-    def _expand_harbor(
-        self, canvas: _ChunkCanvas, promise: RegionalPromise
-    ) -> None:
+    def _expand_harbor(self, canvas: _ChunkCanvas, promise: RegionalPromise) -> None:
         """Expand a harbor/port promise across its footprint chunks.
 
         Wooden boardwalk and stone docks line the water side, a built
@@ -783,9 +771,7 @@ class SurfaceMaterializer:
         for y in range(y0, y1):
             canvas.paint(x0, y, material=Material.BOARDWALK, cost=1.0)
             for dx in (1, 2):
-                canvas.paint(
-                    x0 + dx, y, material=Material.DOCK, cost=1.0
-                )
+                canvas.paint(x0 + dx, y, material=Material.DOCK, cost=1.0)
         for y in range(y0, y1):
             for x in range(x0 + 3, x1):
                 canvas.paint(
@@ -850,9 +836,7 @@ class SurfaceMaterializer:
                 )
             )
 
-    def _expand_forest(
-        self, canvas: _ChunkCanvas, promise: RegionalPromise
-    ) -> None:
+    def _expand_forest(self, canvas: _ChunkCanvas, promise: RegionalPromise) -> None:
         """Expand a forest promise into floor, trees, and forage nodes."""
         rng = self._feature_rng(promise)
         width_chunks, height_chunks = promise.footprint_chunks
@@ -940,9 +924,7 @@ class SurfaceMaterializer:
                     )
                     placed_anchors += 1
 
-    def _expand_ruin(
-        self, canvas: _ChunkCanvas, promise: RegionalPromise
-    ) -> None:
+    def _expand_ruin(self, canvas: _ChunkCanvas, promise: RegionalPromise) -> None:
         """Expand a ruin promise into walls, doors, loot, and hazards."""
         rng = self._feature_rng(promise)
         width = 20 + rng.get_int(0, MAX_PRIMARY_STRUCTURE_BBOX[0] - 20)
@@ -1035,9 +1017,7 @@ class SurfaceMaterializer:
                 SurfaceHazardAnchor(x=hazard_x, y=hazard_y, kind=hazard_kind)
             )
 
-    def _scatter_debris(
-        self, canvas: _ChunkCanvas, chunk_rng: GameRNG
-    ) -> None:
+    def _scatter_debris(self, canvas: _ChunkCanvas, chunk_rng: GameRNG) -> None:
         """Scatter ambient debris over untouched base terrain.
 
         Uses the chunk-local RNG (ambient detail may differ per chunk)
@@ -1171,25 +1151,23 @@ def apply_materialized_chunk(
             f"Chunk {materialized.cx},{materialized.cy} does not fit the "
             f"viewport at offset ({offset_x}, {offset_y})"
         )
-    tiles = np.where(materialized.blocked, TILE_ID_WALL, TILE_ID_FLOOR).astype(
-        np.uint8
-    )
+    tiles = np.where(materialized.blocked, TILE_ID_WALL, TILE_ID_FLOOR).astype(np.uint8)
     game_map.tiles[offset_y : offset_y + size, offset_x : offset_x + size] = tiles
-    game_map.ceiling_map[
-        offset_y : offset_y + size, offset_x : offset_x + size
-    ] = materialized.ceiling
-    metadata.material_grid[
-        offset_y : offset_y + size, offset_x : offset_x + size
-    ] = materialized.materials
+    game_map.ceiling_map[offset_y : offset_y + size, offset_x : offset_x + size] = (
+        materialized.ceiling
+    )
+    metadata.material_grid[offset_y : offset_y + size, offset_x : offset_x + size] = (
+        materialized.materials
+    )
     metadata.traversal_class_grid[
         offset_y : offset_y + size, offset_x : offset_x + size
     ] = materialized.traversal
-    metadata.wetness_grid[
-        offset_y : offset_y + size, offset_x : offset_x + size
-    ] = materialized.wetness
-    metadata.hydro_grid[
-        offset_y : offset_y + size, offset_x : offset_x + size
-    ] = materialized.hydro
+    metadata.wetness_grid[offset_y : offset_y + size, offset_x : offset_x + size] = (
+        materialized.wetness
+    )
+    metadata.hydro_grid[offset_y : offset_y + size, offset_x : offset_x + size] = (
+        materialized.hydro
+    )
     metadata.movement_cost_grid[
         offset_y : offset_y + size, offset_x : offset_x + size
     ] = materialized.movement_cost

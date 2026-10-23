@@ -28,7 +28,9 @@ class SurfaceIdentityLedger:
     """Own the numerical namespace of a single persistent world."""
 
     def __init__(
-        self, assignments: dict[str, int] | None = None, *,
+        self,
+        assignments: dict[str, int] | None = None,
+        *,
         directory: str | os.PathLike[str] | None = None,
     ) -> None:
         self._by_birth: dict[str, int] = {}
@@ -48,9 +50,7 @@ class SurfaceIdentityLedger:
 
     @staticmethod
     def _candidate(birth_key: str, salt: int) -> int:
-        digest = hashlib.sha256(
-            f"surface-birth:{birth_key}:{salt}".encode()
-        ).digest()
+        digest = hashlib.sha256(f"surface-birth:{birth_key}:{salt}".encode()).digest()
         return 0x80000000 | (int.from_bytes(digest[:4], "big") & 0x7FFFFFFF)
 
     def id_for(self, birth_key: str) -> int | None:
@@ -64,7 +64,10 @@ class SurfaceIdentityLedger:
             return self._by_id.get(actor_id)
 
     def reserve(
-        self, birth_key: str, *, occupied_ids: Collection[int] = (),
+        self,
+        birth_key: str,
+        *,
+        occupied_ids: Collection[int] = (),
     ) -> int:
         """Reserve and durably record one surrogate, probing on collisions.
 
@@ -101,7 +104,9 @@ class SurfaceIdentityLedger:
 
     @classmethod
     def from_dict(
-        cls, payload: dict[str, object], *,
+        cls,
+        payload: dict[str, object],
+        *,
         directory: str | os.PathLike[str] | None = None,
     ) -> SurfaceIdentityLedger:
         """Refuse corrupt ledgers rather than silently reusing world IDs."""
@@ -111,8 +116,7 @@ class SurfaceIdentityLedger:
         if not isinstance(raw, dict):
             raise ValueError("Missing surface actor identity assignments")
         if any(
-            not isinstance(k, str) or not isinstance(v, int)
-            for k, v in raw.items()
+            not isinstance(k, str) or not isinstance(v, int) for k, v in raw.items()
         ):
             raise ValueError("Malformed surface actor identity assignments")
         assignments = {str(k): int(v) for k, v in raw.items()}
@@ -133,7 +137,8 @@ class SurfaceIdentityLedger:
 
     @classmethod
     def load_or_create(
-        cls, directory: str | os.PathLike[str],
+        cls,
+        directory: str | os.PathLike[str],
     ) -> SurfaceIdentityLedger:
         """Load an existing world ledger or create a durable new one."""
         path = Path(directory) / LEDGER_FILENAME

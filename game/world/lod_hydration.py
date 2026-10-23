@@ -170,13 +170,9 @@ class ChunkHydrationManager:
         context: SurfaceContext | None = None,
     ) -> None:
         if chunk_size <= 0:
-            raise ValueError(
-                f"chunk_size must be a positive integer, got {chunk_size}"
-            )
+            raise ValueError(f"chunk_size must be a positive integer, got {chunk_size}")
         if relocation_radius < 1:
-            raise ValueError(
-                f"relocation_radius must be >= 1, got {relocation_radius}"
-            )
+            raise ValueError(f"relocation_radius must be >= 1, got {relocation_radius}")
         self._store = store
         self._chunk_size = chunk_size
         self._locks = locks if locks is not None else EvictionLocks()
@@ -206,9 +202,7 @@ class ChunkHydrationManager:
         """The eviction-lock registry used on dehydration."""
         return self._locks
 
-    def _chunk_rect(
-        self, cx: int, cy: int
-    ) -> tuple[int, int, int, int]:
+    def _chunk_rect(self, cx: int, cy: int) -> tuple[int, int, int, int]:
         """Return the chunk's global tile rectangle ``(x0, y0, x1, y1)``."""
         size = self._chunk_size
         return (cx * size, cy * size, (cx + 1) * size, (cy + 1) * size)
@@ -270,9 +264,7 @@ class ChunkHydrationManager:
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
             if not self._tile_available(gx, gy, (x0, y0, x1, y1), snapshot):
-                relocated = self._nearest_free_tile(
-                    gx, gy, (x0, y0, x1, y1), snapshot
-                )
+                relocated = self._nearest_free_tile(gx, gy, (x0, y0, x1, y1), snapshot)
                 if relocated is None:
                     continue  # No room in the bubble; stay a record.
                 rx, ry = relocated
@@ -302,9 +294,7 @@ class ChunkHydrationManager:
             if not self._context.in_bounds(x, y):
                 return False
             profile = ActorTraversalProfile(
-                int(snapshot.get(
-                    "traversal", int(ActorTraversalProfile.HUMAN_ON_FOOT)
-                ))
+                int(snapshot.get("traversal", int(ActorTraversalProfile.HUMAN_ON_FOOT)))
             )
             if not self._context.can_walk(profile, x, y):
                 return False
@@ -324,11 +314,10 @@ class ChunkHydrationManager:
                     if max(abs(dx), abs(dy)) != radius:
                         continue
                     candidate_x, candidate_y = x + dx, y + dy
-                    if self._tile_available(
-                        candidate_x, candidate_y, bounds, snapshot
-                    ):
+                    if self._tile_available(candidate_x, candidate_y, bounds, snapshot):
                         return candidate_x, candidate_y
         return None
+
 
 class InMemoryActorStore:
     """Reference ActorStore holding actor snapshots in a dictionary.
