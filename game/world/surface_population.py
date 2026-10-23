@@ -41,13 +41,11 @@ Behavior vocabulary (snapshot ``behavior`` key):
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Final
 
 from game.world.lod_hydration import ACTOR_ID_KEY, ActorStore
-from game.world.save_diff_journal import SaveDiffJournal
-from game.world.surface_identity import SurfaceIdentityLedger
 from game.world.surface_chunks import chunk_id, derive_chunk_seed
 from game.world.surface_context import (
     SurfaceContext,
@@ -58,6 +56,8 @@ from game.world.surface_materializer import (
     MaterializedChunk,
     SurfaceSpawnAnchor,
 )
+from game.world.save_diff_journal import SaveDiffJournal
+from game.world.surface_identity import SurfaceIdentityLedger
 from worldgen.overland.actor_traversal import ActorTraversalProfile
 
 BEHAVIOR_WANDER: Final[str] = "wander"
@@ -683,7 +683,7 @@ def _wander_step(
     x: int,
     y: int,
     turn: int,
-    enterable,
+    enterable: Callable[[int, int], bool],
 ) -> tuple[int, int] | None:
     """Seeded deterministic drift among enterable neighbor tiles.
 
