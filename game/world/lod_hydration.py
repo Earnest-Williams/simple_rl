@@ -35,10 +35,18 @@ bridges the production ``EntityRegistry``.
 
 from __future__ import annotations
 
-from typing import Any, Final, Protocol, runtime_checkable
+import logging
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Final, Protocol, runtime_checkable
 
 from game.world.save_diff_journal import SaveDiffJournal
 from game.world.surface_chunks import DEFAULT_CHUNK_SIZE
+from worldgen.overland.actor_traversal import ActorTraversalProfile
+
+if TYPE_CHECKING:
+    from game.world.surface_context import SurfaceContext
+
+_LOGGER = logging.getLogger(__name__)
 
 ACTOR_ID_KEY: Final[str] = "actor_id"
 """Snapshot key holding the actor's stable identity."""
@@ -109,6 +117,14 @@ class ActorStore(Protocol):
         """Return every currently active (hydrated) actor ID."""
         ...
 
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
+        """Select residents without capturing heavyweight ECS snapshots."""
+        ...
+
+    def can_dehydrate_actor(self, actor_id: int) -> bool:
+        """Whether this actor may leave the immediate simulation."""
+        ...
+
     def snapshot_actor(self, actor_id: int) -> dict[str, Any]:
         """Return a JSON-serializable snapshot dict for an active actor.
 
@@ -157,19 +173,31 @@ class ChunkHydrationManager:
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         locks: EvictionLocks | None = None,
         relocation_radius: int = DEFAULT_RELOCATION_RADIUS,
+        can_occupy: Callable[[int, int], bool] | None = None,
+        context: SurfaceContext | None = None,
     ) -> None:
         if chunk_size <= 0:
-            raise ValueError(
-                f"chunk_size must be a positive integer, got {chunk_size}"
-            )
+            raise ValueError(f"chunk_size must be a positive integer, got {chunk_size}")
         if relocation_radius < 1:
-            raise ValueError(
-                f"relocation_radius must be >= 1, got {relocation_radius}"
-            )
+            raise ValueError(f"relocation_radius must be >= 1, got {relocation_radius}")
         self._store = store
         self._chunk_size = chunk_size
         self._locks = locks if locks is not None else EvictionLocks()
         self._relocation_radius = relocation_radius
+        self._can_occupy = can_occupy
+        self._context = context
+        # Production actor hydration cannot default to checking occupants
+        # alone; it must know which physical tiles are enterable.
+        from game.world.registry_actor_store import EntityRegistryActorStore
+
+        if (
+            isinstance(store, EntityRegistryActorStore)
+            and context is None
+            and can_occupy is None
+        ):
+            raise ValueError(
+                "Production hydration requires SurfaceContext or can_occupy"
+            )
 
     @property
     def chunk_size(self) -> int:
@@ -181,9 +209,7 @@ class ChunkHydrationManager:
         """The eviction-lock registry used on dehydration."""
         return self._locks
 
-    def _chunk_rect(
-        self, cx: int, cy: int
-    ) -> tuple[int, int, int, int]:
+    def _chunk_rect(self, cx: int, cy: int) -> tuple[int, int, int, int]:
         """Return the chunk's global tile rectangle ``(x0, y0, x1, y1)``."""
         size = self._chunk_size
         return (cx * size, cy * size, (cx + 1) * size, (cy + 1) * size)
@@ -205,8 +231,23 @@ class ChunkHydrationManager:
         """
         x0, y0, x1, y1 = self._chunk_rect(cx, cy)
         dehydrated: list[int] = []
-        for actor_id in self._store.active_actor_ids():
-            snapshot = self._store.snapshot_actor(actor_id)
+        for actor_id in self._store.active_actor_ids_in_rect(x0, y0, x1, y1):
+            if self._locks.is_locked(actor_id):
+                continue
+            if not self._store.can_dehydrate_actor(actor_id):
+                continue
+            try:
+                snapshot = self._store.snapshot_actor(actor_id)
+            except (TypeError, ValueError) as exc:
+                # Keep opaque state active, but make serialization failures
+                # visible so unsupported actor components can be fixed.
+                _LOGGER.warning(
+                    "Actor %s remains live: cannot serialize for chunk %s: %s",
+                    actor_id,
+                    journal.chunk_id,
+                    exc,
+                )
+                continue
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
@@ -242,8 +283,8 @@ class ChunkHydrationManager:
             gx, gy = int(snapshot["x"]), int(snapshot["y"])
             if not (x0 <= gx < x1 and y0 <= gy < y1):
                 continue
-            if self._store.is_tile_blocked(gx, gy):
-                relocated = self._nearest_free_tile(gx, gy)
+            if not self._tile_available(gx, gy, (x0, y0, x1, y1), snapshot):
+                relocated = self._nearest_free_tile(gx, gy, (x0, y0, x1, y1), snapshot)
                 if relocated is None:
                     continue  # No room in the bubble; stay a record.
                 rx, ry = relocated
@@ -255,18 +296,46 @@ class ChunkHydrationManager:
             hydrated.append(actor_id)
         return hydrated
 
+    def _tile_available(
+        self,
+        x: int,
+        y: int,
+        bounds: tuple[int, int, int, int],
+        snapshot: dict[str, Any],
+    ) -> bool:
+        x0, y0, x1, y1 = bounds
+        if not (x0 <= x < x1 and y0 <= y < y1):
+            return False
+        if self._store.is_tile_blocked(x, y):
+            return False
+        if self._can_occupy is not None and not self._can_occupy(x, y):
+            return False
+        if self._context is not None:
+            if not self._context.in_bounds(x, y):
+                return False
+            profile = ActorTraversalProfile(
+                int(snapshot.get("traversal", int(ActorTraversalProfile.HUMAN_ON_FOOT)))
+            )
+            if not self._context.can_walk(profile, x, y):
+                return False
+        return True
+
     def _nearest_free_tile(
-        self, x: int, y: int
+        self,
+        x: int,
+        y: int,
+        bounds: tuple[int, int, int, int],
+        snapshot: dict[str, Any],
     ) -> tuple[int, int] | None:
-        """Deterministic spiral search for the nearest unblocked tile."""
+        """Deterministic nearest passable tile within the same chunk."""
         for radius in range(1, self._relocation_radius + 1):
             for dy in range(-radius, radius + 1):
                 for dx in range(-radius, radius + 1):
                     if max(abs(dx), abs(dy)) != radius:
-                        continue  # Only this ring, inner rings done earlier.
+                        continue
                     candidate_x, candidate_y = x + dx, y + dy
-                    if not self._store.is_tile_blocked(candidate_x, candidate_y):
-                        return (candidate_x, candidate_y)
+                    if self._tile_available(candidate_x, candidate_y, bounds, snapshot):
+                        return candidate_x, candidate_y
         return None
 
 
@@ -303,6 +372,18 @@ class InMemoryActorStore:
         """Return every currently active actor ID."""
         return sorted(self._actors.keys())
 
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
+        """Cheap reference-store residency test for chunk selection."""
+        return sorted(
+            actor_id
+            for actor_id, state in self._actors.items()
+            if x0 <= int(state["x"]) < x1 and y0 <= int(state["y"]) < y1
+        )
+
+    def can_dehydrate_actor(self, actor_id: int) -> bool:
+        """The in-memory reference store supports arbitrary test actors."""
+        return True
+
     def snapshot_actor(self, actor_id: int) -> dict[str, Any]:
         """Return the actor's snapshot dict (must be active)."""
         snapshot = self._actors.get(actor_id)
@@ -317,6 +398,8 @@ class InMemoryActorStore:
     def spawn_actor(self, snapshot: dict[str, Any]) -> None:
         """Re-create an actor from a snapshot, keeping its stable ID."""
         actor_id = int(snapshot[ACTOR_ID_KEY])
+        if actor_id in self._actors:
+            raise ValueError(f"Actor {actor_id} is already active")
         self._actors[actor_id] = dict(snapshot)
 
     def move_actor(self, actor_id: int, x: int, y: int) -> bool:

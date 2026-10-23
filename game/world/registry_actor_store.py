@@ -5,21 +5,31 @@ Implements the ``ActorStore`` protocol from
 real ECS registry, so ``ChunkHydrationManager`` can dehydrate and
 hydrate live actors without knowing registry internals.
 
-Snapshot fields are the JSON-serializable subset of ``ENTITY_SCHEMA``:
-identity, presentation, AI, combat stats, resources, and equipment IDs.
-Object-typed columns (body plans, skills, community profiles) are not
-snapshotted here; Phase 5 scope is actor identity, position, and core
-state (HP, stats, resources, equipped items).
+Snapshot fields include core ``ENTITY_SCHEMA`` values, supported typed
+components, and the separate vectorized skills table. Unsupported opaque
+Python objects are not silently converted to strings: hydration skips their
+eviction and logs a warning until an explicit codec is implemented.
 """
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import polars as pl
+
+from game.world.lod_hydration import ACTOR_ID_KEY
+from game.world.surface_population import KNOWN_BEHAVIORS
+from skills.models import (
+    ManualBonus,
+    Skill,
+    SkillProgress,
+    SkillTrainingConfig,
+    TrainingMode,
+)
+from skills.registry_integration import SKILL_TABLE_SCHEMA
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
-
-from game.world.lod_hydration import ACTOR_ID_KEY
 
 _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
     "name",
@@ -53,6 +63,23 @@ _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
     "max_fuel",
     "status_effects",
     "equipped_item_ids",
+    "surface_actor_state",
+    "body_plan",
+    "resistances",
+    "vulnerabilities",
+    "drop_table",
+    "linked_positions",
+    "target_map",
+    "seal_tags",
+    "font_sources",
+    "vent_targets",
+    "community_ai",
+    "community_profile",
+    "skills",
+    "skill_training",
+    "active_manuals",
+    "shapeshifted_form",
+    "training_mode",
 )
 """ENTITY_SCHEMA components captured in dehydration snapshots."""
 
@@ -60,8 +87,25 @@ _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
 class EntityRegistryActorStore:
     """``ActorStore`` implementation over the production registry."""
 
-    def __init__(self, registry: "EntityRegistry") -> None:
+    def __init__(
+        self,
+        registry: EntityRegistry,
+        *,
+        viewport_origin_x: int = 0,
+        viewport_origin_y: int = 0,
+    ) -> None:
         self._registry = registry
+        self._origin_x = int(viewport_origin_x)
+        self._origin_y = int(viewport_origin_y)
+
+    def can_dehydrate_actor(self, actor_id: int) -> bool:
+        """Exclude the player and non-surface residents from LOD eviction."""
+        state = self._registry.get_entity_component(actor_id, "surface_actor_state")
+        return (
+            isinstance(state, dict)
+            and isinstance(state.get("template_id"), str)
+            and state.get("behavior") in KNOWN_BEHAVIORS
+        )
 
     def active_actor_ids(self) -> list[int]:
         """Return every active entity ID (registry-index backed)."""
@@ -70,19 +114,45 @@ class EntityRegistryActorStore:
             for idx in self._registry.active_indices()
         ]
 
+    def active_actor_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
+        """Use ECS coordinate arrays; never serialize out-of-chunk actors."""
+        return self._registry.active_ids_in_rect(
+            x0 - self._origin_x,
+            y0 - self._origin_y,
+            x1 - self._origin_x,
+            y1 - self._origin_y,
+        )
+
     def snapshot_actor(self, actor_id: int) -> dict[str, Any]:
         """Capture a JSON-serializable snapshot of an active entity."""
         components = self._registry.get_entity_components(
             actor_id, list(_SNAPSHOT_COMPONENTS)
         )
         snapshot: dict[str, Any] = {ACTOR_ID_KEY: int(actor_id)}
+        # Skills live in their own vectorized registry, not the entity row.
+        rows = self._registry.skills_df.filter(
+            pl.col("entity_id") == actor_id
+        ).to_dicts()
+        if rows:
+            snapshot["skill_rows"] = _plain_value(rows)
         for name, value in components.items():
+            if name == "x":
+                snapshot[name] = int(value) + self._origin_x
+                continue
+            if name == "y":
+                snapshot[name] = int(value) + self._origin_y
+                continue
+            if name == "surface_actor_state":
+                if isinstance(value, dict):
+                    snapshot.update(_plain_value(value))
+                continue
             snapshot[name] = _plain_value(value)
         return snapshot
 
     def despawn_actor(self, actor_id: int) -> None:
-        """Mark the entity inactive (registry deletion semantics)."""
-        self._registry.delete_entity(actor_id)
+        """Release its active slot; the journal retains its world identity."""
+        if not self._registry.release_entity(actor_id):
+            raise KeyError(f"Actor {actor_id} is not active")
 
     def spawn_actor(self, snapshot: dict[str, Any]) -> None:
         """Re-create the entity with its stable ID and saved state."""
@@ -93,8 +163,8 @@ class EntityRegistryActorStore:
         ]
         self._registry.create_entity(
             entity_id=entity_id,
-            x=int(snapshot["x"]),
-            y=int(snapshot["y"]),
+            x=int(snapshot["x"]) - self._origin_x,
+            y=int(snapshot["y"]) - self._origin_y,
             glyph=int(snapshot["glyph"]),
             color_fg=(
                 int(snapshot["color_fg_r"]),
@@ -126,13 +196,69 @@ class EntityRegistryActorStore:
             max_fuel=float(snapshot.get("max_fuel", 0.0)),
             status_effects=status_effects,
         )
+        # Restore the complete set of serializable ECS components. An
+        # unsupported object fails at snapshot time instead of being
+        # silently replaced by its Python string representation.
+        extra_components = (
+            "body_plan",
+            "resistances",
+            "vulnerabilities",
+            "drop_table",
+            "linked_positions",
+            "target_map",
+            "seal_tags",
+            "font_sources",
+            "vent_targets",
+            "community_ai",
+            "community_profile",
+            "skills",
+            "skill_training",
+            "active_manuals",
+            "shapeshifted_form",
+            "training_mode",
+        )
+        for name in extra_components:
+            if name not in snapshot:
+                continue
+            value = _restore_value(snapshot[name])
+            if name == "skills" and isinstance(value, dict):
+                value = {Skill(int(k)): v for k, v in value.items()}
+            if name == "active_manuals" and isinstance(value, dict):
+                value = {int(k): v for k, v in value.items()}
+            self._registry.set_entity_component(entity_id, name, value)
+
+        skill_rows = snapshot.get("skill_rows", [])
+        if skill_rows:
+            restored = pl.DataFrame(skill_rows, schema=SKILL_TABLE_SCHEMA)
+            with self._registry._skills_lock:
+                self._registry.skills_df = pl.concat(
+                    [
+                        self._registry.skills_df.filter(
+                            pl.col("entity_id") != entity_id
+                        ),
+                        restored,
+                    ],
+                    how="vertical",
+                )
+
+        core = set(_SNAPSHOT_COMPONENTS) | {ACTOR_ID_KEY, "skill_rows"}
+        surface_state = {k: v for k, v in snapshot.items() if k not in core}
+        if surface_state:
+            self._registry.set_entity_component(
+                entity_id, "surface_actor_state", surface_state
+            )
         equipped_ids = snapshot.get("equipped_item_ids")
         if equipped_ids:
             self._registry.set_equipped_ids(entity_id, list(equipped_ids))
 
     def is_tile_blocked(self, x: int, y: int) -> bool:
         """Whether a movement-blocking entity occupies the tile."""
-        return self._registry.get_blocking_entity_at(x, y) is not None
+        return (
+            self._registry.get_blocking_entity_at(
+                x - self._origin_x, y - self._origin_y
+            )
+            is not None
+        )
 
     def move_actor(self, actor_id: int, x: int, y: int) -> bool:
         """Move an active actor to a behavior-validated tile.
@@ -149,22 +275,84 @@ class EntityRegistryActorStore:
             return False
         return bool(
             self._registry.set_position(
-                actor_id, Position(x=int(x), y=int(y))
+                actor_id, Position(x=int(x) - self._origin_x, y=int(y) - self._origin_y)
             )
         )
 
 
 def _plain_value(value: Any) -> Any:
-    """Normalize a component value to JSON-serializable data."""
-    if isinstance(value, (bool, int, float, str)) or value is None:
+    """Normalize supported components without silently losing object state.
+
+    Snapshot payloads cross a JSON boundary; unknown Python objects must
+    fail closed until an explicit serializer has been defined for them.
+    """
+    if isinstance(value, bool | int | float | str) or value is None:
         return value
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, SkillProgress):
+        return {
+            "__skill_progress__": {
+                "skill": int(value.skill),
+                "level": value.level,
+                "xp": value.xp,
+                "aptitude": value.aptitude,
+            }
+        }
+    if isinstance(value, SkillTrainingConfig):
+        return {
+            "__skill_training__": {
+                "mode": int(value.mode),
+                "weights": {str(int(k)): v for k, v in value.weights.items()},
+                "targets": {str(int(k)): v for k, v in value.targets.items()},
+            }
+        }
+    if isinstance(value, ManualBonus):
+        return {
+            "__manual_bonus__": {
+                "skill": int(value.skill),
+                "bonus_aptitude": value.bonus_aptitude,
+                "remaining_xp": value.remaining_xp,
+            }
+        }
+    if isinstance(value, list | tuple):
         return [_plain_value(item) for item in value]
     if isinstance(value, dict):
         return {str(key): _plain_value(item) for key, item in value.items()}
-    if hasattr(value, "item"):  # numpy scalar
-        return value.item()
-    return str(value)
+    if hasattr(value, "item"):
+        scalar = value.item()
+        if isinstance(scalar, bool | int | float | str):
+            return scalar
+    raise TypeError(f"Unsupported dehydration component: {type(value).__name__}")
+
+
+def _restore_value(value: Any) -> Any:
+    """Rehydrate explicitly tagged skill value objects."""
+    if isinstance(value, list):
+        return [_restore_value(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    progress = value.get("__skill_progress__")
+    if isinstance(progress, dict):
+        return SkillProgress(
+            skill=Skill(int(progress["skill"])),
+            level=int(progress["level"]),
+            xp=int(progress["xp"]),
+            aptitude=int(progress["aptitude"]),
+        )
+    training = value.get("__skill_training__")
+    if isinstance(training, dict):
+        return SkillTrainingConfig(
+            mode=TrainingMode(int(training["mode"])),
+            weights={Skill(int(k)): float(v) for k, v in training["weights"].items()},
+            targets={Skill(int(k)): int(v) for k, v in training["targets"].items()},
+        )
+    manual = value.get("__manual_bonus__")
+    if isinstance(manual, dict):
+        return ManualBonus(
+            skill=Skill(int(manual["skill"])),
+            bonus_aptitude=int(manual["bonus_aptitude"]),
+            remaining_xp=int(manual["remaining_xp"]),
+        )
+    return {k: _restore_value(v) for k, v in value.items()}
 
 
 __all__ = ["EntityRegistryActorStore"]

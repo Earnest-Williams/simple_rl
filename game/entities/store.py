@@ -58,6 +58,9 @@ class EntityStore:
         self.count = 0
         self.dirty_polars_snapshot = True
         self.entity_id_to_index: dict[int, int] = {}
+        # Vacated slots are reusable; count is the high-water mark, not the
+        # number of currently live entities.
+        self._free_indices: list[int] = []
 
         # Numeric hot fields in NumPy arrays
         self.entity_id = np.zeros(capacity, dtype=np.uint32)
@@ -89,7 +92,7 @@ class EntityStore:
         self.extra_components: list[dict[str, object]] = [{} for _ in range(capacity)]
 
         # Occupancy grid
-        self.blocking_entity_at = np.full((0, 0), -1, dtype=np.int32)
+        self.blocking_entity_at = np.full((0, 0), -1, dtype=np.int64)
         self.occupancy_width = 0
         self.occupancy_height = 0
 
@@ -152,9 +155,14 @@ class EntityStore:
         status_effects: list | None = None,
         **extra,
     ) -> int:
-        idx = self.count
-        self._ensure_capacity(idx + 1)
-        self.count += 1
+        if entity_id in self.entity_id_to_index:
+            raise ValueError(f"Entity ID {entity_id} is already allocated")
+        if self._free_indices:
+            idx = self._free_indices.pop()
+        else:
+            idx = self.count
+            self._ensure_capacity(idx + 1)
+            self.count += 1
 
         self.entity_id[idx] = entity_id
         self.is_active[idx] = True
@@ -182,9 +190,13 @@ class EntityStore:
         self.entity_id_to_index[entity_id] = idx
 
         # Update occupancy if grid initialized
-        if self.blocking_entity_at.size and blocks_movement:
-            if 0 <= x < self.occupancy_width and 0 <= y < self.occupancy_height:
-                self.blocking_entity_at[y, x] = entity_id
+        if (
+            self.blocking_entity_at.size
+            and blocks_movement
+            and 0 <= x < self.occupancy_width
+            and 0 <= y < self.occupancy_height
+        ):
+            self.blocking_entity_at[y, x] = entity_id
 
         self.dirty_polars_snapshot = True
         return entity_id
@@ -388,9 +400,12 @@ class EntityStore:
         new_y = position.y
 
         if bool(self.blocks_movement[idx]):
-            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
-                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                    self.blocking_entity_at[old_y, old_x] = -1
+            if (
+                0 <= old_x < self.occupancy_width
+                and 0 <= old_y < self.occupancy_height
+                and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+            ):
+                self.blocking_entity_at[old_y, old_x] = -1
             if 0 <= new_x < self.occupancy_width and 0 <= new_y < self.occupancy_height:
                 self.blocking_entity_at[new_y, new_x] = entity_id
 
@@ -407,18 +422,42 @@ class EntityStore:
         if bool(self.blocks_movement[idx]):
             old_x = int(self.x[idx])
             old_y = int(self.y[idx])
-            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
-                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                    self.blocking_entity_at[old_y, old_x] = -1
+            if (
+                0 <= old_x < self.occupancy_width
+                and 0 <= old_y < self.occupancy_height
+                and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+            ):
+                self.blocking_entity_at[old_y, old_x] = -1
 
         self.is_active[idx] = False
         self.dirty_polars_snapshot = True
         return True
 
+    def release_entity(self, entity_id: int) -> bool:
+        """Release an active entity and its slot without releasing its world ID.
+
+        The caller must preserve the snapshot/identity externally (for example
+        in a chunk journal) before release. Unlike ``delete_entity``, release
+        removes the index mapping so hydration can restore the same ID into
+        any available slot. Vacated object fields are cleared to avoid holding
+        stale references for the lifetime of the process.
+        """
+        if not self.delete_entity(entity_id):
+            return False
+        idx = self.entity_id_to_index.pop(entity_id)
+        for name in NUMERIC_FIELDS:
+            getattr(self, name)[idx] = 0
+        for name in ("name", "ai_type", "species", "faction", "strategy_state"):
+            getattr(self, name)[idx] = None
+        self.status_effects[idx] = []
+        self.extra_components[idx] = {}
+        self._free_indices.append(idx)
+        return True
+
     def ensure_occupancy_shape(self, width: int, height: int) -> None:
         if self.blocking_entity_at.shape == (height, width):
             return
-        self.blocking_entity_at = np.full((height, width), -1, dtype=np.int32)
+        self.blocking_entity_at = np.full((height, width), -1, dtype=np.int64)
         self.occupancy_width = width
         self.occupancy_height = height
         self.rebuild_occupancy()
@@ -472,15 +511,26 @@ class EntityStore:
                 return False, dest_x, dest_y
 
             if self.blocking_entity_at.shape == (height, width):
-                if 0 <= old_x < width and 0 <= old_y < height:
-                    if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                        self.blocking_entity_at[old_y, old_x] = -1
+                if (
+                    0 <= old_x < width
+                    and 0 <= old_y < height
+                    and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+                ):
+                    self.blocking_entity_at[old_y, old_x] = -1
                 self.blocking_entity_at[dest_y, dest_x] = entity_id
 
         self.x[idx] = dest_x
         self.y[idx] = dest_y
         self.dirty_polars_snapshot = True
         return True, dest_x, dest_y
+
+    def active_ids_in_rect(self, x0: int, y0: int, x1: int, y1: int) -> list[int]:
+        """Select active IDs by position before any expensive snapshots."""
+        active = self.is_active[: self.count]
+        x = self.x[: self.count]
+        y = self.y[: self.count]
+        mask = active & (x >= x0) & (x < x1) & (y >= y0) & (y < y1)
+        return self.entity_id[: self.count][mask].tolist()
 
     def active_indices(self) -> np.ndarray:
         return np.where(self.is_active[: self.count])[0]
@@ -765,6 +815,7 @@ class EntityStore:
         self.extra_components = new_extra_components
 
         self.count = new_count
+        self._free_indices.clear()
         self.entity_id_to_index = {int(new_entity_id[i]): i for i in range(new_count)}
         self.dirty_polars_snapshot = True
 
@@ -871,8 +922,15 @@ class EntityStore:
                 extra_dict[col] = row[col]
             store.extra_components[idx] = extra_dict
 
-            entity_id = int(row["entity_id"])
-            store.entity_id_to_index[entity_id] = idx
+            # Persisted inactive rows are available for reuse, including
+            # tombstones from older saves. Never remap their former IDs.
+            if bool(store.is_active[idx]):
+                entity_id = int(row["entity_id"])
+                if entity_id in store.entity_id_to_index:
+                    raise ValueError(f"Duplicate active entity ID {entity_id}")
+                store.entity_id_to_index[entity_id] = idx
+            else:
+                store._free_indices.append(idx)
 
         store.dirty_polars_snapshot = False
         return store

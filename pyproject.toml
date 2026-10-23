@@ -155,7 +155,6 @@ module = [
     "game.effects.executor",
     "game.effects.handlers",
     "game.entities.components",
-    "game.entities.registry",
     "game.game_state",
     "game.items.registry",
     "game.perception",
