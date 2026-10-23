@@ -115,6 +115,17 @@ class EntityRegistryActorStore:
             for idx in self._registry.active_indices()
         ]
 
+    def active_actor_ids_in_rect(
+        self, x0: int, y0: int, x1: int, y1: int
+    ) -> list[int]:
+        """Use ECS coordinate arrays; never serialize out-of-chunk actors."""
+        return self._registry.active_ids_in_rect(
+            x0 - self._origin_x,
+            y0 - self._origin_y,
+            x1 - self._origin_x,
+            y1 - self._origin_y,
+        )
+
     def snapshot_actor(self, actor_id: int) -> dict[str, Any]:
         """Capture a JSON-serializable snapshot of an active entity."""
         components = self._registry.get_entity_components(
