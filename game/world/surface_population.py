@@ -46,6 +46,8 @@ from collections.abc import Callable
 from typing import Any, Final, Mapping
 
 from game.world.lod_hydration import ACTOR_ID_KEY, ActorStore
+from game.world.save_diff_journal import SaveDiffJournal
+from game.world.surface_identity import SurfaceIdentityLedger
 from game.world.surface_chunks import chunk_id, derive_chunk_seed
 from game.world.surface_context import (
     SurfaceContext,
@@ -361,6 +363,7 @@ class SurfacePopulationPlanner:
         content_version: int = 1,
         generation_version: int = 1,
         first_actor_id: int = 1,
+        identity_ledger: SurfaceIdentityLedger | None = None,
         placement_radius: int = DEFAULT_PLACEMENT_RADIUS,
         templates_by_profile: Mapping[
             SurfaceSpawnProfile, tuple[str, ...]
@@ -383,6 +386,9 @@ class SurfacePopulationPlanner:
         self._generation_version = int(generation_version)
         self._first_actor_id = int(first_actor_id)
         self._next_actor_id = int(first_actor_id)
+        self._ledger = identity_ledger or SurfaceIdentityLedger()
+        self._has_world_ledger = identity_ledger is not None
+        self._populated_chunks: set[str] = set()
         self._placement_radius = int(placement_radius)
         self._templates_by_profile = dict(templates_by_profile)
         self._min_per_anchor = int(min_per_anchor)
@@ -390,10 +396,12 @@ class SurfacePopulationPlanner:
 
     @property
     def next_actor_id(self) -> int:
-        """The next stable ID the planner will allocate."""
+        """Deprecated initial namespace hint; IDs now come from the ledger."""
         return self._next_actor_id
 
-    def populate_chunk(self, chunk: MaterializedChunk) -> list[int]:
+    def populate_chunk(
+        self, chunk: MaterializedChunk, journal: SaveDiffJournal | None = None
+    ) -> list[int]:
         """Populate ``chunk`` per its derived roster; return actor IDs.
 
         The roster derives from the chunk's SHA-256 seed (Phase 1
@@ -401,6 +409,19 @@ class SurfacePopulationPlanner:
         identically. Actors whose anchor has no valid, unoccupied tile
         within the placement radius are simply not placed.
         """
+        chunk_key = chunk_id(chunk.cx, chunk.cy, chunk.cz)
+        if journal is not None:
+            if journal.chunk_id != chunk_key:
+                raise ValueError("Population journal belongs to a different chunk")
+            if not self._has_world_ledger:
+                raise ValueError(
+                    "Persistent population requires an explicit world identity ledger"
+                )
+            if journal.population_initialized:
+                return []
+        elif chunk_key in self._populated_chunks:
+            return []
+
         if self._min_per_anchor < 0 or self._max_per_anchor < self._min_per_anchor:
             raise ValueError(
                 "Invalid anchor population bounds "
@@ -423,42 +444,52 @@ class SurfacePopulationPlanner:
         )
         placed: list[int] = []
         active_ids = set(self._store.active_actor_ids())
-        chunk_key = chunk_id(chunk.cx, chunk.cy, chunk.cz)
+        reserved = set(active_ids)
+        if journal is not None:
+            reserved.update(journal.population_births.values())
+            reserved.update(
+                int(actor_id) for actor_id in journal.entity_snapshots
+                if actor_id.isdecimal()
+            )
         for entry_index, entry in enumerate(roster):
             template = TEMPLATE_LIBRARY[entry.template_id]
             for ordinal in range(entry.count):
+                birth_key = self._birth_key(chunk_key, entry_index, ordinal)
                 tile = self._find_spawn_tile(entry.anchor, template)
                 if tile is None:
                     continue
-                actor_id = self._derived_actor_id(chunk_key, entry_index, ordinal)
+                actor_id = self._ledger.reserve(
+                    birth_key, occupied_ids=reserved
+                )
                 if actor_id in active_ids:
                     active = self._store.snapshot_actor(actor_id)
-                    if active.get("chunk_id") != chunk_key:
+                    if active.get("birth_key") != birth_key:
                         raise ValueError(
-                            f"Generated actor ID collision: {actor_id} for {chunk_key}"
+                            f"Conflicting generated actor ID {actor_id}"
                         )
                     continue
                 snapshot = _build_snapshot(
                     template, actor_id, tile[0], tile[1], chunk_key,
-                    entry.anchor,
+                    entry.anchor, birth_key,
                 )
                 self._store.spawn_actor(snapshot)
                 active_ids.add(actor_id)
+                reserved.add(actor_id)
+                if journal is not None:
+                    journal.record_population_birth(birth_key, actor_id)
                 placed.append(actor_id)
+        if journal is not None:
+            journal.mark_population_initialized()
+        self._populated_chunks.add(chunk_key)
         return placed
 
-    def _derived_actor_id(self, chunk_key: str, entry: int, ordinal: int) -> int:
-        """Stable UInt32 birth ID independent of chunk visitation order.
-
-        Generated IDs use the upper half of the registry ID space; the
-        configured first_actor_id acts as a namespace seed, not a counter.
-        """
-        digest = hashlib.sha256(
-            f"surface-id:{self._world_seed}:{self._content_version}:"
+    def _birth_key(self, chunk_key: str, entry: int, ordinal: int) -> str:
+        """Canonical identity that survives surrogate-ID hash collisions."""
+        return (
+            f"{self._world_seed}:{self._content_version}:"
             f"{self._generation_version}:{self._first_actor_id}:"
-            f"{chunk_key}:{entry}:{ordinal}".encode("utf-8")
-        ).digest()
-        return 0x80000000 | (int.from_bytes(digest[:4], "big") & 0x7FFFFFFF)
+            f"{chunk_key}:{entry}:{ordinal}"
+        )
 
     def _find_spawn_tile(
         self, anchor: SurfaceSpawnAnchor, template: ActorTemplate
@@ -494,10 +525,12 @@ def _build_snapshot(
     y: int,
     chunk_key: str,
     anchor: SurfaceSpawnAnchor,
+    birth_key: str,
 ) -> dict[str, Any]:
     """Build the JSON-serializable snapshot for a placed actor."""
     return {
         ACTOR_ID_KEY: int(actor_id),
+        "birth_key": birth_key,
         "template_id": template.template_id,
         "name": template.name,
         "glyph": int(template.glyph),
