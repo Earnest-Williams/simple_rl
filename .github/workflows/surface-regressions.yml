@@ -16,6 +16,8 @@ jobs:
   surface-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,6 +31,7 @@ jobs:
           python -m pytest -q
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
+          tests/test_surface_performance_contracts.py
           tests/test_lod_hydration.py
           tests/test_surface_context.py
           tests/test_surface_materializer.py
@@ -36,7 +39,7 @@ jobs:
           tests/test_surface_population.py
       - name: Run remaining test suite (known broken window test excluded)
         if: always()
-        run: python -m pytest -q --ignore=tests/engine/test_window_manager_height_toggle.py --ignore=tests/tools/test_lighting_fov_tool_markers.py
+        run: python -m pytest -q --ignore=tests/engine/test_window_manager_height_toggle.py
       - name: Check Black formatting in changed surface files
         if: always()
         run: >
@@ -48,6 +51,7 @@ jobs:
           game/world/surface_identity.py
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
+          tests/test_surface_performance_contracts.py
       - name: Ruff lint changed surface files
         if: always()
         run: >
@@ -59,6 +63,18 @@ jobs:
           game/world/surface_identity.py
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
+          tests/test_surface_performance_contracts.py
+      - name: Strict mypy gate for modified surface modules
+        if: always()
+        run: >
+          python -m mypy --strict --follow-imports=silent
+          game/world/lod_hydration.py
+          game/world/registry_actor_store.py
+          game/world/save_diff_journal.py
+          game/world/surface_context.py
+          game/world/surface_identity.py
+          game/world/surface_materializer.py
+          game/world/surface_population.py
       - name: Type-check repository (legacy baseline reported separately)
         if: always()
         continue-on-error: true
