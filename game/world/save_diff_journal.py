@@ -537,10 +537,14 @@ class SaveDiffJournal:
                     tile = TILE_TYPES.get(int(tile_type_id))
                     if tile is not None:
                         if tile.walkable:
+                            was_blocked = metadata.traversal_class_grid[ly, lx] == int(
+                                TraversalClass.BLOCKED
+                            )
                             metadata.traversal_class_grid[ly, lx] = int(
                                 TraversalClass.NORMAL
                             )
-                            metadata.material_grid[ly, lx] = int(Material.DOOR_OPEN)
+                            if was_blocked:
+                                metadata.material_grid[ly, lx] = int(Material.DOOR_OPEN)
                             metadata.movement_cost_grid[ly, lx] = 1.0
                         else:
                             metadata.traversal_class_grid[ly, lx] = int(
