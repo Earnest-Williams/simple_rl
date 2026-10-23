@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from common.constants import Material
+from game.entities.components import Position
 from game.entities.registry import EntityRegistry
 from game.world.game_map import TILE_ID_FLOOR, TILE_ID_WALL, GameMap
 from game.world.lod_hydration import ChunkHydrationManager
@@ -18,6 +19,12 @@ from game.world.surface_materializer import (
 )
 from game.world.surface_population import run_surface_turn
 from worldgen.overland.actor_traversal import ActorTraversalProfile
+
+
+def _position(registry: EntityRegistry, actor_id: int) -> Position:
+    position = registry.get_position(actor_id)
+    assert position is not None
+    return position
 
 
 def test_production_registry_reuses_slots_across_dehydration() -> None:
@@ -67,7 +74,7 @@ def test_surface_turn_does_not_move_unrelated_player() -> None:
                             SurfaceContext(game_map), 1) == {
         "moved": 0, "waited": 0, "blocked": 0,
     }
-    assert registry.get_position(player).x == 2
+    assert _position(registry, player).x == 2
 
 
 def test_nonzero_viewport_and_wall_gate_walkability() -> None:
@@ -114,7 +121,9 @@ def test_hydration_relocation_respects_chunk_and_terrain() -> None:
         can_occupy=lambda x, y: (x, y) == (1, 1),
     )
     assert manager.hydrate_chunk_entities(journal, 0, 0) == [500]
-    assert (store.actor(500)["x"], store.actor(500)["y"]) == (1, 1)
+    restored = store.actor(500)
+    assert restored is not None
+    assert (restored["x"], restored["y"]) == (1, 1)
 
 def test_journal_updates_material_traversal_with_wall_geometry() -> None:
     from game.world.surface_materializer import ensure_surface_metadata
@@ -147,10 +156,10 @@ def test_production_adapter_world_origin_preserves_global_snapshot() -> None:
         "color_fg_b": 6, "blocks_movement": True, "hp": 5,
         "max_hp": 5, "behavior": "seek_water",
     })
-    assert registry.get_position(99).x == 4
-    assert registry.get_position(99).y == 3
+    assert _position(registry, 99).x == 4
+    assert _position(registry, 99).y == 3
     assert store.snapshot_actor(99)["x"] == -12
     assert store.snapshot_actor(99)["y"] == 35
     assert store.move_actor(99, -11, 36)
-    assert registry.get_position(99).x == 5
+    assert _position(registry, 99).x == 5
     assert store.snapshot_actor(99)["y"] == 36
