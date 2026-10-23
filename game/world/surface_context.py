@@ -268,7 +268,12 @@ class SurfaceContext:
     either. Coordinates are character-scale ``(x, y)`` tile coordinates.
     """
 
-    def __init__(self, game_map: GameMap) -> None:
+    def __init__(
+        self, game_map: GameMap, *, viewport_origin_x: int = 0,
+        viewport_origin_y: int = 0,
+    ) -> None:
+        self._origin_x = int(viewport_origin_x)
+        self._origin_y = int(viewport_origin_y)
         self._game_map = game_map
         metadata: Any = game_map.overland_metadata
         self._metadata: Any = metadata
@@ -276,6 +281,15 @@ class SurfaceContext:
     @property
     def game_map(self) -> GameMap:
         return self._game_map
+
+    def in_bounds(self, x: int, y: int) -> bool:
+        height, width = self._game_map.tiles.shape
+        lx, ly = x - self._origin_x, y - self._origin_y
+        return 0 <= lx < int(width) and 0 <= ly < int(height)
+
+    def _local(self, x: int, y: int) -> tuple[int, int]:
+        self._require_in_bounds(x, y)
+        return x - self._origin_x, y - self._origin_y
 
     @property
     def has_overland_metadata(self) -> bool:
@@ -289,15 +303,17 @@ class SurfaceContext:
         honors traversal classes, wetness, and route segment state.
         Without metadata it falls back to base ``GameMap`` walkability.
         """
-        self._require_in_bounds(x, y)
+        lx, ly = self._local(x, y)
+        tile = TILE_TYPES.get(int(self._game_map.tiles[ly, lx]))
+        if tile is None or not tile.walkable:
+            return False
         if self._metadata is None:
-            tile = TILE_TYPES.get(int(self._game_map.tiles[y, x]))
-            return bool(tile.walkable) if tile is not None else False
+            return True
         tile_row: dict[str, object] = {
-            "traversal_class": int(self._metadata.traversal_class_grid[y, x]),
-            "material": int(self._metadata.material_grid[y, x]),
-            "wetness": int(self._metadata.wetness_grid[y, x]),
-            "movement_cost": float(self._metadata.movement_cost_grid[y, x]),
+            "traversal_class": int(self._metadata.traversal_class_grid[ly, lx]),
+            "material": int(self._metadata.material_grid[ly, lx]),
+            "wetness": int(self._metadata.wetness_grid[ly, lx]),
+            "movement_cost": float(self._metadata.movement_cost_grid[ly, lx]),
         }
         return bool(
             can_actor_enter(
@@ -333,11 +349,11 @@ class SurfaceContext:
 
     def has_shelter(self, x: int, y: int) -> bool:
         """Return whether the tile is covered by roofs or enclosures."""
-        self._require_in_bounds(x, y)
+        lx, ly = self._local(x, y)
         material = self._material_at(x, y)
         if material is not None and material in SHELTER_MATERIALS:
             return True
-        return bool(int(self._game_map.ceiling_map[y, x]) > 0)
+        return bool(int(self._game_map.ceiling_map[ly, lx]) > 0)
 
     def can_track(self, x: int, y: int) -> bool:
         """Return whether the tile retains footprint impressions."""
@@ -403,7 +419,8 @@ class SurfaceContext:
         grid = self._metadata.material_grid
         if grid is None:
             return None
-        return Material(int(grid[y, x]))
+        lx, ly = self._local(x, y)
+        return Material(int(grid[ly, lx]))
 
     def _hydro_role_at(self, x: int, y: int) -> HydroRole | None:
         if self._metadata is None:
@@ -411,7 +428,8 @@ class SurfaceContext:
         grid = self._metadata.hydro_grid
         if grid is None:
             return None
-        return HydroRole(int(grid[y, x]))
+        lx, ly = self._local(x, y)
+        return HydroRole(int(grid[ly, lx]))
 
     def _affordances_at(self, x: int, y: int) -> list[dict[str, Any]]:
         self._require_in_bounds(x, y)
@@ -422,7 +440,7 @@ class SurfaceContext:
 
     def _require_in_bounds(self, x: int, y: int) -> None:
         height, width = self._game_map.tiles.shape
-        if not 0 <= int(x) < int(width) or not 0 <= int(y) < int(height):
+        if not self.in_bounds(x, y):
             raise IndexError(
                 f"Surface coordinates out of bounds: ({x}, {y}) "
                 f"for map {int(width)}x{int(height)}"
