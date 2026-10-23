@@ -1,0 +1,35 @@
+name: Surface production regressions
+
+on:
+  pull_request:
+    paths:
+      - 'game/entities/**'
+      - 'game/world/**'
+      - 'worldgen/overland/**'
+      - 'tests/test_surface_*.py'
+      - 'tests/test_lod_hydration.py'
+      - 'pyproject.toml'
+      - '.github/workflows/surface-regressions.yml'
+  workflow_dispatch:
+
+jobs:
+  surface-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install package and test requirements
+        run: python -m pip install -e '.[dev]'
+      - name: Run surface integration regressions
+        run: >
+          python -m pytest -q
+          tests/test_surface_production_regressions.py
+          tests/test_lod_hydration.py
+          tests/test_surface_context.py
+          tests/test_surface_materializer.py
+          tests/test_save_diff_journal.py
+          tests/test_surface_population.py
