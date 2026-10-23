@@ -71,7 +71,9 @@ class SurfaceIdentityLedger:
         if existing_id is not None or existing_birth is not None:
             if existing_id == actor_id and existing_birth == birth_key:
                 return  # Replay after checkpoint replacement, before log trim.
-            raise ValueError("Duplicate or conflicting surface birth identity or numerical ID")
+            raise ValueError(
+                "Duplicate or conflicting surface birth identity or numerical ID"
+            )
         self._by_birth[birth_key] = actor_id
         self._by_id[actor_id] = birth_key
 
@@ -236,9 +238,7 @@ class SurfaceIdentityLedger:
         return cast(dict[str, int], raw)
 
     @classmethod
-    def load_or_create(
-        cls, directory: str | os.PathLike[str]
-    ) -> SurfaceIdentityLedger:
+    def load_or_create(cls, directory: str | os.PathLike[str]) -> SurfaceIdentityLedger:
         """Read legacy checkpoint plus all complete append batches.
 
         An unterminated final log record represents a crashed append. It
@@ -281,9 +281,7 @@ class SurfaceIdentityLedger:
                 os.fsync(handle.fileno())
         return ledger
 
-    def compact(
-        self, directory: str | os.PathLike[str] | None = None
-    ) -> Path:
+    def compact(self, directory: str | os.PathLike[str] | None = None) -> Path:
         """Checkpoint all identities and truncate replay log off the hot path.
 
         Ordering is essential. After the checkpoint is fsynced and renamed,

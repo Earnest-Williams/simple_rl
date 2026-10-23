@@ -43,7 +43,9 @@ def test_legacy_json_checkpoint_migrates_without_rewriting_per_chunk() -> None:
         # checkpoint; removing the replay log never loses the older ones.
         loaded.compact()
         assert log.read_bytes() == b""
-        assert orjson.loads(checkpoint.read_bytes())["assignments"]["legacy"] == 0x80000001
+        assert (
+            orjson.loads(checkpoint.read_bytes())["assignments"]["legacy"] == 0x80000001
+        )
         again = SurfaceIdentityLedger.load_or_create(directory)
         assert again.to_dict() == loaded.to_dict()
 
@@ -53,9 +55,7 @@ def test_append_cost_independent_of_checkpoint_actor_count() -> None:
         root = Path(directory)
         old = {
             "version": 1,
-            "assignments": {
-                f"actor-{idx}": 0x80000000 + idx for idx in range(10_000)
-            },
+            "assignments": {f"actor-{idx}": 0x80000000 + idx for idx in range(10_000)},
         }
         checkpoint = root / LEDGER_FILENAME
         checkpoint.write_bytes(orjson.dumps(old))
@@ -122,7 +122,10 @@ def test_compaction_crash_window_replays_duplicate_batches() -> None:
 
         recovered.compact()
         assert log.stat().st_size == 0
-        assert SurfaceIdentityLedger.load_or_create(directory).to_dict() == recovered.to_dict()
+        assert (
+            SurfaceIdentityLedger.load_or_create(directory).to_dict()
+            == recovered.to_dict()
+        )
 
 
 def test_successful_append_followed_by_reported_failure_is_safe(
