@@ -147,6 +147,23 @@ def test_complete_actor_components_and_skill_rows_survive() -> None:
     assert registry.skills_df.to_dicts() == [skill_row]
 
 
+def test_unsupported_component_stays_active_instead_of_being_lost() -> None:
+    registry = EntityRegistry()
+    store = EntityRegistryActorStore(registry)
+    actor_id = 0x80000003
+    store.spawn_actor(_minimal_actor(actor_id, 4, 4))
+    registry.set_entity_component(actor_id, "community_profile", object())
+    game_map = GameMap(width=16, height=16)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    manager = ChunkHydrationManager(
+        store, context=SurfaceContext(game_map), chunk_size=16
+    )
+    journal = SaveDiffJournal(0, 0)
+    assert manager.dehydrate_chunk_entities(journal, 0, 0) == []
+    assert registry._store.has_active(actor_id)
+    assert not journal.entity_snapshots
+
+
 def test_world_ledger_collision_probe_persists_reserved_id() -> None:
     class CollidingLedger(SurfaceIdentityLedger):
         @staticmethod
