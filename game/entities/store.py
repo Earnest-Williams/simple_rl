@@ -522,6 +522,16 @@ class EntityStore:
         self.dirty_polars_snapshot = True
         return True, dest_x, dest_y
 
+    def active_ids_in_rect(
+        self, x0: int, y0: int, x1: int, y1: int
+    ) -> list[int]:
+        """Select active IDs by position before any expensive snapshots."""
+        active = self.is_active[: self.count]
+        x = self.x[: self.count]
+        y = self.y[: self.count]
+        mask = active & (x >= x0) & (x < x1) & (y >= y0) & (y < y1)
+        return self.entity_id[: self.count][mask].tolist()
+
     def active_indices(self) -> np.ndarray:
         return np.where(self.is_active[: self.count])[0]
 
