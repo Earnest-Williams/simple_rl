@@ -201,7 +201,7 @@ class EntityRegistry:
     def _get_next_id(self: Self) -> int:
         current_id = self._next_entity_id
         self._next_entity_id += 1
-        if self._next_entity_id > 2**32 - 1:
+        if self._next_entity_id >= 0x80000000:
             log.critical("Entity ID counter overflowed", next_id=self._next_entity_id)
             raise OverflowError("Entity ID counter overflowed (UInt32 limit reached).")
         return current_id
@@ -257,7 +257,9 @@ class EntityRegistry:
                 raise ValueError(
                     f"Entity ID {new_id} already exists in the registry"
                 )
-            if new_id >= self._next_entity_id:
+            # High-bit IDs are reserved for deterministic surface actors.
+            # They must not advance the ordinary sequential ID allocator.
+            if new_id < 0x80000000 and new_id >= self._next_entity_id:
                 self._next_entity_id = new_id + 1
         log_context = {"name": name, "pos": (x, y), "glyph": glyph, "hp": hp}
         log.debug("Attempting to create entity", **log_context)
