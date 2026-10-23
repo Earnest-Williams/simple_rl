@@ -14,20 +14,45 @@ An actor has three separate identifiers:
 - **EntityStore array index**: transient, reusable when the actor leaves
   active ECS storage.
 
-World save directories must retain `surface_actor_ids.json` together
-with their chunk journals. Do not create a new ledger on every chunk load:
-that would discard reservations held by dehydrated actors.
+World save directories must retain **both** the compact checkpoint
+`surface_actor_ids.json` and its append-only batch log
+`surface_actor_ids.log`, alongside all chunk journals. Worlds saved by
+older versions with only the JSON checkpoint continue to load without
+migration steps: newly reserved IDs are appended to the log and older
+checkpoint bytes remain intact until explicit compaction. Do not create a
+new ledger on every chunk load; that would discard reservations held by
+dehydrated actors.
 
 The default hash can collide in the 31-bit surface namespace. The ledger
 probes a second salted candidate and checks all other world reservations.
 The planner stages the placements and reserves all IDs with one
-`reserve_many(...)` transaction, flushing the ledger **once per chunk**
-and *before* spawning any of its newly reserved actors. Numeric
+`reserve_many(...)` transaction, appending **one checksummed log record
+per populated chunk** and fsyncing that record *before* spawning actors.
+The number of previous actors does not affect the amount of ledger data
+written during a new chunk's reservation. Numeric
 surrogates remain stable in a saved world. **If two colliding birth keys
 are first discovered in different orders in two brand-new worlds, their
 surrogate IDs may differ**. The canonical birth keys remain the same.
 Strictly order-independent surrogate allocation under collisions requires
 a wider identity representation or a globally preallocated manifest.
+
+### Append recovery and checkpoint compaction
+
+Every append-only record is an orjson-encoded, newline-terminated batch with
+a SHA-256 checksum. At load time, the ledger reads the JSON checkpoint,
+replays every complete validated log record, and recognizes identical
+assignments replayed twice. A final truncated record (interrupted append) is
+discarded and truncated before new appends; a **complete** corrupt record or
+a conflicting numeric assignment fails closed instead of overwriting history.
+An I/O error during append prevents the current in-memory ledger from
+reserving more IDs until it has been reloaded.
+
+Call `ledger.compact()` at a **save checkpoint outside the gameplay
+loop**, e.g. after a group of loaded chunks has been unloaded, rather than on
+every chunk population. Compaction fsyncs and atomically replaces the complete
+JSON checkpoint **before** truncating the replay log; a crash between the
+two actions safely replays duplicate records. It is an explicit maintenance
+operation, not a source of frame-time spikes.
 
 ## First visit / revisit
 
@@ -114,10 +139,18 @@ The PR's surface suite includes real-registry high-bit occupancy,
 multichunk load/dehydrate/reload, player exclusion, negative/translated
 viewports, skill-row recovery, spring ownership and lossless tile replay.
 
-The dedicated workflow also runs the remaining repository tests (excluding the
-independently broken window-manager height-toggle test), with Qt forced into
-offscreen mode so the FOV tool test can be collected. Black and Ruff gate the
-modified files. Strict mypy gates the changed surface modules (excluding the
-legacy-debt-heavy `EntityStore`); repository-wide mypy is separately reported
-as informational. Do not merge a branch with new formatting, lint or
-surface type-checking regressions.
+The dedicated workflow runs the broader repository suite (excluding the
+independently broken window-manager height-toggle test), with Qt configured
+offscreen and EGL libraries installed. Ruff gates modified Python files.
+Black gates all new/formatted files and checks **changed line ranges only**
+in legacy `registry.py`, `store.py`, and `surface_materializer.py`, so
+pre-existing formatting outside the patch does not inflate its diff.
+Strict mypy gates the changed surface modules **and**
+`game/entities/registry.py`; the old mypy error-suppression exemption for
+that registry module has been removed. The separate repository-wide mypy
+audit remains informational due to unrelated legacy errors.
+
+The ledger and chunk journal both use `orjson` for deterministic JSON
+encoding and decoding. Their existing `.json` on-disk formats remain
+readable (the append-only identity log is additional), and the journal's
+`to_json()` method still returns text for callers that need that API.
