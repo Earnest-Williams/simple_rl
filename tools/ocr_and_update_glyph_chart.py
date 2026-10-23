@@ -2,7 +2,7 @@
 # tools/ocr_and_update_glyph_chart.py
 """
 Rasterize SVG glyphs, OCR keyboard/ANSI block 112..179, template-match as fallback,
-and update fonts/glyph_name_chart.md replacing low-confidence keyboard rows.
+and update fonts/Glyph Name Chart.md replacing low-confidence keyboard rows.
 
 Usage:
     python tools/ocr_and_update_glyph_chart.py
@@ -37,7 +37,7 @@ FONTS_DIR: Path = REPO_ROOT / "fonts"
 SVG_DIR: Path = FONTS_DIR / "classic_roguelike_sliced_svgs"
 PNG_DIR: Path = FONTS_DIR / "classic_roguelike_sliced"
 PREVIEW_COLOR: Path = FONTS_DIR / "classic_roguelike_preview.png"
-GLYPH_CHART: Path = FONTS_DIR / "glyph_name_chart.md"
+GLYPH_CHART: Path = FONTS_DIR / "Glyph Name Chart.md"
 
 # Keyboard block to OCR (inclusive start, exclusive end)
 KBD_RANGE = range(112, 180)
@@ -82,7 +82,7 @@ def rasterize_svg(svg_path: Path, size: int = RENDER_SIZE) -> Image.Image:
         img = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         return img
     except Exception as exc:
-        raise RuntimeError(f"Failed to rasterize SVG {svg_path}: {exc}")
+        raise RuntimeError(f"Failed to rasterize SVG {svg_path}: {exc}") from exc
 
 
 def ocr_single_char(img: Image.Image) -> tuple[str | None, float]:
@@ -265,7 +265,7 @@ class ChartRow:
 
 def read_chart(md_path: Path) -> tuple[list[str], dict[str, ChartRow]]:
     """
-    Read an existing glyph_name_chart.md into:
+    Read an existing glyph chart (fonts/Glyph Name Chart.md) into:
       - header lines (list of leading markdown lines)
       - rows mapping keyed by png filename (e.g., 'classic_roguelike_01.png')
     """
@@ -408,7 +408,7 @@ def update_keyboard_block(header: list[str], rows: dict[str, ChartRow]) -> None:
 def main() -> None:
     if not GLYPH_CHART.exists():
         raise RuntimeError(
-            "glyph_name_chart.md not found; run initial pass first and place the file in fonts/"
+            "fonts/Glyph Name Chart.md not found; run initial pass first and place the file in fonts/"
         )
     header, rows = read_chart(GLYPH_CHART)
 

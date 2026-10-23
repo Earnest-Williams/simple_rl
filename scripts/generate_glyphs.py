@@ -13,6 +13,7 @@ import yaml
 from scripts.glyph_utils import resolve_repo_root
 
 # Parsing tokens
+GLYPH_CHART_NAME: Final[str] = "Glyph Name Chart.md"  # authored chart in fonts/
 AMBIGUITY_TOKENS: Final[tuple[str, ...]] = (
     "best-effort",
     "unclear",
@@ -68,7 +69,7 @@ def main(
 ) -> int:
     repo_root: Path = resolve_repo_root()
     chart_path = (
-        Path(chart_path) if chart_path else repo_root / "fonts" / "glyph_name_chart.md"
+        Path(chart_path) if chart_path else repo_root / "fonts" / GLYPH_CHART_NAME
     )
     png_dir = (
         Path(png_dir) if png_dir else repo_root / "fonts" / "classic_roguelike_sliced"
@@ -93,7 +94,7 @@ def main(
     lines: list[str] = chart_path.read_text(encoding="utf-8").splitlines()
     start_index: int | None = find_table_header(lines)
     if start_index is None:
-        raise ValueError("Glyph table header not found in glyph_name_chart.md")
+        raise ValueError(f"Glyph table header not found in {chart_path}")
 
     rows: list[GlyphRow] = []
     skipped_rows: list[str] = []
@@ -465,12 +466,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Generate fonts/glyphs.yaml and fonts/glyphs_report.txt from "
-            "glyph_name_chart.md"
+            "fonts/Glyph Name Chart.md"
         )
     )
     parser.add_argument(
         "--chart",
-        help="Path to glyph_name_chart.md (defaults to repo fonts)",
+        help="Path to the glyph chart (defaults to fonts/Glyph Name Chart.md)",
         default=None,
     )
     parser.add_argument("--png-dir", help="PNG directory", default=None)
