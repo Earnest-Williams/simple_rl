@@ -595,8 +595,14 @@ class EntityRegistry:
         return success
 
     def release_entity(self: Self, entity_id: int) -> bool:
-        """Release an actor from active storage for journal-backed hydration."""
-        return self._store.release_entity(entity_id)
+        """Release ECS and skill storage after the actor is journaled."""
+        if not self._store.release_entity(entity_id):
+            return False
+        with self._skills_lock:
+            self.skills_df = self.skills_df.filter(
+                pl.col("entity_id") != entity_id
+            )
+        return True
 
     def compact_registry(self: Self) -> None:
         log.info("Compacting entity registry...")
