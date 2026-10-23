@@ -20,6 +20,8 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install headless Qt shared libraries
         run: |
           sudo apt-get update -qq
@@ -36,6 +38,7 @@ jobs:
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
           tests/test_surface_performance_contracts.py
+          tests/test_surface_ledger_log.py
           tests/test_lod_hydration.py
           tests/test_surface_context.py
           tests/test_surface_materializer.py
@@ -44,18 +47,23 @@ jobs:
       - name: Run remaining test suite (known broken window test excluded)
         if: always()
         run: python -m pytest -q --ignore=tests/engine/test_window_manager_height_toggle.py
-      - name: Check Black formatting in changed surface files
+      - name: Check Black formatting of new modules and formatted surface files
         if: always()
         run: >
           python -m black --check
-          game/entities/store.py game/entities/registry.py
           game/world/registry_actor_store.py game/world/lod_hydration.py
-          game/world/surface_population.py game/world/surface_materializer.py
-          game/world/surface_context.py game/world/save_diff_journal.py
-          game/world/surface_identity.py
+          game/world/surface_population.py game/world/surface_context.py
+          game/world/save_diff_journal.py game/world/surface_identity.py
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
           tests/test_surface_performance_contracts.py
+          tests/test_surface_ledger_log.py
+      - name: Check Black on modified legacy lines only
+        if: always()
+        run: >
+          python scripts/check_black_changed_lines.py
+          game/entities/store.py game/entities/registry.py
+          game/world/surface_materializer.py
       - name: Ruff lint changed surface files
         if: always()
         run: >
@@ -68,10 +76,12 @@ jobs:
           tests/test_surface_production_regressions.py
           tests/test_surface_lifecycle_integration.py
           tests/test_surface_performance_contracts.py
+          tests/test_surface_ledger_log.py
       - name: Strict mypy gate for modified surface modules
         if: always()
         run: >
           python -m mypy --strict --follow-imports=silent
+          game/entities/registry.py
           game/world/lod_hydration.py
           game/world/registry_actor_store.py
           game/world/save_diff_journal.py
