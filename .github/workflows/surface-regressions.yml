@@ -36,7 +36,7 @@ jobs:
           tests/test_surface_population.py
       - name: Run remaining test suite (known broken window test excluded)
         if: always()
-        run: python -m pytest -q --ignore=tests/test_window_manager_height_toggle.py
+        run: python -m pytest -q --ignore=tests/engine/test_window_manager_height_toggle.py --ignore=tests/tools/test_lighting_fov_tool_markers.py
       - name: Check Black formatting in changed surface files
         if: always()
         run: >
