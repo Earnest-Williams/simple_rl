@@ -42,7 +42,7 @@ import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import IntEnum, auto
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, cast
 
 import numpy as np
 
@@ -1118,7 +1118,7 @@ def ensure_surface_metadata(game_map: GameMap) -> OverlandMapMetadata:
     """
     metadata = game_map.overland_metadata
     if metadata is not None:
-        return metadata
+        return cast(OverlandMapMetadata, metadata)
     height, width = game_map.tiles.shape
     metadata = OverlandMapMetadata(
         material_grid=np.full((height, width), int(Material.GRASS), dtype=np.int16),
