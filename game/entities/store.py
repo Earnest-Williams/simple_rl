@@ -58,6 +58,9 @@ class EntityStore:
         self.count = 0
         self.dirty_polars_snapshot = True
         self.entity_id_to_index: dict[int, int] = {}
+        # Vacated slots are reusable; count is the high-water mark, not the
+        # number of currently live entities.
+        self._free_indices: list[int] = []
 
         # Numeric hot fields in NumPy arrays
         self.entity_id = np.zeros(capacity, dtype=np.uint32)
@@ -152,9 +155,14 @@ class EntityStore:
         status_effects: list | None = None,
         **extra,
     ) -> int:
-        idx = self.count
-        self._ensure_capacity(idx + 1)
-        self.count += 1
+        if entity_id in self.entity_id_to_index:
+            raise ValueError(f"Entity ID {entity_id} is already allocated")
+        if self._free_indices:
+            idx = self._free_indices.pop()
+        else:
+            idx = self.count
+            self._ensure_capacity(idx + 1)
+            self.count += 1
 
         self.entity_id[idx] = entity_id
         self.is_active[idx] = True
@@ -413,6 +421,27 @@ class EntityStore:
 
         self.is_active[idx] = False
         self.dirty_polars_snapshot = True
+        return True
+
+    def release_entity(self, entity_id: int) -> bool:
+        """Release an active entity and its slot without releasing its world ID.
+
+        The caller must preserve the snapshot/identity externally (for example
+        in a chunk journal) before release. Unlike ``delete_entity``, release
+        removes the index mapping so hydration can restore the same ID into
+        any available slot. Vacated object fields are cleared to avoid holding
+        stale references for the lifetime of the process.
+        """
+        if not self.delete_entity(entity_id):
+            return False
+        idx = self.entity_id_to_index.pop(entity_id)
+        for name in NUMERIC_FIELDS:
+            getattr(self, name)[idx] = 0
+        for name in ("name", "ai_type", "species", "faction", "strategy_state"):
+            getattr(self, name)[idx] = None
+        self.status_effects[idx] = []
+        self.extra_components[idx] = {}
+        self._free_indices.append(idx)
         return True
 
     def ensure_occupancy_shape(self, width: int, height: int) -> None:
@@ -765,6 +794,7 @@ class EntityStore:
         self.extra_components = new_extra_components
 
         self.count = new_count
+        self._free_indices.clear()
         self.entity_id_to_index = {int(new_entity_id[i]): i for i in range(new_count)}
         self.dirty_polars_snapshot = True
 
@@ -871,8 +901,15 @@ class EntityStore:
                 extra_dict[col] = row[col]
             store.extra_components[idx] = extra_dict
 
-            entity_id = int(row["entity_id"])
-            store.entity_id_to_index[entity_id] = idx
+            # Persisted inactive rows are available for reuse, including
+            # tombstones from older saves. Never remap their former IDs.
+            if bool(store.is_active[idx]):
+                entity_id = int(row["entity_id"])
+                if entity_id in store.entity_id_to_index:
+                    raise ValueError(f"Duplicate active entity ID {entity_id}")
+                store.entity_id_to_index[entity_id] = idx
+            else:
+                store._free_indices.append(idx)
 
         store.dirty_polars_snapshot = False
         return store
