@@ -98,7 +98,7 @@ def test_registry_hydration_requires_terrain_and_excludes_player() -> None:
     manager = ChunkHydrationManager(store, context=context, chunk_size=16)
     journal = SaveDiffJournal(0, 0)
     assert manager.dehydrate_chunk_entities(journal, 0, 0) == [0x80000001]
-    assert registry.get_position(player_id).x == 1
+    assert _position(registry, player_id).x == 1
     assert not journal.has_entity_snapshot(str(player_id))
     # All nearby free terrain except (9, 9) becomes forbidden.
     for yy in range(16):
