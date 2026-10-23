@@ -256,11 +256,14 @@ class SaveDiffJournal:
         movement_cost: float | None = None,
         wetness: int | None = None,
         hydro: int | None = None,
+        clear_semantics: bool = False,
     ) -> None:
         """Record a physical tile change at global ``(x, y)``.
 
         ``tile_type_id`` is a ``GameMap`` tile id (e.g.
-        ``TILE_ID_FLOOR``). Later mutations of the same tile win.
+        ``TILE_ID_FLOOR``). Later explicit semantic values overwrite
+        earlier values; omitted values remain in force unless
+        ``clear_semantics=True`` resets all semantic overrides.
         """
         self._tile_mutations[(x, y)] = int(tile_type_id)
         # A plain geometry mutation does not rewrite the generated
@@ -276,10 +279,10 @@ class SaveDiffJournal:
         ):
             if value is not None:
                 overrides[key] = float(value) if key == "movement_cost" else int(value)
-        if overrides:
-            self._tile_metadata[(x, y)] = overrides
-        else:
+        if clear_semantics:
             self._tile_metadata.pop((x, y), None)
+        if overrides:
+            self._tile_metadata.setdefault((x, y), {}).update(overrides)
         self._append_event(
             {
                 "kind": "tile",
