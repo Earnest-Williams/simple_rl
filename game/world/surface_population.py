@@ -422,6 +422,7 @@ class SurfacePopulationPlanner:
             max_per_anchor=self._max_per_anchor,
         )
         placed: list[int] = []
+        active_ids = set(self._store.active_actor_ids())
         chunk_key = chunk_id(chunk.cx, chunk.cy, chunk.cz)
         for entry_index, entry in enumerate(roster):
             template = TEMPLATE_LIBRARY[entry.template_id]
@@ -430,13 +431,19 @@ class SurfacePopulationPlanner:
                 if tile is None:
                     continue
                 actor_id = self._derived_actor_id(chunk_key, entry_index, ordinal)
-                if actor_id in self._store.active_actor_ids():
+                if actor_id in active_ids:
+                    active = self._store.snapshot_actor(actor_id)
+                    if active.get("chunk_id") != chunk_key:
+                        raise ValueError(
+                            f"Generated actor ID collision: {actor_id} for {chunk_key}"
+                        )
                     continue
                 snapshot = _build_snapshot(
                     template, actor_id, tile[0], tile[1], chunk_key,
                     entry.anchor,
                 )
                 self._store.spawn_actor(snapshot)
+                active_ids.add(actor_id)
                 placed.append(actor_id)
         return placed
 
