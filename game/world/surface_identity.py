@@ -20,7 +20,7 @@ import os
 from collections.abc import Collection, Iterable
 from pathlib import Path
 from threading import RLock
-from typing import Final
+from typing import Final, cast
 
 import orjson
 
@@ -233,7 +233,7 @@ class SurfaceIdentityLedger:
             for key, value in raw.items()
         ):
             raise ValueError("Malformed identity log assignments")
-        return {str(key): int(value) for key, value in raw.items()}
+        return cast(dict[str, int], raw)
 
     @classmethod
     def load_or_create(
