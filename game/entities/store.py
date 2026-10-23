@@ -190,9 +190,13 @@ class EntityStore:
         self.entity_id_to_index[entity_id] = idx
 
         # Update occupancy if grid initialized
-        if self.blocking_entity_at.size and blocks_movement:
-            if 0 <= x < self.occupancy_width and 0 <= y < self.occupancy_height:
-                self.blocking_entity_at[y, x] = entity_id
+        if (
+            self.blocking_entity_at.size
+            and blocks_movement
+            and 0 <= x < self.occupancy_width
+            and 0 <= y < self.occupancy_height
+        ):
+            self.blocking_entity_at[y, x] = entity_id
 
         self.dirty_polars_snapshot = True
         return entity_id
@@ -396,9 +400,12 @@ class EntityStore:
         new_y = position.y
 
         if bool(self.blocks_movement[idx]):
-            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
-                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                    self.blocking_entity_at[old_y, old_x] = -1
+            if (
+                0 <= old_x < self.occupancy_width
+                and 0 <= old_y < self.occupancy_height
+                and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+            ):
+                self.blocking_entity_at[old_y, old_x] = -1
             if 0 <= new_x < self.occupancy_width and 0 <= new_y < self.occupancy_height:
                 self.blocking_entity_at[new_y, new_x] = entity_id
 
@@ -415,9 +422,12 @@ class EntityStore:
         if bool(self.blocks_movement[idx]):
             old_x = int(self.x[idx])
             old_y = int(self.y[idx])
-            if 0 <= old_x < self.occupancy_width and 0 <= old_y < self.occupancy_height:
-                if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                    self.blocking_entity_at[old_y, old_x] = -1
+            if (
+                0 <= old_x < self.occupancy_width
+                and 0 <= old_y < self.occupancy_height
+                and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+            ):
+                self.blocking_entity_at[old_y, old_x] = -1
 
         self.is_active[idx] = False
         self.dirty_polars_snapshot = True
@@ -501,9 +511,12 @@ class EntityStore:
                 return False, dest_x, dest_y
 
             if self.blocking_entity_at.shape == (height, width):
-                if 0 <= old_x < width and 0 <= old_y < height:
-                    if int(self.blocking_entity_at[old_y, old_x]) == entity_id:
-                        self.blocking_entity_at[old_y, old_x] = -1
+                if (
+                    0 <= old_x < width
+                    and 0 <= old_y < height
+                    and int(self.blocking_entity_at[old_y, old_x]) == entity_id
+                ):
+                    self.blocking_entity_at[old_y, old_x] = -1
                 self.blocking_entity_at[dest_y, dest_x] = entity_id
 
         self.x[idx] = dest_x
