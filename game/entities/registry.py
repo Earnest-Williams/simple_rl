@@ -95,6 +95,8 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
     "active_manuals": pl.Object,  # Dict[int, Dict] - Active skill manuals
     "shapeshifted_form": pl.Utf8,  # Current shapeshifted form (None = normal)
     "training_mode": pl.UInt8,  # TrainingMode value
+    # Surface actor state is persisted as one JSON-compatible component.
+    "surface_actor_state": pl.Object,
 }
 
 
@@ -346,6 +348,7 @@ class EntityRegistry:
                 active_manuals={},
                 shapeshifted_form=None,
                 training_mode=TrainingMode.MANUAL.value,
+                surface_actor_state=None,
             )
             log.info("Entity created successfully", entity_id=new_id, **log_context)
             return new_id
@@ -588,6 +591,10 @@ class EntityRegistry:
         else:
             log.debug("Entity already inactive or does not exist", **log_context)
         return success
+
+    def release_entity(self: Self, entity_id: int) -> bool:
+        """Release an actor from active storage for journal-backed hydration."""
+        return self._store.release_entity(entity_id)
 
     def compact_registry(self: Self) -> None:
         log.info("Compacting entity registry...")
