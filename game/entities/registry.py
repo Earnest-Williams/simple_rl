@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, get_args
 
 import numpy as np
 import polars as pl
@@ -24,7 +24,7 @@ from game.items.registry import BodySlotType
 log = structlog.get_logger()
 
 
-def _is_list_dtype(dtype: pl.DataType) -> bool:
+def _is_list_dtype(dtype: pl.DataType | type[pl.DataType]) -> bool:
     """
     Helper function to check if a Polars dtype represents a list type.
     More robust than isinstance checks against polars internals.
@@ -41,7 +41,7 @@ def _is_list_dtype(dtype: pl.DataType) -> bool:
 
 
 # ENTITY_SCHEMA
-ENTITY_SCHEMA: dict[str, pl.DataType] = {
+ENTITY_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "entity_id": pl.UInt32,
     "is_active": pl.Boolean,
     "x": pl.Int16,
@@ -101,6 +101,9 @@ ENTITY_SCHEMA: dict[str, pl.DataType] = {
 
 
 class EntityRegistry:
+    _store: EntityStore
+    _entities_df_cache: pl.DataFrame | None
+
     @property
     def entities_df(self) -> pl.DataFrame:
         if self._entities_df_cache is None or self._store.dirty_polars_snapshot:
@@ -161,6 +164,7 @@ class EntityRegistry:
         for col, dtype in ENTITY_SCHEMA.items():
             if col not in self.entities_df.columns:
                 # Determine default value based on dtype
+                default: object
                 if dtype in (pl.Float32, pl.Float64):
                     default = 0.0
                 elif dtype in (
@@ -191,9 +195,9 @@ class EntityRegistry:
                     default=default,
                 )
                 # Use repeat for better performance on large DataFrames
-                default_series = (
-                    pl.Series([default]).repeat(self.entities_df.height).cast(dtype)
-                )
+                default_series = pl.Series(
+                    [default] * self.entities_df.height
+                ).cast(dtype)
                 self.entities_df = self.entities_df.with_columns(
                     default_series.alias(col)
                 )
@@ -235,11 +239,11 @@ class EntityRegistry:
         max_fullness: float = 100.0,
         fuel: float = 0.0,
         max_fuel: float = 0.0,
-        status_effects: list | None = None,
+        status_effects: list[dict[str, Any]] | None = None,
         initial_body_plan: dict[str, int] | None = None,
         resistances: dict[str, float] | None = None,
         vulnerabilities: dict[str, float] | None = None,
-        drop_table: list[dict] | None = None,
+        drop_table: list[dict[str, Any]] | None = None,
         entity_id: int | None = None,
     ) -> int:
         if entity_id is None:
@@ -285,7 +289,7 @@ class EntityRegistry:
                 validated_initial = initial_body_plan
             else:
                 try:
-                    valid_keys = BodySlotType.__args__
+                    valid_keys = get_args(BodySlotType)
                     validated_initial = {
                         k: v for k, v in initial_body_plan.items() if k in valid_keys
                     }
