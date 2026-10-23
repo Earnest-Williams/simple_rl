@@ -102,7 +102,7 @@ def _encode_nonfinite(value: Any) -> Any:
         return {_FLOAT_MARKER: "inf" if value > 0 else "-inf"}
     if isinstance(value, dict):
         return {key: _encode_nonfinite(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_encode_nonfinite(item) for item in value]
     return value
 
