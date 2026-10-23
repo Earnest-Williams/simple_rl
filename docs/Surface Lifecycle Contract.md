@@ -19,8 +19,10 @@ with their chunk journals. Do not create a new ledger on every chunk load:
 that would discard reservations held by dehydrated actors.
 
 The default hash can collide in the 31-bit surface namespace. The ledger
-probes a second salted candidate, checks all other world reservations,
-and persists the resulting assignment *before* actor creation. Numeric
+probes a second salted candidate and checks all other world reservations.
+The planner stages the placements and reserves all IDs with one
+`reserve_many(...)` transaction, flushing the ledger **once per chunk**
+and *before* spawning any of its newly reserved actors. Numeric
 surrogates remain stable in a saved world. **If two colliding birth keys
 are first discovered in different orders in two brand-new worlds, their
 surrogate IDs may differ**. The canonical birth keys remain the same.
@@ -41,7 +43,9 @@ a wider identity representation or a globally preallocated manifest.
 5. On revisit, **do not repopulate**: the journal's
    `population_initialized` bit prevents duplicates. Hydrate the
    existing actor snapshots with `ChunkHydrationManager`.
-6. On permanent death, record the birth-key tombstone with
+6. The durable ledger batch commit must succeed before any generated actor
+   spawns; a disk-write error rolls back newly staged in-memory IDs.
+7. On permanent death, record the birth-key tombstone with
    `journal.mark_population_death(birth_key)` in the actor's birth
    journal and remove its active ECS entity. Deaths do not cause
    regenerated births.
@@ -64,11 +68,20 @@ profile. Only generated surface actors with a supported behavior and a
 template ID qualify for automatic dehydration. Player and unrelated
 entities cannot be evicted by this pathway.
 
+For dehydration, `active_actor_ids_in_rect(x0, y0, x1, y1)` selects
+candidate residents before taking snapshots. The production implementation
+uses the registry's NumPy position arrays and applies viewport-origin
+translation. Eviction locks and eligibility checks are evaluated before
+snapshot serialization; the cost of serializing detailed actor components
+therefore depends on the actors **inside** the departing chunk, not the
+entire active population.
+
 The adapter captures the serializable ECS components and the separate
 vectorized skill table. Object values without an explicit JSON serializer
-raise `TypeError` rather than silently degrading into strings. Add
-approved encoders/decoders before allowing new opaque actor state to
-dehydrate.
+raise `TypeError` rather than silently degrading into strings. Actors whose
+state cannot be serialized remain active and emit a warning recording their
+identity and chunk. Add approved encoders/decoders before allowing new opaque
+actor state to dehydrate.
 
 Reconstruct `SurfaceContext` and `EntityRegistryActorStore` when
 the viewport origin changes; both hold an origin fixed at construction.
@@ -84,7 +97,10 @@ or re-materialization.
 When an action truly changes surface semantics, callers supply
 `material=`, `traversal=`, `movement_cost=`, `wetness=` and/or
 `hydro=` as appropriate. The journal stores that explicit semantic
-overlay. For example, breaching a solid generated wall requires an
+overlay. Re-recording a tile without semantic keywords **preserves** existing
+overrides; supplying a keyword updates only that semantic field. Use
+`clear_semantics=True` to explicitly reset all prior overrides when restoring
+generated defaults. For example, breaching a solid generated wall requires an
 explicit walkable traversal override; merely changing its tile glyph
 does not magically establish a traversable passage.
 
@@ -98,7 +114,10 @@ The PR's surface suite includes real-registry high-bit occupancy,
 multichunk load/dehydrate/reload, player exclusion, negative/translated
 viewports, skill-row recovery, spring ownership and lossless tile replay.
 
-The dedicated workflow also runs the remaining repository tests
-(excluding the independently broken window-manager height-toggle test),
-Black, Ruff and an informational repository-wide mypy check. Do not merge
-a branch with new formatting, lint or type-checking regressions.
+The dedicated workflow also runs the remaining repository tests (excluding the
+independently broken window-manager height-toggle test), with Qt forced into
+offscreen mode so the FOV tool test can be collected. Black and Ruff gate the
+modified files. Strict mypy gates the changed surface modules (excluding the
+legacy-debt-heavy `EntityStore`); repository-wide mypy is separately reported
+as informational. Do not merge a branch with new formatting, lint or
+surface type-checking regressions.
