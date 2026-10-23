@@ -40,10 +40,10 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
-from game.world.game_map import GameMap
+from game.world.game_map import TILE_TYPES, GameMap
 from game.world.surface_chunks import CHUNK_ID_PREFIX, chunk_id
 
-JOURNAL_SCHEMA_VERSION: Final[int] = 1
+JOURNAL_SCHEMA_VERSION: Final[int] = 2
 """Current Save-Diff Journal schema version."""
 
 DEFAULT_COMPACTION_THRESHOLD: Final[int] = 500
@@ -59,7 +59,7 @@ TEMP_SUFFIX: Final[str] = ".tmp"
 """Suffix of the in-progress atomic write file."""
 
 _PHYSICAL_TABLE_KEYS: Final[frozenset[str]] = frozenset(
-    {"tile_mutations", "item_deltas", "entity_snapshots"}
+    {"tile_mutations", "tile_metadata", "item_deltas", "entity_snapshots", "population"}
 )
 """The only mutation-overlay tables a journal may carry."""
 
@@ -122,6 +122,10 @@ class SaveDiffJournal:
         self._compaction_threshold = compaction_threshold
         self._timestamp: int = 0
         self._tile_mutations: dict[tuple[int, int], int] = {}
+        self._tile_metadata: dict[tuple[int, int], dict[str, float | int]] = {}
+        self._population_initialized = False
+        self._population_births: dict[str, int] = {}
+        self._population_deaths: set[str] = set()
         self._item_deltas: dict[tuple[int, int], dict[str, list[str]]] = {}
         self._entity_snapshots: dict[str, dict[str, Any]] = {}
         self._event_log: list[dict[str, Any]] = []
@@ -161,6 +165,45 @@ class SaveDiffJournal:
         return dict(self._tile_mutations)
 
     @property
+    def tile_metadata(self) -> dict[tuple[int, int], dict[str, float | int]]:
+        """Explicit semantic overrides for mutated physical tiles."""
+        return {xy: dict(row) for xy, row in self._tile_metadata.items()}
+
+    @property
+    def population_initialized(self) -> bool:
+        """Whether this chunk's one-time initial population occurred."""
+        return self._population_initialized
+
+    @property
+    def population_births(self) -> dict[str, int]:
+        """Permanent birth-key to numerical-ID mapping in this chunk."""
+        return dict(self._population_births)
+
+    @property
+    def population_deaths(self) -> frozenset[str]:
+        """Birth keys permanently removed from this chunk's population."""
+        return frozenset(self._population_deaths)
+
+    def mark_population_initialized(self) -> None:
+        """Prevent regenerated or revisited chunks from respawning actors."""
+        self._population_initialized = True
+
+    def record_population_birth(self, birth_key: str, actor_id: int) -> None:
+        """Record an actual generated birth, including future dead actors."""
+        previous = self._population_births.get(birth_key)
+        if previous is not None and previous != actor_id:
+            raise ValueError(f"Conflicting birth assignment: {birth_key}")
+        if actor_id in self._population_births.values() and previous is None:
+            raise ValueError(f"Duplicate birth actor ID: {actor_id}")
+        self._population_births[birth_key] = int(actor_id)
+
+    def mark_population_death(self, birth_key: str) -> None:
+        """Retain a death tombstone without permitting future respawn."""
+        actor_id = self._population_births[birth_key]
+        self._population_deaths.add(birth_key)
+        self._entity_snapshots.pop(str(actor_id), None)
+
+    @property
     def item_deltas(self) -> dict[tuple[int, int], dict[str, list[str]]]:
         """Compacted item overlay per global tile coordinate."""
         return {
@@ -191,6 +234,8 @@ class SaveDiffJournal:
         """Whether the journal holds no physical mutations at all."""
         return not (
             self._tile_mutations
+            or self._tile_metadata
+            or self._population_initialized
             or self._item_deltas
             or self._entity_snapshots
             or self._event_log
@@ -200,13 +245,41 @@ class SaveDiffJournal:
     # Recording physical mutations
     # ------------------------------------------------------------------
 
-    def record_tile_mutation(self, x: int, y: int, tile_type_id: int) -> None:
+    def record_tile_mutation(
+        self,
+        x: int,
+        y: int,
+        tile_type_id: int,
+        *,
+        material: int | None = None,
+        traversal: int | None = None,
+        movement_cost: float | None = None,
+        wetness: int | None = None,
+        hydro: int | None = None,
+    ) -> None:
         """Record a physical tile change at global ``(x, y)``.
 
         ``tile_type_id`` is a ``GameMap`` tile id (e.g.
         ``TILE_ID_FLOOR``). Later mutations of the same tile win.
         """
         self._tile_mutations[(x, y)] = int(tile_type_id)
+        # A plain geometry mutation does not rewrite the generated
+        # sidecar. Opening a genuinely impassable generated wall requires
+        # an explicit traversal/material override from the mutation caller.
+        overrides: dict[str, float | int] = {}
+        for key, value in (
+            ("material", material),
+            ("traversal", traversal),
+            ("movement_cost", movement_cost),
+            ("wetness", wetness),
+            ("hydro", hydro),
+        ):
+            if value is not None:
+                overrides[key] = float(value) if key == "movement_cost" else int(value)
+        if overrides:
+            self._tile_metadata[(x, y)] = overrides
+        else:
+            self._tile_metadata.pop((x, y), None)
         self._append_event(
             {"kind": "tile", "x": int(x), "y": int(y), "tile_type_id": int(tile_type_id)}
         )
@@ -301,6 +374,15 @@ class SaveDiffJournal:
             "schema_version": JOURNAL_SCHEMA_VERSION,
             "chunk_id": self.chunk_id,
             "timestamp": self._timestamp,
+            "population": {
+                "initialized": self._population_initialized,
+                "births": dict(sorted(self._population_births.items())),
+                "dead": sorted(self._population_deaths),
+            },
+            "tile_metadata": {
+                _coordinate_key(x, y): dict(values)
+                for (x, y), values in sorted(self._tile_metadata.items())
+            },
             "tile_mutations": {
                 _coordinate_key(x, y): tile_type_id
                 for (x, y), tile_type_id in sorted(self._tile_mutations.items())
@@ -335,7 +417,7 @@ class SaveDiffJournal:
         if not isinstance(data, dict):
             raise ValueError(f"Journal document must be an object, got {type(data).__name__}")
         schema_version = data.get("schema_version")
-        if schema_version != JOURNAL_SCHEMA_VERSION:
+        if schema_version not in (1, JOURNAL_SCHEMA_VERSION):
             raise ValueError(
                 f"Unsupported journal schema_version: {schema_version!r} "
                 f"(expected {JOURNAL_SCHEMA_VERSION})"
@@ -353,6 +435,39 @@ class SaveDiffJournal:
         for key, tile_type_id in tile_mutations.items():
             x, y = _parse_coordinate_key(str(key))
             journal._tile_mutations[(x, y)] = int(tile_type_id)
+
+        tile_metadata = data.get("tile_metadata", {})
+        if not isinstance(tile_metadata, dict):
+            raise ValueError("tile_metadata must be an object")
+        for key, payload in tile_metadata.items():
+            xy = _parse_coordinate_key(str(key))
+            if not isinstance(payload, dict):
+                raise ValueError("tile_metadata values must be objects")
+            if any(k not in {
+                "material", "traversal", "movement_cost", "wetness", "hydro"
+            } for k in payload):
+                raise ValueError("Unknown tile_metadata semantic key")
+            if xy not in journal._tile_mutations:
+                raise ValueError("Tile metadata requires a matching tile mutation")
+            journal._tile_metadata[xy] = {
+                str(k): float(v) if k == "movement_cost" else int(v)
+                for k, v in payload.items()
+            }
+
+        population = data.get("population", {})
+        if not isinstance(population, dict):
+            raise ValueError("population must be an object")
+        journal._population_initialized = bool(population.get("initialized", False))
+        births = population.get("births", {})
+        dead = population.get("dead", [])
+        if not isinstance(births, dict) or not isinstance(dead, list):
+            raise ValueError("Malformed population tracking")
+        for birth_key, actor_id in births.items():
+            journal.record_population_birth(str(birth_key), int(actor_id))
+        for birth_key in dead:
+            if not isinstance(birth_key, str) or birth_key not in births:
+                raise ValueError("Death tombstone lacks a matching birth")
+            journal._population_deaths.add(birth_key)
 
         item_deltas = data.get("item_deltas", {})
         if not isinstance(item_deltas, dict):
@@ -512,47 +627,35 @@ class SaveDiffJournal:
         viewport_origin_x: int = 0,
         viewport_origin_y: int = 0,
     ) -> int:
-        """Write the tile overlay into a viewport ``GameMap``.
+        """Overlay explicit physical mutations onto a generated viewport.
 
-        ``viewport_origin_x``/``viewport_origin_y`` are the global
-        coordinates of the viewport's ``(0, 0)`` tile, matching
-        :func:`game.world.surface_materializer.apply_materialized_chunk`.
-        Mutations outside the viewport are ignored. Returns the number
-        of tiles written.
+        Geometry alone never changes the immutable generated material,
+        traversal, hydrology or movement cost. Callers must record semantic
+        overrides when a mutation truly changes those properties; applying
+        the journal multiple times is therefore idempotent.
         """
         written = 0
+        metadata = game_map.overland_metadata
+        grid_names = {
+            "material": "material_grid",
+            "traversal": "traversal_class_grid",
+            "movement_cost": "movement_cost_grid",
+            "wetness": "wetness_grid",
+            "hydro": "hydro_grid",
+        }
         for (gx, gy), tile_type_id in self._tile_mutations.items():
             lx = gx - viewport_origin_x
             ly = gy - viewport_origin_y
-            if 0 <= lx < game_map.width and 0 <= ly < game_map.height:
-                game_map.tiles[ly, lx] = tile_type_id
-                # Mutated geometry must update the semantic traversal layer,
-                # otherwise a new opening still behaves like the old wall.
-                metadata = game_map.overland_metadata
-                if metadata is not None:
-                    from common.constants import Material
-                    from game.world.game_map import TILE_TYPES
-                    from worldgen.overland.schema import TraversalClass
-
-                    tile = TILE_TYPES.get(int(tile_type_id))
-                    if tile is not None:
-                        if tile.walkable:
-                            was_blocked = metadata.traversal_class_grid[ly, lx] == int(
-                                TraversalClass.BLOCKED
-                            )
-                            metadata.traversal_class_grid[ly, lx] = int(
-                                TraversalClass.NORMAL
-                            )
-                            if was_blocked:
-                                metadata.material_grid[ly, lx] = int(Material.DOOR_OPEN)
-                            metadata.movement_cost_grid[ly, lx] = 1.0
-                        else:
-                            metadata.traversal_class_grid[ly, lx] = int(
-                                TraversalClass.BLOCKED
-                            )
-                            metadata.material_grid[ly, lx] = int(Material.STONE_WALL)
-                            metadata.movement_cost_grid[ly, lx] = float("inf")
-                written += 1
+            if not (0 <= lx < game_map.width and 0 <= ly < game_map.height):
+                continue
+            if int(tile_type_id) not in TILE_TYPES:
+                raise ValueError(f"Unknown tile type ID {tile_type_id}")
+            game_map.tiles[ly, lx] = tile_type_id
+            if metadata is not None:
+                for key, value in self._tile_metadata.get((gx, gy), {}).items():
+                    grid = getattr(metadata, grid_names[key])
+                    grid[ly, lx] = value
+            written += 1
         if written:
             game_map.update_tile_transparency()
         return written
