@@ -401,9 +401,7 @@ class SurfacePopulationPlanner:
         from game.world.registry_actor_store import EntityRegistryActorStore
 
         if journal is None and isinstance(self._store, EntityRegistryActorStore):
-            raise ValueError(
-                "Production surface population requires its chunk journal"
-            )
+            raise ValueError("Production surface population requires its chunk journal")
         if journal is not None:
             if journal.chunk_id != chunk_key:
                 raise ValueError("Population journal belongs to a different chunk")
