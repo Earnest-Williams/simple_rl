@@ -330,6 +330,8 @@ class InMemoryActorStore:
     def spawn_actor(self, snapshot: dict[str, Any]) -> None:
         """Re-create an actor from a snapshot, keeping its stable ID."""
         actor_id = int(snapshot[ACTOR_ID_KEY])
+        if actor_id in self._actors:
+            raise ValueError(f"Actor {actor_id} is already active")
         self._actors[actor_id] = dict(snapshot)
 
     def move_actor(self, actor_id: int, x: int, y: int) -> bool:
