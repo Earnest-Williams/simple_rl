@@ -49,7 +49,7 @@ class SurfaceIdentityLedger:
     @staticmethod
     def _candidate(birth_key: str, salt: int) -> int:
         digest = hashlib.sha256(
-            f"surface-birth:{birth_key}:{salt}".encode("utf-8")
+            f"surface-birth:{birth_key}:{salt}".encode()
         ).digest()
         return 0x80000000 | (int.from_bytes(digest[:4], "big") & 0x7FFFFFFF)
 
