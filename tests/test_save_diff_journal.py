@@ -106,6 +106,26 @@ def test_legacy_stdlib_json_primary_is_readable_and_rewritten_by_orjson() -> Non
         assert reloaded.entity_snapshots == old.entity_snapshots
 
 
+def test_orjson_nonfinite_movement_cost_and_legacy_infinity() -> None:
+    """Blocked tiles keep infinite costs across both serializer formats."""
+    journal = SaveDiffJournal(0, 0)
+    journal.record_tile_mutation(2, 2, TILE_ID_WALL, movement_cost=float("inf"))
+    encoded = journal.to_json()
+    assert "__surface_nonfinite_float__" in encoded
+    assert "null" not in encoded
+    assert SaveDiffJournal.from_json(encoded).tile_metadata[(2, 2)][
+        "movement_cost"
+    ] == float("inf")
+
+    # Stdlib's original JSON encoder emitted a non-standard Infinity token,
+    # which orjson intentionally rejects; older saves must still load.
+    older = json.dumps(journal.to_dict())
+    assert '"movement_cost": Infinity' in older
+    assert SaveDiffJournal.from_json(older).tile_metadata[(2, 2)][
+        "movement_cost"
+    ] == float("inf")
+
+
 def test_save_diff_journal_negative_coordinates_and_z_layers() -> None:
     """Journals work for negative chunks and stacked Z planes."""
     with _temp_save_dir() as saves:
