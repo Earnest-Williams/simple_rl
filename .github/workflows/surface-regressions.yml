@@ -20,6 +20,10 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
+      - name: Install headless Qt shared libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libopengl0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
