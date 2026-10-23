@@ -170,8 +170,6 @@ def test_batch_collision_probe_and_failed_flush_roll_back(
         reloaded = SurfaceIdentityLedger.load_or_create(directory)
         assert all(reloaded.id_for(key) == value for key, value in assigned.items())
 
-    ledger = CollidingLedger()
-
     def fail_flush(target: str | Path) -> Path:
         raise OSError("disk full")
 
