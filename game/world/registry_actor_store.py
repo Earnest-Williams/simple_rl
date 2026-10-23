@@ -14,7 +14,7 @@ state (HP, stats, resources, equipped items).
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from game.entities.registry import EntityRegistry
@@ -61,8 +61,13 @@ _SNAPSHOT_COMPONENTS: tuple[str, ...] = (
 class EntityRegistryActorStore:
     """``ActorStore`` implementation over the production registry."""
 
-    def __init__(self, registry: "EntityRegistry") -> None:
+    def __init__(
+        self, registry: "EntityRegistry", *, viewport_origin_x: int = 0,
+        viewport_origin_y: int = 0,
+    ) -> None:
         self._registry = registry
+        self._origin_x = int(viewport_origin_x)
+        self._origin_y = int(viewport_origin_y)
 
     def active_actor_ids(self) -> list[int]:
         """Return every active entity ID (registry-index backed)."""
@@ -78,6 +83,12 @@ class EntityRegistryActorStore:
         )
         snapshot: dict[str, Any] = {ACTOR_ID_KEY: int(actor_id)}
         for name, value in components.items():
+            if name == "x":
+                snapshot[name] = int(value) + self._origin_x
+                continue
+            if name == "y":
+                snapshot[name] = int(value) + self._origin_y
+                continue
             if name == "surface_actor_state":
                 if isinstance(value, dict):
                     snapshot.update(_plain_value(value))
@@ -99,8 +110,8 @@ class EntityRegistryActorStore:
         ]
         self._registry.create_entity(
             entity_id=entity_id,
-            x=int(snapshot["x"]),
-            y=int(snapshot["y"]),
+            x=int(snapshot["x"]) - self._origin_x,
+            y=int(snapshot["y"]) - self._origin_y,
             glyph=int(snapshot["glyph"]),
             color_fg=(
                 int(snapshot["color_fg_r"]),
@@ -142,7 +153,9 @@ class EntityRegistryActorStore:
 
     def is_tile_blocked(self, x: int, y: int) -> bool:
         """Whether a movement-blocking entity occupies the tile."""
-        return self._registry.get_blocking_entity_at(x, y) is not None
+        return self._registry.get_blocking_entity_at(
+            x - self._origin_x, y - self._origin_y
+        ) is not None
 
     def move_actor(self, actor_id: int, x: int, y: int) -> bool:
         """Move an active actor to a behavior-validated tile.
@@ -159,7 +172,9 @@ class EntityRegistryActorStore:
             return False
         return bool(
             self._registry.set_position(
-                actor_id, Position(x=int(x), y=int(y))
+                actor_id, Position(
+                    x=int(x) - self._origin_x, y=int(y) - self._origin_y
+                )
             )
         )
 
