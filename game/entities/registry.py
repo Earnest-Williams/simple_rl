@@ -465,6 +465,12 @@ class EntityRegistry:
             is_walkable=is_walkable,
         )
 
+    def active_ids_in_rect(
+        self, x0: int, y0: int, x1: int, y1: int
+    ) -> list[int]:
+        """Return IDs in local viewport coordinates via a vectorized mask."""
+        return self._store.active_ids_in_rect(x0, y0, x1, y1)
+
     def active_indices(self) -> np.ndarray:
         return self._store.active_indices()
 
