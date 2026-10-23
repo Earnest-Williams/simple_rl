@@ -526,6 +526,28 @@ class SaveDiffJournal:
             ly = gy - viewport_origin_y
             if 0 <= lx < game_map.width and 0 <= ly < game_map.height:
                 game_map.tiles[ly, lx] = tile_type_id
+                # Mutated geometry must update the semantic traversal layer,
+                # otherwise a new opening still behaves like the old wall.
+                metadata = game_map.overland_metadata
+                if metadata is not None:
+                    from common.constants import Material
+                    from game.world.game_map import TILE_TYPES
+                    from worldgen.overland.schema import TraversalClass
+
+                    tile = TILE_TYPES.get(int(tile_type_id))
+                    if tile is not None:
+                        if tile.walkable:
+                            metadata.traversal_class_grid[ly, lx] = int(
+                                TraversalClass.NORMAL
+                            )
+                            metadata.material_grid[ly, lx] = int(Material.DOOR_OPEN)
+                            metadata.movement_cost_grid[ly, lx] = 1.0
+                        else:
+                            metadata.traversal_class_grid[ly, lx] = int(
+                                TraversalClass.BLOCKED
+                            )
+                            metadata.material_grid[ly, lx] = int(Material.STONE_WALL)
+                            metadata.movement_cost_grid[ly, lx] = float("inf")
                 written += 1
         if written:
             game_map.update_tile_transparency()
