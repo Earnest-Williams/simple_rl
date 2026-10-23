@@ -4,7 +4,7 @@ Concrete implementations matching EntityRegistry patterns.
 All functions fully typed with explicit signatures.
 
 Thread safety: All public mutation APIs acquire registry._skills_lock when present.
-See CONCURRENCY.md for lock usage patterns and batch operation recommendations.
+See skills/Concurrency.md for lock usage patterns and batch operation recommendations.
 """
 
 from __future__ import annotations

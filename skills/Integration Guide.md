@@ -386,7 +386,7 @@ def evaluate_attack_utility(
 
 **Problem**: Race conditions when multiple threads award XP.
 
-**Solution**: Use `registry._skills_lock` for all write operations. See `CONCURRENCY.md`.
+**Solution**: Use `registry._skills_lock` for all write operations. See `skills/Concurrency.md`.
 
 ### Pitfall 3: Numba Compilation Lag
 
@@ -437,7 +437,7 @@ If issues arise during migration:
 
 After successful integration:
 
-- [ ] Update `SYSTEMS_INVENTORY.md` with skill system entry
+- [ ] Update `docs/Systems Inventory.md` with skill system entry
 - [ ] Add skill system to `README.md` features list
 - [ ] Document skill commands in player guide
 - [ ] Add skill screen keybindings to `keybindings.toml`
@@ -460,8 +460,7 @@ Once core system is stable:
 
 **Questions?** Check:
 1. `skills/README.md` - API documentation
-2. `skills/CONCURRENCY.md` - Thread safety
-3. `skills/test_parity.py` - Integration examples
+2. `skills/Concurrency.md` - Thread safety
 
 **Issues?** Verify:
 1. Numba warmup called

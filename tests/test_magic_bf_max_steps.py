@@ -77,3 +77,33 @@ def test_pure_fallback_starts_from_clean_tape(
         RUNAWAY_PROGRAM, max_steps=MAX_STEPS, deterministic=True, use_numba=True
     )
     assert result.output == "\x00"
+
+
+SANDBOX_JIT_STEPS: Final[int] = 10_000_000  # ~25 ms compiled; ~1.6 s CPU in pure Python
+SANDBOX_KILL_STEPS: Final[int] = 60_000_000  # pure Python far beyond 1 s of CPU
+
+
+def test_sandbox_runs_numba_core_within_cpu_budget() -> None:
+    result = bf.run_brainfuck(
+        "+[]",
+        max_steps=SANDBOX_JIT_STEPS,
+        use_numba=True,
+        sandbox_mode="always",
+        sandbox_wall_time_s=20.0,
+        sandbox_cpu_time_s=1,
+    )
+    assert result.error == "max_steps_exceeded"
+    assert result.steps == SANDBOX_JIT_STEPS
+
+
+def test_sandbox_worker_killed_by_cpu_limit_reports_failure() -> None:
+    result = bf.run_brainfuck(
+        "+[]",
+        max_steps=SANDBOX_KILL_STEPS,
+        use_numba=False,
+        sandbox_mode="always",
+        sandbox_wall_time_s=20.0,
+        sandbox_cpu_time_s=1,
+    )
+    assert result.error == "sandbox_execution_failed"
+    assert not result.success

@@ -9,8 +9,8 @@ change.
 
 | File | Consumer | Shape and notes |
 | --- | --- | --- |
-| `config/config.yaml` | `tools/play_from_arrow.py`, `engine/window_manager.py`, rendering and gameplay setup | Main application settings. Top-level keys include tileset path and tile size, map dimensions, dungeon seed, player settings, engine toggles, lighting, memory fade, height visualization, gameplay rules, and AI defaults. |
-| `config/keybindings.toml` | `tools/play_from_arrow.py`, `engine/window_manager_modules/input_handler.py` | TOML table of active keybindings. The input handler reads the `bindings` table and maps configured keys to movement or UI actions. |
+| `config/config.yaml` | `tools/play_game.py`, `engine/window_manager.py`, rendering and gameplay setup | Main application settings. Top-level keys include tileset path and tile size, map dimensions, dungeon seed, player settings, engine toggles, lighting, memory fade, height visualization, gameplay rules, and AI defaults. |
+| `config/keybindings.toml` | `tools/play_game.py`, `engine/window_manager_modules/input_handler.py` | TOML table of active keybindings. The input handler reads the `bindings` table and maps configured keys to movement or UI actions. |
 | `config/overlays.toml` | `engine/window_manager_modules/ui_overlay_manager.py` | Optional UI overlay definitions. The manager reads repeated `overlay` entries for text or image overlays with position and display settings. |
 | `config/sounds.yaml` | `game/systems/sound.py` | Sound-event and music configuration. Supports file-backed and generated effects, per-effect settings, volume, pitch variation, conditions, and ambience/music settings. |
 | `config/ai_mappings.yaml` | AI configuration loaded into game state and read by `game/systems/ai_system.py` | Maps entity `species` values to AI adapters and `intelligence` tiers to GOAP planning depth. |

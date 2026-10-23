@@ -66,7 +66,7 @@ Production rendering, light-aware FOV, and memory behavior live under
 
 | Task | Command | Notes |
 | --- | --- | --- |
-| Play a generated Arrow map | `python tools/play_from_arrow.py generated_dungeon.arrow` | Uses `config/config.yaml` and `config/keybindings.toml`. |
+| Play a generated Arrow map | `python tools/play_game.py --arrow generated_dungeon.arrow --mode gui` | Uses `config/config.yaml` and `config/keybindings.toml`. |
 | Run lighting/FOV visual tool | `python -m tools.lighting_fov_tool.main` | Requires GUI support. |
 
 ## Asset generation

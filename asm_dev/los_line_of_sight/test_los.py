@@ -2,7 +2,7 @@ import numpy as np
 from los_wrapper import los_many  # Replace with actual filename
 
 
-def test_los_bounds():
+def test_los_bounds() -> None:
     # 10x10 map, completely transparent
     transparency = np.ones((10, 10), dtype=np.uint8)
 
@@ -22,10 +22,7 @@ def test_los_bounds():
 
     expected = np.array([0, 0, 1], dtype=np.uint8)
 
-    if np.array_equal(results, expected):
-        print("ABI mapping and LOS execution successful.")
-    else:
-        print(f"Failed. Expected {expected}, got {results}")
+    np.testing.assert_array_equal(results, expected)
 
 
 if __name__ == "__main__":

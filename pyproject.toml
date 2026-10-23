@@ -33,9 +33,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
-    "mypy==1.8.0",
+    "mypy==1.15.0",
     "black==24.1.0",
-    "ruff==0.5.12",
+    "ruff==0.5.7",
     "pyupgrade>=3.4.1",
     "PyYAML>=6.0",
     "types-PyYAML>=6.0",
