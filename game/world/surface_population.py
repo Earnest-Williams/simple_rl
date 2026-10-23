@@ -444,34 +444,47 @@ class SurfacePopulationPlanner:
                 for actor_id in journal.entity_snapshots
                 if actor_id.isdecimal()
             )
+        # Plan tiles before allocating IDs. Local reservations prevent
+        # duplicate placements in a chunk before actors reach the ECS.
+        planned: list[
+            tuple[str, ActorTemplate, SurfaceSpawnAnchor, int, int]
+        ] = []
+        reserved_tiles: set[tuple[int, int]] = set()
         for entry_index, entry in enumerate(roster):
             template = TEMPLATE_LIBRARY[entry.template_id]
             for ordinal in range(entry.count):
-                birth_key = self._birth_key(chunk_key, entry_index, ordinal)
-                tile = self._find_spawn_tile(entry.anchor, template)
+                tile = self._find_spawn_tile(
+                    entry.anchor, template, reserved_tiles=reserved_tiles
+                )
                 if tile is None:
                     continue
-                actor_id = self._ledger.reserve(birth_key, occupied_ids=reserved)
-                if actor_id in active_ids:
-                    active = self._store.snapshot_actor(actor_id)
-                    if active.get("birth_key") != birth_key:
-                        raise ValueError(f"Conflicting generated actor ID {actor_id}")
-                    continue
-                snapshot = _build_snapshot(
-                    template,
-                    actor_id,
-                    tile[0],
-                    tile[1],
-                    chunk_key,
-                    entry.anchor,
-                    birth_key,
+                reserved_tiles.add(tile)
+                birth_key = self._birth_key(chunk_key, entry_index, ordinal)
+                planned.append(
+                    (birth_key, template, entry.anchor, tile[0], tile[1])
                 )
-                self._store.spawn_actor(snapshot)
-                active_ids.add(actor_id)
-                reserved.add(actor_id)
-                if journal is not None:
-                    journal.record_population_birth(birth_key, actor_id)
-                placed.append(actor_id)
+
+        # This is the only ledger disk write for the entire chunk, and
+        # it completes before the first newly reserved actor is spawned.
+        assignments = self._ledger.reserve_many(
+            (birth_key for birth_key, _, _, _, _ in planned),
+            occupied_ids=reserved,
+        )
+        for birth_key, template, anchor, x, y in planned:
+            actor_id = assignments[birth_key]
+            if actor_id in active_ids:
+                active = self._store.snapshot_actor(actor_id)
+                if active.get("birth_key") != birth_key:
+                    raise ValueError(f"Conflicting generated actor ID {actor_id}")
+                continue
+            snapshot = _build_snapshot(
+                template, actor_id, x, y, chunk_key, anchor, birth_key
+            )
+            self._store.spawn_actor(snapshot)
+            active_ids.add(actor_id)
+            if journal is not None:
+                journal.record_population_birth(birth_key, actor_id)
+            placed.append(actor_id)
         if journal is not None:
             journal.mark_population_initialized()
         self._populated_chunks.add(chunk_key)
@@ -486,7 +499,11 @@ class SurfacePopulationPlanner:
         )
 
     def _find_spawn_tile(
-        self, anchor: SurfaceSpawnAnchor, template: ActorTemplate
+        self,
+        anchor: SurfaceSpawnAnchor,
+        template: ActorTemplate,
+        *,
+        reserved_tiles: set[tuple[int, int]] | None = None,
     ) -> tuple[int, int] | None:
         """Nearest valid, unoccupied tile for ``template`` at ``anchor``.
 
@@ -507,6 +524,8 @@ class SurfacePopulationPlanner:
                     ):
                         continue
                     if self._store.is_tile_blocked(tx, ty):
+                        continue
+                    if reserved_tiles is not None and (tx, ty) in reserved_tiles:
                         continue
                     return (tx, ty)
         return None
