@@ -42,8 +42,8 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from collections.abc import Callable
-from typing import Any, Final, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any, Final
 
 from game.world.lod_hydration import ACTOR_ID_KEY, ActorStore
 from game.world.save_diff_journal import SaveDiffJournal
@@ -282,7 +282,7 @@ class SeedStream:
         if modulo < 1:
             raise ValueError(f"modulo must be >= 1, got {modulo}")
         digest = hashlib.sha256(
-            f"{self._label}:{self._counter}".encode("utf-8")
+            f"{self._label}:{self._counter}".encode()
         ).digest()
         self._counter += 1
         return int.from_bytes(digest[:8], "big") % modulo
