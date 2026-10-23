@@ -113,3 +113,42 @@ def test_hydration_relocation_respects_chunk_and_terrain() -> None:
     )
     assert manager.hydrate_chunk_entities(journal, 0, 0) == [500]
     assert (store.actor(500)["x"], store.actor(500)["y"]) == (1, 1)
+
+def test_journal_updates_material_traversal_with_wall_geometry() -> None:
+    from game.world.surface_materializer import ensure_surface_metadata
+    from worldgen.overland.schema import TraversalClass
+
+    game_map = GameMap(width=4, height=4)
+    game_map.tiles[:, :] = TILE_ID_FLOOR
+    metadata = ensure_surface_metadata(game_map)
+    context = SurfaceContext(game_map)
+    profile = ActorTraversalProfile.HUMAN_ON_FOOT
+    assert context.can_walk(profile, 1, 1)
+    journal = SaveDiffJournal(0, 0)
+    journal.record_tile_mutation(1, 1, TILE_ID_WALL)
+    assert journal.apply_tile_mutations(game_map) == 1
+    assert not context.can_walk(profile, 1, 1)
+    assert int(metadata.traversal_class_grid[1, 1]) == int(TraversalClass.BLOCKED)
+    journal.record_tile_mutation(1, 1, TILE_ID_FLOOR)
+    journal.apply_tile_mutations(game_map)
+    assert context.can_walk(profile, 1, 1)
+
+
+def test_production_adapter_world_origin_preserves_global_snapshot() -> None:
+    registry = EntityRegistry()
+    store = EntityRegistryActorStore(
+        registry, viewport_origin_x=-16, viewport_origin_y=32
+    )
+    store.spawn_actor({
+        "actor_id": 99, "x": -12, "y": 35, "name": "otter",
+        "glyph": 111, "color_fg_r": 4, "color_fg_g": 5,
+        "color_fg_b": 6, "blocks_movement": True, "hp": 5,
+        "max_hp": 5, "behavior": "seek_water",
+    })
+    assert registry.get_position(99).x == 4
+    assert registry.get_position(99).y == 3
+    assert store.snapshot_actor(99)["x"] == -12
+    assert store.snapshot_actor(99)["y"] == 35
+    assert store.move_actor(99, -11, 36)
+    assert registry.get_position(99).x == 5
+    assert store.snapshot_actor(99)["y"] == 36
