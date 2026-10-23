@@ -35,6 +35,7 @@ bridges the production ``EntityRegistry``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Final, Protocol, runtime_checkable
 
 from game.world.save_diff_journal import SaveDiffJournal
