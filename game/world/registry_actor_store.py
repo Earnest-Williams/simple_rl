@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from game.world.lod_hydration import ACTOR_ID_KEY
+from game.world.surface_population import KNOWN_BEHAVIORS
 from skills.models import (
     ManualBonus,
     Skill,
@@ -104,8 +105,7 @@ class EntityRegistryActorStore:
         return (
             isinstance(state, dict)
             and isinstance(state.get("template_id"), str)
-            and state.get("behavior")
-            in {"wander", "seek_water", "forage", "anchor_leash"}
+            and state.get("behavior") in KNOWN_BEHAVIORS
         )
 
     def active_actor_ids(self) -> list[int]:
