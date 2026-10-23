@@ -193,14 +193,17 @@ class InMemoryPromiseSource:
         )
         overlapping: list[RegionalPromise] = []
         for promise in self._promises:
-            if self._promise_kind_needs_geometry(promise):
+            if promise.kind == SurfaceFeatureKind.SPRING:
+                rect = (
+                    promise.anchor_x - 3, promise.anchor_y - 3,
+                    promise.anchor_x + 4, promise.anchor_y + 4,
+                )
+            elif self._promise_kind_needs_geometry(promise):
                 rect = promise.global_rect(chunk_size=self._chunk_size)
             else:
                 rect = (
-                    promise.anchor_x,
-                    promise.anchor_y,
-                    promise.anchor_x + 1,
-                    promise.anchor_y + 1,
+                    promise.anchor_x, promise.anchor_y,
+                    promise.anchor_x + 1, promise.anchor_y + 1,
                 )
             if self._rects_overlap(rect, chunk_rect):
                 overlapping.append(promise)
@@ -1161,10 +1164,19 @@ def apply_materialized_chunk(
     metadata.movement_cost_grid[
         offset_y : offset_y + size, offset_x : offset_x + size
     ] = materialized.movement_cost
-    for coordinate, rows in materialized.transitions.items():
-        metadata.transitions.setdefault(coordinate, []).extend(rows)
-    for coordinate, rows in materialized.affordances.items():
-        metadata.affordances.setdefault(coordinate, []).extend(rows)
+    # Replace, rather than extend, per-tile metadata on re-application.
+    for mapping, incoming in (
+        (metadata.transitions, materialized.transitions),
+        (metadata.affordances, materialized.affordances),
+    ):
+        for key in list(mapping):
+            if (
+                materialized.origin_x <= key[0] < materialized.origin_x + size
+                and materialized.origin_y <= key[1] < materialized.origin_y + size
+            ):
+                del mapping[key]
+        for coordinate, rows in incoming.items():
+            mapping[coordinate] = list(rows)
     if materialized.player_start is not None:
         metadata.starting_contract["player_start"] = [
             materialized.player_start[0],
