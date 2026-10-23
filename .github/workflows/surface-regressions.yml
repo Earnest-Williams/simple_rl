@@ -28,8 +28,38 @@ jobs:
         run: >
           python -m pytest -q
           tests/test_surface_production_regressions.py
+          tests/test_surface_lifecycle_integration.py
           tests/test_lod_hydration.py
           tests/test_surface_context.py
           tests/test_surface_materializer.py
           tests/test_save_diff_journal.py
           tests/test_surface_population.py
+      - name: Run remaining test suite (known broken window test excluded)
+        if: always()
+        run: python -m pytest -q --ignore=tests/test_window_manager_height_toggle.py
+      - name: Check Black formatting in changed surface files
+        if: always()
+        run: >
+          python -m black --check
+          game/entities/store.py game/entities/registry.py
+          game/world/registry_actor_store.py game/world/lod_hydration.py
+          game/world/surface_population.py game/world/surface_materializer.py
+          game/world/surface_context.py game/world/save_diff_journal.py
+          game/world/surface_identity.py
+          tests/test_surface_production_regressions.py
+          tests/test_surface_lifecycle_integration.py
+      - name: Ruff lint changed surface files
+        if: always()
+        run: >
+          python -m ruff check
+          game/entities/store.py game/entities/registry.py
+          game/world/registry_actor_store.py game/world/lod_hydration.py
+          game/world/surface_population.py game/world/surface_materializer.py
+          game/world/surface_context.py game/world/save_diff_journal.py
+          game/world/surface_identity.py
+          tests/test_surface_production_regressions.py
+          tests/test_surface_lifecycle_integration.py
+      - name: Type-check repository (legacy baseline reported separately)
+        if: always()
+        continue-on-error: true
+        run: python -m mypy .
