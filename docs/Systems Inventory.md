@@ -195,7 +195,7 @@ The most important and sophisticated component - generates 3D cave networks and 
 - Height-based movement costs (0.5x multiplier)
 - Diagonal movement: sqrt(2) ≈ 1.414
 - Numba-accelerated core algorithms
-- Efficient priority queue (heapq)
+- Indexed binary heap with decrease-key (`worldgen/kernels/heap.py`) inside the Numba Dijkstra kernel
 - Memory-efficient flow vectors (int8)
 
 **Use Case:** AI pathfinding, monster movement

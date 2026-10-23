@@ -28,4 +28,9 @@ Each subfolder typically contains:
 
 ## Status
 
+| Port | State |
+| --- | --- |
+| `los_line_of_sight/` | Promoted. The maintained kernel, wrapper, and Makefile live in `utils/los/`; build `liblos.so` there with `make -C utils/los`. Without the library, `utils.los.los_wrapper.los_many` uses a Numba implementation verified identical to the assembly kernel. This staging copy is kept for reference; without its own `liblos.so` it delegates to `utils.los`. |
+
+
 ⚠️ **Note**: Code in this directory should be considered **unstable** and for development purposes only. Use production releases for stable, performance-critical implementations.
