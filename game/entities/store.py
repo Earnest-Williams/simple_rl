@@ -92,7 +92,7 @@ class EntityStore:
         self.extra_components: list[dict[str, object]] = [{} for _ in range(capacity)]
 
         # Occupancy grid
-        self.blocking_entity_at = np.full((0, 0), -1, dtype=np.int32)
+        self.blocking_entity_at = np.full((0, 0), -1, dtype=np.int64)
         self.occupancy_width = 0
         self.occupancy_height = 0
 
@@ -447,7 +447,7 @@ class EntityStore:
     def ensure_occupancy_shape(self, width: int, height: int) -> None:
         if self.blocking_entity_at.shape == (height, width):
             return
-        self.blocking_entity_at = np.full((height, width), -1, dtype=np.int32)
+        self.blocking_entity_at = np.full((height, width), -1, dtype=np.int64)
         self.occupancy_width = width
         self.occupancy_height = height
         self.rebuild_occupancy()
