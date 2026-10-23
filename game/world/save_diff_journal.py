@@ -32,7 +32,9 @@ Design invariants:
 
 from __future__ import annotations
 
+import json
 import logging
+import math
 import os
 import shutil
 import time
@@ -87,6 +89,36 @@ def _parse_chunk_id(identifier: str) -> tuple[int, int, int]:
     if len(parts) != 4 or parts[0] != CHUNK_ID_PREFIX:
         raise ValueError(f"Malformed chunk identifier: {identifier!r}")
     return int(parts[1]), int(parts[2]), int(parts[3])
+
+
+_FLOAT_MARKER: Final[str] = "__surface_nonfinite_float__"
+
+
+def _encode_nonfinite(value: Any) -> Any:
+    """Preserve infinities/NaN that orjson otherwise converts to null."""
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return {_FLOAT_MARKER: "nan"}
+        return {_FLOAT_MARKER: "inf" if value > 0 else "-inf"}
+    if isinstance(value, dict):
+        return {key: _encode_nonfinite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_encode_nonfinite(item) for item in value]
+    return value
+
+
+def _decode_nonfinite(value: Any) -> Any:
+    """Restore nonfinite floats from tagged orjson-compatible values."""
+    if isinstance(value, dict):
+        if set(value) == {_FLOAT_MARKER}:
+            marker = value[_FLOAT_MARKER]
+            if marker not in {"inf", "-inf", "nan"}:
+                raise ValueError("Invalid nonfinite float encoding")
+            return float(marker)
+        return {key: _decode_nonfinite(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode_nonfinite(item) for item in value]
+    return value
 
 
 class SaveDiffJournal:
@@ -417,7 +449,8 @@ class SaveDiffJournal:
     def _serialize_bytes(self) -> bytes:
         """Produce encoded bytes directly for efficient atomic persistence."""
         return orjson.dumps(
-            self.to_dict(), option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2
+            _encode_nonfinite(self.to_dict()),
+            option=orjson.OPT_SORT_KEYS | orjson.OPT_INDENT_2,
         )
 
     @classmethod
@@ -516,7 +549,14 @@ class SaveDiffJournal:
     @classmethod
     def from_json(cls, text: str | bytes) -> SaveDiffJournal:
         """Rebuild a journal from JSON text or bytes (including old saves)."""
-        return cls.from_dict(orjson.loads(text))
+        try:
+            document = orjson.loads(text)
+        except orjson.JSONDecodeError:
+            # Pre-orjson saves may contain stdlib JSON's non-standard
+            # Infinity / -Infinity / NaN tokens. Read these once for
+            # backwards compatibility; all new writes use tagged values.
+            document = json.loads(text)
+        return cls.from_dict(_decode_nonfinite(document))
 
     # ------------------------------------------------------------------
     # Storage paths
