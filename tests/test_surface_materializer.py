@@ -48,9 +48,7 @@ def _materializer(
     )
 
 
-def _material_at_global(
-    materialized: MaterializedChunk, gx: int, gy: int
-) -> int:
+def _material_at_global(materialized: MaterializedChunk, gx: int, gy: int) -> int:
     lx = gx - materialized.origin_x
     ly = gy - materialized.origin_y
     return int(materialized.materials[ly, lx])
@@ -159,9 +157,7 @@ def test_surface_materializer_road_template_and_stitching() -> None:
     assert road_tiles.count(int(Material.GRASS)) > 0
 
     # Roads stay walkable and cheaper than base terrain.
-    west_view = _apply_viewport(
-        materializer, [(0, 0)], width=_CHUNK, height=_CHUNK
-    )
+    west_view = _apply_viewport(materializer, [(0, 0)], width=_CHUNK, height=_CHUNK)
     context = SurfaceContext(west_view)
     assert context.can_walk(ActorTraversalProfile.HUMAN_ON_FOOT, 5, 8)
 
@@ -247,10 +243,7 @@ def test_surface_materializer_harbor_footprint() -> None:
     # Dock-route transition resolved at the west edge midpoint.
     transitions = [chunk.transitions for chunk in chunks if chunk.transitions]
     assert transitions
-    assert any(
-        (0, 16) in chunk.transitions
-        for chunk in chunks
-    )
+    assert any((0, 16) in chunk.transitions for chunk in chunks)
 
     # Human settlement anchor exists and is valid for spawning once
     # applied to a viewport.
@@ -306,9 +299,7 @@ def test_surface_materializer_forest_template() -> None:
     )
     assert any(prop.kind == "fallen_log" for prop in chunk.props)
     assert any(
-        "forage" in str(row)
-        for rows in chunk.affordances.values()
-        for row in rows
+        "forage" in str(row) for rows in chunk.affordances.values() for row in rows
     )
 
 
@@ -324,26 +315,39 @@ def test_surface_materializer_ruin_template() -> None:
         ],
         chunk_size=_CHUNK,
     )
-    chunk = _materializer(source, debris_fraction=0.0).materialize_chunk(0, 0)
+    materializer = _materializer(source, debris_fraction=0.0)
+    chunk = materializer.materialize_chunk(0, 0)
 
     walls = int(np.sum(chunk.materials == int(Material.RUIN_WALL)))
     floors = int(np.sum(chunk.materials == int(Material.RUIN_FLOOR)))
     assert walls > 0
     assert floors > 0
 
+    # Ruins are 20-30 tiles wide, so the door, chests and hazards can land in
+    # neighbouring chunks. Feature-level checks look at every chunk the ruin
+    # can cover (anchor 2 + max width 30 spans chunks 0..2 at size 16).
+    ruin_chunks = [
+        materializer.materialize_chunk(cx, cy) for cy in range(3) for cx in range(3)
+    ]
+
     # Locked iron door on the north wall midpoint.
-    door = [prop for prop in chunk.props if prop.kind == "iron_door"]
-    assert len(door) == 1
-    lx, ly = door[0].x - chunk.origin_x, door[0].y - chunk.origin_y
-    assert chunk.materials[ly, lx] == int(Material.DOOR_CLOSED)
-    assert chunk.blocked[ly, lx]
+    doors = [
+        (prop, door_chunk)
+        for door_chunk in ruin_chunks
+        for prop in door_chunk.props
+        if prop.kind == "iron_door"
+    ]
+    assert len(doors) == 1
+    door, door_chunk = doors[0]
+    assert door.y == 2  # north wall of a ruin anchored at y=2
+    lx, ly = door.x - door_chunk.origin_x, door.y - door_chunk.origin_y
+    assert door_chunk.materials[ly, lx] == int(Material.DOOR_CLOSED)
+    assert door_chunk.blocked[ly, lx]
 
     # Perimeter has collapsed gaps: wall-band positions on the north
     # and west lines (the promise anchors at (2, 2)) that the crumbling
     # pass skipped, leaving walkable interior floor as an entry.
-    band_lines = [(2, x) for x in range(2, _CHUNK)] + [
-        (y, 2) for y in range(3, _CHUNK)
-    ]
+    band_lines = [(2, x) for x in range(2, _CHUNK)] + [(y, 2) for y in range(3, _CHUNK)]
     gaps = [
         (y, x)
         for y, x in band_lines
@@ -355,9 +359,18 @@ def test_surface_materializer_ruin_template() -> None:
 
     # Chests are destructible; hazard anchors include a trap and a
     # monster spawner.
-    chests = [prop for prop in chunk.props if prop.kind == "chest"]
+    chests = [
+        prop
+        for ruin_chunk in ruin_chunks
+        for prop in ruin_chunk.props
+        if prop.kind == "chest"
+    ]
     assert chests and all(prop.destructible for prop in chests)
-    kinds = {anchor.kind for anchor in chunk.hazard_anchors}
+    kinds = {
+        anchor.kind
+        for ruin_chunk in ruin_chunks
+        for anchor in ruin_chunk.hazard_anchors
+    }
     assert kinds == {"trap", "monster_spawner"}
 
     # Shelter reads through the Phase 2 seam once applied.

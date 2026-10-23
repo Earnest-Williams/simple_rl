@@ -16,9 +16,13 @@ def _py_los_many(
     ends_y: NDArray[np.int32],
     transparency_map: NDArray[np.uint8],
 ) -> NDArray[np.uint8]:
-    """Legacy unoptimized implementation for non-x86-64/Linux platforms."""
-    # Insert your original simple_rl Python LOS logic here
-    pass
+    """Delegate to the maintained implementation in utils/los/los_wrapper.py."""
+    from utils.los.los_wrapper import los_many as maintained_los_many
+
+    result: NDArray[np.uint8] = maintained_los_many(
+        starts_x, starts_y, ends_x, ends_y, transparency_map
+    )
+    return result
 
 
 # -----------------------------------------------------------------------------
@@ -46,8 +50,9 @@ try:
 
 except OSError:
     warnings.warn(
-        "Optimized x86-64 LOS library not loaded. Falling back to pure Python.",
+        "Staging liblos.so not loaded; delegating to utils.los.los_wrapper.",
         RuntimeWarning,
+        stacklevel=2,
     )
 
 
